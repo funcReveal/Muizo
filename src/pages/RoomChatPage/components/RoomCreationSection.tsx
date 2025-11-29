@@ -43,7 +43,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
 
   return (
     <>
-      <section className="border border-slate-700 rounded-xl p-4 bg-slate-900/60 backdrop-blur-sm shadow-lg shadow-slate-900/30 transition-[transform,shadow] duration-300">
+      <section className="flex flex-col w-full border border-slate-700 rounded-xl p-4 bg-slate-900/60 backdrop-blur-sm shadow-lg shadow-slate-900/30 transition-[transform,shadow] duration-300">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
             <span className="h-1.5 w-6 rounded-full bg-gradient-to-r from-sky-400 to-violet-400" />
@@ -196,7 +196,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
         </div>
       </section>
 
-      <div className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/70 divide-y divide-slate-800 shadow-inner shadow-slate-900/60">
+      <div className="flex flex-col w-full mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/70 divide-y divide-slate-800 shadow-inner shadow-slate-900/60">
         {rooms.length === 0 ? (
           <div className="p-4 text-xs text-slate-500 text-center">
             目前沒有房間，試著建立一個吧！
@@ -207,7 +207,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
             return (
               <div
                 key={room.id}
-                className={`px-3 py-2.5 flex items-center justify-between text-sm transition-colors ${
+                className={`px-3 py-2.5 flex w-1/4 items-center justify-between text-sm transition-colors duration-300 ${
                   isCurrent
                     ? "bg-slate-900/90 border-l-2 border-l-sky-400"
                     : "hover:bg-slate-900/70"
@@ -230,7 +230,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                 <button
                   onClick={() => onJoinRoom(room.id)}
                   disabled={!username}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
+                  className="cursor-pointer px-3 py-1.5 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
                 >
                   加入
                 </button>

@@ -14,18 +14,18 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   return (
     <header className="mb-3 flex items-center justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-semibold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
           MusicQuiz – Rooms & Chat
         </h1>
-        <p className="text-sm text-slate-400">
+        <p className="text-1xl text-slate-400">
           Create a room, invite friends, and chat in real time.
         </p>
       </div>
-      <div className="text-right text-xs text-slate-400 space-y-1">
-        <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-900/80 border border-slate-700">
+      <div className="text-right text-shadow-md text-slate-400 space-y-1">
+        {/* <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-900/80 border border-slate-700">
           <span className="h-2 w-2 rounded-full bg-slate-500" />
           <span className="text-slate-300">{serverUrl}</span>
-        </div>
+        </div> */}
         <div>
           Status:{" "}
           <span
