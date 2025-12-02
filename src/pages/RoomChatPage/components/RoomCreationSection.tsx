@@ -1,8 +1,23 @@
 import React from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  CardHeader,
+  Chip,
+  Divider,
+  LinearProgress,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import type { PlaylistItem, RoomSummary } from "../types";
 
 interface RoomCreationSectionProps {
   roomName: string;
+  roomPassword: string;
   playlistUrl: string;
   playlistItems: PlaylistItem[];
   playlistLoading: boolean;
@@ -12,16 +27,25 @@ interface RoomCreationSectionProps {
   rooms: RoomSummary[];
   username: string | null;
   currentRoomId: string | null;
+  joinPassword: string;
+  playlistProgress: { received: number; total: number; ready: boolean };
+  inviteRoom: RoomSummary | null;
+  inviteRoomId?: string | null;
+  isInviteMode?: boolean;
+  inviteNotFound?: boolean;
   onRoomNameChange: (value: string) => void;
+  onRoomPasswordChange: (value: string) => void;
+  onJoinPasswordChange: (value: string) => void;
   onPlaylistUrlChange: (value: string) => void;
   onFetchPlaylist: () => void;
   onResetPlaylist: () => void;
   onCreateRoom: () => void;
-  onJoinRoom: (roomId: string) => void;
+  onJoinRoom: (roomId: string, hasPassword: boolean) => void;
 }
 
 const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   roomName,
+  roomPassword,
   playlistUrl,
   playlistItems,
   playlistError,
@@ -31,214 +55,347 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   rooms,
   username,
   currentRoomId,
+  joinPassword,
+  playlistProgress,
+  inviteRoom,
+  inviteRoomId,
+  isInviteMode = false,
+  inviteNotFound = false,
   onRoomNameChange,
+  onRoomPasswordChange,
+  onJoinPasswordChange,
   onPlaylistUrlChange,
   onFetchPlaylist,
   onResetPlaylist,
   onCreateRoom,
   onJoinRoom,
 }) => {
-  const canCreateRoom = Boolean(username && roomName.trim());
+  const canCreateRoom = Boolean(
+    username && roomName.trim() && playlistItems.length > 0
+  );
   const showPlaylistInput = playlistStage === "input";
+
+  // Invite-only view: only show invitation card
+  if (isInviteMode) {
+    return (
+      <Card
+        variant="outlined"
+        className="w-full bg-slate-900/70 border border-slate-700 text-slate-50"
+      >
+        {/* <CardHeader
+          title={
+            <Typography variant="h6" className="text-slate-50" fontSize={16}>
+              受邀房間
+            </Typography>
+          }
+        /> */}
+        <CardContent className="space-y-3">
+          {inviteRoomId && !inviteRoom && !inviteNotFound && (
+            <Alert severity="info" variant="outlined">
+              正在載入受邀房間資訊...
+            </Alert>
+          )}
+          {inviteNotFound && (
+            <Alert severity="error" variant="outlined">
+              受邀房間不存在或已關閉。
+            </Alert>
+          )}
+          {inviteRoom && (
+            <Alert
+              severity="info"
+              variant="outlined"
+              className="bg-sky-900/40 border-sky-600 text-slate-50"
+            >
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle2" className="text-slate-50">
+                  房間：{inviteRoom.name}
+                </Typography>
+                <Typography variant="body2" className="text-slate-200">
+                  玩家 {inviteRoom.playerCount} ・ 清單{" "}
+                  {inviteRoom.playlistCount} 首{" "}
+                  {inviteRoom.hasPassword ? "（需要密碼）" : "（無需密碼）"}
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {inviteRoom.hasPassword && (
+                    <TextField
+                      size="small"
+                      label="房間密碼"
+                      variant="outlined"
+                      value={joinPassword}
+                      onChange={(e) => onJoinPasswordChange(e.target.value)}
+                      className="bg-slate-950"
+                    />
+                  )}
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() =>
+                      onJoinRoom(inviteRoom.id, inviteRoom.hasPassword)
+                    }
+                  >
+                    立即加入
+                  </Button>
+                </Stack>
+              </Stack>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>
-      <section className="flex flex-col w-full border border-slate-700 rounded-xl p-4 bg-slate-900/60 backdrop-blur-sm shadow-lg shadow-slate-900/30 transition-[transform,shadow] duration-300">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-            <span className="h-1.5 w-6 rounded-full bg-gradient-to-r from-sky-400 to-violet-400" />
-            建立房間
-          </h2>
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
-                showPlaylistInput
-                  ? "border-slate-600 bg-slate-800/60"
-                  : "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-              }`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-current" />
-              {showPlaylistInput ? "待貼歌單" : "歌單已鎖定"}
-            </span>
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-2">
-            <span
-              className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                showPlaylistInput
-                  ? "border-sky-400 text-sky-200"
-                  : "border-slate-600 text-slate-400"
-              }`}
-            >
-              1
-            </span>
-            <span className={showPlaylistInput ? "text-slate-200" : ""}>
-              貼上歌單
-            </span>
-            <span className="h-px w-8 bg-slate-700" />
-            <span
-              className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-                !showPlaylistInput
-                  ? "border-emerald-400 text-emerald-200"
-                  : "border-slate-600 text-slate-400"
-              }`}
-            >
-              2
-            </span>
-            <span className={!showPlaylistInput ? "text-slate-200" : ""}>
-              預覽並鎖定
-            </span>
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-700 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/60 disabled:opacity-50 transition-all"
-              placeholder="房間名稱，例如：Quiz Room #1"
+      <Card
+        variant="outlined"
+        className="w-full bg-slate-900/70 border border-slate-700 text-slate-50"
+      >
+        <CardHeader
+          title={
+            <Stack direction="row" spacing={1} alignItems="center">
+              <span className="h-1.5 w-6 rounded-full bg-gradient-to-r from-sky-400 to-violet-400 inline-block" />
+              <Typography variant="h6" className="text-slate-50" fontSize={16}>
+                建立房間
+              </Typography>
+              {!showPlaylistInput ? (
+                <Chip
+                  label="播放清單已鎖定"
+                  color="success"
+                  size="small"
+                  variant="outlined"
+                />
+              ) : (
+                <Chip
+                  label="待貼播放清單"
+                  size="small"
+                  variant="outlined"
+                  className="text-slate-200 border-slate-600"
+                />
+              )}
+              {playlistProgress.total > 0 && (
+                <Chip
+                  label={`進度 ${playlistProgress.received}/${playlistProgress.total}`}
+                  size="small"
+                  variant="outlined"
+                  className="text-slate-200 border-slate-600"
+                />
+              )}
+            </Stack>
+          }
+        />
+        <CardContent className="space-y-3">
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <TextField
+              fullWidth
+              size="small"
+              label="房間名稱"
+              placeholder="例如：Quiz Room #1"
               value={roomName}
               onChange={(e) => onRoomNameChange(e.target.value)}
               disabled={!username}
             />
-            <button
-              onClick={onCreateRoom}
+            <TextField
+              size="small"
+              label="密碼（選填）"
+              placeholder="留空代表無需密碼"
+              value={roomPassword}
+              onChange={(e) => onRoomPasswordChange(e.target.value)}
+              disabled={!username}
+            />
+            <Button
+              variant="contained"
+              color="success"
               disabled={!canCreateRoom}
-              className="cursor-pointer px-4 py-2 text-sm rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-medium shadow-sm shadow-emerald-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
+              onClick={onCreateRoom}
             >
               建立房間
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Stack>
 
-        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 space-y-2 transition-[transform,shadow] duration-300 hover:shadow-slate-900/40">
-          {showPlaylistInput ? (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-xs text-slate-300 font-semibold mb-1">
-                  貼上 YouTube 播放清單
-                </p>
-                <input
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-slate-900 border border-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400/60 transition-all"
-                  placeholder="貼上播放清單連結，例如：https://www.youtube.com/playlist?list=..."
-                  value={playlistUrl}
-                  onChange={(e) => onPlaylistUrlChange(e.target.value)}
-                  disabled={!username || playlistLoading || playlistLocked}
-                />
-              </div>
-              <button
-                onClick={onFetchPlaylist}
-                disabled={
-                  !username || !playlistUrl || playlistLoading || playlistLocked
-                }
-                className="cursor-pointer whitespace-nowrap px-3 py-2 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-medium shadow-sm shadow-sky-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
-              >
-                {playlistLoading ? "載入中..." : "取得清單"}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 space-y-1">
-                <p className="text-xs text-slate-200 font-semibold">
-                  歌單已鎖定
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  若要換清單，請點「返回歌單挑選」先解鎖再重新貼上。
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onResetPlaylist}
-                  className="cursor-pointer whitespace-nowrap px-3 py-2 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium border border-slate-600 transition-[transform,background-color] active:scale-[0.98]"
-                >
-                  返回歌單挑選
-                </button>
-                <div className="h-10 w-10 rounded-lg bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-200 text-xs font-semibold animate-pulse">
-                  Lock
-                </div>
-              </div>
-            </div>
-          )}
-          {playlistError && (
-            <p className="text-xs text-red-300">{playlistError}</p>
-          )}
-          {playlistItems.length > 0 && (
-            <div className="space-y-1 text-xs text-slate-300">
-              <p className="font-semibold">
-                已載入 {playlistItems.length} 首歌曲
-              </p>
-              <div className="max-h-36 overflow-y-auto divide-y divide-slate-800 rounded border border-slate-800 bg-slate-900/60">
-                {playlistItems.map((item, idx) => (
-                  <div
-                    key={`${item.title}-${idx}`}
-                    className="px-3 py-2 flex items-center justify-between gap-2 transition-all duration-300 hover:bg-slate-800/70"
-                    style={{ transitionDelay: `${idx * 12}ms` }}
+          <Card variant="outlined" className="bg-slate-950/80 border-slate-800">
+            <CardContent className="space-y-2">
+              {showPlaylistInput ? (
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="YouTube 播放清單網址"
+                    placeholder="https://www.youtube.com/playlist?list=..."
+                    value={playlistUrl}
+                    onChange={(e) => onPlaylistUrlChange(e.target.value)}
+                    disabled={!username || playlistLoading || playlistLocked}
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    disabled={
+                      !username ||
+                      !playlistUrl ||
+                      playlistLoading ||
+                      playlistLocked
+                    }
+                    onClick={onFetchPlaylist}
                   >
-                    <div className="text-left">
-                      <p className="text-slate-100">{item.title}</p>
-                      <p className="text-[11px] text-slate-400">
-                        {item.uploader ?? "Unknown"}
-                        {item.duration ? ` · ${item.duration}` : ""}
-                      </p>
-                    </div>
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sky-300 text-[11px] hover:underline"
-                    >
-                      瀏覽
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <div className="flex flex-col w-full mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/70 divide-y divide-slate-800 shadow-inner shadow-slate-900/60">
-        {rooms.length === 0 ? (
-          <div className="p-4 text-xs text-slate-500 text-center">
-            目前沒有房間，試著建立一個吧！
-          </div>
-        ) : (
-          rooms.map((room) => {
-            const isCurrent = currentRoomId === room.id;
-            return (
-              <div
-                key={room.id}
-                className={`px-3 py-2.5 flex w-1/4 items-center justify-between text-sm transition-colors duration-300 ${
-                  isCurrent
-                    ? "bg-slate-900/90 border-l-2 border-l-sky-400"
-                    : "hover:bg-slate-900/70"
-                }`}
-              >
-                <div>
-                  <div className="font-medium text-slate-100 flex items-center gap-2">
-                    {room.name}
-                    {isCurrent && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/40">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    Players: {room.playerCount} ·{" "}
-                    {new Date(room.createdAt).toLocaleTimeString()}
+                    {playlistLoading ? "載入中..." : "載入清單"}
+                  </Button>
+                </Stack>
+              ) : (
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={2}
+                  alignItems={{ md: "center" }}
+                  justifyContent="space-between"
+                >
+                  <Stack spacing={0.5}>
+                    <Typography variant="subtitle2" className="text-slate-100">
+                      播放清單已鎖定
+                    </Typography>
+                    <Typography variant="body2" className="text-slate-400">
+                      若要換清單，請按「重選播放清單」重新貼上。
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Button variant="outlined" onClick={onResetPlaylist}>
+                      重選播放清單
+                    </Button>
+                    <Chip
+                      label="Locked"
+                      color="success"
+                      variant="outlined"
+                      className="animate-pulse"
+                    />
+                  </Stack>
+                </Stack>
+              )}
+              {playlistLoading && <LinearProgress color="primary" />}
+              {playlistError && (
+                <Alert severity="error" variant="outlined">
+                  {playlistError}
+                </Alert>
+              )}
+              {playlistItems.length > 0 && (
+                <div className="space-y-1 text-xs text-slate-300">
+                  <Typography variant="subtitle2" className="text-slate-100">
+                    已載入 {playlistItems.length} 首歌曲
+                  </Typography>
+                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-800 rounded border border-slate-800 bg-slate-900/60">
+                    {playlistItems.map((item, idx) => (
+                      <div
+                        key={`${item.title}-${idx}`}
+                        className="px-3 py-2 flex items-center justify-between gap-2 hover:bg-slate-800/70"
+                        style={{ transitionDelay: `${idx * 8}ms` }}
+                      >
+                        <div className="text-left">
+                          <p className="text-slate-100">{item.title}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {item.uploader ?? "Unknown"}
+                            {item.duration ? ` · ${item.duration}` : ""}
+                          </p>
+                        </div>
+                        <Button
+                          size="small"
+                          variant="text"
+                          color="info"
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          預覽
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <button
-                  onClick={() => onJoinRoom(room.id)}
-                  disabled={!username}
-                  className="cursor-pointer px-3 py-1.5 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
-                >
-                  加入
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
+              )}
+            </CardContent>
+          </Card>
+        </CardContent>
+        <CardActions className="hidden" />
+      </Card>
+
+      <Card
+        variant="outlined"
+        className="w-full mt-2 bg-slate-950/80 border border-slate-800 text-slate-50"
+      >
+        <CardHeader
+          title={
+            <Typography variant="subtitle1" className="text-slate-100">
+              房間列表
+            </Typography>
+          }
+        />
+        <CardContent className="p-0">
+          {rooms.length === 0 ? (
+            <Typography
+              variant="body2"
+              className="text-slate-500 text-center py-4"
+            >
+              目前沒有房間，試著建立一個吧！
+            </Typography>
+          ) : (
+            rooms.map((room) => {
+              const isCurrent = currentRoomId === room.id;
+              return (
+                <React.Fragment key={room.id}>
+                  <div
+                    className={`px-4 py-3 flex items-center justify-between text-sm ${
+                      isCurrent
+                        ? "bg-slate-900/90 border-l-2 border-l-sky-400"
+                        : "hover:bg-slate-900/70"
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium text-slate-100 flex items-center gap-2">
+                        {room.name}
+                        {room.hasPassword && (
+                          <Chip
+                            label="密碼"
+                            size="small"
+                            variant="outlined"
+                            className="text-slate-200 border-slate-600"
+                          />
+                        )}
+                        {isCurrent && (
+                          <Chip
+                            label="Current"
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                          />
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Players: {room.playerCount} ・ 清單 {room.playlistCount}{" "}
+                        首 ・ {new Date(room.createdAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {room.hasPassword && (
+                        <TextField
+                          size="small"
+                          label="房間密碼"
+                          value={joinPassword}
+                          onChange={(e) => onJoinPasswordChange(e.target.value)}
+                          className="bg-slate-900"
+                        />
+                      )}
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        disabled={!username}
+                        onClick={() => onJoinRoom(room.id, room.hasPassword)}
+                      >
+                        加入
+                      </Button>
+                    </Stack>
+                  </div>
+                  <Divider className="bg-slate-800" />
+                </React.Fragment>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 };

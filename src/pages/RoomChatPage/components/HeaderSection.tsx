@@ -15,19 +15,19 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
     <header className="mb-3 flex items-center justify-between gap-4">
       <div>
         <h1 className="text-5xl font-semibold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
-          MusicQuiz – Rooms & Chat
+          MusicQuiz · Rooms & Chat
         </h1>
         <p className="text-1xl text-slate-400">
-          Create a room, invite friends, and chat in real time.
+          建立房間、邀請朋友，一起即時聊天與出題。
         </p>
       </div>
       <div className="text-right text-shadow-md text-slate-400 space-y-1">
-        {/* <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-900/80 border border-slate-700">
+        <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-slate-900/80 border border-slate-700">
           <span className="h-2 w-2 rounded-full bg-slate-500" />
-          <span className="text-slate-300">{serverUrl}</span>
-        </div> */}
+          <span className="text-slate-300 text-[11px]">{serverUrl}</span>
+        </div>
         <div>
-          Status:{" "}
+          狀態:
           <span
             className={
               isConnected
@@ -40,8 +40,10 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
           </span>
         </div>
         <div>
-          Username:{" "}
-          <span className="font-medium text-slate-200">{displayUsername}</span>
+          使用者:
+          <span className="ml-1 font-medium text-slate-200">
+            {displayUsername}
+          </span>
         </div>
       </div>
     </header>

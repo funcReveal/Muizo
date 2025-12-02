@@ -16,12 +16,12 @@ const UsernameStep: React.FC<UsernameStepProps> = ({
       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold">
         1
       </span>
-      請先設定你的暱稱
+      先設定你的暱稱
     </h2>
     <div className="flex gap-2">
       <input
         className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-900 border border-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-500/60"
-        placeholder="例如：Hikari..."
+        placeholder="例如 hikari..."
         value={usernameInput}
         onChange={(e) => onInputChange(e.target.value)}
       />
@@ -33,7 +33,7 @@ const UsernameStep: React.FC<UsernameStepProps> = ({
       </button>
     </div>
     <p className="text-xs text-slate-400 mt-2">
-      You need a username before creating or joining rooms.
+      先設定暱稱才能建立或加入房間。
     </p>
   </div>
 );

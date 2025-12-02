@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 import ChatPanel from "./components/ChatPanel";
@@ -16,14 +16,38 @@ import type {
 } from "./types";
 
 const SERVER_URL = import.meta.env.VITE_SOCKET_URL;
+const DEFAULT_PAGE_SIZE = 50;
+const CHUNK_SIZE = 200;
+const STORAGE_KEYS = {
+  clientId: "mq_clientId",
+  username: "mq_username",
+  roomId: "mq_roomId",
+};
 
 const RoomChatPage: React.FC = () => {
-  const [usernameInput, setUsernameInput] = useState("");
-  const [username, setUsername] = useState<string | null>(null);
+  const [usernameInput, setUsernameInput] = useState(
+    () => localStorage.getItem(STORAGE_KEYS.username) ?? ""
+  );
+  const [username, setUsername] = useState<string | null>(
+    () => localStorage.getItem(STORAGE_KEYS.username) ?? null
+  );
+  const [clientId] = useState<string>(() => {
+    const existing = localStorage.getItem(STORAGE_KEYS.clientId);
+    if (existing) return existing;
+    const generated =
+      crypto.randomUUID?.() ??
+      `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+    localStorage.setItem(STORAGE_KEYS.clientId, generated);
+    return generated;
+  });
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [roomNameInput, setRoomNameInput] = useState("");
-  const [currentRoom, setCurrentRoom] = useState<RoomSummary | null>(null);
+  const [roomPasswordInput, setRoomPasswordInput] = useState("");
+  const [joinPasswordInput, setJoinPasswordInput] = useState("");
+  const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(
+    null
+  );
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
@@ -38,12 +62,46 @@ const RoomChatPage: React.FC = () => {
   const [playlistLocked, setPlaylistLocked] = useState(false);
   const [lastFetchedPlaylistId, setLastFetchedPlaylistId] = useState<
     string | null
-  >(null);
+  >(() => null);
+  const [playlistViewItems, setPlaylistViewItems] = useState<PlaylistItem[]>(
+    []
+  );
+  const [playlistHasMore, setPlaylistHasMore] = useState(false);
+  const [playlistLoadingMore, setPlaylistLoadingMore] = useState(false);
+  const [playlistPageCursor, setPlaylistPageCursor] = useState(1);
+  const [playlistPageSize, setPlaylistPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [playlistProgress, setPlaylistProgress] = useState<{
+    received: number;
+    total: number;
+    ready: boolean;
+  }>({ received: 0, total: 0, ready: false });
+  const [inviteRoomId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("roomId");
+  });
+  const isInviteMode = Boolean(inviteRoomId);
+  const [inviteNotFound, setInviteNotFound] = useState(false);
 
   const socketRef = useRef<ClientSocket | null>(null);
-  const currentRoomIdRef = useRef<string | null>(null);
+  const currentRoomIdRef = useRef<string | null>(
+    localStorage.getItem(STORAGE_KEYS.roomId)
+  );
 
-  const displayUsername = useMemo(() => username ?? "(not set)", [username]);
+  const displayUsername = useMemo(() => username ?? "(未設定)", [username]);
+
+  const persistUsername = (name: string) => {
+    setUsername(name);
+    localStorage.setItem(STORAGE_KEYS.username, name);
+  };
+
+  const persistRoomId = (id: string | null) => {
+    currentRoomIdRef.current = id;
+    if (id) {
+      localStorage.setItem(STORAGE_KEYS.roomId, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.roomId);
+    }
+  };
 
   const handleSetUsername = () => {
     const trimmed = usernameInput.trim();
@@ -51,175 +109,11 @@ const RoomChatPage: React.FC = () => {
       setStatusText("請先輸入使用者名稱");
       return;
     }
-    setUsername(trimmed);
+    persistUsername(trimmed);
     setStatusText(null);
   };
 
-  useEffect(() => {
-    currentRoomIdRef.current = currentRoom?.id ?? null;
-  }, [currentRoom]);
-
-  useEffect(() => {
-    if (!username) return;
-
-    const s = io(SERVER_URL, {
-      transports: ["websocket"],
-    });
-
-    socketRef.current = s;
-
-    s.on("connect", () => {
-      setIsConnected(true);
-      setStatusText("Connected to server");
-      s.emit("listRooms", (ack: Ack<RoomSummary[]>) => {
-        if (ack && ack.ok) {
-          setRooms(ack.data);
-        }
-      });
-    });
-
-    s.on("disconnect", () => {
-      setIsConnected(false);
-      setStatusText("Disconnected from server");
-      setCurrentRoom(null);
-      setParticipants([]);
-      setMessages([]);
-      currentRoomIdRef.current = null;
-    });
-
-    s.on("roomsUpdated", (updatedRooms) => setRooms(updatedRooms));
-
-    s.on("joinedRoom", (state) => {
-      setCurrentRoom(state.room);
-      setParticipants(state.participants);
-      setMessages(state.messages);
-      currentRoomIdRef.current = state.room.id;
-      setStatusText(`Joined room: ${state.room.name}`);
-    });
-
-    s.on("userJoined", ({ roomId, participant }) => {
-      if (roomId !== currentRoomIdRef.current) return;
-      setParticipants((prev) => {
-        const exists = prev.some((p) => p.socketId === participant.socketId);
-        if (exists) return prev;
-        return [...prev, participant];
-      });
-    });
-
-    s.on("userLeft", ({ roomId, socketId }) => {
-      if (roomId !== currentRoomIdRef.current) return;
-      setParticipants((prev) => prev.filter((p) => p.socketId !== socketId));
-    });
-
-    s.on("messageAdded", ({ roomId, message }) => {
-      if (roomId !== currentRoomIdRef.current) return;
-      setMessages((prev) => [...prev, message]);
-    });
-
-    return () => {
-      s.removeAllListeners();
-      s.disconnect();
-      socketRef.current = null;
-      currentRoomIdRef.current = null;
-    };
-  }, [username]);
-
   const getSocket = () => socketRef.current;
-
-  const handleCreateRoom = () => {
-    const s = getSocket();
-    if (!s || !username) {
-      setStatusText("尚未連線或尚未設定使用者名稱");
-      return;
-    }
-    const trimmed = roomNameInput.trim();
-    if (!trimmed) {
-      setStatusText("請輸入房間名稱");
-      return;
-    }
-
-    s.emit(
-      "createRoom",
-      { roomName: trimmed, username },
-      (ack: Ack<RoomState>) => {
-        if (!ack) return;
-        if (ack.ok) {
-          const state = ack.data;
-          setCurrentRoom(state.room);
-          setParticipants(state.participants);
-          setMessages(state.messages);
-          currentRoomIdRef.current = state.room.id;
-          setRoomNameInput("");
-          setStatusText(`成功建立房間：${state.room.name}`);
-        } else {
-          setStatusText(`建立房間失敗：${ack.error}`);
-        }
-      }
-    );
-  };
-
-  const handleJoinRoom = (roomId: string) => {
-    const s = getSocket();
-    if (!s || !username) {
-      setStatusText("尚未連線或尚未設定使用者名稱");
-      return;
-    }
-
-    s.emit("joinRoom", { roomId, username }, (ack: Ack<RoomState>) => {
-      if (!ack) return;
-      if (ack.ok) {
-        const state = ack.data;
-        setCurrentRoom(state.room);
-        setParticipants(state.participants);
-        setMessages(state.messages);
-        currentRoomIdRef.current = state.room.id;
-        setStatusText(`已加入房間：${state.room.name}`);
-      } else {
-        setStatusText(`加入房間失敗：${ack.error}`);
-      }
-    });
-  };
-
-  const handleLeaveRoom = () => {
-    const s = getSocket();
-    if (!s || !currentRoom) return;
-
-    s.emit("leaveRoom", { roomId: currentRoom.id }, (ack: Ack<null>) => {
-      if (!ack) return;
-      if (ack.ok) {
-        setCurrentRoom(null);
-        setParticipants([]);
-        setMessages([]);
-        currentRoomIdRef.current = null;
-        setStatusText("已離開房間");
-      } else {
-        setStatusText(`離開房間失敗：${ack.error}`);
-      }
-    });
-  };
-
-  const handleSendMessage = () => {
-    const s = getSocket();
-    if (!s || !currentRoom) {
-      setStatusText("尚未加入任何房間");
-      return;
-    }
-    const trimmed = messageInput.trim();
-    if (!trimmed) return;
-
-    s.emit(
-      "sendMessage",
-      { roomId: currentRoom.id, content: trimmed },
-      (ack) => {
-        if (!ack) return;
-        if (!ack.ok) {
-          setStatusText(`訊息傳送失敗：${ack.error}`);
-        }
-      }
-    );
-
-    setMessageInput("");
-  };
 
   const extractPlaylistId = (url: string) => {
     try {
@@ -258,22 +152,382 @@ const RoomChatPage: React.FC = () => {
     return `${displayMinutes}:${displaySeconds.toString().padStart(2, "0")}`;
   };
 
+  const fetchPlaylistPage = (
+    roomId: string,
+    page: number,
+    pageSize?: number,
+    opts?: { reset?: boolean }
+  ) => {
+    const s = getSocket();
+    if (!s) {
+      if (opts?.reset) {
+        setPlaylistViewItems([]);
+        setPlaylistHasMore(false);
+      }
+      return;
+    }
+    if (opts?.reset) {
+      setPlaylistViewItems([]);
+      setPlaylistHasMore(false);
+      setPlaylistPageCursor(1);
+      setPlaylistLoadingMore(true);
+    } else {
+      setPlaylistLoadingMore(true);
+    }
+    s.emit(
+      "getPlaylistPage",
+      { roomId, page, pageSize },
+      (
+        ack: Ack<{
+          items: PlaylistItem[];
+          totalCount: number;
+          page: number;
+          pageSize: number;
+          ready: boolean;
+        }>
+      ) => {
+        if (ack?.ok) {
+          setPlaylistViewItems((prev) => {
+            const next = opts?.reset
+              ? ack.data.items
+              : [...prev, ...ack.data.items];
+            const total = ack.data.totalCount;
+            setPlaylistHasMore(next.length < total);
+            return next;
+          });
+          setPlaylistPageCursor(ack.data.page);
+          setPlaylistPageSize(ack.data.pageSize);
+          setPlaylistProgress((prev) => ({
+            ...prev,
+            total: ack.data.totalCount,
+            ready: ack.data.ready,
+          }));
+        }
+        setPlaylistLoadingMore(false);
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!username) return;
+
+    const s = io(SERVER_URL, {
+      transports: ["websocket"],
+      auth: { clientId },
+    });
+
+    socketRef.current = s;
+
+    s.on("connect", () => {
+      setIsConnected(true);
+      setStatusText("已連線伺服器");
+      s.emit("listRooms", (ack: Ack<RoomSummary[]>) => {
+        if (ack && ack.ok) {
+          setRooms(ack.data);
+          if (isInviteMode) {
+            const found = inviteRoomId
+              ? ack.data.some((r) => r.id === inviteRoomId)
+              : false;
+            setInviteNotFound(!found);
+            if (!found && inviteRoomId) {
+              setStatusText("受邀房間不存在或已關閉");
+            }
+          }
+        }
+      });
+
+      const storedRoomId = currentRoomIdRef.current;
+      if (storedRoomId) {
+        s.emit(
+          "resumeSession",
+          { roomId: storedRoomId, username },
+          (ack: Ack<RoomState>) => {
+            if (ack?.ok) {
+              const state = ack.data;
+              setCurrentRoom(state.room);
+              setParticipants(state.participants);
+              setMessages(state.messages);
+              setPlaylistProgress({
+                received: state.room.playlist.receivedCount,
+                total: state.room.playlist.totalCount,
+                ready: state.room.playlist.ready,
+              });
+              fetchPlaylistPage(
+                state.room.id,
+                1,
+                state.room.playlist.pageSize,
+                {
+                  reset: true,
+                }
+              );
+              persistRoomId(state.room.id);
+              setStatusText(`恢復房間：${state.room.name}`);
+            } else {
+              persistRoomId(null);
+            }
+          }
+        );
+      }
+    });
+
+    s.on("disconnect", () => {
+      setIsConnected(false);
+      setStatusText("與伺服器斷線，將嘗試自動恢復");
+      setCurrentRoom(null);
+      setParticipants([]);
+      setMessages([]);
+      setPlaylistViewItems([]);
+      setPlaylistHasMore(false);
+      setPlaylistLoadingMore(false);
+    });
+
+    s.on("roomsUpdated", (updatedRooms: RoomSummary[]) => {
+      setRooms(updatedRooms);
+      if (isInviteMode && inviteRoomId) {
+        const found = updatedRooms.some((r) => r.id === inviteRoomId);
+        setInviteNotFound(!found);
+        if (!found) {
+          setStatusText("受邀房間不存在或已關閉");
+        }
+      }
+    });
+
+    s.on("joinedRoom", (state) => {
+      setCurrentRoom(state.room);
+      setParticipants(state.participants);
+      setMessages(state.messages);
+      setPlaylistProgress({
+        received: state.room.playlist.receivedCount,
+        total: state.room.playlist.totalCount,
+        ready: state.room.playlist.ready,
+      });
+      fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
+        reset: true,
+      });
+      persistRoomId(state.room.id);
+      setStatusText(`已加入房間：${state.room.name}`);
+    });
+
+    s.on("participantsUpdated", ({ roomId, participants, hostClientId }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setParticipants(participants);
+      setCurrentRoom((prev) => (prev ? { ...prev, hostClientId } : prev));
+    });
+
+    s.on("userLeft", ({ roomId, clientId: leftId }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setParticipants((prev) => prev.filter((p) => p.clientId !== leftId));
+    });
+
+    s.on("playlistProgress", ({ roomId, receivedCount, totalCount, ready }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setPlaylistProgress({
+        received: receivedCount,
+        total: totalCount,
+        ready,
+      });
+    });
+
+    s.on("playlistUpdated", ({ roomId, playlist }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setCurrentRoom((prev) =>
+        prev ? { ...prev, playlist: { ...playlist, items: [] } } : prev
+      );
+      setPlaylistProgress({
+        received: playlist.receivedCount,
+        total: playlist.totalCount,
+        ready: playlist.ready,
+      });
+      fetchPlaylistPage(roomId, 1, playlist.pageSize, { reset: true });
+    });
+
+    s.on("messageAdded", ({ roomId, message }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setMessages((prev) => [...prev, message]);
+    });
+
+    return () => {
+      s.removeAllListeners();
+      s.disconnect();
+      socketRef.current = null;
+    };
+  }, [username, clientId]);
+
+  const handleCreateRoom = async () => {
+    const s = getSocket();
+    if (!s || !username) {
+      setStatusText("尚未設定使用者名稱");
+      return;
+    }
+    const trimmed = roomNameInput.trim();
+    if (!trimmed) {
+      setStatusText("請輸入房間名稱");
+      return;
+    }
+    if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
+      setStatusText("請先載入播放清單");
+      return;
+    }
+
+    const uploadId =
+      crypto.randomUUID?.() ??
+      `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+    const firstChunk = playlistItems.slice(0, CHUNK_SIZE);
+    const remaining = playlistItems.slice(CHUNK_SIZE);
+    const isLast = remaining.length === 0;
+
+    const payload = {
+      roomName: trimmed,
+      username,
+      password: roomPasswordInput.trim() || undefined,
+      playlist: {
+        uploadId,
+        id: lastFetchedPlaylistId,
+        totalCount: playlistItems.length,
+        items: firstChunk,
+        isLast,
+        pageSize: DEFAULT_PAGE_SIZE,
+      },
+    };
+
+    s.emit("createRoom", payload, async (ack: Ack<RoomState>) => {
+      if (!ack) return;
+      if (ack.ok) {
+        const state = ack.data;
+        setCurrentRoom(state.room);
+        setParticipants(state.participants);
+        setMessages(state.messages);
+        persistRoomId(state.room.id);
+        setRoomNameInput("");
+        setStatusText(`已建立房間：${state.room.name}`);
+        setPlaylistProgress({
+          received: state.room.playlist.receivedCount,
+          total: state.room.playlist.totalCount,
+          ready: state.room.playlist.ready,
+        });
+        fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
+          reset: true,
+        });
+
+        if (remaining.length > 0) {
+          for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
+            const chunk = remaining.slice(i, i + CHUNK_SIZE);
+            const isLastChunk = i + CHUNK_SIZE >= remaining.length;
+            await new Promise<void>((resolve) => {
+              s.emit(
+                "uploadPlaylistChunk",
+                {
+                  roomId: state.room.id,
+                  uploadId,
+                  items: chunk,
+                  isLast: isLastChunk,
+                },
+                () => resolve()
+              );
+            });
+          }
+        }
+      } else {
+        setStatusText(`建立房間失敗：${ack.error}`);
+      }
+    });
+  };
+
+  const handleJoinRoom = (roomId: string, hasPassword: boolean) => {
+    const s = getSocket();
+    if (!s || !username) {
+      setStatusText("尚未設定使用者名稱");
+      return;
+    }
+
+    s.emit(
+      "joinRoom",
+      {
+        roomId,
+        username,
+        password: hasPassword ? joinPasswordInput.trim() || "" : undefined,
+      },
+      (ack: Ack<RoomState>) => {
+        if (!ack) return;
+        if (ack.ok) {
+          const state = ack.data;
+          setCurrentRoom(state.room);
+          setParticipants(state.participants);
+          setMessages(state.messages);
+          setPlaylistProgress({
+            received: state.room.playlist.receivedCount,
+            total: state.room.playlist.totalCount,
+            ready: state.room.playlist.ready,
+          });
+          fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
+            reset: true,
+          });
+          persistRoomId(state.room.id);
+          setJoinPasswordInput("");
+          setStatusText(`已加入房間：${state.room.name}`);
+        } else {
+          setStatusText(`加入房間失敗：${ack.error}`);
+        }
+      }
+    );
+  };
+
+  const handleLeaveRoom = () => {
+    const s = getSocket();
+    if (!s || !currentRoom) return;
+
+    s.emit("leaveRoom", { roomId: currentRoom.id }, (ack: Ack<null>) => {
+      if (!ack) return;
+      if (ack.ok) {
+        setCurrentRoom(null);
+        setParticipants([]);
+        setMessages([]);
+        setPlaylistViewItems([]);
+        setPlaylistHasMore(false);
+        setPlaylistLoadingMore(false);
+        persistRoomId(null);
+        setStatusText("已離開房間");
+      } else {
+        setStatusText(`離開房間失敗：${ack.error}`);
+      }
+    });
+  };
+
+  const handleSendMessage = () => {
+    const s = getSocket();
+    if (!s || !currentRoom) {
+      setStatusText("尚未加入任何房間");
+      return;
+    }
+    const trimmed = messageInput.trim();
+    if (!trimmed) return;
+
+    s.emit("sendMessage", { content: trimmed }, (ack) => {
+      if (!ack) return;
+      if (!ack.ok) {
+        setStatusText(`訊息送出失敗：${ack.error}`);
+      }
+    });
+
+    setMessageInput("");
+  };
+
   const handleFetchPlaylist = async () => {
     setPlaylistError(null);
     if (playlistLocked && lastFetchedPlaylistId) {
-      setPlaylistError("歌單已鎖定，如要重選請先返回歌單挑選");
+      setPlaylistError("播放清單已鎖定，如需重選請按「重選播放清單」");
       return;
     }
 
     const playlistId = extractPlaylistId(playlistUrl);
     if (!playlistId) {
-      setPlaylistError("請輸入有效的播放清單網址");
+      setPlaylistError("請貼上有效的播放清單網址");
       return;
     }
 
     const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
     if (!apiKey) {
-      setPlaylistError("尚未設置 YouTube API 金鑰 (VITE_YOUTUBE_API_KEY)");
+      setPlaylistError("尚未設定 YouTube API 金鑰 (VITE_YOUTUBE_API_KEY)");
       return;
     }
 
@@ -298,7 +552,7 @@ const RoomChatPage: React.FC = () => {
           `https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`
         );
         if (!res.ok) {
-          throw new Error("取得播放清單失敗，請稍後再試");
+          throw new Error("讀取播放清單失敗，請稍後再試");
         }
 
         const data = await res.json();
@@ -374,10 +628,10 @@ const RoomChatPage: React.FC = () => {
       setPlaylistStage("preview");
       setPlaylistLocked(true);
       setLastFetchedPlaylistId(playlistId);
-      setStatusText(`已載入播放清單，共 ${items.length} 首歌曲`);
+      setStatusText(`已載入播放清單，共 ${items.length} 首`);
     } catch (error) {
       console.error(error);
-      setPlaylistError("取得播放清單時發生錯誤，請確認網址後再試");
+      setPlaylistError("讀取播放清單時發生錯誤，請確認網路後重試");
       setPlaylistItems([]);
     } finally {
       setPlaylistLoading(false);
@@ -391,8 +645,20 @@ const RoomChatPage: React.FC = () => {
     setPlaylistStage("input");
     setPlaylistLocked(false);
     setLastFetchedPlaylistId(null);
-    setStatusText("已返回歌單挑選，可重新貼上新清單");
+    setStatusText("已重置播放清單，請重新選擇");
   };
+
+  const loadMorePlaylist = useCallback(() => {
+    if (!currentRoom) return;
+    if (playlistLoadingMore || !playlistHasMore) return;
+    fetchPlaylistPage(currentRoom.id, playlistPageCursor + 1, playlistPageSize);
+  }, [
+    currentRoom,
+    playlistHasMore,
+    playlistLoadingMore,
+    playlistPageCursor,
+    playlistPageSize,
+  ]);
 
   return (
     <div className="flex flex-col w-95/100 space-y-4">
@@ -410,20 +676,37 @@ const RoomChatPage: React.FC = () => {
         />
       )}
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 flex-col lg:flex-row">
         {!currentRoom?.id && username && (
           <RoomCreationSection
             roomName={roomNameInput}
+            roomPassword={roomPasswordInput}
             playlistUrl={playlistUrl}
             playlistItems={playlistItems}
             playlistError={playlistError}
             playlistLoading={playlistLoading}
             playlistStage={playlistStage}
             playlistLocked={playlistLocked}
-            rooms={rooms}
+            rooms={
+              isInviteMode && inviteRoomId
+                ? rooms.filter((r) => r.id === inviteRoomId)
+                : rooms
+            }
             username={username}
             currentRoomId={currentRoomIdRef.current}
+            joinPassword={joinPasswordInput}
+            playlistProgress={playlistProgress}
+            inviteRoom={
+              inviteRoomId
+                ? rooms.find((room) => room.id === inviteRoomId) ?? null
+                : null
+            }
+            inviteRoomId={inviteRoomId}
+            isInviteMode={isInviteMode}
+            inviteNotFound={inviteNotFound}
             onRoomNameChange={setRoomNameInput}
+            onRoomPasswordChange={setRoomPasswordInput}
+            onJoinPasswordChange={setJoinPasswordInput}
             onPlaylistUrlChange={setPlaylistUrl}
             onFetchPlaylist={handleFetchPlaylist}
             onResetPlaylist={handleResetPlaylist}
@@ -439,9 +722,33 @@ const RoomChatPage: React.FC = () => {
             messages={messages}
             username={username}
             messageInput={messageInput}
+            playlistItems={playlistViewItems}
+            playlistHasMore={playlistHasMore}
+            playlistLoadingMore={playlistLoadingMore}
+            playlistProgress={playlistProgress}
+            isHost={currentRoom.hostClientId === clientId}
             onLeave={handleLeaveRoom}
             onInputChange={setMessageInput}
             onSend={handleSendMessage}
+            onLoadMorePlaylist={loadMorePlaylist}
+            onInvite={async () => {
+              if (!currentRoom) return;
+              const url = new URL(window.location.href);
+              url.searchParams.set("roomId", currentRoom.id);
+              const inviteText = url.toString();
+
+              if (navigator.clipboard?.writeText) {
+                try {
+                  await navigator.clipboard.writeText(inviteText);
+                  setStatusText("已複製邀請連結");
+                } catch (err) {
+                  console.error(err);
+                  setStatusText("複製邀請連結失敗");
+                }
+              } else {
+                setStatusText(inviteText);
+              }
+            }}
           />
         )}
       </div>

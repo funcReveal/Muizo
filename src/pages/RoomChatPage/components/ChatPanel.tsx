@@ -1,5 +1,29 @@
-import React from "react";
-import type { ChatMessage, RoomParticipant, RoomSummary } from "../types";
+import React, { useState } from "react";
+import {
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Chip,
+  Divider,
+  List as MUIList,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { List as VirtualList, type RowComponentProps } from "react-window";
+import type {
+  ChatMessage,
+  PlaylistItem,
+  RoomParticipant,
+  RoomState,
+} from "../types";
 
 const formatTime = (timestamp: number) => {
   const d = new Date(timestamp);
@@ -7,14 +31,22 @@ const formatTime = (timestamp: number) => {
 };
 
 interface ChatPanelProps {
-  currentRoom: RoomSummary | null;
+  currentRoom: RoomState["room"] | null;
   participants: RoomParticipant[];
   messages: ChatMessage[];
   username: string | null;
   messageInput: string;
+  playlistItems: PlaylistItem[];
+  playlistHasMore: boolean;
+  playlistLoadingMore: boolean;
+  playlistProgress: { received: number; total: number; ready: boolean };
+  isHost: boolean;
   onLeave: () => void;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  onLoadMorePlaylist: () => void;
+  /** 邀請動作：回傳 Promise<void>，錯誤用 throw 或外部 statusText 處理 */
+  onInvite: () => Promise<void>;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -23,131 +55,334 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   messages,
   username,
   messageInput,
+  playlistItems,
+  playlistHasMore,
+  playlistLoadingMore,
+  playlistProgress,
+  isHost,
   onLeave,
   onInputChange,
   onSend,
+  onLoadMorePlaylist,
+  onInvite,
 }) => {
-  return (
-    <section className="flex flex-col max-h-96 w-1/4 border border-slate-700 rounded-xl p-4 bg-slate-900/60 backdrop-blur-sm min-h-[320px] transition-[transform,shadow] duration-300 hover:shadow-slate-900/40">
-      <div className="flex items-center justify-between mb-3 ">
-        <h2 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-          <span className="h-1.5 w-6 rounded-full bg-gradient-to-r from-emerald-400 to-sky-400" />
-          房間聊天
-          {currentRoom ? (
-            <span className="ml-2 text-xs text-slate-400">
-              – {currentRoom.name}
-            </span>
-          ) : null}
-        </h2>
+  const rowCount = playlistItems.length + (playlistHasMore ? 1 : 0);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
 
-        {currentRoom && (
-          <div className="flex items-center gap-3 text-xs text-slate-400">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              {participants.length} player
-              {participants.length !== 1 ? "s" : ""}
-            </span>
-            <button
-              onClick={onLeave}
-              className="px-2.5 py-1 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-[11px] font-medium"
+  const PlaylistRow = ({ index, style, ariaAttributes }: RowComponentProps) => {
+    // Loader / 結尾列
+    if (index >= playlistItems.length) {
+      if (playlistHasMore && !playlistLoadingMore) {
+        onLoadMorePlaylist();
+      }
+      return (
+        <Box
+          style={style}
+          {...ariaAttributes}
+          className="text-center text-slate-400 text-xs py-2"
+        >
+          {playlistHasMore ? "載入中..." : "已到底"}
+        </Box>
+      );
+    }
+
+    const item = playlistItems[index];
+    return (
+      <Box style={style} {...ariaAttributes} px={0.5}>
+        <Card variant="outlined" className="bg-slate-900/70 border-slate-800">
+          <ListItem dense>
+            <ListItemAvatar>
+              <Avatar sx={{ bgcolor: "#334155", width: 36, height: 36 }}>
+                {index + 1}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={
+                <Typography variant="body2" className="text-slate-100">
+                  {item.title}
+                </Typography>
+              }
+              secondary={
+                <Typography variant="caption" className="text-slate-400">
+                  {item.uploader ?? "Unknown"}
+                  {item.duration ? ` · ${item.duration}` : ""}
+                </Typography>
+              }
+            />
+            <Button
+              size="small"
+              variant="text"
+              color="info"
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
             >
-              離開房間
-            </button>
-          </div>
-        )}
-      </div>
+              開啟
+            </Button>
+          </ListItem>
+        </Card>
+      </Box>
+    );
+  };
 
-      <div className="mb-2 text-xs text-slate-300 flex items-start gap-1">
-        <span className="font-semibold mt-[2px]">成員：</span>
-        <div className="flex-1">
+  return (
+    <Card
+      variant="outlined"
+      className="w-full lg:w-2/5 bg-slate-900/70 border-slate-700 text-slate-50"
+      sx={{ maxHeight: 760, display: "flex", flexDirection: "column" }}
+    >
+      <CardHeader
+        title={
+          <Stack direction="row" spacing={1} alignItems="center">
+            <span className="h-1.5 w-6 rounded-full bg-gradient-to-r from-emerald-400 to-sky-400 inline-block" />
+            <Typography variant="subtitle1" className="text-slate-100">
+              {currentRoom && currentRoom.name}
+            </Typography>
+            <Chip
+              size="small"
+              label={`${participants.length} 人`}
+              color="success"
+              variant="outlined"
+            />
+          </Stack>
+        }
+        action={
+          <Stack direction="row" spacing={1}>
+            {isHost && (
+              <Button
+                variant="contained"
+                color={inviteSuccess ? "success" : "info"}
+                size="small"
+                sx={{
+                  transition: "color 150ms ease, box-shadow 150ms ease",
+                  boxShadow: inviteSuccess ? 3 : "none",
+                }}
+                onClick={() => {
+                  // 不讓 React 去管 Promise → 用 void 吃掉
+                  void (async () => {
+                    try {
+                      await onInvite();
+                      setInviteSuccess(true);
+                      setTimeout(() => setInviteSuccess(false), 1000);
+                    } catch (e) {
+                      console.log(e);
+                    }
+                  })();
+                }}
+              >
+                {inviteSuccess ? "已複製" : "邀請"}
+              </Button>
+            )}
+            {currentRoom && (
+              <Button
+                variant="outlined"
+                color="inherit"
+                size="small"
+                onClick={onLeave}
+              >
+                離開
+              </Button>
+            )}
+          </Stack>
+        }
+      />
+
+      <CardContent
+        sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}
+      >
+        {/* 成員列表 */}
+        <Box>
+          <Typography
+            variant="subtitle2"
+            className="text-slate-200"
+            gutterBottom
+          >
+            成員
+          </Typography>
           {participants.length === 0 ? (
-            <span className="text-slate-500">（目前沒有成員）</span>
+            <Typography variant="body2" className="text-slate-500">
+              目前無成員
+            </Typography>
           ) : (
-            <div className="flex flex-wrap gap-1">
+            <Stack direction="row" spacing={1} flexWrap="wrap">
               {participants.map((p) => {
                 const isSelf = p.username === username;
+                const host = p.clientId === currentRoom?.hostClientId;
                 return (
-                  <span
-                    key={p.socketId}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border text-[11px] ${
+                  <Chip
+                    key={p.clientId}
+                    label={
+                      <Stack
+                        display={"flex"}
+                        direction="row"
+                        spacing={0.5}
+                        alignItems="center"
+                      >
+                        <Badge
+                          variant="dot"
+                          color={p.isOnline ? "success" : "default"}
+                          overlap="circular"
+                        >
+                          <Box className="h-1.5 w-1.5 rounded-full" />
+                        </Badge>
+                        <span>{p.username}</span>
+                        {host && (
+                          <span className="text-amber-200 text-[10px]">
+                            Host
+                          </span>
+                        )}
+                        {isSelf && (
+                          <span className="opacity-80 text-[10px]">（我）</span>
+                        )}
+                      </Stack>
+                    }
+                    variant="outlined"
+                    color={isSelf ? "info" : "default"}
+                    className={
                       isSelf
-                        ? "bg-sky-500/15 border-sky-400/60 text-sky-200"
-                        : "bg-slate-800/60 border-slate-600 text-slate-200"
-                    }`}
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    {p.username}
-                    {isSelf && <span className="opacity-80">（你）</span>}
-                  </span>
+                        ? "text-sky-100 border-sky-500/60"
+                        : "text-slate-200"
+                    }
+                  />
                 );
               })}
-            </div>
+            </Stack>
           )}
-        </div>
-      </div>
+        </Box>
 
-      <div className="flex-1 rounded-lg border border-slate-800 bg-slate-950/70 p-3 mb-3 overflow-y-auto space-y-2">
-        {messages.length === 0 ? (
-          <div className="text-xs text-slate-500 text-center">
-            目前沒有訊息，送出第一則訊息吧。
-          </div>
-        ) : (
-          messages.map((msg) => {
-            const isSelf = msg.username === username;
-            return (
-              <div
-                key={msg.id}
-                className={`flex text-xs ${
-                  isSelf ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 ${
-                    isSelf
-                      ? "bg-sky-700 text-slate-50 rounded-br-sm"
-                      : "bg-slate-700 text-slate-100 rounded-bl-sm"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <span className="font-semibold text-[11px]">
-                      {msg.username}
-                      {isSelf && "（你）"}
-                    </span>
-                    <span className="text-[10px] opacity-70">
-                      {formatTime(msg.timestamp)}
-                    </span>
-                  </div>
-                  <div className="text-[12px] leading-snug text-left">
-                    {msg.content}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <div className="flex gap-2">
-        <input
-          className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400/60"
-          placeholder="輸入訊息後按 Enter 或按下 Send"
-          value={messageInput}
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              onSend();
-            }
+        {/* 聊天區 */}
+        <Box
+          sx={{
+            flex: 1,
+            border: "1px solid #1f2937",
+            borderRadius: 2,
+            backgroundColor: "rgba(15,23,42,0.6)",
+            p: 1.5,
+            overflowY: "auto",
           }}
-        />
-        <button
-          onClick={onSend}
-          className="cursor-pointer px-4 py-2 text-sm rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-medium shadow-sm shadow-sky-900/60"
         >
-          Send
-        </button>
-      </div>
-    </section>
+          {messages.length === 0 ? (
+            <Typography
+              variant="body2"
+              className="text-slate-500"
+              align="center"
+            >
+              目前還沒有訊息，先打個招呼吧！
+            </Typography>
+          ) : (
+            <MUIList dense disablePadding>
+              {messages.map((msg) => {
+                const isSelf = msg.username === username;
+                return (
+                  <ListItem
+                    key={msg.id}
+                    sx={{
+                      justifyContent: isSelf ? "flex-end" : "flex-start",
+                      textAlign: isSelf ? "right" : "left",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        maxWidth: "75%",
+                        borderRadius: 3,
+                        px: 1.5,
+                        py: 1,
+                        bgcolor: isSelf ? "primary.dark" : "#334155",
+                        color: "white",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        justifyContent="space-between"
+                      >
+                        <Typography variant="caption" fontWeight={600}>
+                          {msg.username}
+                          {isSelf && "（我）"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="rgba(255,255,255,0.7)"
+                        >
+                          {formatTime(msg.timestamp)}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {msg.content}
+                      </Typography>
+                    </Box>
+                  </ListItem>
+                );
+              })}
+            </MUIList>
+          )}
+        </Box>
+
+        {/* 輸入列 */}
+        <Stack direction="row" spacing={1}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="輸入訊息後按 Enter 或點 Send"
+            value={messageInput}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+          />
+          <Button variant="contained" onClick={onSend}>
+            Send
+          </Button>
+        </Stack>
+
+        <Divider />
+
+        {/* 播放清單虛擬列表 */}
+        <Box>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={1}
+          >
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="subtitle2" className="text-slate-200">
+                播放清單
+              </Typography>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`${playlistProgress.received}/${playlistProgress.total}${
+                  playlistProgress.ready ? " · 已完成" : ""
+                }`}
+                className="text-slate-200 border-slate-600"
+              />
+            </Stack>
+          </Stack>
+          {playlistItems.length === 0 ? (
+            <Typography
+              variant="body2"
+              className="text-slate-500"
+              align="center"
+              py={2}
+            >
+              尚無歌曲或尚未載入。
+            </Typography>
+          ) : (
+            <VirtualList
+              style={{ height: 260, width: "100%" }}
+              rowCount={rowCount}
+              rowProps={{}}
+              rowHeight={82}
+              rowComponent={PlaylistRow}
+            />
+          )}
+        </Box>
+      </CardContent>
+    </Card>
   );
 };
 

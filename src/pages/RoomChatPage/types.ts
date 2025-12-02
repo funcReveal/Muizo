@@ -2,9 +2,31 @@ import { Socket } from "socket.io-client";
 
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
+export interface PlaylistItem {
+  title: string;
+  url: string;
+  uploader?: string;
+  duration?: string;
+}
+
+export interface PlaylistState {
+  id?: string;
+  title?: string;
+  uploadId?: string;
+  items: PlaylistItem[];
+  totalCount: number;
+  receivedCount: number;
+  ready: boolean;
+  pageSize: number;
+}
+
 export interface RoomParticipant {
-  socketId: string;
+  clientId: string;
   username: string;
+  socketId?: string;
+  joinedAt: number;
+  isOnline: boolean;
+  lastSeen: number;
 }
 
 export interface ChatMessage {
@@ -21,10 +43,15 @@ export interface RoomSummary {
   name: string;
   playerCount: number;
   createdAt: number;
+  hasPassword: boolean;
+  playlistCount: number;
 }
 
 export interface RoomState {
-  room: RoomSummary;
+  room: RoomSummary & {
+    hostClientId: string;
+    playlist: PlaylistState;
+  };
   participants: RoomParticipant[];
   messages: ChatMessage[];
 }
@@ -32,10 +59,27 @@ export interface RoomState {
 // Client -> Server
 export interface ClientToServerEvents {
   createRoom: (
-    payload: { roomName: string; username: string },
+    payload: {
+      roomName: string;
+      username: string;
+      password?: string;
+      playlist: {
+        uploadId: string;
+        id?: string;
+        title?: string;
+        totalCount: number;
+        items?: PlaylistItem[];
+        isLast?: boolean;
+        pageSize?: number;
+      };
+    },
     callback?: (ack: Ack<RoomState>) => void
   ) => void;
   joinRoom: (
+    payload: { roomId: string; username: string; password?: string },
+    callback?: (ack: Ack<RoomState>) => void
+  ) => void;
+  resumeSession: (
     payload: { roomId: string; username: string },
     callback?: (ack: Ack<RoomState>) => void
   ) => void;
@@ -44,29 +88,49 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<null>) => void
   ) => void;
   sendMessage: (
-    payload: { roomId: string; content: string },
+    payload: { content: string },
     callback?: (ack: Ack<ChatMessage>) => void
   ) => void;
   listRooms: (callback?: (ack: Ack<RoomSummary[]>) => void) => void;
+  uploadPlaylistChunk: (
+    payload: {
+      roomId: string;
+      uploadId: string;
+      items: PlaylistItem[];
+      isLast?: boolean;
+    },
+    callback?: (ack: Ack<{ receivedCount: number; totalCount: number }>) => void
+  ) => void;
+  getPlaylistPage: (
+    payload: { roomId: string; page: number; pageSize?: number },
+    callback?: (ack: Ack<{
+      items: PlaylistItem[];
+      totalCount: number;
+      page: number;
+      pageSize: number;
+      ready: boolean;
+    }>) => void
+  ) => void;
 }
 
 // Server -> Client
 export interface ServerToClientEvents {
   roomsUpdated: (rooms: RoomSummary[]) => void;
   joinedRoom: (state: RoomState) => void;
-  userJoined: (payload: {
+  participantsUpdated: (payload: {
     roomId: string;
-    participant: RoomParticipant;
+    participants: RoomParticipant[];
+    hostClientId: string;
   }) => void;
-  userLeft: (payload: { roomId: string; socketId: string }) => void;
+  playlistProgress: (payload: {
+    roomId: string;
+    receivedCount: number;
+    totalCount: number;
+    ready: boolean;
+  }) => void;
+  playlistUpdated: (payload: { roomId: string; playlist: PlaylistState }) => void;
+  userLeft: (payload: { roomId: string; clientId: string }) => void;
   messageAdded: (payload: { roomId: string; message: ChatMessage }) => void;
 }
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-export interface PlaylistItem {
-  title: string;
-  url: string;
-  uploader?: string;
-  duration?: string;
-}
