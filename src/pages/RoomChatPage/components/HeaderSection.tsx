@@ -15,10 +15,10 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
     <header className="mb-3 flex items-center justify-between gap-4">
       <div>
         <h1 className="text-5xl font-semibold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
-          MusicQuiz · Rooms & Chat
+          MusicQuiz
         </h1>
         <p className="text-1xl text-slate-400">
-          建立房間、邀請朋友，一起即時聊天與出題。
+          建立房間、邀請朋友，一起猜歌。
         </p>
       </div>
       <div className="text-right text-shadow-md text-slate-400 space-y-1">

@@ -33,6 +33,8 @@ interface RoomCreationSectionProps {
   inviteRoomId?: string | null;
   isInviteMode?: boolean;
   inviteNotFound?: boolean;
+  questionCount: number;
+  onQuestionCountChange: (value: number) => void;
   onRoomNameChange: (value: string) => void;
   onRoomPasswordChange: (value: string) => void;
   onJoinPasswordChange: (value: string) => void;
@@ -61,6 +63,8 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   inviteRoomId,
   isInviteMode = false,
   inviteNotFound = false,
+  questionCount,
+  onQuestionCountChange,
   onRoomNameChange,
   onRoomPasswordChange,
   onJoinPasswordChange,
@@ -201,6 +205,16 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               value={roomPassword}
               onChange={(e) => onRoomPasswordChange(e.target.value)}
               disabled={!username}
+            />
+            <TextField
+              size="small"
+              label="題數"
+              type="number"
+              slotProps={{ htmlInput: { min: 1, max: 50 } }}
+              value={questionCount}
+              onChange={(e) =>
+                onQuestionCountChange(Number(e.target.value) || 0)
+              }
             />
             <Button
               variant="contained"

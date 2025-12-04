@@ -98,8 +98,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </ListItemAvatar>
             <ListItemText
               primary={
-                <Typography variant="body2" className="text-slate-100">
-                  {item.title}
+                <Typography variant="body2">
+                  <a
+                    className="w-auto text-slate-100 hover:text-sky-400 transition-colors duration-300"
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {item.title}
+                  </a>
                 </Typography>
               }
               secondary={
@@ -109,7 +116,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </Typography>
               }
             />
-            <Button
+            {/* <Button
               size="small"
               variant="text"
               color="info"
@@ -118,7 +125,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               rel="noreferrer"
             >
               開啟
-            </Button>
+            </Button> */}
           </ListItem>
         </Card>
       </Box>

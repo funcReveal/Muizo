@@ -45,6 +45,9 @@ export interface RoomSummary {
   createdAt: number;
   hasPassword: boolean;
   playlistCount: number;
+  gameSettings?: {
+    questionCount: number;
+  };
 }
 
 export interface RoomState {
@@ -63,6 +66,7 @@ export interface ClientToServerEvents {
       roomName: string;
       username: string;
       password?: string;
+      gameSettings?: { questionCount: number };
       playlist: {
         uploadId: string;
         id?: string;

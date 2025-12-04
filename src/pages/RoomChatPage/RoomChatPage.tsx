@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import ChatPanel from "./components/ChatPanel";
 import HeaderSection from "./components/HeaderSection";
 import RoomCreationSection from "./components/RoomCreationSection";
+import CreateRoomDialog from "./components/CreateRoomDialog";
 import UsernameStep from "./components/UsernameStep";
 import type {
   Ack,
@@ -14,6 +15,7 @@ import type {
   RoomState,
   RoomSummary,
 } from "./types";
+import { Button, Snackbar } from "@mui/material";
 
 const SERVER_URL = import.meta.env.VITE_SOCKET_URL;
 const DEFAULT_PAGE_SIZE = 50;
@@ -75,12 +77,14 @@ const RoomChatPage: React.FC = () => {
     total: number;
     ready: boolean;
   }>({ received: 0, total: 0, ready: false });
+  const [questionCount, setQuestionCount] = useState<number>(10);
   const [inviteRoomId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("roomId");
   });
   const isInviteMode = Boolean(inviteRoomId);
   const [inviteNotFound, setInviteNotFound] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const socketRef = useRef<ClientSocket | null>(null);
   const currentRoomIdRef = useRef<string | null>(
@@ -380,6 +384,7 @@ const RoomChatPage: React.FC = () => {
       roomName: trimmed,
       username,
       password: roomPasswordInput.trim() || undefined,
+      gameSettings: { questionCount },
       playlist: {
         uploadId,
         id: lastFetchedPlaylistId,
@@ -399,6 +404,7 @@ const RoomChatPage: React.FC = () => {
         setMessages(state.messages);
         persistRoomId(state.room.id);
         setRoomNameInput("");
+        setCreateDialogOpen(false);
         setStatusText(`已建立房間：${state.room.name}`);
         setPlaylistProgress({
           received: state.room.playlist.receivedCount,
@@ -676,43 +682,125 @@ const RoomChatPage: React.FC = () => {
         />
       )}
 
-      <div className="flex gap-4 flex-col lg:flex-row">
+      <div className="flex gap-4 flex-row justify-center">
         {!currentRoom?.id && username && (
-          <RoomCreationSection
-            roomName={roomNameInput}
-            roomPassword={roomPasswordInput}
-            playlistUrl={playlistUrl}
-            playlistItems={playlistItems}
-            playlistError={playlistError}
-            playlistLoading={playlistLoading}
-            playlistStage={playlistStage}
-            playlistLocked={playlistLocked}
-            rooms={
-              isInviteMode && inviteRoomId
-                ? rooms.filter((r) => r.id === inviteRoomId)
-                : rooms
-            }
-            username={username}
-            currentRoomId={currentRoomIdRef.current}
-            joinPassword={joinPasswordInput}
-            playlistProgress={playlistProgress}
-            inviteRoom={
-              inviteRoomId
-                ? rooms.find((room) => room.id === inviteRoomId) ?? null
-                : null
-            }
-            inviteRoomId={inviteRoomId}
-            isInviteMode={isInviteMode}
-            inviteNotFound={inviteNotFound}
-            onRoomNameChange={setRoomNameInput}
-            onRoomPasswordChange={setRoomPasswordInput}
-            onJoinPasswordChange={setJoinPasswordInput}
-            onPlaylistUrlChange={setPlaylistUrl}
-            onFetchPlaylist={handleFetchPlaylist}
-            onResetPlaylist={handleResetPlaylist}
-            onCreateRoom={handleCreateRoom}
-            onJoinRoom={handleJoinRoom}
-          />
+          <>
+            {isInviteMode ? (
+              <RoomCreationSection
+                roomName={roomNameInput}
+                roomPassword={roomPasswordInput}
+                playlistUrl={playlistUrl}
+                playlistItems={playlistItems}
+                playlistError={playlistError}
+                playlistLoading={playlistLoading}
+                playlistStage={playlistStage}
+                playlistLocked={playlistLocked}
+                rooms={rooms}
+                username={username}
+                currentRoomId={currentRoomIdRef.current}
+                joinPassword={joinPasswordInput}
+                playlistProgress={playlistProgress}
+                inviteRoom={
+                  inviteRoomId
+                    ? rooms.find((room) => room.id === inviteRoomId) ?? null
+                    : null
+                }
+                inviteRoomId={inviteRoomId}
+                isInviteMode={isInviteMode}
+                inviteNotFound={inviteNotFound}
+                questionCount={questionCount}
+                onQuestionCountChange={setQuestionCount}
+                onRoomNameChange={setRoomNameInput}
+                onRoomPasswordChange={setRoomPasswordInput}
+                onJoinPasswordChange={setJoinPasswordInput}
+                onPlaylistUrlChange={setPlaylistUrl}
+                onFetchPlaylist={handleFetchPlaylist}
+                onResetPlaylist={handleResetPlaylist}
+                onCreateRoom={handleCreateRoom}
+                onJoinRoom={handleJoinRoom}
+              />
+            ) : (
+              <div className="w-full md:w-full lg:w-3/5">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg text-slate-100 font-semibold">
+                    房間列表
+                  </h2>
+                  <Button
+                    variant="contained"
+                    onClick={() => setCreateDialogOpen(true)}
+                  >
+                    建立房間
+                  </Button>
+                </div>
+                <div className="w-full max-h-80 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/70 divide-y divide-slate-800 shadow-inner shadow-slate-900/60">
+                  {rooms.length === 0 ? (
+                    <div className="p-4 text-xs text-slate-500 text-center">
+                      目前沒有房間，試著建立一個吧！
+                    </div>
+                  ) : (
+                    rooms.map((room) => {
+                      const isCurrent = currentRoomIdRef.current === room.id;
+                      return (
+                        <div
+                          key={room.id}
+                          className={`px-3 py-2.5 flex items-center justify-between text-sm transition-colors duration-300 ${
+                            isCurrent
+                              ? "bg-slate-900/90 border-l-2 border-l-sky-400"
+                              : "hover:bg-slate-900/70"
+                          }`}
+                        >
+                          <div>
+                            <div className="font-medium text-slate-100 flex items-center gap-2">
+                              {room.name}
+                              {room.hasPassword && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-600">
+                                  密碼
+                                </span>
+                              )}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-200 border border-emerald-500/40">
+                                題數 {room.gameSettings?.questionCount ?? "-"}
+                              </span>
+                              {isCurrent && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/40">
+                                  Current
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              Players: {room.playerCount} ・ 清單{" "}
+                              {room.playlistCount} 首 ・{" "}
+                              {new Date(room.createdAt).toLocaleTimeString()}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {room.hasPassword && (
+                              <input
+                                className="w-28 px-2 py-1 text-xs rounded bg-slate-900 border border-slate-700 text-slate-200"
+                                placeholder="房間密碼"
+                                value={joinPasswordInput}
+                                onChange={(e) =>
+                                  setJoinPasswordInput(e.target.value)
+                                }
+                              />
+                            )}
+                            <button
+                              onClick={() =>
+                                handleJoinRoom(room.id, room.hasPassword)
+                              }
+                              disabled={!username}
+                              className="cursor-pointer px-3 py-1.5 text-xs rounded-lg bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-[transform,background-color] active:scale-[0.98]"
+                            >
+                              加入
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {currentRoom?.id && (
@@ -736,25 +824,49 @@ const RoomChatPage: React.FC = () => {
               const url = new URL(window.location.href);
               url.searchParams.set("roomId", currentRoom.id);
               const inviteText = url.toString();
-
               if (navigator.clipboard?.writeText) {
                 try {
                   await navigator.clipboard.writeText(inviteText);
                   setStatusText("已複製邀請連結");
+                  // return true;
                 } catch (err) {
                   console.error(err);
                   setStatusText("複製邀請連結失敗");
+                  // return false;
                 }
               } else {
                 setStatusText(inviteText);
+                // return true;
               }
             }}
           />
         )}
       </div>
 
+      <CreateRoomDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        roomName={roomNameInput}
+        roomPassword={roomPasswordInput}
+        questionCount={questionCount}
+        playlistUrl={playlistUrl}
+        playlistItems={playlistItems}
+        playlistError={playlistError}
+        playlistLoading={playlistLoading}
+        playlistStage={playlistStage}
+        playlistLocked={playlistLocked}
+        onRoomNameChange={setRoomNameInput}
+        onRoomPasswordChange={setRoomPasswordInput}
+        onQuestionCountChange={setQuestionCount}
+        onPlaylistUrlChange={setPlaylistUrl}
+        onFetchPlaylist={handleFetchPlaylist}
+        onResetPlaylist={handleResetPlaylist}
+        onCreateRoom={handleCreateRoom}
+      />
+
       {statusText && (
-        <div className="text-xs text-slate-400 mt-1">Status: {statusText}</div>
+        // <div className="text-xs text-slate-400 mt-1">Status: {statusText}</div>
+        <Snackbar message={`Status: ${statusText}`} open={true} />
       )}
     </div>
   );
