@@ -20,6 +20,26 @@ export interface PlaylistState {
   pageSize: number;
 }
 
+export interface GameChoice {
+  title: string;
+  index: number;
+}
+
+export interface GameState {
+  status: "playing" | "ended";
+  phase: "guess" | "reveal";
+  currentIndex: number;
+  startedAt: number;
+  revealEndsAt: number;
+  guessDurationMs: number;
+  revealDurationMs: number;
+  choices: GameChoice[];
+  answerTitle?: string;
+  showVideo: boolean;
+  trackOrder: number[];
+  trackCursor: number;
+}
+
 export interface RoomParticipant {
   clientId: string;
   username: string;
@@ -27,6 +47,8 @@ export interface RoomParticipant {
   joinedAt: number;
   isOnline: boolean;
   lastSeen: number;
+  score: number;
+  combo: number;
 }
 
 export interface ChatMessage {
@@ -57,6 +79,7 @@ export interface RoomState {
   };
   participants: RoomParticipant[];
   messages: ChatMessage[];
+  gameState?: GameState | null;
 }
 
 // Client -> Server
@@ -115,6 +138,14 @@ export interface ClientToServerEvents {
       ready: boolean;
     }>) => void
   ) => void;
+  startGame: (
+    payload: { roomId: string },
+    callback?: (ack: Ack<GameState>) => void
+  ) => void;
+  submitAnswer: (
+    payload: { roomId: string; choiceIndex: number },
+    callback?: (ack: Ack<null>) => void
+  ) => void;
 }
 
 // Server -> Client
@@ -135,6 +166,7 @@ export interface ServerToClientEvents {
   playlistUpdated: (payload: { roomId: string; playlist: PlaylistState }) => void;
   userLeft: (payload: { roomId: string; clientId: string }) => void;
   messageAdded: (payload: { roomId: string; message: ChatMessage }) => void;
+  gameStarted: (payload: { roomId: string; gameState: GameState }) => void;
 }
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
