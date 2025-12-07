@@ -20,6 +20,7 @@ import {
 import { List as VirtualList, type RowComponentProps } from "react-window";
 import type {
   ChatMessage,
+  GameState,
   PlaylistItem,
   RoomParticipant,
   RoomState,
@@ -41,11 +42,15 @@ interface ChatPanelProps {
   playlistLoadingMore: boolean;
   playlistProgress: { received: number; total: number; ready: boolean };
   isHost: boolean;
+  gameState?: GameState | null;
+  canStartGame: boolean;
   onLeave: () => void;
   onInputChange: (value: string) => void;
   onSend: () => void;
   onLoadMorePlaylist: () => void;
-  /** 邀請動作：回傳 Promise<void>，錯誤用 throw 或外部 statusText 處理 */
+  onStartGame: () => void;
+  onOpenGame?: () => void;
+  /** Invite handler that returns Promise<void>; surface errors via throw or status text */
   onInvite: () => Promise<void>;
 }
 
@@ -60,10 +65,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   playlistLoadingMore,
   playlistProgress,
   isHost,
+  gameState,
+  canStartGame,
   onLeave,
   onInputChange,
   onSend,
   onLoadMorePlaylist,
+  onStartGame,
+  onOpenGame,
   onInvite,
 }) => {
   const rowCount = playlistItems.length + (playlistHasMore ? 1 : 0);
@@ -167,6 +176,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         }
         action={
           <Stack direction="row" spacing={1}>
+            {gameState?.status === "playing" && (
+              <Button
+                variant="contained"
+                color="success"
+                size="small"
+                onClick={() => onOpenGame?.()}
+              >
+                前往遊戲
+              </Button>
+            )}
+            {isHost && (
+              <Button
+                variant="contained"
+                color="warning"
+                size="small"
+                disabled={!canStartGame || gameState?.status === "playing"}
+                onClick={onStartGame}
+              >
+                開始遊戲
+              </Button>
+            )}
             {isHost && (
               <Button
                 variant="contained"

@@ -5,10 +5,12 @@ import ChatPanel from "./components/ChatPanel";
 import HeaderSection from "./components/HeaderSection";
 import RoomCreationSection from "./components/RoomCreationSection";
 import UsernameStep from "./components/UsernameStep";
+import GameRoomPage from "../GameRoomPage/GameRoomPage";
 import type {
   Ack,
   ChatMessage,
   ClientSocket,
+  GameState,
   PlaylistItem,
   RoomParticipant,
   RoomState,
@@ -84,6 +86,9 @@ const RoomChatPage: React.FC = () => {
   const isInviteMode = Boolean(inviteRoomId);
   const [inviteNotFound, setInviteNotFound] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "create">("list");
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [gamePlaylist, setGamePlaylist] = useState<PlaylistItem[]>([]);
+  const [isGameView, setIsGameView] = useState(false);
 
   const socketRef = useRef<ClientSocket | null>(null);
   const currentRoomIdRef = useRef<string | null>(
@@ -211,6 +216,52 @@ const RoomChatPage: React.FC = () => {
     );
   };
 
+  const fetchCompletePlaylist = useCallback(
+    (roomId: string) =>
+      new Promise<PlaylistItem[]>((resolve) => {
+        const s = getSocket();
+        if (!s) {
+          resolve([]);
+          return;
+        }
+        const aggregated: PlaylistItem[] = [];
+        const pageSize = Math.max(playlistPageSize, DEFAULT_PAGE_SIZE);
+
+        const loadPage = (page: number) => {
+          s.emit(
+            "getPlaylistPage",
+            { roomId, page, pageSize },
+            (
+              ack: Ack<{
+                items: PlaylistItem[];
+                totalCount: number;
+                page: number;
+                pageSize: number;
+                ready: boolean;
+              }>
+            ) => {
+              if (ack?.ok) {
+                aggregated.push(...ack.data.items);
+                if (
+                  aggregated.length < ack.data.totalCount &&
+                  ack.data.items.length > 0
+                ) {
+                  loadPage(page + 1);
+                } else {
+                  resolve(aggregated);
+                }
+              } else {
+                resolve(aggregated);
+              }
+            }
+          );
+        };
+
+        loadPage(1);
+      }),
+    [playlistPageSize]
+  );
+
   useEffect(() => {
     if (!username) return;
 
@@ -255,6 +306,14 @@ const RoomChatPage: React.FC = () => {
                 total: state.room.playlist.totalCount,
                 ready: state.room.playlist.ready,
               });
+              setGameState(state.gameState ?? null);
+              if (state.gameState?.status === "playing") {
+                setIsGameView(true);
+                void fetchCompletePlaylist(state.room.id).then(setGamePlaylist);
+              } else {
+                setIsGameView(false);
+                setGamePlaylist([]);
+              }
               fetchPlaylistPage(
                 state.room.id,
                 1,
@@ -279,6 +338,9 @@ const RoomChatPage: React.FC = () => {
       setCurrentRoom(null);
       setParticipants([]);
       setMessages([]);
+      setGameState(null);
+      setGamePlaylist([]);
+      setIsGameView(false);
       setPlaylistViewItems([]);
       setPlaylistHasMore(false);
       setPlaylistLoadingMore(false);
@@ -307,6 +369,14 @@ const RoomChatPage: React.FC = () => {
         total: state.room.playlist.totalCount,
         ready: state.room.playlist.ready,
       });
+      setGameState(state.gameState ?? null);
+      if (state.gameState?.status === "playing") {
+        setIsGameView(true);
+        void fetchCompletePlaylist(state.room.id).then(setGamePlaylist);
+      } else {
+        setIsGameView(false);
+        setGamePlaylist([]);
+      }
       fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
         reset: true,
       });
@@ -350,6 +420,22 @@ const RoomChatPage: React.FC = () => {
     s.on("messageAdded", ({ roomId, message }) => {
       if (roomId !== currentRoomIdRef.current) return;
       setMessages((prev) => [...prev, message]);
+    });
+
+    s.on("gameStarted", ({ roomId, gameState }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setGameState(gameState);
+      setIsGameView(true);
+      void fetchCompletePlaylist(roomId).then(setGamePlaylist);
+      setStatusText("遊戲已開始，切換至遊戲頁面");
+    });
+
+    s.on("gameUpdated", ({ roomId, gameState }) => {
+      if (roomId !== currentRoomIdRef.current) return;
+      setGameState(gameState);
+      if (gameState?.status === "playing") {
+        setIsGameView(true);
+      }
     });
 
     return () => {
@@ -412,6 +498,9 @@ const RoomChatPage: React.FC = () => {
           total: state.room.playlist.totalCount,
           ready: state.room.playlist.ready,
         });
+        setGameState(state.gameState ?? null);
+        setIsGameView(false);
+        setGamePlaylist([]);
         fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
           reset: true,
         });
@@ -466,6 +555,14 @@ const RoomChatPage: React.FC = () => {
             total: state.room.playlist.totalCount,
             ready: state.room.playlist.ready,
           });
+          setGameState(state.gameState ?? null);
+          if (state.gameState?.status === "playing") {
+            setIsGameView(true);
+            void fetchCompletePlaylist(state.room.id).then(setGamePlaylist);
+          } else {
+            setIsGameView(false);
+            setGamePlaylist([]);
+          }
           fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
             reset: true,
           });
@@ -489,6 +586,9 @@ const RoomChatPage: React.FC = () => {
         setCurrentRoom(null);
         setParticipants([]);
         setMessages([]);
+        setGameState(null);
+        setGamePlaylist([]);
+        setIsGameView(false);
         setPlaylistViewItems([]);
         setPlaylistHasMore(false);
         setPlaylistLoadingMore(false);
@@ -517,6 +617,49 @@ const RoomChatPage: React.FC = () => {
     });
 
     setMessageInput("");
+  };
+
+  const handleStartGame = () => {
+    const s = getSocket();
+    if (!s || !currentRoom) {
+      setStatusText("尚未加入任何房間");
+      return;
+    }
+    if (!playlistProgress.ready) {
+      setStatusText("播放清單尚未準備完成");
+      return;
+    }
+
+    s.emit("startGame", { roomId: currentRoom.id }, (ack: Ack<GameState>) => {
+      if (!ack) return;
+      if (ack.ok) {
+        setGameState(ack.data);
+        setIsGameView(true);
+        void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
+        setStatusText("遊戲即將開始");
+      } else {
+        setStatusText(`開始遊戲失敗：${ack.error}`);
+      }
+    });
+  };
+
+  // 遊戲結束自動回聊天室
+  useEffect(() => {
+    if (gameState?.status === "ended" && isGameView) {
+      setIsGameView(false);
+      setStatusText("遊戲已結束，返回聊天室");
+    }
+  }, [gameState?.status, isGameView]);
+
+  const handleSubmitChoice = (choiceIndex: number) => {
+    const s = getSocket();
+    if (!s || !currentRoom || !gameState) return;
+    if (gameState.phase !== "guess") return;
+    s.emit("submitAnswer", { roomId: currentRoom.id, choiceIndex }, (ack) => {
+      if (ack && !ack.ok) {
+        setStatusText(`提交答案失敗：${ack.error}`);
+      }
+    });
   };
 
   const handleFetchPlaylist = async () => {
@@ -679,6 +822,40 @@ const RoomChatPage: React.FC = () => {
     playlistPageSize,
   ]);
 
+  // 遊戲模式：全屏顯示遊戲頁（保留 Header 以便退出/提示）
+  if (currentRoom && gameState && isGameView) {
+    return (
+      <div className="flex flex-col w-full min-h-screen space-y-4">
+        <HeaderSection
+          serverUrl={SERVER_URL}
+          isConnected={isConnected}
+          displayUsername={displayUsername}
+        />
+        <div className="flex w-full justify-center">
+          <GameRoomPage
+            room={currentRoom}
+            gameState={gameState}
+            playlist={
+              gamePlaylist.length > 0 ? gamePlaylist : playlistViewItems
+            }
+            onBack={() => setIsGameView(false)}
+            onSubmitChoice={handleSubmitChoice}
+            participants={participants}
+            meClientId={clientId}
+            messages={messages}
+            messageInput={messageInput}
+            onMessageChange={setMessageInput}
+            onSendMessage={handleSendMessage}
+            username={username}
+          />
+        </div>
+        {statusText && (
+          <Snackbar message={`Status: ${statusText}`} open={true} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col w-95/100 space-y-4">
       <HeaderSection
@@ -694,7 +871,6 @@ const RoomChatPage: React.FC = () => {
           onConfirm={handleSetUsername}
         />
       )}
-
       <div className="flex gap-4 flex-row justify-center">
         {!currentRoom?.id && username && (
           <>
@@ -875,10 +1051,14 @@ const RoomChatPage: React.FC = () => {
             playlistLoadingMore={playlistLoadingMore}
             playlistProgress={playlistProgress}
             isHost={currentRoom.hostClientId === clientId}
+            gameState={gameState}
+            canStartGame={playlistProgress.ready}
             onLeave={handleLeaveRoom}
             onInputChange={setMessageInput}
             onSend={handleSendMessage}
             onLoadMorePlaylist={loadMorePlaylist}
+            onStartGame={handleStartGame}
+            onOpenGame={() => setIsGameView(true)}
             onInvite={async () => {
               if (!currentRoom) return;
               const url = new URL(window.location.href);
