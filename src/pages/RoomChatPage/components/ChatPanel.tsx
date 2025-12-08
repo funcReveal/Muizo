@@ -11,8 +11,6 @@ import {
   Divider,
   List as MUIList,
   ListItem,
-  ListItemAvatar,
-  ListItemText,
   Stack,
   TextField,
   Typography,
@@ -97,59 +95,50 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     const item = playlistItems[index];
     return (
-      <Box style={style} {...ariaAttributes} px={0.5}>
-        <Card
-          sx={{ width: "99%" }}
-          variant="outlined"
-          className="bg-slate-900/70 border-slate-800"
-        >
-          <ListItem dense>
-            <ListItemAvatar>
-              <Avatar
-                sx={{ bgcolor: "#334155", width: 56, height: 56, fontSize: 14 }}
-                variant="rounded"
-                src={item.thumbnail}
-              >
-                {index + 1}
-              </Avatar>
-            </ListItemAvatar>
-            <ListItemText
-              primary={
-                <Typography
-                  variant="body2"
-                  className="max-w-99/100 truncate text-slate-400"
-                >
-                  <a
-                    className=" text-slate-100 hover:text-sky-400 transition-colors duration-300"
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={item.title}
-                  >
-                    {item.title}
-                  </a>
-                </Typography>
-              }
-              secondary={
-                <Typography variant="caption" className="text-slate-400">
-                  {item.uploader ?? "Unknown"}
-                  {item.duration ? ` · ${item.duration}` : ""}
-                </Typography>
-              }
-            />
-            {/* <Button
-              size="small"
-              variant="text"
-              color="info"
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
+      <div style={style}>
+        <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-800/60">
+          <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-hidden">
+            <Avatar
+              variant="rounded"
+              src={item.thumbnail}
+              sx={{ bgcolor: "#334155", width: 56, height: 56, fontSize: 14 }}
             >
-              開啟
-            </Button> */}
-          </ListItem>
-        </Card>
-      </Box>
+              {index + 1}
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <Typography
+                variant="body2"
+                className="max-w-99/100 truncate text-slate-400 "
+              >
+                <a
+                  className="text-slate-100 hover:text-sky-400 transition-colors duration-300"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={item.title}
+                >
+                  {item.title}
+                </a>
+              </Typography>
+
+              <p className="text-[11px] text-slate-400">
+                {item.uploader ?? "Unknown"}
+                {item.duration ? ` · ${item.duration}` : ""}
+              </p>
+            </div>
+          </div>
+          {/* <Button
+                  size="small"
+                  variant="text"
+                  color="info"
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  開啟
+                </Button> */}
+        </div>
+      </div>
     );
   };
 
@@ -421,13 +410,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               尚無歌曲或尚未載入。
             </Typography>
           ) : (
-            <VirtualList
-              style={{ height: 280, width: "100%" }}
-              rowCount={rowCount}
-              rowProps={{}}
-              rowHeight={96}
-              rowComponent={PlaylistRow}
-            />
+            <div className="rounded border border-slate-800 bg-slate-900/60">
+              <VirtualList
+                style={{ height: 280, width: "100%" }}
+                rowCount={rowCount}
+                rowHeight={75}
+                rowProps={{}}
+                rowComponent={PlaylistRow}
+              />
+            </div>
           )}
         </Box>
       </CardContent>

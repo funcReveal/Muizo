@@ -21,10 +21,14 @@ import { Button, Snackbar } from "@mui/material";
 const SERVER_URL = import.meta.env.VITE_SOCKET_URL;
 const DEFAULT_PAGE_SIZE = 50;
 const CHUNK_SIZE = 200;
+const QUESTION_MIN = 5;
+const QUESTION_MAX = 100;
+const QUESTION_STEP = 5;
 const STORAGE_KEYS = {
   clientId: "mq_clientId",
   username: "mq_username",
   roomId: "mq_roomId",
+  questionCount: "mq_questionCount",
 };
 
 const RoomChatPage: React.FC = () => {
@@ -78,7 +82,13 @@ const RoomChatPage: React.FC = () => {
     total: number;
     ready: boolean;
   }>({ received: 0, total: 0, ready: false });
-  const [questionCount, setQuestionCount] = useState<number>(10);
+  const clampQuestionCount = (value: number) =>
+    Math.min(QUESTION_MAX, Math.max(QUESTION_MIN, value));
+  const [questionCount, setQuestionCount] = useState<number>(() => {
+    const saved = Number(localStorage.getItem(STORAGE_KEYS.questionCount));
+    const initial = Number.isFinite(saved) ? saved : 10;
+    return clampQuestionCount(initial);
+  });
   const [inviteRoomId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("roomId");
@@ -109,6 +119,12 @@ const RoomChatPage: React.FC = () => {
     } else {
       localStorage.removeItem(STORAGE_KEYS.roomId);
     }
+  };
+
+  const updateQuestionCount = (value: number) => {
+    const clamped = clampQuestionCount(value);
+    setQuestionCount(clamped);
+    localStorage.setItem(STORAGE_KEYS.questionCount, String(clamped));
   };
 
   const handleSetUsername = () => {
@@ -472,7 +488,7 @@ const RoomChatPage: React.FC = () => {
       roomName: trimmed,
       username,
       password: roomPasswordInput.trim() || undefined,
-      gameSettings: { questionCount },
+      gameSettings: { questionCount: clampQuestionCount(questionCount) },
       playlist: {
         uploadId,
         id: lastFetchedPlaylistId,
@@ -681,8 +697,55 @@ const RoomChatPage: React.FC = () => {
       return;
     }
 
+    const isAutoMixId = (id: string) =>
+      id.startsWith("RD") || id.startsWith("OLAK5uy_");
+    if (isAutoMixId(playlistId)) {
+      setPlaylistError(
+        "YouTube 自動合輯/混合歌曲無法透過 API 取得，請改用公開的播放清單。"
+      );
+      return;
+    }
+
     setPlaylistLoading(true);
     try {
+      // 先檢查清單狀態（是否存在、是否私人）
+      const metaParams = new URLSearchParams({
+        part: "status,contentDetails",
+        id: playlistId,
+        key: apiKey,
+      });
+      const metaRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlists?${metaParams.toString()}`
+      );
+      if (!metaRes.ok) {
+        const metaErr = await metaRes.json().catch(() => null);
+        const reason =
+          metaErr?.error?.errors?.[0]?.reason ??
+          metaErr?.error?.message ??
+          "無法讀取清單資訊";
+        throw new Error(
+          reason === "playlistNotFound"
+            ? "找不到清單，可能不存在或無法公開存取"
+            : `讀取清單資訊失敗：${reason}`
+        );
+      }
+      const meta = await metaRes.json();
+      const playlistInfo = (
+        meta.items as
+          | Array<{
+              status?: { privacyStatus?: string };
+              contentDetails?: { itemCount?: number };
+            }>
+          | undefined
+      )?.[0];
+      if (!playlistInfo) {
+        throw new Error("找不到清單，可能不存在或無法公開存取");
+      }
+      if (playlistInfo.status?.privacyStatus === "private") {
+        throw new Error("此清單為私人或受限，無法讀取");
+      }
+      const expectedCount = playlistInfo.contentDetails?.itemCount ?? null;
+
       const items: PlaylistItem[] = [];
       let nextPageToken: string | undefined;
 
@@ -702,7 +765,15 @@ const RoomChatPage: React.FC = () => {
           `https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`
         );
         if (!res.ok) {
-          throw new Error("讀取播放清單失敗，請稍後再試");
+          const errJson = await res.json().catch(() => null);
+          const reason =
+            errJson?.error?.errors?.[0]?.reason ??
+            errJson?.error?.message ??
+            "讀取播放清單失敗";
+          if (reason === "playlistItemsNotAccessible") {
+            throw new Error("此播放清單未公開或受限，無法讀取內容。");
+          }
+          throw new Error(`讀取播放清單失敗，請稍後再試（${reason}）`);
         }
 
         const data = await res.json();
@@ -786,15 +857,34 @@ const RoomChatPage: React.FC = () => {
         nextPageToken = data.nextPageToken;
       } while (nextPageToken);
 
+      if (items.length === 0) {
+        throw new Error(
+          "清單沒有可用影片，可能為私人/受限或自動合輯不受支援。"
+        );
+      }
+
       setPlaylistItems(items);
       setPlaylistStage("preview");
       setPlaylistLocked(true);
       setLastFetchedPlaylistId(playlistId);
-      setStatusText(`已載入播放清單，共 ${items.length} 首`);
+      if (expectedCount !== null && expectedCount !== items.length) {
+        setStatusText(
+          `已載入播放清單，共 ${items.length} 首（原清單顯示 ${expectedCount}）`
+        );
+      } else {
+        setStatusText(`已載入播放清單，共 ${items.length} 首`);
+      }
     } catch (error) {
       console.error(error);
-      setPlaylistError("讀取播放清單時發生錯誤，請確認網路後重試");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "讀取播放清單時發生錯誤，請確認網路後重試";
+      setPlaylistError(message);
       setPlaylistItems([]);
+      setPlaylistStage("input");
+      setPlaylistLocked(false);
+      setLastFetchedPlaylistId(null);
     } finally {
       setPlaylistLoading(false);
     }
@@ -898,7 +988,10 @@ const RoomChatPage: React.FC = () => {
                 isInviteMode={true}
                 inviteNotFound={inviteNotFound}
                 questionCount={questionCount}
-                onQuestionCountChange={setQuestionCount}
+                onQuestionCountChange={updateQuestionCount}
+                questionMin={QUESTION_MIN}
+                questionMax={QUESTION_MAX}
+                questionStep={QUESTION_STEP}
                 onRoomNameChange={setRoomNameInput}
                 onRoomPasswordChange={setRoomPasswordInput}
                 onJoinPasswordChange={setJoinPasswordInput}
@@ -942,7 +1035,10 @@ const RoomChatPage: React.FC = () => {
                   isInviteMode={false}
                   inviteNotFound={false}
                   questionCount={questionCount}
-                  onQuestionCountChange={setQuestionCount}
+                  onQuestionCountChange={updateQuestionCount}
+                  questionMin={QUESTION_MIN}
+                  questionMax={QUESTION_MAX}
+                  questionStep={QUESTION_STEP}
                   onRoomNameChange={setRoomNameInput}
                   onRoomPasswordChange={setRoomPasswordInput}
                   onJoinPasswordChange={setJoinPasswordInput}
