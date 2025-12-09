@@ -20,6 +20,7 @@ interface GameRoomPageProps {
   onMessageChange?: (value: string) => void;
   onSendMessage?: () => void;
   username?: string | null;
+  serverOffsetMs?: number;
 }
 
 const extractYouTubeId = (url: string): string | null => {
@@ -48,14 +49,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   onMessageChange,
   onSendMessage,
   username,
+  serverOffsetMs = 0,
 }) => {
   const [volume, setVolume] = useState(() => {
     const stored = Number(localStorage.getItem("mq_volume"));
     return Number.isFinite(stored) ? Math.min(100, Math.max(0, stored)) : 100;
   });
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now() + serverOffsetMs);
   const [playerStart, setPlayerStart] = useState(() =>
-    Math.max(0, Math.floor((Date.now() - gameState.startedAt) / 1000))
+    Math.max(0, Math.floor((Date.now() + serverOffsetMs - gameState.startedAt) / 1000))
   );
   const [showVideo, setShowVideo] = useState(gameState.showVideo ?? true);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
@@ -63,21 +65,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const hasStartedPlaybackRef = useRef(false);
   const playerReadyRef = useRef(false);
-  const lastSyncMsRef = useRef<number>(Date.now());
+  const lastSyncMsRef = useRef<number>(Date.now() + serverOffsetMs);
   const initialVideoIdRef = useRef<string | null>(null);
   const initialIframeSrcRef = useRef<string | null>(null);
   const lastTrackLoadKeyRef = useRef<string | null>(null);
   const lastLoadedVideoIdRef = useRef<string | null>(null);
   const PLAYER_ID = "mq-main-player";
   const DRIFT_TOLERANCE_SEC = 1;
+  const getServerNowMs = useCallback(
+    () => Date.now() + serverOffsetMs,
+    [serverOffsetMs]
+  );
   const computeServerPositionSec = useCallback(
-    () => Math.max(0, Math.floor((Date.now() - gameState.startedAt) / 1000)),
-    [gameState.startedAt]
+    () => Math.max(0, Math.floor((getServerNowMs() - gameState.startedAt) / 1000)),
+    [gameState.startedAt, getServerNowMs]
   );
   const getEstimatedLocalPositionSec = useCallback(() => {
-    const elapsed = (Date.now() - lastSyncMsRef.current) / 1000;
+    const elapsed = (getServerNowMs() - lastSyncMsRef.current) / 1000;
     return Math.max(0, playerStart + elapsed);
-  }, [playerStart]);
+  }, [getServerNowMs, playerStart]);
 
   const applyVolume = useCallback((val: number) => {
     const target = iframeRef.current?.contentWindow;
@@ -164,13 +170,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         { videoId: id, startSeconds },
       ]);
       lastLoadedVideoIdRef.current = id;
-      lastSyncMsRef.current = Date.now();
+      lastSyncMsRef.current = getServerNowMs();
       if (!autoplay) {
         postCommand("pauseVideo");
         postCommand("seekTo", [startSeconds, true]);
       }
     },
-    [postCommand]
+    [getServerNowMs, postCommand]
   );
 
   const startPlayback = useCallback(
@@ -179,13 +185,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       const startPos = forcedPosition ?? computeServerPositionSec();
 
       setPlayerStart((prev) => (Math.abs(prev - startPos) > 0.01 ? startPos : prev));
-      lastSyncMsRef.current = Date.now();
+      lastSyncMsRef.current = getServerNowMs();
 
       postCommand("seekTo", [startPos, true]);
       postCommand("playVideo");
       applyVolume(volume);
     },
-    [applyVolume, computeServerPositionSec, postCommand, volume, waitingToStart]
+    [applyVolume, computeServerPositionSec, getServerNowMs, postCommand, volume, waitingToStart]
   );
 
   const resyncPlaybackToServerTime = useCallback(() => {
@@ -195,7 +201,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const drift = Math.abs(serverPos - localPos);
     if (drift <= DRIFT_TOLERANCE_SEC) return;
     setPlayerStart(serverPos);
-    lastSyncMsRef.current = Date.now();
+    lastSyncMsRef.current = getServerNowMs();
     startPlayback(serverPos);
   }, [
     DRIFT_TOLERANCE_SEC,
@@ -204,15 +210,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     isEnded,
     startPlayback,
     waitingToStart,
+    getServerNowMs,
   ]);
 
   useEffect(() => {
     setPlayerStart(computeServerPositionSec());
     setSelectedChoice(null);
     hasStartedPlaybackRef.current = false;
-    const interval = setInterval(() => setNowMs(Date.now()), 500);
+    const interval = setInterval(() => setNowMs(getServerNowMs()), 500);
     return () => clearInterval(interval);
-  }, [computeServerPositionSec, gameState.startedAt, gameState.currentIndex, currentTrackIndex]);
+  }, [
+    computeServerPositionSec,
+    gameState.startedAt,
+    gameState.currentIndex,
+    currentTrackIndex,
+    getServerNowMs,
+  ]);
 
   useEffect(() => {
     setShowVideo(gameState.showVideo ?? true);

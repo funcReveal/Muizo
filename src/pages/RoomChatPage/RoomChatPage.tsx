@@ -99,11 +99,13 @@ const RoomChatPage: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [gamePlaylist, setGamePlaylist] = useState<PlaylistItem[]>([]);
   const [isGameView, setIsGameView] = useState(false);
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
 
   const socketRef = useRef<ClientSocket | null>(null);
   const currentRoomIdRef = useRef<string | null>(
     localStorage.getItem(STORAGE_KEYS.roomId)
   );
+  const serverOffsetRef = useRef(0);
 
   const displayUsername = useMemo(() => username ?? "(未設定)", [username]);
 
@@ -138,6 +140,12 @@ const RoomChatPage: React.FC = () => {
   };
 
   const getSocket = () => socketRef.current;
+
+  const syncServerOffset = useCallback((serverNow: number) => {
+    const offset = serverNow - Date.now();
+    serverOffsetRef.current = offset;
+    setServerOffsetMs(offset);
+  }, []);
 
   const extractPlaylistId = (url: string) => {
     try {
@@ -314,6 +322,7 @@ const RoomChatPage: React.FC = () => {
           (ack: Ack<RoomState>) => {
             if (ack?.ok) {
               const state = ack.data;
+              syncServerOffset(state.serverNow);
               setCurrentRoom(state.room);
               setParticipants(state.participants);
               setMessages(state.messages);
@@ -360,6 +369,8 @@ const RoomChatPage: React.FC = () => {
       setPlaylistViewItems([]);
       setPlaylistHasMore(false);
       setPlaylistLoadingMore(false);
+      setServerOffsetMs(0);
+      serverOffsetRef.current = 0;
     });
 
     s.on("roomsUpdated", (updatedRooms: RoomSummary[]) => {
@@ -377,6 +388,7 @@ const RoomChatPage: React.FC = () => {
     });
 
     s.on("joinedRoom", (state) => {
+      syncServerOffset(state.serverNow);
       setCurrentRoom(state.room);
       setParticipants(state.participants);
       setMessages(state.messages);
@@ -438,16 +450,18 @@ const RoomChatPage: React.FC = () => {
       setMessages((prev) => [...prev, message]);
     });
 
-    s.on("gameStarted", ({ roomId, gameState }) => {
+    s.on("gameStarted", ({ roomId, gameState, serverNow }) => {
       if (roomId !== currentRoomIdRef.current) return;
+      syncServerOffset(serverNow);
       setGameState(gameState);
       setIsGameView(true);
       void fetchCompletePlaylist(roomId).then(setGamePlaylist);
       setStatusText("遊戲已開始，切換至遊戲頁面");
     });
 
-    s.on("gameUpdated", ({ roomId, gameState }) => {
+    s.on("gameUpdated", ({ roomId, gameState, serverNow }) => {
       if (roomId !== currentRoomIdRef.current) return;
+      syncServerOffset(serverNow);
       setGameState(gameState);
       if (gameState?.status === "playing") {
         setIsGameView(true);
@@ -503,6 +517,7 @@ const RoomChatPage: React.FC = () => {
       if (!ack) return;
       if (ack.ok) {
         const state = ack.data;
+        syncServerOffset(state.serverNow);
         setCurrentRoom(state.room);
         setParticipants(state.participants);
         setMessages(state.messages);
@@ -563,6 +578,7 @@ const RoomChatPage: React.FC = () => {
         if (!ack) return;
         if (ack.ok) {
           const state = ack.data;
+          syncServerOffset(state.serverNow);
           setCurrentRoom(state.room);
           setParticipants(state.participants);
           setMessages(state.messages);
@@ -646,17 +662,22 @@ const RoomChatPage: React.FC = () => {
       return;
     }
 
-    s.emit("startGame", { roomId: currentRoom.id }, (ack: Ack<GameState>) => {
-      if (!ack) return;
-      if (ack.ok) {
-        setGameState(ack.data);
-        setIsGameView(true);
-        void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
-        setStatusText("遊戲即將開始");
-      } else {
-        setStatusText(`開始遊戲失敗：${ack.error}`);
+    s.emit(
+      "startGame",
+      { roomId: currentRoom.id },
+      (ack: Ack<{ gameState: GameState; serverNow: number }>) => {
+        if (!ack) return;
+        if (ack.ok) {
+          syncServerOffset(ack.data.serverNow);
+          setGameState(ack.data.gameState);
+          setIsGameView(true);
+          void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
+          setStatusText("遊戲即將開始");
+        } else {
+          setStatusText(`開始遊戲失敗：${ack.error}`);
+        }
       }
-    });
+    );
   };
 
   // 遊戲結束自動回聊天室
@@ -937,6 +958,7 @@ const RoomChatPage: React.FC = () => {
             onMessageChange={setMessageInput}
             onSendMessage={handleSendMessage}
             username={username}
+            serverOffsetMs={serverOffsetMs}
           />
         </div>
         {statusText && (
