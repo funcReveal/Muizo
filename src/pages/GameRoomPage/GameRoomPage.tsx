@@ -6,6 +6,9 @@ import type {
   PlaylistItem,
   RoomState,
 } from "../RoomChatPage/types";
+import KeyBindingSettings, {
+  useKeyBindings,
+} from "../Setting/components/KeyBindingSettings";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -63,6 +66,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [preheatVideoId, setPreheatVideoId] = useState<string | null>(null);
   const [isTrackLoading, setIsTrackLoading] = useState(true);
+  const { keyBindings, setKeyBindings } = useKeyBindings();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const hasStartedPlaybackRef = useRef(false);
   const playerReadyRef = useRef(false);
@@ -409,6 +413,37 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
+  // Keyboard shortcuts for answering (default Q/W/A/S, user customizable via inputs below).
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      if (
+        active &&
+        (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || (active as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if (isReveal || isEnded) return;
+      if (!gameState.choices?.length) return;
+
+      const pressed = e.key.toUpperCase();
+      const match = Object.entries(keyBindings).find(
+        ([_, key]) => key.toUpperCase() === pressed
+      );
+      if (!match) return;
+
+      const idx = Number(match[0]);
+      const choice = gameState.choices[idx];
+      if (!choice) return;
+      e.preventDefault();
+      setSelectedChoice(choice.index);
+      onSubmitChoice(choice.index);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [gameState.choices, isEnded, isReveal, keyBindings, onSubmitChoice]);
+
   const iframeSrc =
     initialIframeSrcRef.current ||
     (videoId
@@ -472,12 +507,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             scoreboardList.map((p, idx) => (
               <div
                 key={p.clientId}
-                className={`flex items-center justify-between rounded px-2 py-1 text-sm ${
-                  gameState.lockedClientIds?.includes(p.clientId)
-                    ? "border border-emerald-500/50 bg-emerald-900/40 text-emerald-50"
-                    : "bg-slate-800/40 text-slate-200"
-                } ${p.clientId === meClientId ? "ring-1 ring-emerald-400/70" : ""
-                }`}
+                className={`flex items-center justify-between rounded px-2 py-1 text-sm ${gameState.lockedClientIds?.includes(p.clientId)
+                  ? "border border-emerald-500/50 bg-emerald-900/40 text-emerald-50"
+                  : "bg-slate-800/40 text-slate-200"
+                  } ${p.clientId === meClientId ? "ring-1 ring-emerald-400/70" : ""
+                  }`}
               >
                 <span className="truncate flex items-center gap-2">
                   {gameState.lockedClientIds?.includes(p.clientId) && (
@@ -735,7 +769,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     onSubmitChoice(choice.index);
                   }}
                 >
-                  {choice.title}
+                  <div className="flex w-full items-center justify-between">
+                    <span className="truncate">{choice.title}</span>
+                    <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
+                      {(keyBindings[idx] ?? "").toUpperCase()}
+                    </span>
+                  </div>
                 </Button>
               );
             })}
