@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -22,18 +22,19 @@ import type {
   PlaylistItem,
   RoomParticipant,
   RoomState,
-} from "../types";
+} from "../../pages/RoomChatPage/types";
 
 const formatTime = (timestamp: number) => {
   const d = new Date(timestamp);
   return d.toLocaleTimeString();
 };
 
-interface ChatPanelProps {
+interface RoomLobbyProps {
   currentRoom: RoomState["room"] | null;
   participants: RoomParticipant[];
   messages: ChatMessage[];
   username: string | null;
+  roomPassword?: string | null;
   messageInput: string;
   playlistItems: PlaylistItem[];
   playlistHasMore: boolean;
@@ -52,11 +53,12 @@ interface ChatPanelProps {
   onInvite: () => Promise<void>;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({
+const RoomLobby: React.FC<RoomLobbyProps> = ({
   currentRoom,
   participants,
   messages,
   username,
+  roomPassword,
   messageInput,
   playlistItems,
   playlistHasMore,
@@ -75,9 +77,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const rowCount = playlistItems.length + (playlistHasMore ? 1 : 0);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [showRoomPassword, setShowRoomPassword] = useState(false);
+  const maskedRoomPassword = roomPassword
+    ? "*".repeat(roomPassword.length)
+    : "";
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages.length]);
 
   const PlaylistRow = ({ index, style, ariaAttributes }: RowComponentProps) => {
-    // Loader / 結尾列
     if (index >= playlistItems.length) {
       if (playlistHasMore && !playlistLoadingMore) {
         onLoadMorePlaylist();
@@ -88,7 +100,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           {...ariaAttributes}
           className="text-center text-slate-400 text-xs py-2"
         >
-          {playlistHasMore ? "載入中..." : "已到底"}
+          {playlistHasMore ? "載入中..." : "已到底了"}
         </Box>
       );
     }
@@ -127,16 +139,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               </p>
             </div>
           </div>
-          {/* <Button
-                  size="small"
-                  variant="text"
-                  color="info"
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  開啟
-                </Button> */}
         </div>
       </div>
     );
@@ -161,6 +163,43 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               color="success"
               variant="outlined"
             />
+            {isHost && currentRoom?.hasPassword && (
+              <Box>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  flexWrap="wrap"
+                >
+                  <Typography variant="subtitle2" className="text-slate-200">
+                    房間密碼
+                  </Typography>
+                  {roomPassword ? (
+                    <>
+                      <TextField
+                        size="small"
+                        value={
+                          showRoomPassword ? roomPassword : maskedRoomPassword
+                        }
+                        InputProps={{ readOnly: true }}
+                        sx={{ minWidth: 180 }}
+                      />
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setShowRoomPassword((prev) => !prev)}
+                      >
+                        {showRoomPassword ? "隱藏" : "顯示"}
+                      </Button>
+                    </>
+                  ) : (
+                    <Typography variant="caption" className="text-slate-500">
+                      尚未取得密碼
+                    </Typography>
+                  )}
+                </Stack>
+              </Box>
+            )}
           </Stack>
         }
         action={
@@ -172,7 +211,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 size="small"
                 onClick={() => onOpenGame?.()}
               >
-                前往遊戲
+                回到遊戲
               </Button>
             )}
             {isHost && (
@@ -196,7 +235,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   boxShadow: inviteSuccess ? 3 : "none",
                 }}
                 onClick={() => {
-                  // 不讓 React 去管 Promise → 用 void 吃掉
                   void (async () => {
                     try {
                       await onInvite();
@@ -224,11 +262,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </Stack>
         }
       />
-
       <CardContent
         sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}
       >
-        {/* 成員列表 */}
         <Box>
           <Typography
             variant="subtitle2"
@@ -239,7 +275,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </Typography>
           {participants.length === 0 ? (
             <Typography variant="body2" className="text-slate-500">
-              目前無成員
+              目前沒有其他人
             </Typography>
           ) : (
             <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -270,7 +306,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           </span>
                         )}
                         {isSelf && (
-                          <span className="opacity-80 text-[10px]">（我）</span>
+                          <span className="opacity-80 text-[10px]">(我)</span>
                         )}
                       </Stack>
                     }
@@ -288,15 +324,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
         </Box>
 
-        {/* 聊天區 */}
         <Box
+          ref={chatScrollRef}
           sx={{
             flex: 1,
             border: "1px solid #1f2937",
             borderRadius: 2,
             backgroundColor: "rgba(15,23,42,0.6)",
             p: 1.5,
+            maxHeight: "150px",
             overflowY: "auto",
+            overflowX: "hidden",
           }}
         >
           {messages.length === 0 ? (
@@ -305,19 +343,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               className="text-slate-500"
               align="center"
             >
-              目前還沒有訊息，先打個招呼吧！
+              還沒有訊息，先來打聲招呼吧！
             </Typography>
           ) : (
             <MUIList dense disablePadding>
               {messages.map((msg) => {
-                const isSelf = msg.username === username;
+                // const isSelf = msg.username === username;
                 return (
                   <ListItem
                     key={msg.id}
-                    sx={{
-                      justifyContent: isSelf ? "flex-end" : "flex-start",
-                      textAlign: isSelf ? "right" : "left",
-                    }}
+                    sx={
+                      {
+                        // justifyContent: isSelf ? "flex-end" : "flex-start",
+                        // textAlign: isSelf ? "right" : "left",
+                      }
+                    }
                   >
                     <Box
                       sx={{
@@ -325,18 +365,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         borderRadius: 3,
                         px: 1.5,
                         py: 1,
-                        bgcolor: isSelf ? "primary.dark" : "#334155",
+                        // bgcolor: isSelf ? "primary.dark" : "#334155",
                         color: "white",
+                        // whiteSpace: "wrap",
                       }}
                     >
                       <Stack
                         direction="row"
                         spacing={1}
-                        justifyContent="space-between"
+                        // justifyContent="space-between"
                       >
                         <Typography variant="caption" fontWeight={600}>
                           {msg.username}
-                          {isSelf && "（我）"}
+                          {/* {isSelf && "（我）"} */}
                         </Typography>
                         <Typography
                           variant="caption"
@@ -345,7 +386,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           {formatTime(msg.timestamp)}
                         </Typography>
                       </Stack>
-                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mt: 0.5,
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
                         {msg.content}
                       </Typography>
                     </Box>
@@ -356,12 +405,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
         </Box>
 
-        {/* 輸入列 */}
         <Stack direction="row" spacing={1}>
           <TextField
+            autoComplete="off"
             fullWidth
             size="small"
-            placeholder="輸入訊息後按 Enter 或點 Send"
+            placeholder="輸入訊息後按 Enter 送出"
             value={messageInput}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
@@ -378,7 +427,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         <Divider />
 
-        {/* 播放清單虛擬列表 */}
         <Box>
           <Stack
             direction="row"
@@ -394,7 +442,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 size="small"
                 variant="outlined"
                 label={`${playlistProgress.received}/${playlistProgress.total}${
-                  playlistProgress.ready ? " · 已完成" : ""
+                  playlistProgress.ready ? " · 已準備" : ""
                 }`}
                 className="text-slate-200 border-slate-600"
               />
@@ -407,7 +455,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               align="center"
               py={2}
             >
-              尚無歌曲或尚未載入。
+              尚無歌曲，等主持人載入吧。
             </Typography>
           ) : (
             <div className="rounded border border-slate-800 bg-slate-900/60">
@@ -426,4 +474,4 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   );
 };
 
-export default ChatPanel;
+export default RoomLobby;

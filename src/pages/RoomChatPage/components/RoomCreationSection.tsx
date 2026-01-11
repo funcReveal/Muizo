@@ -30,10 +30,6 @@ interface RoomCreationSectionProps {
   currentRoomId: string | null;
   joinPassword: string;
   playlistProgress: { received: number; total: number; ready: boolean };
-  inviteRoom: RoomSummary | null;
-  inviteRoomId?: string | null;
-  isInviteMode?: boolean;
-  inviteNotFound?: boolean;
   questionCount: number;
   onQuestionCountChange: (value: number) => void;
   questionMin?: number;
@@ -64,10 +60,6 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   currentRoomId,
   joinPassword,
   playlistProgress,
-  inviteRoom,
-  inviteRoomId,
-  isInviteMode = false,
-  inviteNotFound = false,
   questionCount,
   onQuestionCountChange,
   questionMin = 1,
@@ -165,68 +157,6 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
     );
     onQuestionCountChange(next);
   };
-
-  // 邀請模式：只顯示受邀卡片
-  if (isInviteMode) {
-    return (
-      <Card
-        variant="outlined"
-        className="w-full bg-slate-900/70 border border-slate-700 text-slate-50"
-      >
-        <CardContent className="space-y-3">
-          {inviteRoomId && !inviteRoom && !inviteNotFound && (
-            <Alert severity="info" variant="outlined">
-              正在載入受邀房間資訊...
-            </Alert>
-          )}
-          {inviteNotFound && (
-            <Alert severity="error" variant="outlined">
-              受邀房間不存在或已關閉。
-            </Alert>
-          )}
-          {inviteRoom && (
-            <Alert
-              severity="info"
-              variant="outlined"
-              className="bg-sky-900/40 border-sky-600 text-slate-50"
-            >
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" className="text-slate-50">
-                  房間：{inviteRoom.name}
-                </Typography>
-                <Typography variant="body2" className="text-slate-200">
-                  玩家 {inviteRoom.playerCount} ・ 清單{" "}
-                  {inviteRoom.playlistCount} 首{" "}
-                  {inviteRoom.hasPassword ? "（需要密碼）" : "（無需密碼）"}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {inviteRoom.hasPassword && (
-                    <TextField
-                      size="small"
-                      label="房間密碼"
-                      variant="outlined"
-                      value={joinPassword}
-                      onChange={(e) => onJoinPasswordChange(e.target.value)}
-                      className="bg-slate-950"
-                    />
-                  )}
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() =>
-                      onJoinRoom(inviteRoom.id, inviteRoom.hasPassword)
-                    }
-                  >
-                    立即加入
-                  </Button>
-                </Stack>
-              </Stack>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-3">

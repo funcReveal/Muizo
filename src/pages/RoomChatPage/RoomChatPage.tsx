@@ -1,11 +1,13 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import { useNavigate } from "react-router-dom";
 
-import ChatPanel from "./components/ChatPanel";
 import HeaderSection from "./components/HeaderSection";
 import RoomCreationSection from "./components/RoomCreationSection";
 import UsernameStep from "./components/UsernameStep";
 import GameRoomPage from "../GameRoomPage/GameRoomPage";
+import RoomLobby from "../../features/RoomLobby/RoomLobby";
+import InvitedPage from "../../features/Invited/Invited";
 import type {
   Ack,
   ChatMessage,
@@ -29,9 +31,21 @@ const STORAGE_KEYS = {
   username: "mq_username",
   roomId: "mq_roomId",
   questionCount: "mq_questionCount",
+  roomPasswordPrefix: "mq_roomPassword:",
 };
 
-const RoomChatPage: React.FC = () => {
+interface RoomChatPageProps {
+  routeRoomId?: string | null;
+  inviteId?: string | null;
+  initialView?: "list" | "create";
+}
+
+const RoomChatPage: React.FC<RoomChatPageProps> = ({
+  routeRoomId = null,
+  inviteId = null,
+  initialView = "list",
+}) => {
+  const navigate = useNavigate();
   const [usernameInput, setUsernameInput] = useState(
     () => localStorage.getItem(STORAGE_KEYS.username) ?? ""
   );
@@ -90,19 +104,24 @@ const RoomChatPage: React.FC = () => {
     return clampQuestionCount(initial);
   });
   const [inviteRoomId] = useState<string | null>(() => {
+    if (inviteId) return inviteId;
     const params = new URLSearchParams(window.location.search);
     return params.get("roomId");
   });
   const isInviteMode = Boolean(inviteRoomId);
   const [inviteNotFound, setInviteNotFound] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "create">("list");
+  const [viewMode, setViewMode] = useState<"list" | "create">(initialView);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [gamePlaylist, setGamePlaylist] = useState<PlaylistItem[]>([]);
   const [isGameView, setIsGameView] = useState(false);
+  const [routeRoomResolved, setRouteRoomResolved] = useState<boolean>(
+    () => !routeRoomId
+  );
+  const [hostRoomPassword, setHostRoomPassword] = useState<string | null>(null);
 
   const socketRef = useRef<ClientSocket | null>(null);
   const currentRoomIdRef = useRef<string | null>(
-    localStorage.getItem(STORAGE_KEYS.roomId)
+    routeRoomId ?? localStorage.getItem(STORAGE_KEYS.roomId)
   );
 
   const displayUsername = useMemo(() => username ?? "(未設定)", [username]);
@@ -120,6 +139,20 @@ const RoomChatPage: React.FC = () => {
       localStorage.removeItem(STORAGE_KEYS.roomId);
     }
   };
+
+  const roomPasswordKey = (roomId: string) =>
+    `${STORAGE_KEYS.roomPasswordPrefix}${roomId}`;
+
+  const saveRoomPassword = (roomId: string, password: string | null) => {
+    if (password) {
+      localStorage.setItem(roomPasswordKey(roomId), password);
+    } else {
+      localStorage.removeItem(roomPasswordKey(roomId));
+    }
+  };
+
+  const readRoomPassword = (roomId: string) =>
+    localStorage.getItem(roomPasswordKey(roomId));
 
   const updateQuestionCount = (value: number) => {
     const clamped = clampQuestionCount(value);
@@ -340,8 +373,10 @@ const RoomChatPage: React.FC = () => {
               );
               persistRoomId(state.room.id);
               setStatusText(`恢復房間：${state.room.name}`);
+              setRouteRoomResolved(true);
             } else {
               persistRoomId(null);
+              setRouteRoomResolved(true);
             }
           }
         );
@@ -351,6 +386,7 @@ const RoomChatPage: React.FC = () => {
     s.on("disconnect", () => {
       setIsConnected(false);
       setStatusText("與伺服器斷線，將嘗試自動恢復");
+      setRouteRoomResolved(false);
       setCurrentRoom(null);
       setParticipants([]);
       setMessages([]);
@@ -398,6 +434,7 @@ const RoomChatPage: React.FC = () => {
       });
       persistRoomId(state.room.id);
       setStatusText(`已加入房間：${state.room.name}`);
+      setRouteRoomResolved(true);
     });
 
     s.on("participantsUpdated", ({ roomId, participants, hostClientId }) => {
@@ -507,6 +544,9 @@ const RoomChatPage: React.FC = () => {
         setParticipants(state.participants);
         setMessages(state.messages);
         persistRoomId(state.room.id);
+        const createdPassword = roomPasswordInput.trim();
+        saveRoomPassword(state.room.id, createdPassword || null);
+        setHostRoomPassword(createdPassword || null);
         setRoomNameInput("");
         setStatusText(`已建立房間：${state.room.name}`);
         setPlaylistProgress({
@@ -610,6 +650,7 @@ const RoomChatPage: React.FC = () => {
         setPlaylistLoadingMore(false);
         persistRoomId(null);
         setStatusText("已離開房間");
+        navigate("/rooms", { replace: true });
       } else {
         setStatusText(`離開房間失敗：${ack.error}`);
       }
@@ -912,6 +953,54 @@ const RoomChatPage: React.FC = () => {
     playlistPageSize,
   ]);
 
+  useEffect(() => {
+    if (currentRoom?.id) {
+      navigate(`/rooms/${currentRoom.id}`, { replace: true });
+    }
+  }, [currentRoom?.id, navigate]);
+
+  useEffect(() => {
+    if (!currentRoom?.id) {
+      setHostRoomPassword(null);
+      return;
+    }
+    if (currentRoom.hostClientId !== clientId) {
+      setHostRoomPassword(null);
+      return;
+    }
+    if (!currentRoom.hasPassword) {
+      setHostRoomPassword(null);
+      return;
+    }
+    setHostRoomPassword(readRoomPassword(currentRoom.id));
+  }, [
+    clientId,
+    currentRoom?.hasPassword,
+    currentRoom?.hostClientId,
+    currentRoom?.id,
+  ]);
+
+  // 房內路由但尚未載入完成：避免閃到房間列表
+  if (routeRoomId && !currentRoom && !routeRoomResolved) {
+    return (
+      <div className="flex flex-col w-95/100 space-y-4">
+        <HeaderSection
+          serverUrl={SERVER_URL}
+          isConnected={isConnected}
+          displayUsername={displayUsername}
+        />
+        <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
+          <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+            正在載入房間資訊…
+          </div>
+        </div>
+        {statusText && (
+          <Snackbar message={`Status: ${statusText}`} open={true} />
+        )}
+      </div>
+    );
+  }
+
   // 遊戲模式：全屏顯示遊戲頁（保留 Header 以便退出/提示）
   if (currentRoom && gameState && isGameView) {
     return (
@@ -965,42 +1054,17 @@ const RoomChatPage: React.FC = () => {
         {!currentRoom?.id && username && (
           <>
             {isInviteMode ? (
-              <RoomCreationSection
-                roomName={roomNameInput}
-                roomPassword={roomPasswordInput}
-                playlistUrl={playlistUrl}
-                playlistItems={playlistItems}
-                playlistError={playlistError}
-                playlistLoading={playlistLoading}
-                playlistStage={playlistStage}
-                playlistLocked={playlistLocked}
-                rooms={rooms}
-                username={username}
-                currentRoomId={currentRoomIdRef.current}
+              <InvitedPage
                 joinPassword={joinPasswordInput}
-                playlistProgress={playlistProgress}
                 inviteRoom={
                   inviteRoomId
                     ? rooms.find((room) => room.id === inviteRoomId) ?? null
                     : null
                 }
                 inviteRoomId={inviteRoomId}
-                isInviteMode={true}
                 inviteNotFound={inviteNotFound}
-                questionCount={questionCount}
-                onQuestionCountChange={updateQuestionCount}
-                questionMin={QUESTION_MIN}
-                questionMax={QUESTION_MAX}
-                questionStep={QUESTION_STEP}
-                onRoomNameChange={setRoomNameInput}
-                onRoomPasswordChange={setRoomPasswordInput}
                 onJoinPasswordChange={setJoinPasswordInput}
-                onPlaylistUrlChange={setPlaylistUrl}
-                onFetchPlaylist={handleFetchPlaylist}
-                onResetPlaylist={handleResetPlaylist}
-                onCreateRoom={handleCreateRoom}
                 onJoinRoom={handleJoinRoom}
-                showRoomList={false}
               />
             ) : viewMode === "create" ? (
               <div className="w-full md:w-full lg:w-3/5">
@@ -1011,7 +1075,10 @@ const RoomChatPage: React.FC = () => {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() => setViewMode("list")}
+                    onClick={() => {
+                      // setViewMode("list");
+                      navigate("/rooms", { replace: true });
+                    }}
                   >
                     返回列表
                   </Button>
@@ -1059,7 +1126,10 @@ const RoomChatPage: React.FC = () => {
                   <Button
                     variant="contained"
                     size="small"
-                    onClick={() => setViewMode("create")}
+                    onClick={() => {
+                      // setViewMode("create");
+                      navigate("/rooms/create", { replace: true });
+                    }}
                   >
                     建立房間
                   </Button>
@@ -1092,11 +1162,6 @@ const RoomChatPage: React.FC = () => {
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-200 border border-emerald-500/40">
                                 題數 {room.gameSettings?.questionCount ?? "-"}
                               </span>
-                              {isCurrent && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/40">
-                                  Current
-                                </span>
-                              )}
                             </div>
                             <div className="text-[11px] text-slate-400">
                               Players: {room.playerCount} ・ 清單{" "}
@@ -1136,11 +1201,12 @@ const RoomChatPage: React.FC = () => {
         )}
 
         {currentRoom?.id && (
-          <ChatPanel
+          <RoomLobby
             currentRoom={currentRoom}
             participants={participants}
             messages={messages}
             username={username}
+            roomPassword={hostRoomPassword}
             messageInput={messageInput}
             playlistItems={playlistViewItems}
             playlistHasMore={playlistHasMore}
@@ -1158,7 +1224,8 @@ const RoomChatPage: React.FC = () => {
             onInvite={async () => {
               if (!currentRoom) return;
               const url = new URL(window.location.href);
-              url.searchParams.set("roomId", currentRoom.id);
+              url.pathname = `/invited/${currentRoom.id}`;
+              url.search = "";
               const inviteText = url.toString();
               if (navigator.clipboard?.writeText) {
                 try {

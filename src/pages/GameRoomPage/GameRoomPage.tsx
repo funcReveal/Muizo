@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button, Chip, LinearProgress, Switch } from "@mui/material";
 import type {
   ChatMessage,
@@ -106,7 +112,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   const trackCursor = Math.max(0, gameState.trackCursor ?? 0);
   const trackOrderLength = effectiveTrackOrder.length || playlist.length || 0;
-  const boundedCursor = Math.min(trackCursor, Math.max(trackOrderLength - 1, 0));
+  const boundedCursor = Math.min(
+    trackCursor,
+    Math.max(trackOrderLength - 1, 0)
+  );
   const currentTrackIndex =
     gameState.currentIndex ??
     effectiveTrackOrder[boundedCursor] ??
@@ -133,7 +142,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isReveal = gameState.phase === "reveal";
   const correctChoiceIndex = currentTrackIndex;
   const nextTrackIndex =
-    effectiveTrackOrder[Math.min(boundedCursor + 1, Math.max(trackOrderLength - 1, 0))];
+    effectiveTrackOrder[
+      Math.min(boundedCursor + 1, Math.max(trackOrderLength - 1, 0))
+    ];
   const nextVideoId =
     nextTrackIndex !== undefined && nextTrackIndex !== null
       ? extractYouTubeId(playlist[nextTrackIndex]?.url ?? "")
@@ -178,7 +189,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       if (waitingToStart) return;
       const startPos = forcedPosition ?? computeServerPositionSec();
 
-      setPlayerStart((prev) => (Math.abs(prev - startPos) > 0.01 ? startPos : prev));
+      setPlayerStart((prev) =>
+        Math.abs(prev - startPos) > 0.01 ? startPos : prev
+      );
       lastSyncMsRef.current = Date.now();
 
       postCommand("seekTo", [startPos, true]);
@@ -212,7 +225,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     hasStartedPlaybackRef.current = false;
     const interval = setInterval(() => setNowMs(Date.now()), 500);
     return () => clearInterval(interval);
-  }, [computeServerPositionSec, gameState.startedAt, gameState.currentIndex, currentTrackIndex]);
+  }, [
+    computeServerPositionSec,
+    gameState.startedAt,
+    gameState.currentIndex,
+    currentTrackIndex,
+  ]);
 
   useEffect(() => {
     setShowVideo(gameState.showVideo ?? true);
@@ -230,7 +248,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   // Override media session to avoid exposing track info and disable remote controls/progress.
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator))
+      return;
     if (typeof MediaMetadata === "undefined") return;
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
@@ -256,7 +275,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           /* ignore unsupported actions */
         }
       });
-      navigator.mediaSession.playbackState = waitingToStart || isEnded ? "paused" : "playing";
+      navigator.mediaSession.playbackState =
+        waitingToStart || isEnded ? "paused" : "playing";
       navigator.mediaSession.setPositionState?.({
         duration: 0,
         position: 0,
@@ -272,7 +292,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin || "";
       const isYouTube =
-        origin.includes("youtube.com") || origin.includes("youtube-nocookie.com");
+        origin.includes("youtube.com") ||
+        origin.includes("youtube-nocookie.com");
       if (!isYouTube || typeof event.data !== "string") return;
 
       let data: { event?: string; info?: number; id?: string };
@@ -359,7 +380,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, [resyncPlaybackToServerTime]);
 
   const iframeSrc =
@@ -385,7 +407,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             : gameState.revealDurationMs)) *
         100;
 
-  const sortedParticipants = participants.slice().sort((a, b) => b.score - a.score);
+  const sortedParticipants = participants
+    .slice()
+    .sort((a, b) => b.score - a.score);
   const topFive = sortedParticipants.slice(0, 5);
   const self = sortedParticipants.find((p) => p.clientId === meClientId);
   const scoreboardList =
@@ -397,7 +421,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   // 預熱下一首（在公布階段尾端先啟動下一首靜音播放，降低背景被擋的機率）
   useEffect(() => {
-    if (isReveal && phaseRemainingMs < 2000 && nextVideoId && preheatVideoId !== nextVideoId) {
+    if (
+      isReveal &&
+      phaseRemainingMs < 2000 &&
+      nextVideoId &&
+      preheatVideoId !== nextVideoId
+    ) {
       setPreheatVideoId(nextVideoId);
     }
   }, [isReveal, phaseRemainingMs, nextVideoId, preheatVideoId]);
@@ -406,6 +435,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   useEffect(() => {
     setPreheatVideoId(null);
   }, [gameState.startedAt, boundedCursor]);
+
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages.length]);
 
   return (
     <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-[400px_1fr] xl:grid-cols-[440px_1fr] lg:max-h-[calc(100vh-140px)]">
@@ -430,11 +467,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 }`}
               >
                 <span className="truncate">
-                  {idx + 1}. {p.clientId === meClientId ? `${p.username}（我）` : p.username}
+                  {idx + 1}.{" "}
+                  {p.clientId === meClientId
+                    ? `${p.username}（我）`
+                    : p.username}
                 </span>
                 <span className="font-semibold text-emerald-300">
                   {p.score}
-                  {p.combo > 1 && <span className="ml-1 text-amber-300">x{p.combo}</span>}
+                  {p.combo > 1 && (
+                    <span className="ml-1 text-amber-300">x{p.combo}</span>
+                  )}
                 </span>
               </div>
             ))
@@ -448,34 +490,40 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <span className="inline-block h-1.5 w-4 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
               <span>聊天室</span>
             </div>
-            <span className="text-xs text-slate-400">{messages.length} 則訊息</span>
+            <span className="text-xs text-slate-400">
+              {messages.length} 則訊息
+            </span>
           </div>
           <div className="h-px bg-slate-800/70" />
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          <div
+            ref={chatScrollRef}
+            className="flex-1 md:max-h-80 overflow-y-auto overflow-x-hidden space-y-3 pr-1"
+          >
             {recentMessages.length === 0 ? (
-              <div className="text-xs text-slate-500 text-center py-4">目前沒有訊息</div>
+              <div className="text-xs text-slate-500 text-center py-4">
+                目前沒有訊息
+              </div>
             ) : (
               recentMessages.map((msg) => {
-                const isSelf = msg.username === username;
+                // const isSelf = msg.username === username;
                 return (
-                  <div key={msg.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
+                  <div key={msg.id} className={`flex`}>
                     <div
-                      className={`max-w-[80%] rounded-lg px-3 py-2 text-xs shadow ${
-                        isSelf
-                          ? "bg-sky-900/60 border border-sky-700/50 text-slate-50"
-                          : "bg-slate-800/60 border border-slate-700 text-slate-100"
-                      }`}
+                      className={`max-w-[80%] rounded-lg px-3 py-2 text-xs shadow`}
                     >
-                      <div className="flex items-center justify-between gap-4 text-[11px] text-slate-300">
+                      <div className="flex items-center gap-4 text-[11px] text-slate-300">
                         <span className="font-semibold">
                           {msg.username}
-                          {isSelf && "（我）"}
+                          {/* {isSelf && "（我）"} */}
                         </span>
                         <span className="text-slate-500">
                           {new Date(msg.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
-                      <p className="mt-1 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+
+                      <p className="mt-1 whitespace-pre-wrap wrap-anywhere leading-relaxed">
+                        {msg.content}
+                      </p>
                     </div>
                   </div>
                 );
@@ -521,7 +569,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </p>
               </div>
             </div>
-            <Button variant="outlined" color="inherit" size="small" onClick={onBack}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              onClick={onBack}
+            >
               返回聊天室
             </Button>
           </div>
@@ -531,7 +584,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <iframe
                 src={iframeSrc}
                 className={`h-full w-full object-contain transition-opacity duration-300 ${
-                  gameState.phase === "guess" || !showVideo ? "opacity-0" : "opacity-100"
+                  gameState.phase === "guess" || !showVideo
+                    ? "opacity-0"
+                    : "opacity-100"
                 }`}
                 allow="autoplay; encrypted-media"
                 controlsList="nodownload noremoteplayback"
@@ -573,7 +628,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <div className="h-24 w-24 animate-spin rounded-full border-4 border-slate-700 shadow-lg shadow-emerald-500/30" />
                 <p className="mt-2 text-xs text-slate-300">
                   {waitingToStart
-                    ? `遊戲即將開始 · ${Math.ceil((gameState.startedAt - nowMs) / 1000)}s`
+                    ? `遊戲即將開始 · ${Math.ceil(
+                        (gameState.startedAt - nowMs) / 1000
+                      )}s`
                     : `${phaseLabel}中`}
                 </p>
               </div>
@@ -685,7 +742,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           <div className="mt-3 min-h-[120px]">
             {isReveal ? (
               <div className="rounded-lg border border-emerald-700 bg-emerald-900/30 p-3">
-                <p className="text-sm font-semibold text-emerald-100">正確答案</p>
+                <p className="text-sm font-semibold text-emerald-100">
+                  正確答案
+                </p>
                 <p className="mt-1 text-sm text-emerald-50">
                   {gameState.answerTitle ?? "（未提供名稱）"}
                 </p>
@@ -698,7 +757,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     <p className="text-xs text-emerald-200">
                       已播放完本輪歌曲，請房主挑選新的歌單。
                     </p>
-                    <Button size="small" variant="outlined" color="inherit" onClick={onBack}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="inherit"
+                      onClick={onBack}
+                    >
                       返回聊天室
                     </Button>
                   </div>
