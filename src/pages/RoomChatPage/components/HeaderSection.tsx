@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 interface HeaderSectionProps {
   serverUrl: string;
@@ -11,6 +11,26 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   isConnected,
   displayUsername,
 }) => {
+  async function checkPing() {
+    const start = performance.now();
+    await fetch(`${import.meta.env.VITE_API_URL}/health`);
+    const end = performance.now();
+    return Math.round(end - start);
+  }
+  const [ping, setPing] = useState<number | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const ms = await checkPing();
+        setPing(ms);
+      } catch {
+        setPing(null);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
   return (
     <header className="mb-3 flex items-center justify-between gap-4">
       <div>
@@ -45,6 +65,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
             {displayUsername}
           </span>
         </div>
+        Ping: {ping ? ping + "ms" : "Loading.."}
       </div>
     </header>
   );
