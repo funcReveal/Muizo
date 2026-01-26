@@ -22,6 +22,7 @@ import { RoomContext, type RoomContextValue } from "./RoomContext";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 const API_URL = import.meta.env.VITE_API_URL;
+const VITE_WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 const DEFAULT_PAGE_SIZE = 50;
 const CHUNK_SIZE = 200;
 const QUESTION_MIN = 5;
@@ -787,7 +788,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     if (!API_URL) {
-      setPlaylistError("尚未設定 API 位置 (VITE_API_URL)");
+      setPlaylistError("尚未設定播放清單 API 位置 (VITE_API_URL)");
       return;
     }
 

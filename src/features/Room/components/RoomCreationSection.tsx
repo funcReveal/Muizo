@@ -61,9 +61,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   playlistLoading,
   playlistStage,
   playlistLocked,
-
   username,
-
   playlistProgress,
   questionCount,
   onQuestionCountChange,
