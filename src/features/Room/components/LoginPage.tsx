@@ -26,8 +26,8 @@ const LoginPage: React.FC<LoginPageProps> = ({
     borderRadius={"5px"}
   >
     <Box display={"flex"} flexDirection={"column"} gap={1}>
-      <Typography variant="h5">以訪客遊玩</Typography>
-      <Typography variant="caption">輸入暱稱，快速開始。</Typography>
+      <Typography variant="h5">訪客遊玩</Typography>
+      <Typography variant="caption">輸入暱稱，快速開始</Typography>
       <TextField
         size="small"
         label="暱稱"
@@ -47,7 +47,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
 
     <Box display={"flex"} flexDirection={"column"} gap={1}>
       <Typography variant="h5">Google 登入</Typography>
-      <Typography variant="caption">保存、編輯收藏庫、跨裝置同步。</Typography>
+      <Typography variant="caption">可保存收藏庫，跨裝置同步</Typography>
       <Button
         sx={{ gap: 1 }}
         variant="contained"

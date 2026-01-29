@@ -22,6 +22,7 @@ import {
   RoomContext,
   type RoomContextValue,
   type AuthUser,
+  type YoutubePlaylist,
 } from "./RoomContext";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
@@ -66,6 +67,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [authLoading, setAuthLoading] = useState(false);
   const [needsNicknameConfirm, setNeedsNicknameConfirm] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
+  const [youtubePlaylists, setYoutubePlaylists] = useState<YoutubePlaylist[]>(
+    [],
+  );
+  const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
+  const [youtubePlaylistsError, setYoutubePlaylistsError] = useState<string | null>(null);
   const [clientId] = useState<string>(() => {
     const existing = localStorage.getItem(STORAGE_KEYS.clientId);
     if (existing) return existing;
@@ -177,6 +183,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setUsernameInput("");
     setNeedsNicknameConfirm(false);
     setNicknameDraft("");
+    setYoutubePlaylists([]);
+    setYoutubePlaylistsError(null);
   };
 
   const ensureGoogleScript = () => {
@@ -263,6 +271,79 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText("暱稱已設定");
   }, [nicknameDraft, authUser?.id]);
 
+  const fetchYoutubePlaylists = useCallback(async () => {
+    if (!API_URL || !authToken) {
+      setYoutubePlaylistsError("請先登入後再使用播放清單");
+      return;
+    }
+    setYoutubePlaylistsLoading(true);
+    setYoutubePlaylistsError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/youtube/playlists`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = payload?.error ?? "載入播放清單失敗";
+        if (String(message).includes("Missing refresh token")) {
+          throw new Error("需要重新授權 Google 才能讀取播放清單");
+        }
+        throw new Error(message);
+      }
+      setYoutubePlaylists((payload?.data ?? []) as YoutubePlaylist[]);
+    } catch (error) {
+      setYoutubePlaylistsError(
+        error instanceof Error ? error.message : "載入播放清單失敗",
+      );
+    } finally {
+      setYoutubePlaylistsLoading(false);
+    }
+  }, [authToken]);
+
+  const importYoutubePlaylist = useCallback(
+    async (playlistId: string) => {
+      if (!API_URL || !authToken) {
+        setPlaylistError("請先登入後再使用播放清單");
+        return;
+      }
+      setPlaylistLoading(true);
+      setPlaylistError(null);
+      try {
+        const url = new URL(`${API_URL}/api/youtube/playlist-items`);
+        url.searchParams.set("playlistId", playlistId);
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(payload?.error ?? "讀取播放清單失敗");
+        }
+        const data = payload?.data as { items?: PlaylistItem[]; playlistId?: string };
+        if (!data?.items || data.items.length === 0) {
+          throw new Error("清單沒有可用影片");
+        }
+        setPlaylistItems(data.items);
+        setPlaylistStage("preview");
+        setPlaylistLocked(true);
+        setLastFetchedPlaylistId(data.playlistId ?? playlistId);
+        setStatusText(`已載入播放清單，共 ${data.items.length} 首`);
+      } catch (error) {
+        setPlaylistError(
+          error instanceof Error
+            ? error.message
+            : "讀取播放清單時發生錯誤",
+        );
+        setPlaylistItems([]);
+        setPlaylistStage("input");
+        setPlaylistLocked(false);
+        setLastFetchedPlaylistId(null);
+      } finally {
+        setPlaylistLoading(false);
+      }
+    },
+    [authToken],
+  );
+
   const exchangeGoogleCode = useCallback(
     async (code: string, redirectUri: string) => {
       if (!API_URL) {
@@ -318,9 +399,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           googleCodeClientRef.current ??
           oauth2.initCodeClient({
             client_id: clientId,
-            scope: "openid email profile",
+            scope:
+              "openid email profile https://www.googleapis.com/auth/youtube.readonly",
             ux_mode: uxMode,
             redirect_uri: redirectUri,
+            access_type: "offline",
+            prompt: "consent",
             callback: (response: { code?: string; error?: string }) => {
               if (!response?.code) {
                 setStatusText(response?.error ?? "Google 登入失敗");
@@ -1143,6 +1227,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       nicknameDraft,
       setNicknameDraft,
       confirmNickname,
+      youtubePlaylists,
+      youtubePlaylistsLoading,
+      youtubePlaylistsError,
+      fetchYoutubePlaylists,
+      importYoutubePlaylist,
       usernameInput,
       setUsernameInput,
       username,
@@ -1220,6 +1309,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       needsNicknameConfirm,
       nicknameDraft,
       confirmNickname,
+      youtubePlaylists,
+      youtubePlaylistsLoading,
+      youtubePlaylistsError,
+      fetchYoutubePlaylists,
+      importYoutubePlaylist,
       usernameInput,
       username,
       displayUsername,

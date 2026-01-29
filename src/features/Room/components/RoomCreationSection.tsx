@@ -42,12 +42,19 @@ interface RoomCreationSectionProps {
   questionControlsEnabled?: boolean;
   questionLimitLabel?: string;
   showRoomList?: boolean;
+  youtubePlaylists?: { id: string; title: string; itemCount: number }[];
+  youtubePlaylistsLoading?: boolean;
+  youtubePlaylistsError?: string | null;
+  isGoogleAuthed?: boolean;
+  onGoogleLogin?: () => void;
   onRoomNameChange: (value: string) => void;
   onRoomPasswordChange: (value: string) => void;
   onJoinPasswordChange: (value: string) => void;
   onPlaylistUrlChange: (value: string) => void;
   onFetchPlaylist: () => void;
   onResetPlaylist: () => void;
+  onFetchYoutubePlaylists?: () => void;
+  onImportYoutubePlaylist?: (playlistId: string) => void;
   onCreateRoom: () => void;
   onJoinRoom: (roomId: string, hasPassword: boolean) => void;
 }
@@ -69,14 +76,29 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
   questionMax = 100,
   questionStep = 5,
   questionControlsEnabled = true,
+  youtubePlaylists = [],
+  youtubePlaylistsLoading = false,
+  youtubePlaylistsError = null,
+  isGoogleAuthed = false,
+  onGoogleLogin,
   onRoomNameChange,
   onRoomPasswordChange,
   onPlaylistUrlChange,
   onFetchPlaylist,
   onResetPlaylist,
+  onFetchYoutubePlaylists,
+  onImportYoutubePlaylist,
   onCreateRoom,
 }) => {
   const [settingsExpanded, setSettingsExpanded] = React.useState(false);
+  const [selectedYoutubeId, setSelectedYoutubeId] = React.useState("");
+  const [playlistSource, setPlaylistSource] = React.useState<"link" | "mine">(
+    "link",
+  );
+  const needsReauth = Boolean(
+    youtubePlaylistsError &&
+      youtubePlaylistsError.includes("\u91cd\u65b0\u6388\u6b0a"),
+  );
   const isAsciiAlphaNum = (value: string) => /^[a-zA-Z0-9]*$/.test(value);
   const canCreateRoom = Boolean(
     username && roomName.trim() && playlistItems.length > 0,
@@ -385,49 +407,149 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
             />
           )}
           {showPlaylistInput ? (
-            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-              <TextField
-                sx={{
-                  flex: 1,
-                  "& .MuiInput-root.Mui-disabled:before": {
-                    borderBottom: "1px solid rgba(148,163,184,.6)", // disabled underline style
-                  },
-                }}
-                slotProps={{ inputLabel: { shrink: true } }}
-                size="small"
-                label="YouTube 播放清單網址"
-                variant="standard"
-                placeholder="https://www.youtube.com/playlist?list=..."
-                value={playlistUrl}
-                onChange={(e) => onPlaylistUrlChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const canFetch =
-                    !!username &&
-                    isPlaylistLink &&
-                    !playlistLoading &&
-                    !playlistLocked;
-                  if (canFetch) {
-                    onFetchPlaylist();
-                  }
-                }}
-                disabled={!username || playlistLoading || playlistLocked}
-                autoComplete="off"
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                disabled={
-                  !username ||
-                  !isPlaylistLink ||
-                  playlistLoading ||
-                  playlistLocked
-                }
-                onClick={onFetchPlaylist}
-              >
-                {playlistLoading ? "載入中..." : "載入清單"}
-              </Button>
+            <Stack spacing={2}>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant={playlistSource === "link" ? "contained" : "outlined"}
+                  onClick={() => {
+                    setPlaylistSource("link");
+                    setSelectedYoutubeId("");
+                  }}
+                >
+                  {"\u8cbc\u4e0a\u9023\u7d50"}
+                </Button>
+                <Button
+                  variant={playlistSource === "mine" ? "contained" : "outlined"}
+                  onClick={() => setPlaylistSource("mine")}
+                  disabled={!isGoogleAuthed}
+                >
+                  {"\u6211\u7684\u64ad\u653e\u6e05\u55ae"}
+                </Button>
+                {!isGoogleAuthed && (
+                  <Typography variant="caption" className="text-slate-400">
+                    {"\u767b\u5165\u5f8c\u624d\u80fd\u4f7f\u7528"}
+                  </Typography>
+                )}
+              </Stack>
+
+              {playlistSource === "link" && (
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                  <TextField
+                    sx={{
+                      flex: 1,
+                      "& .MuiInput-root.Mui-disabled:before": {
+                        borderBottom: "1px solid rgba(148,163,184,.6)",
+                      },
+                    }}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    size="small"
+                    label="YouTube 播放清單網址"
+                    variant="standard"
+                    placeholder="https://www.youtube.com/playlist?list=..."
+                    value={playlistUrl}
+                    onChange={(e) => onPlaylistUrlChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      const canFetch =
+                        !!username &&
+                        isPlaylistLink &&
+                        !playlistLoading &&
+                        !playlistLocked;
+                      if (canFetch) {
+                        onFetchPlaylist();
+                      }
+                    }}
+                    disabled={!username || playlistLoading || playlistLocked}
+                    autoComplete="off"
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    disabled={
+                      !username ||
+                      !isPlaylistLink ||
+                      playlistLoading ||
+                      playlistLocked
+                    }
+                    onClick={onFetchPlaylist}
+                  >
+                    {playlistLoading ? "載入中..." : "載入清單"}
+                  </Button>
+                </Stack>
+              )}
+
+              {playlistSource === "mine" && onFetchYoutubePlaylists && (
+                <Stack spacing={1.5}>
+                  {!isGoogleAuthed && (
+                    <Button
+                      variant="outlined"
+                      onClick={onGoogleLogin}
+                      disabled={!onGoogleLogin}
+                    >
+                      {"\u4f7f\u7528 Google \u767b\u5165"}
+                    </Button>
+                  )}
+                  {isGoogleAuthed && (
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                      <Button
+                        variant="outlined"
+                        onClick={onFetchYoutubePlaylists}
+                        disabled={!username || youtubePlaylistsLoading}
+                      >
+                        {youtubePlaylistsLoading
+                          ? "載入中..."
+                          : "取得我的播放清單"}
+                      </Button>
+                      {youtubePlaylists.length > 0 && (
+                        <>
+                          <select
+                            value={selectedYoutubeId}
+                            onChange={(e) =>
+                              setSelectedYoutubeId(e.target.value)
+                            }
+                            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                          >
+                            <option value="">
+                              {"\u8acb\u9078\u64c7\u64ad\u653e\u6e05\u55ae"}
+                            </option>
+                            {youtubePlaylists.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.title} · {item.itemCount}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            variant="contained"
+                            color="secondary"
+                            disabled={!selectedYoutubeId}
+                            onClick={() =>
+                              selectedYoutubeId &&
+                              onImportYoutubePlaylist?.(selectedYoutubeId)
+                            }
+                          >
+                            {"\u532f\u5165"}
+                          </Button>
+                        </>
+                      )}
+                    </Stack>
+                  )}
+                  {youtubePlaylistsError && (
+                    <Alert severity="error" variant="outlined">
+                      {youtubePlaylistsError}
+                    </Alert>
+                  )}
+                  {needsReauth && onGoogleLogin && (
+                    <Button
+                      variant="outlined"
+                      onClick={onGoogleLogin}
+                      disabled={youtubePlaylistsLoading}
+                    >
+                      {"\u91cd\u65b0\u6388\u6b0a Google"}
+                    </Button>
+                  )}
+                </Stack>
+              )}
             </Stack>
           ) : (
             <Stack

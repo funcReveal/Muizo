@@ -24,6 +24,11 @@ const RoomCreatePage: React.FC = () => {
     questionMin,
     questionMaxLimit,
     questionStep,
+    youtubePlaylists,
+    youtubePlaylistsLoading,
+    youtubePlaylistsError,
+    authUser,
+    loginWithGoogle,
     setRoomNameInput,
     setRoomPasswordInput,
     setJoinPasswordInput,
@@ -31,6 +36,8 @@ const RoomCreatePage: React.FC = () => {
     updateQuestionCount,
     handleFetchPlaylist,
     handleResetPlaylist,
+    fetchYoutubePlaylists,
+    importYoutubePlaylist,
     handleCreateRoom,
     handleJoinRoom,
     resetCreateState,
@@ -80,12 +87,19 @@ const RoomCreatePage: React.FC = () => {
             questionMax={questionMaxLimit}
             questionStep={questionStep}
             questionControlsEnabled={playlistItems.length > 0}
+            youtubePlaylists={youtubePlaylists}
+            youtubePlaylistsLoading={youtubePlaylistsLoading}
+            youtubePlaylistsError={youtubePlaylistsError}
+            isGoogleAuthed={Boolean(authUser)}
+            onGoogleLogin={loginWithGoogle}
             onRoomNameChange={setRoomNameInput}
             onRoomPasswordChange={setRoomPasswordInput}
             onJoinPasswordChange={setJoinPasswordInput}
             onPlaylistUrlChange={setPlaylistUrl}
             onFetchPlaylist={handleFetchPlaylist}
             onResetPlaylist={handleResetPlaylist}
+            onFetchYoutubePlaylists={fetchYoutubePlaylists}
+            onImportYoutubePlaylist={importYoutubePlaylist}
             onCreateRoom={handleCreateRoom}
             onJoinRoom={handleJoinRoom}
             showRoomList={false}

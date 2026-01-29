@@ -18,6 +18,13 @@ export type AuthUser = {
   avatar_url?: string | null;
 };
 
+export type YoutubePlaylist = {
+  id: string;
+  title: string;
+  itemCount: number;
+  thumbnail?: string;
+};
+
 export interface RoomContextValue {
   authToken: string | null;
   authUser: AuthUser | null;
@@ -28,6 +35,11 @@ export interface RoomContextValue {
   nicknameDraft: string;
   setNicknameDraft: (value: string) => void;
   confirmNickname: () => void;
+  youtubePlaylists: YoutubePlaylist[];
+  youtubePlaylistsLoading: boolean;
+  youtubePlaylistsError: string | null;
+  fetchYoutubePlaylists: () => Promise<void>;
+  importYoutubePlaylist: (playlistId: string) => Promise<void>;
   usernameInput: string;
   setUsernameInput: (value: string) => void;
   username: string | null;

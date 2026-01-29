@@ -14,6 +14,8 @@ declare global {
             scope: string;
             ux_mode?: "popup" | "redirect";
             redirect_uri?: string;
+            access_type?: "offline" | "online";
+            prompt?: string;
             callback?: (response: { code?: string; error?: string }) => void;
           }) => GoogleCodeClient;
         };
