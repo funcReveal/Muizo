@@ -73,7 +73,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
           MusicQuiz
         </h1>
         <p className="text-1xl text-slate-400">
-          打造你的音樂房間，和朋友一起猜歌！
+          {/* 打造你的音樂房間，和朋友一起猜歌！ */}
         </p>
       </div>
       <div className="text-right text-shadow-md text-slate-400 space-y-1">
@@ -167,16 +167,18 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
                 >
                   回主畫面
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    navigate("/edit");
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800/70"
-                >
-                  自己的收藏庫
-                </button>
+                {authUser && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      navigate("/edit");
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800/70"
+                  >
+                    檢視收藏庫
+                  </button>
+                )}
               </div>
             )}
           </div>

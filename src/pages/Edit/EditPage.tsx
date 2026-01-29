@@ -27,7 +27,7 @@ const TEXT = {
   loadPlaylist: "載入清單",
   loading: "載入中...",
   playlistErrorInvalid: "請貼上有效的 YouTube 播放清單網址",
-  playlistErrorApi: "尚未設定 API 位置 (VITE_API_URL)",
+  playlistErrorApi: "尚未設定 API 位置 (API_URL)",
   playlistErrorLoad: "讀取播放清單失敗，請稍後重試",
   playlistErrorEmpty: "清單沒有可用影片，請確認播放清單是否公開",
   playlistErrorGeneric: "讀取播放清單時發生錯誤",
@@ -754,7 +754,10 @@ const EditPage = () => {
 
   const syncItemsToDb = async (collectionId: string) => {
     if (!WORKER_API_URL || !authToken) return;
-    const jsonHeaders = { "Content-Type": "application/json", ...workerAuthHeaders };
+    const jsonHeaders = {
+      "Content-Type": "application/json",
+      ...workerAuthHeaders,
+    };
     const updatePayloads = playlistItems.map((item, idx) => ({
       localId: item.localId,
       id: item.dbId,
@@ -934,128 +937,89 @@ const EditPage = () => {
         </div>
       )}
       <div className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
-      {collectionsLoading && (
-        <div className="text-xs text-slate-400">{LOADING_LABEL}</div>
-      )}
-      {itemsLoading && (
-        <div className="text-xs text-slate-400">{LOADING_LABEL}</div>
-      )}
-      {collectionsError && (
-        <div className="text-sm text-rose-300">{collectionsError}</div>
-      )}
-      {itemsError && <div className="text-sm text-rose-300">{itemsError}</div>}
-      {saveError && (
-        <div className="text-sm text-rose-300">
-          {SAVE_ERROR_LABEL}: {saveError}
-        </div>
-      )}
-      {saveStatus === "saved" && (
-        <div className="text-xs text-emerald-300">{SAVED_LABEL}</div>
-      )}
-      {collectionCount > 0 && (
-        <div className="text-xs text-slate-400">
-          {COLLECTION_COUNT_LABEL}: {collectionCount}
-        </div>
-      )}
-      <Box display={"flex"} gap={5}>
-        <Box flexGrow={1}>
-          {collectionCount > 0 && (
-            <>
-              <label className="text-xs text-slate-300">
-                {COLLECTION_SELECT_LABEL}
-              </label>
-              <select
-                value={activeCollectionId ?? ""}
-                onChange={(e) => {
-                  const nextId = e.target.value;
-                  setActiveCollectionId(nextId || null);
-                  const selected = collections.find(
-                    (item) => item.id === nextId,
-                  );
-                  setCollectionTitle(selected?.title ?? "");
-                  setPlaylistItems([]);
-                  setPlaylistAddError(null);
-                  setPendingDeleteIds([]);
-                  setSelectedIndex(0);
-                }}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-              >
-                {collections.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title || item.id}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-          <label className="text-xs text-slate-300">
-            {TEXT.collectionName}
-          </label>
-          <input
-            value={collectionTitle}
-            onChange={(e) => setCollectionTitle(e.target.value)}
-            placeholder={TEXT.collectionNamePlaceholder}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-          />
-          <label className="text-xs text-slate-300">{TEXT.playlistLabel}</label>
-          <div className="flex flex-col gap-2 md:flex-row">
-            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-4">
-              <input
-                value={playlistUrl}
-                onChange={(e) => {
-                  setPlaylistUrl(e.target.value);
-                  if (playlistAddError) setPlaylistAddError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const canFetch = !!username && !playlistLoading;
-                  if (canFetch) {
-                    handleImportPlaylist();
-                  }
-                }}
-                placeholder={TEXT.playlistPlaceholder}
-                className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-              />
-              <button
-                type="button"
-                onClick={handleImportPlaylist}
-                disabled={playlistLoading}
-                className="px-4 py-2 text-sm rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-60"
-              >
-                {playlistLoading ? TEXT.loading : playlistActionLabel}
-              </button>
-              <div className="grid gap-3">
-                {playlistError && (
-                  <div className="text-sm text-rose-300">{playlistError}</div>
-                )}
-                {playlistAddError && (
-                  <div className="text-sm text-rose-300">
-                    {playlistAddError}
-                  </div>
-                )}
-              </div>
-            </div>
+        {collectionsLoading && (
+          <div className="text-xs text-slate-400">{LOADING_LABEL}</div>
+        )}
+        {itemsLoading && (
+          <div className="text-xs text-slate-400">{LOADING_LABEL}</div>
+        )}
+        {collectionsError && (
+          <div className="text-sm text-rose-300">{collectionsError}</div>
+        )}
+        {itemsError && (
+          <div className="text-sm text-rose-300">{itemsError}</div>
+        )}
+        {saveError && (
+          <div className="text-sm text-rose-300">
+            {SAVE_ERROR_LABEL}: {saveError}
           </div>
-        </Box>
-        <Box maxWidth={"80%"}>
-          {isAddPanelOpen && (
-            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setIsAddPanelOpen(false)}
-                  className="rounded px-2 py-1 bg-slate-800 text-slate-300 hover:text-slate-100"
+        )}
+        {saveStatus === "saved" && (
+          <div className="text-xs text-emerald-300">{SAVED_LABEL}</div>
+        )}
+        {collectionCount > 0 && (
+          <div className="text-xs text-slate-400">
+            {COLLECTION_COUNT_LABEL}: {collectionCount}
+          </div>
+        )}
+        <Box display={"flex"} gap={5}>
+          <Box flexGrow={1}>
+            {collectionCount > 0 && (
+              <>
+                <label className="text-xs text-slate-300">
+                  {COLLECTION_SELECT_LABEL}
+                </label>
+                <select
+                  value={activeCollectionId ?? ""}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setActiveCollectionId(nextId || null);
+                    const selected = collections.find(
+                      (item) => item.id === nextId,
+                    );
+                    setCollectionTitle(selected?.title ?? "");
+                    setPlaylistItems([]);
+                    setPlaylistAddError(null);
+                    setPendingDeleteIds([]);
+                    setSelectedIndex(0);
+                  }}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
                 >
-                  \u95dc\u9589
-                </button>
-              </div>
-              <div className="flex flex-col gap-2 md:flex-row">
+                  {collections.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title || item.id}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            <label className="text-xs text-slate-300">
+              {TEXT.collectionName}
+            </label>
+            <input
+              value={collectionTitle}
+              onChange={(e) => setCollectionTitle(e.target.value)}
+              placeholder={TEXT.collectionNamePlaceholder}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+            />
+            <label className="text-xs text-slate-300">
+              {TEXT.playlistLabel}
+            </label>
+            <div className="flex flex-col gap-2 md:flex-row">
+              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-4">
                 <input
                   value={playlistUrl}
                   onChange={(e) => {
                     setPlaylistUrl(e.target.value);
                     if (playlistAddError) setPlaylistAddError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const canFetch = !!username && !playlistLoading;
+                    if (canFetch) {
+                      handleImportPlaylist();
+                    }
                   }}
                   placeholder={TEXT.playlistPlaceholder}
                   className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
@@ -1066,354 +1030,402 @@ const EditPage = () => {
                   disabled={playlistLoading}
                   className="px-4 py-2 text-sm rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-60"
                 >
-                  {playlistLoading ? TEXT.loading : ADD_PLAYLIST_LABEL}
+                  {playlistLoading ? TEXT.loading : playlistActionLabel}
                 </button>
-              </div>
-            </div>
-          )}
-
-          {playlistItems.length > 0 && (
-            <div className="space-y-3">
-              <div className="text-sm text-slate-300">
-                {TEXT.playlistCount}
-                {playlistItems.length}
-                {TEXT.songsUnit}
-              </div>
-              <div className="text-xs text-slate-400">
-                {TOTAL_DURATION_LABEL}: {formatSeconds(totalDurationSec)}
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {playlistItems.map((item, idx) => {
-                  const isActive = idx === selectedIndex;
-                  return (
-                    <div
-                      key={item.localId}
-                      onClick={() => setSelectedIndex(idx)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setSelectedIndex(idx);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      className={`flex-shrink-0 w-28 rounded-lg border text-left transition-colors ${
-                        isActive
-                          ? "border-sky-400 bg-slate-900"
-                          : "border-slate-800 bg-slate-950/60 hover:border-slate-600"
-                      }`}
-                    >
-                      <div className="relative h-16 w-full overflow-hidden rounded-t-lg bg-slate-900">
-                        <span className="absolute left-1 top-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] text-slate-200">
-                          {idx + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeItem(idx);
-                          }}
-                          className="absolute right-1 top-1 rounded bg-slate-950/80 px-1 text-[10px] text-slate-200 hover:bg-rose-500/80"
-                          aria-label="Delete"
-                        >
-                          X
-                        </button>
-                        {item.thumbnail ? (
-                          <img
-                            src={item.thumbnail}
-                            alt={item.title}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-xs text-slate-500">
-                            {TEXT.noThumb}
-                          </div>
-                        )}
-                      </div>
-                      <div className="px-2 py-1">
-                        <div className="text-[11px] text-slate-200 truncate">
-                          <span className="mr-1 text-[10px] text-slate-400">
-                            #{idx + 1}
-                          </span>
-                          {item.title}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {item.duration ?? "--:--"}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {CLIP_DURATION_LABEL}{" "}
-                          {formatSeconds(
-                            Math.max(0, item.endSec - item.startSec),
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between px-2 pb-2 text-[10px] text-slate-300">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            moveItem(idx, idx - 1);
-                          }}
-                          disabled={idx === 0}
-                          className="rounded px-1.5 py-0.5 hover:bg-slate-800 disabled:opacity-40"
-                        >
-                          {"\u4e0a\u79fb"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            moveItem(idx, idx + 1);
-                          }}
-                          disabled={idx === playlistItems.length - 1}
-                          className="rounded px-1.5 py-0.5 hover:bg-slate-800 disabled:opacity-40"
-                        >
-                          {"\u4e0b\u79fb"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddPanelOpen(true);
-                  }}
-                  className="flex-shrink-0 w-28 rounded-lg border-2 border-dashed border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100 transition-colors"
-                >
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-1 py-6">
-                    <span className="text-xl">+</span>
-                    <span className="text-[11px]">{ADD_ITEM_LABEL}</span>
-                  </div>
-                </button>
-              </div>
-
-              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
-                <div className="relative aspect-video w-full max-w-xl mx-auto overflow-hidden rounded-lg bg-slate-900">
-                  {selectedVideoId ? (
-                    <>
-                      <div ref={playerContainerRef} className="h-full w-full" />
-                      <div
-                        className="absolute inset-0 z-10"
-                        aria-hidden="true"
-                      />
-                    </>
-                  ) : selectedItem?.thumbnail ? (
-                    <img
-                      src={selectedItem.thumbnail}
-                      alt={selectedItem.title}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-slate-500">
-                      {TEXT.noSelection}
+                <div className="grid gap-3">
+                  {playlistError && (
+                    <div className="text-sm text-rose-300">{playlistError}</div>
+                  )}
+                  {playlistAddError && (
+                    <div className="text-sm text-rose-300">
+                      {playlistAddError}
                     </div>
                   )}
                 </div>
-                <div className="mt-2 text-sm text-slate-100">
-                  {selectedItem?.title ?? TEXT.selectSong}
-                </div>
-                <div className="text-xs text-slate-400">
-                  {selectedItem?.uploader ?? ""}
-                  {selectedItem?.duration ? ` · ${selectedItem.duration}` : ""}
-                </div>
-                <div className="text-xs text-slate-400">
-                  {CLIP_DURATION_LABEL}:{" "}
-                  {formatSeconds(selectedClipDurationSec)}
-                </div>
-                <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>{formatSeconds(clipCurrentSec)}</span>
-                    <span>{formatSeconds(clipDurationSec)}</span>
-                  </div>
-                  <div className="mt-1 h-1 w-full rounded-full bg-slate-800">
-                    <div
-                      className="h-full rounded-full bg-sky-400"
-                      style={{ width: `${clipProgressPercent}%` }}
-                    />
-                  </div>
-                  <input
-                    type="range"
-                    min={Math.floor(startSec)}
-                    max={Math.floor(effectiveEnd)}
-                    step={1}
-                    value={Math.floor(currentTimeSec)}
-                    onChange={(e) =>
-                      handleProgressChange(Number(e.target.value))
-                    }
-                    className="mt-2 w-full accent-sky-400"
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-300">
-                  <button
-                    type="button"
-                    onClick={togglePlayback}
-                    disabled={!isPlayerReady}
-                    className="rounded-md border border-slate-700 px-3 py-1 text-slate-200 hover:border-slate-400 disabled:opacity-50"
-                  >
-                    {isPlaying ? PAUSE_LABEL : PLAY_LABEL}
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span>{VOLUME_LABEL}</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={volume}
-                      onChange={(e) =>
-                        handleVolumeChange(Number(e.target.value))
-                      }
-                      className="w-28 accent-sky-400"
-                    />
-                    <span className="w-6 text-right">{volume}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-4">
-                <div className="text-sm text-slate-200 font-medium">
-                  {TEXT.editTime}
-                </div>
-                <div className="space-y-2">
-                  <Slider
-                    value={[startSec, endSec]}
-                    min={0}
-                    max={maxSec}
-                    onChange={handleRangeChange}
-                    valueLabelDisplay="auto"
-                    valueLabelFormat={(value) => formatSeconds(value)}
-                    disableSwap
-                    sx={{
-                      color: "rgb(56 189 248)",
-                      "& .MuiSlider-thumb": {
-                        border: "2px solid rgb(15 23 42)",
-                      },
-                    }}
-                  />
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>
-                      {TEXT.start} {formatSeconds(startSec)}
-                    </span>
-                    <span>
-                      {TEXT.end} {formatSeconds(endSec)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-300 w-24">
-                      {START_TIME_LABEL}
-                    </label>
-                    <div className="flex flex-1 items-center gap-2">
-                      <input
-                        type="text"
-                        value={startTimeInput}
-                        placeholder="mm:ss"
-                        onChange={(e) => setStartTimeInput(e.target.value)}
-                        onBlur={() => {
-                          const parsed = parseTimeInput(startTimeInput);
-                          if (parsed === null) {
-                            setStartTimeInput(formatSeconds(startSec));
-                            return;
-                          }
-                          handleStartChange(parsed);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                      <div className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => nudgeStart(1)}
-                          className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
-                          aria-label="Nudge start forward"
-                        >
-                          {"\u25B2"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => nudgeStart(-1)}
-                          className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
-                          aria-label="Nudge start backward"
-                        >
-                          {"\u25BC"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-300 w-24">
-                      {END_TIME_LABEL}
-                    </label>
-                    <div className="flex flex-1 items-center gap-2">
-                      <input
-                        type="text"
-                        value={endTimeInput}
-                        placeholder="mm:ss"
-                        onChange={(e) => setEndTimeInput(e.target.value)}
-                        onBlur={() => {
-                          const parsed = parseTimeInput(endTimeInput);
-                          if (parsed === null) {
-                            setEndTimeInput(formatSeconds(endSec));
-                            return;
-                          }
-                          handleEndChange(parsed);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                      <div className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => nudgeEnd(1)}
-                          className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
-                          aria-label="Nudge end forward"
-                        >
-                          {"\u25B2"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => nudgeEnd(-1)}
-                          className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
-                          aria-label="Nudge end backward"
-                        >
-                          {"\u25BC"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-300">
-                    {TEXT.answer}
-                  </label>
-                  <input
-                    value={answerText}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setAnswerText(value);
-                      updateSelectedItem({ answerText: value });
-                    }}
-                    placeholder={TEXT.answerPlaceholder}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                  />
-                </div>
               </div>
             </div>
-          )}
+          </Box>
+          <Box maxWidth={"80%"}>
+            {isAddPanelOpen && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddPanelOpen(false)}
+                    className="rounded px-2 py-1 bg-slate-800 text-slate-300 hover:text-slate-100"
+                  >
+                    \u95dc\u9589
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 md:flex-row">
+                  <input
+                    value={playlistUrl}
+                    onChange={(e) => {
+                      setPlaylistUrl(e.target.value);
+                      if (playlistAddError) setPlaylistAddError(null);
+                    }}
+                    placeholder={TEXT.playlistPlaceholder}
+                    className="w-full flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleImportPlaylist}
+                    disabled={playlistLoading}
+                    className="px-4 py-2 text-sm rounded-lg bg-sky-500 text-white hover:bg-sky-600 disabled:opacity-60"
+                  >
+                    {playlistLoading ? TEXT.loading : ADD_PLAYLIST_LABEL}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {playlistItems.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-sm text-slate-300">
+                  {TEXT.playlistCount}
+                  {playlistItems.length}
+                  {TEXT.songsUnit}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {TOTAL_DURATION_LABEL}: {formatSeconds(totalDurationSec)}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {playlistItems.map((item, idx) => {
+                    const isActive = idx === selectedIndex;
+                    return (
+                      <div
+                        key={item.localId}
+                        onClick={() => setSelectedIndex(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedIndex(idx);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className={`flex-shrink-0 w-28 rounded-lg border text-left transition-colors ${
+                          isActive
+                            ? "border-sky-400 bg-slate-900"
+                            : "border-slate-800 bg-slate-950/60 hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="relative h-16 w-full overflow-hidden rounded-t-lg bg-slate-900">
+                          <span className="absolute left-1 top-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] text-slate-200">
+                            {idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeItem(idx);
+                            }}
+                            className="absolute right-1 top-1 rounded bg-slate-950/80 px-1 text-[10px] text-slate-200 hover:bg-rose-500/80"
+                            aria-label="Delete"
+                          >
+                            X
+                          </button>
+                          {item.thumbnail ? (
+                            <img
+                              src={item.thumbnail}
+                              alt={item.title}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-xs text-slate-500">
+                              {TEXT.noThumb}
+                            </div>
+                          )}
+                        </div>
+                        <div className="px-2 py-1">
+                          <div className="text-[11px] text-slate-200 truncate">
+                            <span className="mr-1 text-[10px] text-slate-400">
+                              #{idx + 1}
+                            </span>
+                            {item.title}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {item.duration ?? "--:--"}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            {CLIP_DURATION_LABEL}{" "}
+                            {formatSeconds(
+                              Math.max(0, item.endSec - item.startSec),
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between px-2 pb-2 text-[10px] text-slate-300">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveItem(idx, idx - 1);
+                            }}
+                            disabled={idx === 0}
+                            className="rounded px-1.5 py-0.5 hover:bg-slate-800 disabled:opacity-40"
+                          >
+                            {"\u4e0a\u79fb"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveItem(idx, idx + 1);
+                            }}
+                            disabled={idx === playlistItems.length - 1}
+                            className="rounded px-1.5 py-0.5 hover:bg-slate-800 disabled:opacity-40"
+                          >
+                            {"\u4e0b\u79fb"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddPanelOpen(true);
+                    }}
+                    className="flex-shrink-0 w-28 rounded-lg border-2 border-dashed border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100 transition-colors"
+                  >
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 py-6">
+                      <span className="text-xl">+</span>
+                      <span className="text-[11px]">{ADD_ITEM_LABEL}</span>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+                  <div className="relative aspect-video w-full max-w-xl mx-auto overflow-hidden rounded-lg bg-slate-900">
+                    {selectedVideoId ? (
+                      <>
+                        <div
+                          ref={playerContainerRef}
+                          className="h-full w-full"
+                        />
+                        <div
+                          className="absolute inset-0 z-10"
+                          aria-hidden="true"
+                        />
+                      </>
+                    ) : selectedItem?.thumbnail ? (
+                      <img
+                        src={selectedItem.thumbnail}
+                        alt={selectedItem.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-slate-500">
+                        {TEXT.noSelection}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 text-sm text-slate-100">
+                    {selectedItem?.title ?? TEXT.selectSong}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {selectedItem?.uploader ?? ""}
+                    {selectedItem?.duration
+                      ? ` · ${selectedItem.duration}`
+                      : ""}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {CLIP_DURATION_LABEL}:{" "}
+                    {formatSeconds(selectedClipDurationSec)}
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>{formatSeconds(clipCurrentSec)}</span>
+                      <span>{formatSeconds(clipDurationSec)}</span>
+                    </div>
+                    <div className="mt-1 h-1 w-full rounded-full bg-slate-800">
+                      <div
+                        className="h-full rounded-full bg-sky-400"
+                        style={{ width: `${clipProgressPercent}%` }}
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min={Math.floor(startSec)}
+                      max={Math.floor(effectiveEnd)}
+                      step={1}
+                      value={Math.floor(currentTimeSec)}
+                      onChange={(e) =>
+                        handleProgressChange(Number(e.target.value))
+                      }
+                      className="mt-2 w-full accent-sky-400"
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                    <button
+                      type="button"
+                      onClick={togglePlayback}
+                      disabled={!isPlayerReady}
+                      className="rounded-md border border-slate-700 px-3 py-1 text-slate-200 hover:border-slate-400 disabled:opacity-50"
+                    >
+                      {isPlaying ? PAUSE_LABEL : PLAY_LABEL}
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span>{VOLUME_LABEL}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={volume}
+                        onChange={(e) =>
+                          handleVolumeChange(Number(e.target.value))
+                        }
+                        className="w-28 accent-sky-400"
+                      />
+                      <span className="w-6 text-right">{volume}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-4">
+                  <div className="text-sm text-slate-200 font-medium">
+                    {TEXT.editTime}
+                  </div>
+                  <div className="space-y-2">
+                    <Slider
+                      value={[startSec, endSec]}
+                      min={0}
+                      max={maxSec}
+                      onChange={handleRangeChange}
+                      valueLabelDisplay="auto"
+                      valueLabelFormat={(value) => formatSeconds(value)}
+                      disableSwap
+                      sx={{
+                        color: "rgb(56 189 248)",
+                        "& .MuiSlider-thumb": {
+                          border: "2px solid rgb(15 23 42)",
+                        },
+                      }}
+                    />
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>
+                        {TEXT.start} {formatSeconds(startSec)}
+                      </span>
+                      <span>
+                        {TEXT.end} {formatSeconds(endSec)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-300 w-24">
+                        {START_TIME_LABEL}
+                      </label>
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="text"
+                          value={startTimeInput}
+                          placeholder="mm:ss"
+                          onChange={(e) => setStartTimeInput(e.target.value)}
+                          onBlur={() => {
+                            const parsed = parseTimeInput(startTimeInput);
+                            if (parsed === null) {
+                              setStartTimeInput(formatSeconds(startSec));
+                              return;
+                            }
+                            handleStartChange(parsed);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
+                        />
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => nudgeStart(1)}
+                            className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
+                            aria-label="Nudge start forward"
+                          >
+                            {"\u25B2"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => nudgeStart(-1)}
+                            className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
+                            aria-label="Nudge start backward"
+                          >
+                            {"\u25BC"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-300 w-24">
+                        {END_TIME_LABEL}
+                      </label>
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="text"
+                          value={endTimeInput}
+                          placeholder="mm:ss"
+                          onChange={(e) => setEndTimeInput(e.target.value)}
+                          onBlur={() => {
+                            const parsed = parseTimeInput(endTimeInput);
+                            if (parsed === null) {
+                              setEndTimeInput(formatSeconds(endSec));
+                              return;
+                            }
+                            handleEndChange(parsed);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
+                        />
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => nudgeEnd(1)}
+                            className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
+                            aria-label="Nudge end forward"
+                          >
+                            {"\u25B2"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => nudgeEnd(-1)}
+                            className="rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[10px] text-slate-200 hover:border-slate-400"
+                            aria-label="Nudge end backward"
+                          >
+                            {"\u25BC"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-300">
+                      {TEXT.answer}
+                    </label>
+                    <input
+                      value={answerText}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAnswerText(value);
+                        updateSelectedItem({ answerText: value });
+                      }}
+                      placeholder={TEXT.answerPlaceholder}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </Box>
         </Box>
-      </Box>
       </div>
     </div>
     // </div>

@@ -1,9 +1,16 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
-import { Snackbar } from "@mui/material";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Snackbar,
+} from "@mui/material";
 
 import HeaderSection from "./components/HeaderSection";
-import UsernameStep from "./components/UsernameStep";
+import LoginPage from "./components/LoginPage";
 import { useRoom } from "./useRoom";
 
 const RoomsLayoutShell: React.FC = () => {
@@ -12,6 +19,10 @@ const RoomsLayoutShell: React.FC = () => {
     authUser,
     loginWithGoogle,
     logout,
+    needsNicknameConfirm,
+    nicknameDraft,
+    setNicknameDraft,
+    confirmNickname,
     displayUsername,
     isConnected,
     statusText,
@@ -34,17 +45,45 @@ const RoomsLayoutShell: React.FC = () => {
           onLogout={logout}
         />
 
-        {!username && (
-          <UsernameStep
+        {!username && !authUser && (
+          <LoginPage
             usernameInput={usernameInput}
             onInputChange={setUsernameInput}
             onConfirm={handleSetUsername}
+            onGoogleLogin={loginWithGoogle}
+            googleLoading={authLoading}
           />
         )}
 
         <Outlet />
+        <footer className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400">
+          <a href="/privacy" className="hover:text-slate-200">隱私權政策</a>
+          <span className="text-slate-600">?</span>
+          <a href="/terms" className="hover:text-slate-200">服務條款</a>
+        </footer>
 
-        {statusText && <Snackbar message={`Status: ${statusText}`} open={true} />}
+        {statusText && (
+          <Snackbar message={`Status: ${statusText}`} open={true} />
+        )}
+        <Dialog open={needsNicknameConfirm} onClose={() => null}>
+          <DialogTitle>設定暱稱</DialogTitle>
+          <DialogContent>
+            <p className="text-sm text-slate-300 mb-2">
+              初次 Google 登入可修改暱稱，之後也可以再改。
+            </p>
+            <input
+              className="w-full px-3 py-2 text-sm rounded-lg bg-slate-900 border border-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-500/60"
+              placeholder="輸入暱稱"
+              value={nicknameDraft}
+              onChange={(e) => setNicknameDraft(e.target.value)}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={confirmNickname} variant="contained">
+              確定
+            </Button>
+          </DialogActions>
+        </Dialog>
       </div>
     </div>
   );

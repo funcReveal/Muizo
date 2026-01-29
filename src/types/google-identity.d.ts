@@ -1,6 +1,10 @@
 export {};
 
 declare global {
+  type GoogleCodeClient = {
+    requestCode: () => void;
+  };
+
   interface Window {
     google?: {
       accounts?: {
@@ -11,9 +15,7 @@ declare global {
             ux_mode?: "popup" | "redirect";
             redirect_uri?: string;
             callback?: (response: { code?: string; error?: string }) => void;
-          }) => {
-            requestCode: () => void;
-          };
+          }) => GoogleCodeClient;
         };
       };
     };

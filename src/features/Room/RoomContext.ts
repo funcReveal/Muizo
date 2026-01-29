@@ -24,6 +24,10 @@ export interface RoomContextValue {
   authLoading: boolean;
   loginWithGoogle: () => void;
   logout: () => void;
+  needsNicknameConfirm: boolean;
+  nicknameDraft: string;
+  setNicknameDraft: (value: string) => void;
+  confirmNickname: () => void;
   usernameInput: string;
   setUsernameInput: (value: string) => void;
   username: string | null;

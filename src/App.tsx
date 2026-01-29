@@ -8,6 +8,8 @@ import InvitedPage from "./pages/Invited/InvitedPage";
 import { RoomProvider } from "./features/Room/RoomProvider";
 import RoomsLayoutShell from "./features/Room/RoomsLayoutShell";
 import EditPage from "./pages/Edit/EditPage";
+import PrivacyPage from "./pages/Legal/PrivacyPage";
+import TermsPage from "./pages/Legal/TermsPage";
 
 function App() {
   return (
@@ -18,11 +20,13 @@ function App() {
             <Route path="/" element={<Navigate to="/rooms" replace />} />
             <Route path="/rooms" element={<RoomListPage />} />
             <Route path="/rooms/create" element={<RoomCreatePage />} />
-            <Route path="/rooms/:roomId" element={<RoomLobbyPage />} />
-            <Route path="/invited/:roomId" element={<InvitedPage />} />
-            <Route path="/edit" element={<EditPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/rooms" replace />} />
+          <Route path="/rooms/:roomId" element={<RoomLobbyPage />} />
+          <Route path="/invited/:roomId" element={<InvitedPage />} />
+          <Route path="/edit" element={<EditPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/rooms" replace />} />
         </Routes>
       </RoomProvider>
     </BrowserRouter>

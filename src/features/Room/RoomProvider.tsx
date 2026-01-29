@@ -26,7 +26,6 @@ import {
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 const API_URL = import.meta.env.VITE_API_URL;
-const VITE_WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 const DEFAULT_PAGE_SIZE = 50;
 const CHUNK_SIZE = 200;
 const QUESTION_MIN = 5;
@@ -40,6 +39,7 @@ const STORAGE_KEYS = {
   roomPasswordPrefix: "mq_roomPassword:",
   authToken: "mq_authToken",
   authUser: "mq_authUser",
+  profileConfirmedPrefix: "mq_profileConfirmed:",
 };
 
 export const RoomProvider: React.FC<{ children: ReactNode }> = ({
@@ -51,8 +51,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [username, setUsername] = useState<string | null>(
     () => localStorage.getItem(STORAGE_KEYS.username) ?? null,
   );
-  const [authToken, setAuthToken] = useState<string | null>(
-    () => localStorage.getItem(STORAGE_KEYS.authToken),
+  const [authToken, setAuthToken] = useState<string | null>(() =>
+    localStorage.getItem(STORAGE_KEYS.authToken),
   );
   const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem(STORAGE_KEYS.authUser);
@@ -64,6 +64,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
   });
   const [authLoading, setAuthLoading] = useState(false);
+  const [needsNicknameConfirm, setNeedsNicknameConfirm] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
   const [clientId] = useState<string>(() => {
     const existing = localStorage.getItem(STORAGE_KEYS.clientId);
     if (existing) return existing;
@@ -139,7 +141,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     currentRoomId ?? localStorage.getItem(STORAGE_KEYS.roomId),
   );
   const serverOffsetRef = useRef(0);
-  const googleCodeClientRef = useRef<any>(null);
+  const googleCodeClientRef = useRef<GoogleCodeClient | null>(null);
   const googleScriptPromiseRef = useRef<Promise<void> | null>(null);
   const handledRedirectRef = useRef(false);
 
@@ -155,7 +157,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setAuthUser(user);
     localStorage.setItem(STORAGE_KEYS.authToken, token);
     localStorage.setItem(STORAGE_KEYS.authUser, JSON.stringify(user));
-    if (user.display_name) {
+    const confirmKey = `${STORAGE_KEYS.profileConfirmedPrefix}${user.id}`;
+    const confirmed = localStorage.getItem(confirmKey) === "1";
+    if (!confirmed) {
+      setNicknameDraft(user.display_name ?? "");
+      setNeedsNicknameConfirm(true);
+    } else if (!username && user.display_name) {
       persistUsername(user.display_name);
     }
   };
@@ -168,6 +175,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setUsername(null);
     localStorage.removeItem(STORAGE_KEYS.username);
     setUsernameInput("");
+    setNeedsNicknameConfirm(false);
+    setNicknameDraft("");
   };
 
   const ensureGoogleScript = () => {
@@ -239,10 +248,25 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText(null);
   };
 
+  const confirmNickname = useCallback(() => {
+    const trimmed = nicknameDraft.trim();
+    if (!trimmed) {
+      setStatusText("請先輸入暱稱");
+      return;
+    }
+    persistUsername(trimmed);
+    if (authUser?.id) {
+      const confirmKey = `${STORAGE_KEYS.profileConfirmedPrefix}${authUser.id}`;
+      localStorage.setItem(confirmKey, "1");
+    }
+    setNeedsNicknameConfirm(false);
+    setStatusText("暱稱已設定");
+  }, [nicknameDraft, authUser?.id]);
+
   const exchangeGoogleCode = useCallback(
     async (code: string, redirectUri: string) => {
       if (!API_URL) {
-        setStatusText("尚未設定 API 位置 (VITE_API_URL)");
+        setStatusText("尚未設定 API 位置 (API_URL)");
         return;
       }
       setAuthLoading(true);
@@ -285,9 +309,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
     ensureGoogleScript()
       .then(() => {
+        const oauth2 = window.google?.accounts?.oauth2;
+        if (!oauth2) {
+          setStatusText("Google 登入尚未準備完成");
+          return;
+        }
         const codeClient =
           googleCodeClientRef.current ??
-          window.google.accounts.oauth2.initCodeClient({
+          oauth2.initCodeClient({
             client_id: clientId,
             scope: "openid email profile",
             ux_mode: uxMode,
@@ -318,12 +347,6 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const getSocket = () => socketRef.current;
 
   useEffect(() => {
-    if (authUser?.display_name && !username) {
-      persistUsername(authUser.display_name);
-    }
-  }, [authUser?.display_name, username]);
-
-  useEffect(() => {
     if (handledRedirectRef.current) return;
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
@@ -342,6 +365,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setStatusText(error);
       return;
     }
+    if (!code) return;
 
     const redirectUri =
       import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? window.location.origin;
@@ -370,7 +394,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchRooms = useCallback(async () => {
     if (!API_URL) {
-      setStatusText("尚未設定 API 位置 (VITE_API_URL)");
+      setStatusText("尚未設定 API 位置 (API_URL)");
       return;
     }
     try {
@@ -398,7 +422,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchRoomById = useCallback(async (roomId: string) => {
     if (!API_URL) {
-      setStatusText("尚未設定 API 位置 (VITE_API_URL)");
+      setStatusText("尚未設定 API 位置 (API_URL)");
       return null;
     }
     try {
@@ -532,7 +556,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     if (!username) return;
 
-    const authPayload = authToken ? { token: authToken, clientId } : { clientId };
+    const authPayload = authToken
+      ? { token: authToken, clientId }
+      : { clientId };
     const s = io(SOCKET_URL, {
       transports: ["websocket"],
       auth: authPayload,
@@ -965,7 +991,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     if (!API_URL) {
-      setPlaylistError("尚未設定播放清單 API 位置 (VITE_API_URL)");
+      setPlaylistError("尚未設定播放清單 API 位置 (API_URL)");
       return;
     }
 
@@ -1113,6 +1139,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       authLoading,
       loginWithGoogle,
       logout,
+      needsNicknameConfirm,
+      nicknameDraft,
+      setNicknameDraft,
+      confirmNickname,
       usernameInput,
       setUsernameInput,
       username,
@@ -1187,6 +1217,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       authLoading,
       loginWithGoogle,
       logout,
+      needsNicknameConfirm,
+      nicknameDraft,
+      confirmNickname,
       usernameInput,
       username,
       displayUsername,
