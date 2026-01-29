@@ -8,6 +8,7 @@ import InvitedPage from "./pages/Invited/InvitedPage";
 import { RoomProvider } from "./features/Room/RoomProvider";
 import RoomsLayoutShell from "./features/Room/RoomsLayoutShell";
 import EditPage from "./pages/Edit/EditPage";
+import CollectionsPage from "./pages/Collections/CollectionsPage";
 
 function App() {
   return (
@@ -20,7 +21,9 @@ function App() {
             <Route path="/rooms/create" element={<RoomCreatePage />} />
             <Route path="/rooms/:roomId" element={<RoomLobbyPage />} />
             <Route path="/invited/:roomId" element={<InvitedPage />} />
-            <Route path="/edit" element={<EditPage />} />
+            <Route path="/collections" element={<CollectionsPage />} />
+            <Route path="/collection/edit" element={<EditPage />} />
+            <Route path="/collection/edit/:collectionId" element={<EditPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/rooms" replace />} />
         </Routes>
