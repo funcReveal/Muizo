@@ -63,7 +63,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistsError, setYoutubePlaylistsError] = useState<string | null>(null);
-  const [clientId] = useState<string>(() => {
+  const [localClientId] = useState<string>(() => {
     const existing = localStorage.getItem(STORAGE_KEYS.clientId);
     if (existing) return existing;
     const generated =
@@ -72,6 +72,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     localStorage.setItem(STORAGE_KEYS.clientId, generated);
     return generated;
   });
+  const authClientId = authUser?.id ?? null;
+  const clientId = useMemo(
+    () => authClientId ?? localClientId,
+    [authClientId, localClientId],
+  );
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [roomNameInput, setRoomNameInput] = useState(() =>

@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import React, {
   useCallback,
   useEffect,
@@ -291,7 +290,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         artist: isReveal ? "Reveal phase" : "Guess the song",
         album: "Now playing",
       });
-      const noop = () => {};
+      const noop = () => { };
       const actions: Array<MediaSessionAction> = [
         "play",
         "pause",
@@ -481,12 +480,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     phaseEndsAt === gameState.startedAt
       ? 0
       : ((gameState.phase === "guess"
-          ? gameState.guessDurationMs - phaseRemainingMs
-          : gameState.revealDurationMs - phaseRemainingMs) /
-          (gameState.phase === "guess"
-            ? gameState.guessDurationMs
-            : gameState.revealDurationMs)) *
-        100;
+        ? gameState.guessDurationMs - phaseRemainingMs
+        : gameState.revealDurationMs - phaseRemainingMs) /
+        (gameState.phase === "guess"
+          ? gameState.guessDurationMs
+          : gameState.revealDurationMs)) *
+      100;
 
   const sortedParticipants = participants
     .slice()
@@ -533,13 +532,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             scoreboardList.map((p, idx) => (
               <div
                 key={p.clientId}
-                className={`flex items-center justify-between rounded px-2 py-1 text-sm ${
-                  gameState.lockedClientIds?.includes(p.clientId)
+                className={`flex items-center justify-between rounded px-2 py-1 text-sm ${gameState.lockedClientIds?.includes(p.clientId)
                     ? "border border-emerald-500/50 bg-emerald-900/40 text-emerald-50"
                     : "bg-slate-800/40 text-slate-200"
-                } ${
-                  p.clientId === meClientId ? "ring-1 ring-emerald-400/70" : ""
-                }`}
+                  } ${p.clientId === meClientId ? "ring-1 ring-emerald-400/70" : ""
+                  }`}
               >
                 <span className="truncate flex items-center gap-2">
                   {gameState.lockedClientIds?.includes(p.clientId) && (
@@ -556,9 +553,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <div className="flex items-center gap-2">
                   {gameState.lockedClientIds?.includes(p.clientId) ? (
                     <Chip
-                      label={`第${
-                        lockedOrder.indexOf(p.clientId) + 1 || "?"
-                      }答`}
+                      label={`第${lockedOrder.indexOf(p.clientId) + 1 || "?"
+                        }答`}
                       size="small"
                       color="success"
                       variant="filled"
@@ -713,8 +709,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <p className="mt-2 text-xs text-slate-300">
                   {waitingToStart
                     ? `遊戲即將開始 · ${Math.ceil(
-                        (gameState.startedAt - nowMs) / 1000,
-                      )}s`
+                      (gameState.startedAt - nowMs) / 1000,
+                    )}s`
                     : "猜歌中，影片已隱藏"}
                 </p>
               </div>
@@ -803,8 +799,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         ? "info"
                         : "info"
                   }
-                  className={`justify-start ${
-                    isReveal
+                  className={`justify-start ${isReveal
                       ? isCorrect
                         ? "bg-emerald-700/40"
                         : isSelected
@@ -813,7 +808,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       : isSelected
                         ? "bg-sky-700/30"
                         : ""
-                  } ${isLocked ? "pointer-events-none" : ""}`}
+                    } ${isLocked ? "pointer-events-none" : ""}`}
                   disabled={false}
                   onClick={() => {
                     if (isLocked) return;
