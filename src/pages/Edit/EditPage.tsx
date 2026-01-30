@@ -111,6 +111,8 @@ type DbCollectionItem = {
   collection_id: string;
   sort: number;
   video_id: string | null;
+  title?: string | null;
+  channel_title?: string | null;
   duration_sec?: number | null;
   start_sec: number;
   end_sec: number | null;
@@ -213,10 +215,10 @@ const buildEditableItemsFromDb = (items: DbCollectionItem[]): EditableItem[] =>
     return {
       localId: createLocalId(),
       dbId: item.id,
-      title: item.answer_text ?? videoId,
+      title: item.title ?? item.answer_text ?? videoId,
       url: videoId ? videoUrlFromId(videoId) : "",
       thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
-      uploader: "",
+      uploader: item.channel_title ?? "",
       duration: rawDuration ? formatSeconds(rawDuration) : undefined,
       startSec,
       endSec,
@@ -968,6 +970,8 @@ const EditPage = () => {
       id: item.dbId,
       sort: idx,
       video_id: extractVideoId(item.url),
+      title: item.title || item.answerText || "Untitled",
+      channel_title: item.uploader ?? null,
       start_sec: item.startSec,
       end_sec: item.endSec,
       answer_text: item.answerText || item.title || "Untitled",
@@ -986,14 +990,16 @@ const EditPage = () => {
           fetch(`${WORKER_API_URL}/collection-items/${item.id}`, {
             method: "PATCH",
             headers: workerJsonHeaders,
-            body: JSON.stringify({
-              sort: item.sort,
-              video_id: item.video_id ?? null,
-              start_sec: item.start_sec,
-              end_sec: item.end_sec,
-              answer_text: item.answer_text,
-              ...(item.duration_sec !== undefined
-                ? { duration_sec: item.duration_sec }
+              body: JSON.stringify({
+                sort: item.sort,
+                video_id: item.video_id ?? null,
+                title: item.title,
+                channel_title: item.channel_title,
+                start_sec: item.start_sec,
+                end_sec: item.end_sec,
+                answer_text: item.answer_text,
+                ...(item.duration_sec !== undefined
+                  ? { duration_sec: item.duration_sec }
                 : {}),
             }),
           }),
@@ -1002,13 +1008,15 @@ const EditPage = () => {
     }
 
     if (toInsert.length > 0) {
-      const insertItems = toInsert.map((item) => ({
-        id: createServerId(),
-        sort: item.sort,
-        video_id: item.video_id ?? null,
-        start_sec: item.start_sec,
-        end_sec: item.end_sec,
-        answer_text: item.answer_text,
+        const insertItems = toInsert.map((item) => ({
+          id: createServerId(),
+          sort: item.sort,
+          video_id: item.video_id ?? null,
+          title: item.title,
+          channel_title: item.channel_title,
+          start_sec: item.start_sec,
+          end_sec: item.end_sec,
+          answer_text: item.answer_text,
         ...(item.duration_sec !== undefined
           ? { duration_sec: item.duration_sec }
           : {}),
@@ -1331,11 +1339,10 @@ const EditPage = () => {
                         }}
                         role="button"
                         tabIndex={0}
-                        className={`flex-shrink-0 w-28 rounded-lg border text-left transition-colors ${
-                          isActive
+                        className={`flex-shrink-0 w-28 rounded-lg border text-left transition-colors ${isActive
                             ? "border-sky-400 bg-slate-900"
                             : "border-slate-800 bg-slate-950/60 hover:border-slate-600"
-                        }`}
+                          }`}
                       >
                         <div className="relative h-16 w-full overflow-hidden rounded-t-lg bg-slate-900">
                           <span className="absolute left-1 top-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[10px] text-slate-200">
@@ -1655,11 +1662,10 @@ const EditPage = () => {
       </div>
       {autoSaveNotice && (
         <div
-          className={`fixed bottom-4 left-4 z-50 rounded-md px-3 py-2 text-xs text-white shadow ${
-            autoSaveNotice.type === "success"
+          className={`fixed bottom-4 left-4 z-50 rounded-md px-3 py-2 text-xs text-white shadow ${autoSaveNotice.type === "success"
               ? "bg-emerald-500/90"
               : "bg-rose-500/90"
-          }`}
+            }`}
         >
           {autoSaveNotice.message}
         </div>

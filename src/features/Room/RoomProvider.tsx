@@ -627,7 +627,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               duration_sec?: number | null;
               start_sec?: number;
               end_sec?: number | null;
-              video_title?: string | null;
+              title?: string | null;
+              channel_title?: string | null;
               answer_text?: string;
             }>;
             if (items.length === 0) {
@@ -646,13 +647,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                   ? formatSeconds(item.duration_sec)
                   : formatSeconds(safeEnd - startSec);
               const rawTitle =
-                item.video_title ?? item.answer_text ?? `歌曲 ${index + 1}`;
+                item.title ?? item.answer_text ?? `歌曲 ${index + 1}`;
               const answerText = item.answer_text ?? rawTitle;
               return {
                 title: rawTitle,
                 answerText,
                 url: videoId ? videoUrlFromId(videoId) : "",
                 thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
+                uploader: item.channel_title ?? undefined,
                 duration: durationValue,
                 startSec,
                 endSec: safeEnd,
