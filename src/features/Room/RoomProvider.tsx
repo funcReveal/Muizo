@@ -187,6 +187,22 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setYoutubePlaylistsError(null);
   };
 
+  const refreshAuthToken = useCallback(async () => {
+    if (!API_URL || !authToken) return null;
+    try {
+      const res = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.token) return null;
+      persistAuth(payload.token, payload.user as AuthUser);
+      return payload.token as string;
+    } catch {
+      return null;
+    }
+  }, [authToken, persistAuth]);
+
   const ensureGoogleScript = () => {
     if (window.google?.accounts?.oauth2) return Promise.resolve();
     if (googleScriptPromiseRef.current) return googleScriptPromiseRef.current;
@@ -279,18 +295,43 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setYoutubePlaylistsLoading(true);
     setYoutubePlaylistsError(null);
     try {
-      const res = await fetch(`${API_URL}/api/youtube/playlists`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
+      const run = async (token: string, allowRetry: boolean) => {
+        const res = await fetch(`${API_URL}/api/youtube/playlists`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await res.json().catch(() => null);
+        if (res.ok) {
+          setYoutubePlaylists((payload?.data ?? []) as YoutubePlaylist[]);
+          return;
+        }
+        if (res.status === 401 && allowRetry) {
+          const refreshed = await refreshAuthToken();
+          if (refreshed) {
+            await run(refreshed, false);
+            return;
+          }
+        }
         const message = payload?.error ?? "載入播放清單失敗";
+        const normalized = String(message).toLowerCase();
+        if (
+          normalized.includes("insufficient authentication scopes") ||
+          normalized.includes("insufficientpermissions")
+        ) {
+          throw new Error("需要重新授權 Google");
+        }
+        if (normalized.includes("channel not found")) {
+          throw new Error("尚未建立 YouTube 頻道或沒有播放清單");
+        }
         if (String(message).includes("Missing refresh token")) {
-          throw new Error("需要重新授權 Google 才能讀取播放清單");
+          throw new Error("需要重新授權 Google");
+        }
+        if (res.status === 401) {
+          throw new Error("登入已過期，需要重新授權 Google");
         }
         throw new Error(message);
-      }
-      setYoutubePlaylists((payload?.data ?? []) as YoutubePlaylist[]);
+      };
+
+      await run(authToken, true);
     } catch (error) {
       setYoutubePlaylistsError(
         error instanceof Error ? error.message : "載入播放清單失敗",
@@ -298,7 +339,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setYoutubePlaylistsLoading(false);
     }
-  }, [authToken]);
+  }, [authToken, refreshAuthToken]);
 
   const importYoutubePlaylist = useCallback(
     async (playlistId: string) => {
@@ -309,24 +350,53 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setPlaylistLoading(true);
       setPlaylistError(null);
       try {
-        const url = new URL(`${API_URL}/api/youtube/playlist-items`);
-        url.searchParams.set("playlistId", playlistId);
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        const payload = await res.json().catch(() => null);
-        if (!res.ok) {
-          throw new Error(payload?.error ?? "讀取播放清單失敗");
-        }
-        const data = payload?.data as { items?: PlaylistItem[]; playlistId?: string };
-        if (!data?.items || data.items.length === 0) {
-          throw new Error("清單沒有可用影片");
-        }
-        setPlaylistItems(data.items);
-        setPlaylistStage("preview");
-        setPlaylistLocked(true);
-        setLastFetchedPlaylistId(data.playlistId ?? playlistId);
-        setStatusText(`已載入播放清單，共 ${data.items.length} 首`);
+        const run = async (token: string, allowRetry: boolean) => {
+          const url = new URL(`${API_URL}/api/youtube/playlist-items`);
+          url.searchParams.set("playlistId", playlistId);
+          const res = await fetch(url.toString(), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const payload = await res.json().catch(() => null);
+          if (res.ok) {
+            const data = payload?.data as {
+              items?: PlaylistItem[];
+              playlistId?: string;
+            };
+            if (!data?.items || data.items.length === 0) {
+              throw new Error("清單沒有可用影片");
+            }
+            setPlaylistItems(data.items);
+            setPlaylistStage("preview");
+            setPlaylistLocked(true);
+            setLastFetchedPlaylistId(data.playlistId ?? playlistId);
+            setStatusText(`已載入播放清單，共 ${data.items.length} 首`);
+            return;
+          }
+          if (res.status === 401 && allowRetry) {
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+              await run(refreshed, false);
+              return;
+            }
+          }
+          const message = payload?.error ?? "讀取播放清單失敗";
+          const normalized = String(message).toLowerCase();
+          if (
+            normalized.includes("insufficient authentication scopes") ||
+            normalized.includes("insufficientpermissions")
+          ) {
+            throw new Error("需要重新授權 Google");
+          }
+          if (normalized.includes("channel not found")) {
+            throw new Error("尚未建立 YouTube 頻道或沒有播放清單");
+          }
+          if (res.status === 401) {
+            throw new Error("登入已過期，需要重新授權 Google");
+          }
+          throw new Error(message);
+        };
+
+        await run(authToken, true);
       } catch (error) {
         setPlaylistError(
           error instanceof Error
@@ -341,7 +411,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setPlaylistLoading(false);
       }
     },
-    [authToken],
+    [authToken, refreshAuthToken],
   );
 
   const exchangeGoogleCode = useCallback(

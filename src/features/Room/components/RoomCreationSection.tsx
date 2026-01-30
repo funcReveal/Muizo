@@ -96,8 +96,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
     "link",
   );
   const needsReauth = Boolean(
+    youtubePlaylistsError && youtubePlaylistsError.includes("重新授權"),
+  );
+  const channelMissing = Boolean(
     youtubePlaylistsError &&
-      youtubePlaylistsError.includes("\u91cd\u65b0\u6388\u6b0a"),
+      youtubePlaylistsError.includes("尚未建立 YouTube 頻道"),
   );
   const isAsciiAlphaNum = (value: string) => /^[a-zA-Z0-9]*$/.test(value);
   const canCreateRoom = Boolean(
@@ -416,18 +419,18 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                     setSelectedYoutubeId("");
                   }}
                 >
-                  {"\u8cbc\u4e0a\u9023\u7d50"}
+                  {"貼上連結"}
                 </Button>
                 <Button
                   variant={playlistSource === "mine" ? "contained" : "outlined"}
                   onClick={() => setPlaylistSource("mine")}
                   disabled={!isGoogleAuthed}
                 >
-                  {"\u6211\u7684\u64ad\u653e\u6e05\u55ae"}
+                  {"我的播放清單"}
                 </Button>
                 {!isGoogleAuthed && (
                   <Typography variant="caption" className="text-slate-400">
-                    {"\u767b\u5165\u5f8c\u624d\u80fd\u4f7f\u7528"}
+                    {"登入後才能使用"}
                   </Typography>
                 )}
               </Stack>
@@ -487,7 +490,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                       onClick={onGoogleLogin}
                       disabled={!onGoogleLogin}
                     >
-                      {"\u4f7f\u7528 Google \u767b\u5165"}
+                      {"使用 Google 登入"}
                     </Button>
                   )}
                   {isGoogleAuthed && (
@@ -510,9 +513,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                             }
                             className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
                           >
-                            <option value="">
-                              {"\u8acb\u9078\u64c7\u64ad\u653e\u6e05\u55ae"}
-                            </option>
+                            <option value="">{"請選擇播放清單"}</option>
                             {youtubePlaylists.map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.title} · {item.itemCount}
@@ -528,16 +529,31 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                               onImportYoutubePlaylist?.(selectedYoutubeId)
                             }
                           >
-                            {"\u532f\u5165"}
+                            {"匯入"}
                           </Button>
                         </>
                       )}
                     </Stack>
                   )}
                   {youtubePlaylistsError && (
-                    <Alert severity="error" variant="outlined">
+                    <Alert
+                      severity={channelMissing ? "info" : "error"}
+                      variant="outlined"
+                    >
                       {youtubePlaylistsError}
                     </Alert>
+                  )}
+                  {channelMissing && (
+                    <Button
+                      variant="outlined"
+                      component="a"
+                      href="https://www.youtube.com"
+                      target="_blank"
+                      rel="noreferrer"
+                      disabled={youtubePlaylistsLoading}
+                    >
+                      {"前往 YouTube 建立播放清單"}
+                    </Button>
                   )}
                   {needsReauth && onGoogleLogin && (
                     <Button
@@ -545,7 +561,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                       onClick={onGoogleLogin}
                       disabled={youtubePlaylistsLoading}
                     >
-                      {"\u91cd\u65b0\u6388\u6b0a Google"}
+                      {"重新授權 Google"}
                     </Button>
                   )}
                 </Stack>
