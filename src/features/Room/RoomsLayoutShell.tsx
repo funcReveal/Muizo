@@ -23,6 +23,9 @@ const RoomsLayoutShell: React.FC = () => {
     nicknameDraft,
     setNicknameDraft,
     confirmNickname,
+    isProfileEditorOpen,
+    openProfileEditor,
+    closeProfileEditor,
     displayUsername,
     isConnected,
     statusText,
@@ -43,6 +46,7 @@ const RoomsLayoutShell: React.FC = () => {
           authLoading={authLoading}
           onLogin={loginWithGoogle}
           onLogout={logout}
+          onEditProfile={openProfileEditor}
         />
 
         {!username && !authUser && (
@@ -58,29 +62,45 @@ const RoomsLayoutShell: React.FC = () => {
         <Outlet />
         <footer className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400">
           <a href="/privacy" className="hover:text-slate-200">隱私權政策</a>
-          <span className="text-slate-600">?</span>
+          <span className="text-slate-600">·</span>
           <a href="/terms" className="hover:text-slate-200">服務條款</a>
         </footer>
 
         {statusText && (
           <Snackbar message={`Status: ${statusText}`} open={true} />
         )}
-        <Dialog open={needsNicknameConfirm} onClose={() => null}>
-          <DialogTitle>設定暱稱</DialogTitle>
+        <Dialog
+          open={needsNicknameConfirm || isProfileEditorOpen}
+          onClose={() => {
+            if (!needsNicknameConfirm) {
+              closeProfileEditor();
+            }
+          }}
+        >
+          <DialogTitle>
+            {needsNicknameConfirm ? "首次登入設定暱稱" : "編輯個人資料"}
+          </DialogTitle>
           <DialogContent>
             <p className="text-sm text-slate-300 mb-2">
-              初次 Google 登入可修改暱稱，之後也可以再改。
+              {needsNicknameConfirm
+                ? "初次 Google 登入可修改暱稱，之後也可以再改。"
+                : "更新你在遊戲中顯示的暱稱。"}
             </p>
             <input
               className="w-full px-3 py-2 text-sm rounded-lg bg-slate-900 border border-slate-700 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-500/60"
-              placeholder="輸入暱稱"
+              placeholder="請輸入暱稱"
               value={nicknameDraft}
               onChange={(e) => setNicknameDraft(e.target.value)}
             />
           </DialogContent>
           <DialogActions>
+            {!needsNicknameConfirm && (
+              <Button onClick={closeProfileEditor} variant="outlined">
+                取消
+              </Button>
+            )}
             <Button onClick={confirmNickname} variant="contained">
-              確定
+              儲存
             </Button>
           </DialogActions>
         </Dialog>

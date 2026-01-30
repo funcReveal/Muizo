@@ -107,6 +107,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
     username && roomName.trim() && playlistItems.length > 0,
   );
   const showPlaylistInput = playlistStage === "input";
+  const privacyLabel = roomPassword.trim() ? "需密碼" : "公開";
 
   const rowCount = playlistItems.length;
   const canAdjustQuestions =
@@ -136,22 +137,22 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
     const item = playlistItems[index];
     return (
       <div style={style}>
-        <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-800/60">
+        <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-200/80">
           <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-hidden">
             <Avatar
               variant="rounded"
               src={item.thumbnail}
-              sx={{ bgcolor: "#334155", width: 56, height: 56, fontSize: 14 }}
+              sx={{ bgcolor: "#e6d6c3", width: 56, height: 56, fontSize: 14 }}
             >
               {index + 1}
             </Avatar>
             <div className="flex-1 min-w-0">
               <Typography
                 variant="body2"
-                className="max-w-99/100 truncate text-slate-400 "
+                className="max-w-99/100 truncate room-create-muted"
               >
                 <a
-                  className="text-slate-100 hover:text-sky-400 transition-colors duration-300"
+                  className="text-slate-900 hover:text-orange-600 transition-colors duration-300"
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
@@ -161,7 +162,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                 </a>
               </Typography>
 
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 {item.uploader ?? "Unknown"}
                 {item.duration ? ` · ${item.duration}` : ""}
               </p>
@@ -182,11 +183,19 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
 
   return (
     <div className="flex flex-col gap-3">
-      <Card
-        variant="outlined"
-        className="w-full bg-slate-900/70 border border-slate-700 text-slate-50"
-      >
-        <CardContent className="space-y-3">
+      <Card variant="outlined" className="w-full room-create-card">
+        <CardContent className="room-create-card-content">
+          <div className="room-create-section-title">
+            <div>
+              <p className="room-create-kicker">Step 01</p>
+              <h3>基本設定</h3>
+              <p className="room-create-muted">
+                房間名稱與密碼會顯示在邀請連結上。
+              </p>
+            </div>
+            <span className="room-create-chip">{privacyLabel}</span>
+          </div>
+
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <TextField
               fullWidth
@@ -199,6 +208,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               disabled={!username}
               variant="standard"
               autoComplete="off"
+              className="room-create-field"
             />
             <TextField
               size="small"
@@ -214,6 +224,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               disabled={!username}
               variant="standard"
               autoComplete="off"
+              className="room-create-field"
               inputProps={{ inputMode: "text", pattern: "[A-Za-z0-9]*" }}
             />
           </Stack>
@@ -226,8 +237,8 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
             onChange={(_, expanded) => setSettingsExpanded(expanded)}
             sx={{
               borderRadius: 1.5,
-              backgroundColor: "rgba(15,23,42,0.4)",
-              border: "1px solid rgba(148,163,184,0.2)",
+              backgroundColor: "rgba(255,255,255,0.6)",
+              border: "1px solid rgba(18,21,27,0.12)",
               transition:
                 "background-color 200ms ease, border-color 200ms ease",
               "&::before": {
@@ -235,7 +246,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               },
               "&.Mui-disabled": {
                 opacity: 1,
-                backgroundColor: "rgba(15,23,42,0.25)",
+                backgroundColor: "rgba(255,255,255,0.35)",
               },
               "& .MuiButton-root": {
                 transition: "color 200ms ease, border-color 200ms ease",
@@ -244,8 +255,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
           >
             <AccordionSummary
               sx={{
+                "& .MuiSvgIcon-root": {
+                  color: "rgba(18,21,27,0.6)",
+                },
                 "&.Mui-disabled .MuiTypography-root": {
-                  color: "rgba(241,245,249,0.95)",
+                  color: "rgba(18,21,27,0.75)",
                   opacity: 1,
                   transition: "color 200ms ease, opacity 200ms ease",
                 },
@@ -253,7 +267,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   opacity: 1,
                 },
                 "&.Mui-disabled .MuiAccordionSummary-expandIconWrapper": {
-                  color: "rgba(148,163,184,0.9)",
+                  color: "rgba(18,21,27,0.5)",
                 },
               }}
               expandIcon={
@@ -262,7 +276,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                     <LockOutlinedIcon
                       fontSize="small"
                       sx={{
-                        color: "text.disabled",
+                        color: "rgba(18,21,27,0.45)",
                       }}
                     />
                   </Fade>
@@ -270,8 +284,8 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <ExpandMoreIcon
                     sx={{
                       color: canAdjustQuestions
-                        ? "text.primary"
-                        : "text.disabled",
+                        ? "rgba(18,21,27,0.7)"
+                        : "rgba(18,21,27,0.35)",
                     }}
                   />
                 )
@@ -279,16 +293,16 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
             >
               <Stack direction="row" spacing={1} alignItems="center">
                 {!settingsExpanded && canAdjustQuestions ? (
-                  <Typography variant="body2" className="text-slate-100">
+                  <Typography variant="body2" className="room-create-muted">
                     公開、共 {questionCount} 題
                   </Typography>
                 ) : (
-                  <Typography variant="body2" className="text-slate-100">
+                  <Typography variant="body2" className="room-create-muted">
                     房間設定
                   </Typography>
                 )}
                 <Fade in={!canAdjustQuestions} timeout={200} unmountOnExit>
-                  <Typography variant="caption" className="text-slate-400">
+                  <Typography variant="caption" className="room-create-muted">
                     載入清單後解鎖
                   </Typography>
                 </Fade>
@@ -308,6 +322,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => onQuestionCountChange(questionMin)}
                     disabled={
                       !canAdjustQuestions || questionCount === questionMin
@@ -319,6 +334,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => adjustQuestionCount(-questionStep)}
                     disabled={
                       !canAdjustQuestions || questionCount <= questionMin
@@ -329,6 +345,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => adjustQuestionCount(-1)}
                     disabled={
                       !canAdjustQuestions || questionCount <= questionMin
@@ -343,13 +360,13 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   alignItems={"center"}
                   sx={{ minWidth: 120 }}
                 >
-                  <Typography variant="body2" className="text-slate-200">
+                  <Typography variant="body2" className="room-create-muted">
                     題數
                   </Typography>
-                  <Typography variant="h4" className="text-slate-50">
+                  <Typography variant="h4" className="room-create-figure">
                     {questionCount}
                   </Typography>
-                  <Typography variant="caption" className="text-slate-400">
+                  <Typography variant="caption" className="room-create-muted">
                     {questionMin}–{questionMax}
                   </Typography>
                 </Stack>
@@ -358,6 +375,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => adjustQuestionCount(1)}
                     disabled={
                       !canAdjustQuestions || questionCount >= questionMax
@@ -368,6 +386,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => adjustQuestionCount(questionStep)}
                     disabled={
                       !canAdjustQuestions || questionCount >= questionMax
@@ -379,6 +398,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   <Button
                     variant="outlined"
                     size="small"
+                    className="room-create-accent-button"
                     onClick={() => onQuestionCountChange(questionMax)}
                     disabled={
                       !canAdjustQuestions || questionCount === questionMax
@@ -390,30 +410,30 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               </Stack>
             </AccordionDetails>
           </Accordion>
-          <Button
-            sx={{ mb: "20px" }}
-            fullWidth
-            variant="contained"
-            color="success"
-            disabled={!canCreateRoom}
-            onClick={onCreateRoom}
-          >
-            建立房間
-          </Button>
 
           {playlistProgress.total > 0 && (
             <Chip
               label={`進度 ${playlistProgress.received}/${playlistProgress.total}`}
               size="small"
               variant="outlined"
-              className="text-slate-200 border-slate-600"
+              className="room-create-muted"
             />
           )}
+          <div className="room-create-section-title">
+            <div>
+              <p className="room-create-kicker">Step 02</p>
+              <h3>播放清單</h3>
+              <p className="room-create-muted">
+                貼上 YouTube 播放清單連結或匯入已登入的清單。
+              </p>
+            </div>
+          </div>
           {showPlaylistInput ? (
             <Stack spacing={2}>
               <Stack direction="row" spacing={1}>
                 <Button
                   variant={playlistSource === "link" ? "contained" : "outlined"}
+                  className="room-create-accent-button"
                   onClick={() => {
                     setPlaylistSource("link");
                     setSelectedYoutubeId("");
@@ -423,13 +443,14 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                 </Button>
                 <Button
                   variant={playlistSource === "mine" ? "contained" : "outlined"}
+                  className="room-create-accent-button"
                   onClick={() => setPlaylistSource("mine")}
                   disabled={!isGoogleAuthed}
                 >
                   {"我的播放清單"}
                 </Button>
                 {!isGoogleAuthed && (
-                  <Typography variant="caption" className="text-slate-400">
+                  <Typography variant="caption" className="room-create-muted">
                     {"登入後才能使用"}
                   </Typography>
                 )}
@@ -441,7 +462,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                     sx={{
                       flex: 1,
                       "& .MuiInput-root.Mui-disabled:before": {
-                        borderBottom: "1px solid rgba(148,163,184,.6)",
+                        borderBottom: "1px solid rgba(18, 21, 27, 0.4)",
                       },
                     }}
                     slotProps={{ inputLabel: { shrink: true } }}
@@ -465,10 +486,12 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                     }}
                     disabled={!username || playlistLoading || playlistLocked}
                     autoComplete="off"
+                    className="room-create-field"
                   />
                   <Button
                     variant="contained"
                     color="primary"
+                    className="room-create-accent-button"
                     disabled={
                       !username ||
                       !isPlaylistLink ||
@@ -487,6 +510,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   {!isGoogleAuthed && (
                     <Button
                       variant="outlined"
+                      className="room-create-accent-button"
                       onClick={onGoogleLogin}
                       disabled={!onGoogleLogin}
                     >
@@ -497,6 +521,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                       <Button
                         variant="outlined"
+                        className="room-create-accent-button"
                         onClick={onFetchYoutubePlaylists}
                         disabled={!username || youtubePlaylistsLoading}
                       >
@@ -511,7 +536,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                             onChange={(e) =>
                               setSelectedYoutubeId(e.target.value)
                             }
-                            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                           >
                             <option value="">{"請選擇播放清單"}</option>
                             {youtubePlaylists.map((item) => (
@@ -523,6 +548,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                           <Button
                             variant="contained"
                             color="secondary"
+                            className="room-create-accent-button"
                             disabled={!selectedYoutubeId}
                             onClick={() =>
                               selectedYoutubeId &&
@@ -546,6 +572,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   {channelMissing && (
                     <Button
                       variant="outlined"
+                      className="room-create-accent-button"
                       component="a"
                       href="https://www.youtube.com"
                       target="_blank"
@@ -558,6 +585,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
                   {needsReauth && onGoogleLogin && (
                     <Button
                       variant="outlined"
+                      className="room-create-accent-button"
                       onClick={onGoogleLogin}
                       disabled={youtubePlaylistsLoading}
                     >
@@ -575,15 +603,19 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               justifyContent="space-between"
             >
               <Stack spacing={0.5}>
-                <Typography variant="subtitle2" className="text-slate-100">
+                <Typography variant="subtitle2" className="room-create-muted">
                   播放清單已鎖定
                 </Typography>
-                <Typography variant="body2" className="text-slate-400">
+                <Typography variant="body2" className="room-create-muted">
                   如需重選，請按「重選播放清單」並重新貼上網址。
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
-                <Button variant="outlined" onClick={onResetPlaylist}>
+                <Button
+                  variant="outlined"
+                  className="room-create-accent-button"
+                  onClick={onResetPlaylist}
+                >
                   重選播放清單
                 </Button>
                 <Chip
@@ -602,11 +634,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
             </Alert>
           )}
           {playlistItems.length > 0 && (
-            <div className="space-y-1 text-xs text-slate-300">
-              <Typography variant="subtitle2" className="text-slate-100">
+            <div className="space-y-1 text-xs">
+              <Typography variant="subtitle2" className="room-create-muted">
                 已載入 {playlistItems.length} 首歌曲
               </Typography>
-              <div className="rounded border border-slate-800 bg-slate-900/60">
+              <div className="room-create-track">
                 <VirtualList
                   style={{ height: 280, width: "100%" }}
                   rowCount={rowCount}
@@ -617,6 +649,16 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
               </div>
             </div>
           )}
+
+          <Button
+            fullWidth
+            variant="contained"
+            disabled={!canCreateRoom}
+            onClick={onCreateRoom}
+            className="room-create-primary"
+          >
+            建立房間
+          </Button>
         </CardContent>
       </Card>
     </div>

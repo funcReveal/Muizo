@@ -35,6 +35,9 @@ export interface RoomContextValue {
   nicknameDraft: string;
   setNicknameDraft: (value: string) => void;
   confirmNickname: () => void;
+  isProfileEditorOpen: boolean;
+  openProfileEditor: () => void;
+  closeProfileEditor: () => void;
   youtubePlaylists: YoutubePlaylist[];
   youtubePlaylistsLoading: boolean;
   youtubePlaylistsError: string | null;

@@ -27,6 +27,7 @@ import {
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 const API_URL = import.meta.env.VITE_API_URL;
+const WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 const DEFAULT_PAGE_SIZE = 50;
 const CHUNK_SIZE = 200;
 const QUESTION_MIN = 5;
@@ -38,8 +39,7 @@ const STORAGE_KEYS = {
   roomId: "mq_roomId",
   questionCount: "mq_questionCount",
   roomPasswordPrefix: "mq_roomPassword:",
-  authToken: "mq_authToken",
-  authUser: "mq_authUser",
+  hasRefresh: "mq_hasRefresh",
   profileConfirmedPrefix: "mq_profileConfirmed:",
 };
 
@@ -52,21 +52,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [username, setUsername] = useState<string | null>(
     () => localStorage.getItem(STORAGE_KEYS.username) ?? null,
   );
-  const [authToken, setAuthToken] = useState<string | null>(() =>
-    localStorage.getItem(STORAGE_KEYS.authToken),
-  );
-  const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
-    const raw = localStorage.getItem(STORAGE_KEYS.authUser);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as AuthUser;
-    } catch {
-      return null;
-    }
-  });
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [needsNicknameConfirm, setNeedsNicknameConfirm] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
   const [youtubePlaylists, setYoutubePlaylists] = useState<YoutubePlaylist[]>(
     [],
   );
@@ -149,20 +140,24 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const serverOffsetRef = useRef(0);
   const googleCodeClientRef = useRef<GoogleCodeClient | null>(null);
   const googleScriptPromiseRef = useRef<Promise<void> | null>(null);
-  const handledRedirectRef = useRef(false);
+  const lastHandledAuthCodeRef = useRef<string | null>(null);
 
   const displayUsername = useMemo(() => username ?? "(未設定)", [username]);
+
+  useEffect(() => {
+    localStorage.removeItem("mq_authToken");
+    localStorage.removeItem("mq_authUser");
+  }, []);
 
   const persistUsername = (name: string) => {
     setUsername(name);
     localStorage.setItem(STORAGE_KEYS.username, name);
   };
 
-  const persistAuth = (token: string, user: AuthUser) => {
+  const persistAuth = useCallback((token: string, user: AuthUser) => {
     setAuthToken(token);
     setAuthUser(user);
-    localStorage.setItem(STORAGE_KEYS.authToken, token);
-    localStorage.setItem(STORAGE_KEYS.authUser, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.hasRefresh, "1");
     const confirmKey = `${STORAGE_KEYS.profileConfirmedPrefix}${user.id}`;
     const confirmed = localStorage.getItem(confirmKey) === "1";
     if (!confirmed) {
@@ -171,37 +166,40 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     } else if (!username && user.display_name) {
       persistUsername(user.display_name);
     }
-  };
+  }, [username]);
 
-  const clearAuth = () => {
+  const clearAuth = useCallback(() => {
     setAuthToken(null);
     setAuthUser(null);
-    localStorage.removeItem(STORAGE_KEYS.authToken);
-    localStorage.removeItem(STORAGE_KEYS.authUser);
     setUsername(null);
     localStorage.removeItem(STORAGE_KEYS.username);
+    localStorage.removeItem(STORAGE_KEYS.hasRefresh);
     setUsernameInput("");
     setNeedsNicknameConfirm(false);
     setNicknameDraft("");
     setYoutubePlaylists([]);
     setYoutubePlaylistsError(null);
-  };
+  }, []);
 
   const refreshAuthToken = useCallback(async () => {
-    if (!API_URL || !authToken) return null;
+    if (!API_URL) return null;
     try {
       const res = await fetch(`${API_URL}/api/auth/refresh`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: "include",
       });
       const payload = await res.json().catch(() => null);
-      if (!res.ok || !payload?.token) return null;
+      if (!res.ok || !payload?.token) {
+        clearAuth();
+        return null;
+      }
       persistAuth(payload.token, payload.user as AuthUser);
       return payload.token as string;
     } catch {
+      clearAuth();
       return null;
     }
-  }, [authToken, persistAuth]);
+  }, [API_URL, clearAuth, persistAuth]);
 
   const ensureGoogleScript = () => {
     if (window.google?.accounts?.oauth2) return Promise.resolve();
@@ -272,20 +270,64 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText(null);
   };
 
-  const confirmNickname = useCallback(() => {
+  const confirmNickname = useCallback(async () => {
     const trimmed = nicknameDraft.trim();
     if (!trimmed) {
       setStatusText("請先輸入暱稱");
       return;
     }
+
+    if (WORKER_API_URL && authToken && authUser?.id) {
+      try {
+        const res = await fetch(`${WORKER_API_URL}/users`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            id: authUser.id,
+            display_name: trimmed,
+            email: authUser.email ?? null,
+            avatar_url: authUser.avatar_url ?? null,
+            provider: authUser.provider ?? "google",
+            provider_user_id: authUser.provider_user_id ?? authUser.id,
+          }),
+        });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null);
+          throw new Error(payload?.error ?? "更新個人資料失敗");
+        }
+        setAuthUser((prev) =>
+          prev ? { ...prev, display_name: trimmed } : prev,
+        );
+      } catch (error) {
+        setStatusText(
+          error instanceof Error ? error.message : "更新個人資料失敗",
+        );
+        return;
+      }
+    }
+
     persistUsername(trimmed);
     if (authUser?.id) {
       const confirmKey = `${STORAGE_KEYS.profileConfirmedPrefix}${authUser.id}`;
       localStorage.setItem(confirmKey, "1");
     }
     setNeedsNicknameConfirm(false);
+    setIsProfileEditorOpen(false);
     setStatusText("暱稱已設定");
-  }, [nicknameDraft, authUser?.id]);
+  }, [WORKER_API_URL, authToken, authUser, nicknameDraft, persistUsername]);
+
+  const openProfileEditor = useCallback(() => {
+    const fallbackName = authUser?.display_name ?? username ?? "";
+    setNicknameDraft(fallbackName);
+    setIsProfileEditorOpen(true);
+  }, [authUser?.display_name, username]);
+
+  const closeProfileEditor = useCallback(() => {
+    setIsProfileEditorOpen(false);
+  }, []);
 
   const fetchYoutubePlaylists = useCallback(async () => {
     if (!API_URL || !authToken) {
@@ -425,6 +467,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         const res = await fetch(`${API_URL}/api/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ code, redirectUri }),
         });
         const payload = await res.json().catch(() => null);
@@ -494,19 +537,26 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   }, [exchangeGoogleCode, setStatusText]);
 
   const logout = useCallback(() => {
+    if (API_URL) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => null);
+    }
     clearAuth();
     setStatusText("已登出");
-  }, []);
+  }, [API_URL]);
 
   const getSocket = () => socketRef.current;
 
   useEffect(() => {
-    if (handledRedirectRef.current) return;
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
     const error = url.searchParams.get("error");
     if (!code && !error) return;
-    handledRedirectRef.current = true;
+    const signature = code ? `code:${code}` : `error:${error ?? ""}`;
+    if (lastHandledAuthCodeRef.current === signature) return;
+    lastHandledAuthCodeRef.current = signature;
 
     url.searchParams.delete("code");
     url.searchParams.delete("scope");
@@ -525,6 +575,15 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? window.location.origin;
     void exchangeGoogleCode(code, redirectUri);
   }, [exchangeGoogleCode, setStatusText]);
+
+  const initialRefreshRef = useRef(false);
+  useEffect(() => {
+    if (!API_URL || initialRefreshRef.current) return;
+    if (localStorage.getItem(STORAGE_KEYS.hasRefresh) !== "1") return;
+    initialRefreshRef.current = true;
+    setAuthLoading(true);
+    refreshAuthToken().finally(() => setAuthLoading(false));
+  }, [API_URL, refreshAuthToken]);
 
   const syncServerOffset = useCallback((serverNow: number) => {
     const offset = serverNow - Date.now();
@@ -1297,6 +1356,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       nicknameDraft,
       setNicknameDraft,
       confirmNickname,
+      isProfileEditorOpen,
+      openProfileEditor,
+      closeProfileEditor,
       youtubePlaylists,
       youtubePlaylistsLoading,
       youtubePlaylistsError,
@@ -1378,7 +1440,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       logout,
       needsNicknameConfirm,
       nicknameDraft,
+      setNicknameDraft,
       confirmNickname,
+      isProfileEditorOpen,
+      openProfileEditor,
+      closeProfileEditor,
       youtubePlaylists,
       youtubePlaylistsLoading,
       youtubePlaylistsError,

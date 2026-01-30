@@ -15,6 +15,7 @@ interface HeaderSectionProps {
   authLoading?: boolean;
   onLogin?: () => void;
   onLogout?: () => void;
+  onEditProfile?: () => void;
 }
 
 const HeaderSection: React.FC<HeaderSectionProps> = ({
@@ -25,6 +26,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   authLoading = false,
   onLogin,
   onLogout,
+  onEditProfile,
 }) => {
   const navigate = useNavigate();
   const authLabel = authUser?.display_name || authUser?.id || displayUsername;
@@ -134,16 +136,28 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
                 )}
 
                 {authUser ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      onLogout?.();
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800/70"
-                  >
-                    Google 登出
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onEditProfile?.();
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800/70"
+                    >
+                      編輯個人資料
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onLogout?.();
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800/70"
+                    >
+                      Google 登出
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
