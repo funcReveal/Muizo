@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@mui/material";
 
 import { useRoom } from "../../Room/model/useRoom";
 
@@ -24,6 +23,37 @@ const TEXT = {
   open: "開啟",
 };
 
+const SKELETON_COUNT = 6;
+const skeletonBase =
+  "relative overflow-hidden rounded-md bg-gradient-to-r from-slate-900/60 via-slate-800/70 to-slate-900/60 animate-pulse";
+
+const SkeletonBlock = ({ className = "" }: { className?: string }) => (
+  <div className={`${skeletonBase} ${className}`} />
+);
+
+const SkeletonCircle = ({ className = "" }: { className?: string }) => (
+  <div className={`${skeletonBase} rounded-full ${className}`} />
+);
+
+const CollectionsSkeleton = () => (
+  <div className="grid gap-3 sm:grid-cols-2">
+    {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+      <div
+        key={`collection-skeleton-${index}`}
+        className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-3"
+      >
+        <SkeletonBlock className="h-3 w-14" />
+        <SkeletonBlock className="h-5 w-2/3" />
+        <SkeletonBlock className="h-3 w-4/5" />
+        <div className="flex items-center gap-2 pt-1">
+          <SkeletonCircle className="h-7 w-7" />
+          <SkeletonBlock className="h-3 w-24" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const CollectionsPage = () => {
   const navigate = useNavigate();
   const { authToken, authUser, displayUsername } = useRoom();
@@ -31,6 +61,7 @@ const CollectionsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ownerId = authUser?.id ?? null;
+  const showSkeleton = loading && collections.length === 0;
 
   useEffect(() => {
     if (!WORKER_API_URL || !ownerId || !authToken) return;
@@ -104,62 +135,47 @@ const CollectionsPage = () => {
     <div className="w-full md:w-full lg:w-3/5 mx-auto space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg text-slate-100 font-semibold">{TEXT.title}</h2>
-        <Button
-          variant="contained"
-          size="small"
-          onClick={() => navigate("/collection/edit")}
-        >
-          {TEXT.create}
-        </Button>
       </div>
 
-      {loading && <div className="text-xs text-slate-400">{TEXT.loading}</div>}
-      {error && <div className="text-sm text-rose-300">{error}</div>}
-
-      {collections.length === 0 ? (
-        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-6 text-center space-y-2">
-          <div className="text-base text-slate-100 font-medium">
-            {TEXT.emptyTitle}
-          </div>
-          <div className="text-sm text-slate-400">{TEXT.emptyBody}</div>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => navigate("/collection/edit")}
-          >
-            {TEXT.create}
-          </Button>
-        </div>
+      {showSkeleton ? (
+        <CollectionsSkeleton />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => navigate("/collection/edit")}
-            className="flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-700 text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
-          >
-            <div className="text-2xl">+</div>
-            <div className="text-sm">{TEXT.create}</div>
-          </button>
+        <>
+          {loading && (
+            <div className="text-xs text-slate-400">{TEXT.loading}</div>
+          )}
+          {error && <div className="text-sm text-rose-300">{error}</div>}
 
-          {collections.map((collection) => (
+          <div className="grid gap-3 sm:grid-cols-2">
             <button
-              key={collection.id}
               type="button"
-              onClick={() => navigate(`/collection/edit/${collection.id}`)}
-              className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-slate-600"
+              onClick={() => navigate("/collection/edit")}
+              className="flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-700 text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
             >
-              <div className="text-sm text-slate-300">{TEXT.open}</div>
-              <div className="mt-1 text-lg font-semibold text-slate-100">
-                {collection.title || collection.id}
-              </div>
-              {collection.description && (
-                <div className="mt-2 text-xs text-slate-400">
-                  {collection.description}
-                </div>
-              )}
+              <div className="text-2xl">+</div>
+              <div className="text-sm">{TEXT.create}</div>
             </button>
-          ))}
-        </div>
+
+            {collections.map((collection) => (
+              <button
+                key={collection.id}
+                type="button"
+                onClick={() => navigate(`/collection/edit/${collection.id}`)}
+                className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-slate-600"
+              >
+                <div className="text-sm text-slate-300">{TEXT.open}</div>
+                <div className="mt-1 text-lg font-semibold text-slate-100">
+                  {collection.title || collection.id}
+                </div>
+                {collection.description && (
+                  <div className="mt-2 text-xs text-slate-400">
+                    {collection.description}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

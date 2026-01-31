@@ -63,7 +63,7 @@ declare global {
 const TEXT = {
   notSet: "(未設定)",
   createTitle: "建立收藏庫",
-  backRooms: "返回房間",
+  backRooms: "返回收藏庫",
   collectionName: "收藏庫名稱",
   collectionNamePlaceholder: "例如：我的 K-POP 收藏",
   playlistLabel: "YouTube 播放清單",
@@ -1163,7 +1163,7 @@ const EditPage = () => {
           <Button
             variant="outlined"
             size="small"
-            onClick={() => navigate("/rooms", { replace: true })}
+            onClick={() => navigate("/collections", { replace: true })}
           >
             {TEXT.backRooms}
           </Button>
@@ -1185,7 +1185,7 @@ const EditPage = () => {
             size="small"
             onClick={() => {
               if (!confirmLeave()) return;
-              navigate("/rooms", { replace: true });
+              navigate("/collections", { replace: true });
             }}
           >
             {TEXT.backRooms}
