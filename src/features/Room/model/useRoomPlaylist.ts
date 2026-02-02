@@ -73,7 +73,7 @@ export const useRoomPlaylist = ({
   >(null);
   const [questionCount, setQuestionCount] = useState<number>(() => {
     const saved = getStoredQuestionCount();
-    const initial = Number.isFinite(saved) ? saved : 10;
+    const initial = typeof saved === "number" ? saved : 10;
     return clampQuestionCount(initial, getQuestionMax(0));
   });
 
@@ -260,7 +260,11 @@ export const useRoomPlaylist = ({
         playlistId,
       );
       if (!ok || !payload || "error" in payload) {
-        throw new Error(payload?.error ?? "讀取播放清單失敗，請稍後重試");
+        const message =
+          payload && "error" in payload
+            ? payload.error
+            : "讀取播放清單失敗，請稍後重試";
+        throw new Error(message);
       }
 
       const data = payload;
