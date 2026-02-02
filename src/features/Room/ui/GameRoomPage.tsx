@@ -58,8 +58,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   serverOffsetMs = 0,
 }) => {
   const [volume, setVolume] = useState(() => {
-    const stored = Number(localStorage.getItem("mq_volume"));
-    return Number.isFinite(stored) ? Math.min(100, Math.max(0, stored)) : 100;
+    const stored = localStorage.getItem("mq_volume");
+    if (stored === null) return 50;
+    const parsed = Number(stored);
+    return Number.isFinite(parsed)
+      ? Math.min(100, Math.max(0, parsed))
+      : 50;
   });
   const [nowMs, setNowMs] = useState(() => Date.now() + serverOffsetMs);
   const playerStartRef = useRef(0);
@@ -451,14 +455,19 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   // Keyboard shortcuts for answering (default Q/W/A/S, user customizable via inputs below).
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      if (
-        active &&
-        (active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          (active as HTMLElement).isContentEditable)
-      ) {
-        return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        if (active.tagName === "TEXTAREA" || active.isContentEditable) {
+          return;
+        }
+        if (active.tagName === "INPUT") {
+          const input = active as HTMLInputElement;
+          const type = (input.type || "text").toLowerCase();
+          // Allow key bindings even when the volume slider (range) is focused.
+          if (type !== "range") {
+            return;
+          }
+        }
       }
       if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
       if (isReveal || isEnded) return;
