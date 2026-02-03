@@ -561,6 +561,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     }
   }, [isEnded, stopSilentAudio]);
 
+  useEffect(() => {
+    const handleUserGesture = () => {
+      startSilentAudio("user-gesture");
+      updateMediaSession();
+    };
+    window.addEventListener("pointerdown", handleUserGesture, {
+      capture: true,
+      once: true,
+    });
+    window.addEventListener("keydown", handleUserGesture, {
+      capture: true,
+      once: true,
+    });
+    return () => {
+      window.removeEventListener("pointerdown", handleUserGesture, true);
+      window.removeEventListener("keydown", handleUserGesture, true);
+    };
+  }, [startSilentAudio, updateMediaSession]);
+
   // Ensure volume is re-applied when the iframe is recreated for a new track.
   useEffect(() => {
     applyVolume(volume);
