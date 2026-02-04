@@ -65,9 +65,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const stored = localStorage.getItem("mq_volume");
     if (stored === null) return 50;
     const parsed = Number(stored);
-    return Number.isFinite(parsed)
-      ? Math.min(100, Math.max(0, parsed))
-      : 50;
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 50;
   });
   const [nowMs, setNowMs] = useState(() => Date.now() + serverOffsetMs);
   const playerStartRef = useRef(0);
@@ -177,22 +175,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? item.endSec
       : clipStartSec + fallbackDurationSec;
 
-  const computeServerPositionSec = useCallback(
-    () => {
-      const elapsed = Math.max(
-        0,
-        (getServerNowMs() - gameState.startedAt) / 1000,
-      );
-      return Math.min(clipEndSec, clipStartSec + elapsed);
-    },
-    [clipEndSec, clipStartSec, gameState.startedAt, getServerNowMs],
-  );
+  const computeServerPositionSec = useCallback(() => {
+    const elapsed = Math.max(
+      0,
+      (getServerNowMs() - gameState.startedAt) / 1000,
+    );
+    return Math.min(clipEndSec, clipStartSec + elapsed);
+  }, [clipEndSec, clipStartSec, gameState.startedAt, getServerNowMs]);
   const getEstimatedLocalPositionSec = useCallback(() => {
     const elapsed = (getServerNowMs() - lastSyncMsRef.current) / 1000;
-    return Math.min(
-      clipEndSec,
-      Math.max(0, playerStartRef.current + elapsed),
-    );
+    return Math.min(clipEndSec, Math.max(0, playerStartRef.current + elapsed));
   }, [clipEndSec, getServerNowMs]);
 
   const videoId = item ? extractYouTubeId(item.url) : null;
@@ -204,7 +196,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const revealCountdownMs = Math.max(0, gameState.revealEndsAt - nowMs);
   const isEnded = gameState.status === "ended";
   const isReveal = gameState.phase === "reveal";
-  const showVideo = showVideoOverride ?? (gameState.showVideo ?? true);
+  const showVideo = showVideoOverride ?? gameState.showVideo ?? true;
   const selectedChoice =
     selectedChoiceState.trackIndex === currentTrackIndex
       ? selectedChoiceState.choiceIndex
@@ -215,7 +207,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isTrackLoading = loadedTrackKey !== trackLoadKey;
   const showLoadingMask = isTrackLoading && !isReveal;
   const correctChoiceIndex = currentTrackIndex;
-
 
   const postCommand = useCallback((func: string, args: unknown[] = []) => {
     const target = iframeRef.current?.contentWindow;
@@ -308,9 +299,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         startSeconds,
         ...(typeof endSeconds === "number" ? { endSeconds } : {}),
       };
-      postCommand(autoplay ? "loadVideoById" : "cueVideoById", [
-        payload,
-      ]);
+      postCommand(autoplay ? "loadVideoById" : "cueVideoById", [payload]);
       lastLoadedVideoIdRef.current = id;
       lastSyncMsRef.current = getServerNowMs();
       if (!autoplay) {
@@ -404,9 +393,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       window.clearTimeout(resumeResyncTimerRef.current);
       resumeResyncTimerRef.current = null;
     }
-    resyncTimersRef.current.forEach((timerId) =>
-      window.clearTimeout(timerId),
-    );
+    resyncTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
     resyncTimersRef.current = [];
     const checkpoints = [150, 650, 1200];
     checkpoints.forEach((delayMs) => {
@@ -503,12 +490,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [
-    getServerNowMs,
-    gameState.startedAt,
-    requestPlayerTime,
-    startPlayback,
-  ]);
+  }, [getServerNowMs, gameState.startedAt, requestPlayerTime, startPlayback]);
 
   // 如果已在播放且進入公布階段，確保解除載入遮罩
   useEffect(() => {
@@ -533,7 +515,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       return;
     if (typeof MediaMetadata === "undefined") return;
     try {
-      const noop = () => { };
+      const noop = () => {};
       const handleMediaSeek = () => {
         resumeNeedsSyncRef.current = true;
         requestPlayerTime("media-seek");
@@ -645,15 +627,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         if (typeof info?.currentTime === "number") {
           lastPlayerTimeSecRef.current = info.currentTime;
           lastPlayerTimeAtMsRef.current = getServerNowMs();
-        if (
-          lastTimeRequestReasonRef.current === "watchdog" &&
-          lastPlayerStateRef.current === 1 &&
-          document.visibilityState === "visible"
-        ) {
-          syncToServerPosition(
-            "watchdog",
-            false,
-            WATCHDOG_DRIFT_TOLERANCE_SEC,
+          if (
+            lastTimeRequestReasonRef.current === "watchdog" &&
+            lastPlayerStateRef.current === 1 &&
+            document.visibilityState === "visible"
+          ) {
+            syncToServerPosition(
+              "watchdog",
+              false,
+              WATCHDOG_DRIFT_TOLERANCE_SEC,
             );
           }
           if (resumeNeedsSyncRef.current) {
@@ -847,7 +829,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     phaseEndsAt === gameState.startedAt || activePhaseDurationMs <= 0
       ? 0
       : ((activePhaseDurationMs - phaseRemainingMs) / activePhaseDurationMs) *
-      100;
+        100;
 
   const sortedParticipants = participants
     .slice()
@@ -928,11 +910,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 return (
                   <div
                     key={p.clientId}
-                    className={`game-room-score-row flex items-center justify-between text-sm ${gameState.lockedClientIds?.includes(p.clientId)
-                      ? "game-room-score-row--locked"
-                      : ""
-                      } ${p.clientId === meClientId ? "game-room-score-row--me" : ""
-                      }`}
+                    className={`game-room-score-row flex items-center justify-between text-sm ${
+                      gameState.lockedClientIds?.includes(p.clientId)
+                        ? "game-room-score-row--locked"
+                        : ""
+                    } ${
+                      p.clientId === meClientId ? "game-room-score-row--me" : ""
+                    }`}
                   >
                     <span className="truncate flex items-center gap-2">
                       {gameState.lockedClientIds?.includes(p.clientId) && (
@@ -949,8 +933,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     <div className="flex items-center gap-2">
                       {gameState.lockedClientIds?.includes(p.clientId) ? (
                         <Chip
-                          label={`第${lockedOrder.indexOf(p.clientId) + 1 || "?"
-                            }答`}
+                          label={`第${
+                            lockedOrder.indexOf(p.clientId) + 1 || "?"
+                          }答`}
                           size="small"
                           color="success"
                           variant="filled"
@@ -961,7 +946,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       <span className="font-semibold text-emerald-300">
                         {p.score}
                         {p.combo > 1 && (
-                          <span className="ml-1 text-amber-300">x{p.combo}</span>
+                          <span className="ml-1 text-amber-300">
+                            x{p.combo}
+                          </span>
                         )}
                       </span>
                     </div>
@@ -1192,7 +1179,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <>
                 <div className="game-room-answer-body">
                   <div className="mb-3 flex items-center gap-3">
-
                     <div>
                       <p className="game-room-kicker">Phase</p>
                       <p className="game-room-title">
@@ -1221,7 +1207,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <LinearProgress
                     variant={isInterTrackWait ? "indeterminate" : "determinate"}
                     value={
-                      isInterTrackWait ? undefined : Math.min(100, Math.max(0, progressPct))
+                      isInterTrackWait
+                        ? undefined
+                        : Math.min(100, Math.max(0, progressPct))
                     }
                     color={
                       isInterTrackWait
@@ -1235,91 +1223,92 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {isInterTrackWait
                       ? Array.from(
-                        {
-                          length: Math.max(4, gameState.choices.length),
-                        },
-                        (_, idx) => (
-                          <Button
-                            key={`placeholder-${idx}`}
-                            fullWidth
-                            size="large"
-                            disabled
-                            variant="outlined"
-                            className="game-room-choice-placeholder justify-start"
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="truncate text-slate-500">
-                                下一首準備中
-                              </span>
-                              <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-800 text-[11px] font-semibold text-slate-500">
-                                —
-                              </span>
-                            </div>
-                          </Button>
-                        ),
-                      )
+                          {
+                            length: Math.max(4, gameState.choices.length),
+                          },
+                          (_, idx) => (
+                            <Button
+                              key={`placeholder-${idx}`}
+                              fullWidth
+                              size="large"
+                              disabled
+                              variant="outlined"
+                              className="game-room-choice-placeholder justify-start"
+                            >
+                              <div className="flex w-full items-center justify-between">
+                                <span className="truncate text-slate-500">
+                                  下一首準備中
+                                </span>
+                                <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-800 text-[11px] font-semibold text-slate-500">
+                                  —
+                                </span>
+                              </div>
+                            </Button>
+                          ),
+                        )
                       : gameState.choices.map((choice, idx) => {
-                        const isSelected = selectedChoice === choice.index;
-                        const isCorrect = choice.index === correctChoiceIndex;
-                        const isLocked = isReveal || isEnded;
+                          const isSelected = selectedChoice === choice.index;
+                          const isCorrect = choice.index === correctChoiceIndex;
+                          const isLocked = isReveal || isEnded;
 
-                        return (
-                          <Button
-                            key={`${choice.index}-${idx}`}
-                            fullWidth
-                            size="large"
-                            disableRipple
-                            aria-disabled={isLocked}
-                            tabIndex={isLocked ? -1 : 0}
-                            variant={
-                              isReveal
-                                ? isCorrect || isSelected
-                                  ? "contained"
-                                  : "outlined"
-                                : isSelected
-                                  ? "contained"
-                                  : "outlined"
-                            }
-                            color={
-                              isReveal
-                                ? isCorrect
-                                  ? "success"
+                          return (
+                            <Button
+                              key={`${choice.index}-${idx}`}
+                              fullWidth
+                              size="large"
+                              disableRipple
+                              aria-disabled={isLocked}
+                              tabIndex={isLocked ? -1 : 0}
+                              variant={
+                                isReveal
+                                  ? isCorrect || isSelected
+                                    ? "contained"
+                                    : "outlined"
                                   : isSelected
-                                    ? "error"
+                                    ? "contained"
+                                    : "outlined"
+                              }
+                              color={
+                                isReveal
+                                  ? isCorrect
+                                    ? "success"
+                                    : isSelected
+                                      ? "error"
+                                      : "info"
+                                  : isSelected
+                                    ? "info"
                                     : "info"
-                                : isSelected
-                                  ? "info"
-                                  : "info"
-                            }
-                            className={`justify-start ${isReveal
-                              ? isCorrect
-                                ? "bg-emerald-700/40"
-                                : isSelected
-                                  ? "bg-rose-700/40"
-                                  : ""
-                              : isSelected
-                                ? "bg-sky-700/30"
-                                : ""
+                              }
+                              className={`justify-start ${
+                                isReveal
+                                  ? isCorrect
+                                    ? "bg-emerald-700/40"
+                                    : isSelected
+                                      ? "bg-rose-700/40"
+                                      : ""
+                                  : isSelected
+                                    ? "bg-sky-700/30"
+                                    : ""
                               } ${isLocked ? "pointer-events-none" : ""}`}
-                            disabled={false}
-                            onClick={() => {
-                              if (isLocked) return;
-                              setSelectedChoiceState({
-                                trackIndex: currentTrackIndex,
-                                choiceIndex: choice.index,
-                              });
-                              onSubmitChoice(choice.index);
-                            }}
-                          >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="truncate">{choice.title}</span>
-                              <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
-                                {(keyBindings[idx] ?? "").toUpperCase()}
-                              </span>
-                            </div>
-                          </Button>
-                        );
-                      })}
+                              disabled={false}
+                              onClick={() => {
+                                if (isLocked) return;
+                                setSelectedChoiceState({
+                                  trackIndex: currentTrackIndex,
+                                  choiceIndex: choice.index,
+                                });
+                                onSubmitChoice(choice.index);
+                              }}
+                            >
+                              <div className="flex w-full items-center justify-between">
+                                <span className="truncate">{choice.title}</span>
+                                <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
+                                  {(keyBindings[idx] ?? "").toUpperCase()}
+                                </span>
+                              </div>
+                            </Button>
+                          );
+                        })}
                   </div>
                 </div>
 
@@ -1334,7 +1323,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       </p>
                       {gameState.status === "playing" ? (
                         <p className="mt-1 text-xs text-emerald-200">
-                          下一首將在 {Math.ceil(revealCountdownMs / 1000)} 秒後開始
+                          下一首將在 {Math.ceil(revealCountdownMs / 1000)}{" "}
+                          秒後開始
                         </p>
                       ) : (
                         <div className="mt-1 flex items-center justify-between">

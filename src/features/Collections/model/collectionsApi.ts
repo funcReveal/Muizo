@@ -32,10 +32,10 @@ export const collectionsApi = {
   },
   async fetchCollectionItems(token: string, collectionId: string) {
     if (!WORKER_API_URL) {
-      throw new Error("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
+      throw new Error("WORKER_API_URL is missing");
     }
     const res = await fetch(
-      `${WORKER_API_URL}/collections/${collectionId}/items?pageSize=200`,
+      `${WORKER_API_URL}/collections/${collectionId}/items/all`,
       { headers: buildAuthHeaders(token) },
     );
     if (!res.ok) {
