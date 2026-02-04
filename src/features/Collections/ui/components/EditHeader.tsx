@@ -1,4 +1,4 @@
-import { Button } from "@mui/material";
+import { Button, TextField } from "@mui/material";
 
 type EditHeaderProps = {
   title: string;
@@ -16,6 +16,12 @@ type EditHeaderProps = {
   isReadOnly: boolean;
   saveLabel: string;
   savingLabel: string;
+  savedLabel: string;
+  saveErrorLabel: string;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  saveError: string | null;
+  autoSaveNotice: { type: "success" | "error"; message: string } | null;
+  hasUnsavedChanges: boolean;
   collectionCount: number;
   onCollectionButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onPlaylistButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -39,12 +45,29 @@ const EditHeader = ({
   isReadOnly,
   saveLabel,
   savingLabel,
+  savedLabel,
+  saveErrorLabel,
+  saveStatus,
+  saveError,
+  autoSaveNotice,
+  hasUnsavedChanges,
   collectionCount,
   onCollectionButtonClick,
   onPlaylistButtonClick,
   collectionMenuOpen,
   playlistMenuOpen,
 }: EditHeaderProps) => {
+  const showSaved =
+    !hasUnsavedChanges && !isSaving && saveStatus !== "error" && !saveError;
+  const buttonLabel = isSaving
+    ? savingLabel
+    : saveStatus === "error"
+      ? saveErrorLabel
+      : showSaved
+        ? savedLabel
+        : saveLabel;
+  const noticeTone =
+    autoSaveNotice?.type === "error" ? "text-rose-300" : "text-emerald-300";
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -54,7 +77,8 @@ const EditHeader = ({
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {isTitleEditing ? (
             <>
-              <input
+              <TextField
+                variant="standard"
                 value={titleDraft}
                 onChange={(e) => onTitleDraftChange(e.target.value)}
                 placeholder="輸入收藏庫名稱"
@@ -123,14 +147,22 @@ const EditHeader = ({
           播放清單
           <span className="text-xs">{playlistMenuOpen ? "▲" : "▼"}</span>
         </button>
-        <Button
-          variant="contained"
-          size="small"
-          onClick={onSave}
-          disabled={isSaving || isReadOnly}
-        >
-          {isSaving ? savingLabel : saveLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="contained"
+            size="small"
+            onClick={onSave}
+            disabled={isSaving || isReadOnly}
+            title={saveError ? `${saveErrorLabel}: ${saveError}` : undefined}
+          >
+            {buttonLabel}
+          </Button>
+          {autoSaveNotice && (
+            <span className={`text-[10px] ${noticeTone}`}>
+              {autoSaveNotice.message}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

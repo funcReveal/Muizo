@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { DbCollection, DbCollectionItem, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 type UseCollectionLoaderParams = {
   authToken: string | null;
@@ -118,7 +119,14 @@ export const useCollectionLoader = ({
       setCollectionsLoading(true);
       setCollectionsError(null);
       try {
-        await run(authToken, true);
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("Unauthorized");
+        }
+        await run(token, true);
       } catch (error) {
         if (!active) return;
         setCollectionsError(error instanceof Error ? error.message : String(error));
@@ -182,7 +190,14 @@ export const useCollectionLoader = ({
       setItemsLoading(true);
       setItemsError(null);
       try {
-        await run(authToken, true);
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("Unauthorized");
+        }
+        await run(token, true);
       } catch (error) {
         if (!active) return;
         setItemsError(error instanceof Error ? error.message : String(error));

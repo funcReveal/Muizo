@@ -19,6 +19,12 @@ type PlayerPanelProps = {
   isPlaying: boolean;
   onVolumeChange: (value: number) => void;
   volume: number;
+  autoPlayOnSwitch: boolean;
+  onAutoPlayChange: (value: boolean) => void;
+  autoPlayLabel: string;
+  loopEnabled: boolean;
+  onLoopChange: (value: boolean) => void;
+  loopLabel: string;
   playLabel: string;
   pauseLabel: string;
   volumeLabel: string;
@@ -46,6 +52,12 @@ const PlayerPanel = ({
   isPlaying,
   onVolumeChange,
   volume,
+  autoPlayOnSwitch,
+  onAutoPlayChange,
+  autoPlayLabel,
+  loopEnabled,
+  onLoopChange,
+  loopLabel,
   playLabel,
   pauseLabel,
   volumeLabel,
@@ -107,6 +119,24 @@ const PlayerPanel = ({
         >
           {isPlaying ? pauseLabel : playLabel}
         </button>
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={autoPlayOnSwitch}
+            onChange={(e) => onAutoPlayChange(e.target.checked)}
+            className="h-3.5 w-3.5 accent-sky-400"
+          />
+          <span>{autoPlayLabel}</span>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={loopEnabled}
+            onChange={(e) => onLoopChange(e.target.checked)}
+            className="h-3.5 w-3.5 accent-sky-400"
+          />
+          <span>{loopLabel}</span>
+        </label>
         <div className="flex items-center gap-2">
           <span>{volumeLabel}</span>
           <input

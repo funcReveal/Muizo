@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Box, Button } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 const WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 
@@ -151,7 +152,14 @@ const CollectionsCreatePage = () => {
     };
 
     try {
-      const created = await create(authToken, true);
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!token) {
+        throw new Error("Unauthorized");
+      }
+      const created = await create(token, true);
       if (!created?.id) {
         throw new Error("Missing collection id");
       }
@@ -196,7 +204,7 @@ const CollectionsCreatePage = () => {
         return null;
       };
 
-      await insert(authToken, true);
+      await insert(token, true);
       navigate(`/collections/${created.id}/edit`, { replace: true });
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "建立失敗");

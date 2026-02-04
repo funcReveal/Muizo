@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent, type PointerEvent, useRef } from "react";
 import { Slider } from "@mui/material";
 
 type ClipEditorPanelProps = {
@@ -10,7 +10,10 @@ type ClipEditorPanelProps = {
   startSec: number;
   endSec: number;
   maxSec: number;
-  onRangeChange: (value: number[]) => void;
+  onRangeChange: (value: number[], activeThumb: number) => void;
+  onRangeCommit: (value: number[], activeThumb: number) => void;
+  onStartThumbPress: () => void;
+  onEndThumbPress: () => void;
   formatSeconds: (value: number) => string;
   startTimeInput: string;
   endTimeInput: string;
@@ -46,6 +49,9 @@ const ClipEditorPanel = ({
   endSec,
   maxSec,
   onRangeChange,
+  onRangeCommit,
+  onStartThumbPress,
+  onEndThumbPress,
   formatSeconds,
   onNudgeStart,
   onNudgeEnd,
@@ -54,6 +60,17 @@ const ClipEditorPanel = ({
   answerPlaceholder,
   onAnswerChange,
 }: ClipEditorPanelProps) => {
+  const activeThumbRef = useRef(0);
+  const handleThumbPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    const target = event.currentTarget;
+    const index = target.getAttribute("data-index");
+    if (index === "0") {
+      onStartThumbPress();
+    } else if (index === "1") {
+      onEndThumbPress();
+    }
+  };
+
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 space-y-3">
       <div className="text-sm text-slate-200 font-medium">{title}</div>
@@ -62,9 +79,19 @@ const ClipEditorPanel = ({
           value={[startSec, endSec]}
           min={0}
           max={maxSec}
-          onChange={(_, value) => {
+          onChange={(_, value, activeThumb) => {
             if (!Array.isArray(value)) return;
-            onRangeChange(value as number[]);
+            activeThumbRef.current = activeThumb;
+            onRangeChange(value as number[], activeThumb);
+          }}
+          onChangeCommitted={(_, value) => {
+            if (!Array.isArray(value)) return;
+            onRangeCommit(value as number[], activeThumbRef.current);
+          }}
+          slotProps={{
+            thumb: {
+              onPointerDown: handleThumbPointerDown,
+            },
           }}
           valueLabelDisplay="auto"
           valueLabelFormat={(value) => formatSeconds(value)}

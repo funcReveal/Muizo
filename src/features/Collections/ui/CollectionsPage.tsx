@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
 import { hasRefreshFlag } from "../../Room/model/roomStorage";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 const WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 
@@ -147,7 +148,14 @@ const CollectionsPage = () => {
       setLoading(true);
       setError(null);
       try {
-        await run(authToken, true);
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("Unauthorized");
+        }
+        await run(token, true);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "登入已過期，請重新登入");

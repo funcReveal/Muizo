@@ -9,6 +9,7 @@ import {
   videoUrlFromId,
 } from "./roomUtils";
 import { DEFAULT_CLIP_SEC, DEFAULT_PAGE_SIZE } from "./roomConstants";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 type UseRoomCollectionsOptions = {
   workerUrl?: string;
@@ -78,6 +79,13 @@ export const useRoomCollections = ({
     setCollectionsLoading(true);
     setCollectionsError(null);
     try {
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!token) {
+        throw new Error("登入已過期，請重新登入");
+      }
       const run = async (token: string, allowRetry: boolean) => {
         const { ok, status, payload } = await apiFetchCollections(
           workerUrl,
@@ -103,7 +111,7 @@ export const useRoomCollections = ({
         throw new Error(payload?.error ?? "載入收藏庫失敗");
       };
 
-      await run(authToken, true);
+      await run(token, true);
     } catch (error) {
       setCollectionsError(
         error instanceof Error ? error.message : "載入收藏庫失敗",
@@ -132,6 +140,13 @@ export const useRoomCollections = ({
       onPlaylistReset();
       setSelectedCollectionId(collectionId);
       try {
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("登入已過期，請重新登入");
+        }
         const run = async (token: string, allowRetry: boolean) => {
           const { ok, status, payload } = await apiFetchCollectionItems(
             workerUrl,
@@ -185,7 +200,7 @@ export const useRoomCollections = ({
           throw new Error(payload?.error ?? "載入收藏庫失敗");
         };
 
-        await run(authToken, true);
+        await run(token, true);
       } catch (error) {
         setCollectionItemsError(
           error instanceof Error ? error.message : "載入收藏庫失敗",

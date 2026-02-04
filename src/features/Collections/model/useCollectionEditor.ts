@@ -2,6 +2,7 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import type { DbCollection, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 type UseCollectionEditorParams = {
   authToken: string | null;
@@ -25,6 +26,7 @@ type UseCollectionEditorParams = {
   saveInFlightRef: React.MutableRefObject<boolean>;
   navigateToEdit: (id: string) => void;
   markDirty: () => void;
+  refreshAuthToken: () => Promise<string | null>;
 };
 
 export const useCollectionEditor = ({
@@ -46,9 +48,14 @@ export const useCollectionEditor = ({
   showAutoSaveNotice,
   setHasUnsavedChanges,
   dirtyCounterRef,
-      saveInFlightRef,
+  saveInFlightRef,
   navigateToEdit,
+  refreshAuthToken,
 }: UseCollectionEditorParams) => {
+  const isAuthError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("Unauthorized") || message.includes("401");
+  };
   const syncItemsToDb = useCallback(
     async (collectionId: string, token: string) => {
       const updatePayloads = playlistItems.map((item, idx) => ({
@@ -165,24 +172,55 @@ export const useCollectionEditor = ({
       setSaveError(null);
 
       try {
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("Unauthorized");
+        }
         let collectionId = activeCollectionId;
-        const run = async (token: string): Promise<DbCollection | null> => {
+        const run = async (
+          token: string,
+          allowRetry: boolean,
+        ): Promise<DbCollection | null> => {
           if (!collectionId) {
-            const created = await collectionsApi.createCollection(token, {
-              owner_id: ownerId,
-              title: collectionTitle.trim(),
-              description: null,
-              visibility: "private",
-            });
+            let created: DbCollection | null = null;
+            try {
+              created = await collectionsApi.createCollection(token, {
+                owner_id: ownerId,
+                title: collectionTitle.trim(),
+                description: null,
+                visibility: "private",
+              });
+            } catch (error) {
+              if (allowRetry && isAuthError(error)) {
+                const refreshed = await refreshAuthToken();
+                if (refreshed) {
+                  return run(refreshed, false);
+                }
+              }
+              throw error;
+            }
             if (!created?.id) {
               throw new Error("Missing collection id");
             }
             collectionId = created.id;
             return created;
           }
-          await collectionsApi.updateCollection(token, collectionId, {
-            title: collectionTitle.trim(),
-          });
+          try {
+            await collectionsApi.updateCollection(token, collectionId, {
+              title: collectionTitle.trim(),
+            });
+          } catch (error) {
+            if (allowRetry && isAuthError(error)) {
+              const refreshed = await refreshAuthToken();
+              if (refreshed) {
+                return run(refreshed, false);
+              }
+            }
+            throw error;
+          }
           setCollections((prev) =>
             prev.map((item) =>
               item.id === collectionId
@@ -192,12 +230,22 @@ export const useCollectionEditor = ({
           );
 
           if (collectionId) {
-            await syncItemsToDb(collectionId, token);
+            try {
+              await syncItemsToDb(collectionId, token);
+            } catch (error) {
+              if (allowRetry && isAuthError(error)) {
+                const refreshed = await refreshAuthToken();
+                if (refreshed) {
+                  return run(refreshed, false);
+                }
+              }
+              throw error;
+            }
           }
           return null;
         };
 
-        const createdCollection = await run(authToken);
+        const createdCollection = await run(token, true);
         if (createdCollection) {
           setActiveCollectionId(createdCollection.id);
           setCollections((prev) => [createdCollection, ...prev]);
@@ -206,11 +254,13 @@ export const useCollectionEditor = ({
 
         const noNewChanges = dirtyCounterRef.current === dirtySnapshot;
         if (noNewChanges) {
-          setSaveStatus("saved");
           setHasUnsavedChanges(false);
           dirtyCounterRef.current = 0;
           if (mode === "auto") {
+            setSaveStatus("idle");
             showAutoSaveNotice("success", "自動保存成功");
+          } else {
+            setSaveStatus("saved");
           }
         } else {
           setSaveStatus("idle");
@@ -230,6 +280,7 @@ export const useCollectionEditor = ({
       authToken,
       collectionTitle,
       dirtyCounterRef,
+      refreshAuthToken,
       navigateToEdit,
       ownerId,
       setActiveCollectionId,

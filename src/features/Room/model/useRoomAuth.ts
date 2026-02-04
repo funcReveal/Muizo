@@ -13,6 +13,7 @@ import {
   setHasRefresh,
   setProfileConfirmed,
 } from "./roomStorage";
+import { clearTokenExpiry, persistTokenExpiry } from "../../../shared/auth/token";
 
 type UseRoomAuthOptions = {
   apiUrl: string;
@@ -70,6 +71,7 @@ export const useRoomAuth = ({
     setNeedsNicknameConfirm(false);
     setNicknameDraft("");
     setIsProfileEditorOpen(false);
+    clearTokenExpiry();
     onClearAuth();
   }, [onClearAuth]);
 
@@ -78,6 +80,7 @@ export const useRoomAuth = ({
       setAuthToken(token);
       setAuthUser(user);
       setHasRefresh();
+      persistTokenExpiry(token);
       const confirmed = isProfileConfirmed(user.id);
       if (!confirmed) {
         setNicknameDraft(user.display_name ?? "");

@@ -27,6 +27,7 @@ import {
   WORKER_API_URL,
 } from "./roomConstants";
 import { clampQuestionCount, getQuestionMax, normalizePlaylistItems } from "./roomUtils";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import {
   clearHasRefresh,
   clearRoomPassword,
@@ -432,11 +433,24 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (!username) return;
-
-    const authPayload = authToken
-      ? { token: authToken, clientId }
-      : { clientId };
-    const s = connectRoomSocket(SOCKET_URL, authPayload, {
+    let cancelled = false;
+    const init = async () => {
+      let token = authToken;
+      if (token) {
+        token = await ensureFreshAuthToken({
+          token,
+          refreshAuthToken,
+        });
+        if (!token) {
+          if (!cancelled) {
+            setStatusText("登入已過期，請重新登入");
+          }
+          return;
+        }
+      }
+      if (cancelled) return;
+      const authPayload = token ? { token, clientId } : { clientId };
+      const s = connectRoomSocket(SOCKET_URL, authPayload, {
       onConnect: (socket) => {
         setIsConnected(true);
         setStatusText("已連線伺服器");
@@ -590,9 +604,13 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       },
     });
 
-    socketRef.current = s;
+      socketRef.current = s;
+    };
+
+    void init();
 
     return () => {
+      cancelled = true;
       disconnectRoomSocket(socketRef.current);
       socketRef.current = null;
     };
@@ -600,6 +618,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     username,
     clientId,
     authToken,
+    refreshAuthToken,
     fetchCompletePlaylist,
     fetchPlaylistPage,
     fetchRooms,
@@ -614,6 +633,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     if (!s || !username) {
       setStatusText("尚未設定使用者名稱");
       return;
+    }
+    if (authToken) {
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!token) {
+        setStatusText("登入已過期，請重新登入");
+        return;
+      }
     }
     const trimmed = roomNameInput.trim();
     if (!trimmed) {
@@ -702,12 +731,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       }
     });
   }, [
+    authToken,
     fetchPlaylistPage,
     getSocket,
-        lastFetchedPlaylistId,
-        lastFetchedPlaylistTitle,
+    lastFetchedPlaylistId,
+    lastFetchedPlaylistTitle,
     playlistItems,
     questionCount,
+    refreshAuthToken,
     roomNameInput,
     roomPasswordInput,
     saveRoomPassword,

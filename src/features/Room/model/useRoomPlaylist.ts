@@ -14,6 +14,7 @@ import {
 } from "./roomUtils";
 import { QUESTION_STEP } from "./roomConstants";
 import { getStoredQuestionCount } from "./roomStorage";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 type UseRoomPlaylistOptions = {
   apiUrl: string;
@@ -123,6 +124,13 @@ export const useRoomPlaylist = ({
     setYoutubePlaylistsLoading(true);
     setYoutubePlaylistsError(null);
     try {
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!token) {
+        throw new Error("登入已過期，需要重新授權 Google");
+      }
       const run = async (token: string, allowRetry: boolean) => {
         const { ok, status, payload } = await apiFetchYoutubePlaylists(
           apiUrl,
@@ -159,7 +167,7 @@ export const useRoomPlaylist = ({
         throw new Error(message);
       };
 
-      await run(authToken, true);
+      await run(token, true);
     } catch (error) {
       setYoutubePlaylistsError(
         error instanceof Error ? error.message : "載入播放清單失敗",
@@ -178,6 +186,13 @@ export const useRoomPlaylist = ({
       setPlaylistLoading(true);
       setPlaylistError(null);
       try {
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("登入已過期，需要重新授權 Google");
+        }
         const run = async (token: string, allowRetry: boolean) => {
           const { ok, status, payload } = await apiFetchYoutubePlaylistItems(
             apiUrl,
@@ -225,7 +240,7 @@ export const useRoomPlaylist = ({
           throw new Error(message);
         };
 
-        await run(authToken, true);
+        await run(token, true);
       } catch (error) {
         setPlaylistError(
           error instanceof Error ? error.message : "讀取播放清單時發生錯誤",
