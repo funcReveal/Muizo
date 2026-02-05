@@ -60,95 +60,98 @@ export const useRoomCollections = ({
   >([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
-    null,
-  );
+  const [selectedCollectionId, setSelectedCollectionId] = useState<
+    string | null
+  >(null);
   const [collectionItemsLoading, setCollectionItemsLoading] = useState(false);
-  const [collectionItemsError, setCollectionItemsError] = useState<string | null>(
-    null,
-  );
+  const [collectionItemsError, setCollectionItemsError] = useState<
+    string | null
+  >(null);
 
   const selectCollection = useCallback((collectionId: string | null) => {
     setSelectedCollectionId(collectionId);
     setCollectionItemsError(null);
   }, []);
 
-  const fetchCollections = useCallback(async (scope?: "owner" | "public") => {
-    if (!workerUrl) {
-      setCollectionsError("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
-      return;
-    }
-    const resolvedScope =
-      scope ?? (authToken && ownerId ? "owner" : "public");
-    if (resolvedScope === "owner") {
-      if (!authToken) {
-        setCollectionsError("請先登入後再使用個人收藏庫");
+  const fetchCollections = useCallback(
+    async (scope?: "owner" | "public") => {
+      if (!workerUrl) {
+        setCollectionsError("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
         return;
       }
-      if (!ownerId) {
-        setCollectionsError("尚未取得使用者資訊");
-        return;
-      }
-    }
-    setCollectionsLoading(true);
-    setCollectionsError(null);
-    try {
-      if (resolvedScope === "public") {
-        const { ok, payload } = await apiFetchCollections(workerUrl, {
-          visibility: "public",
-          pageSize: DEFAULT_PAGE_SIZE,
-        });
-        if (!ok) {
-          throw new Error(payload?.error ?? "載入公開收藏庫失敗");
+      const resolvedScope =
+        scope ?? (authToken && ownerId ? "owner" : "public");
+      if (resolvedScope === "owner") {
+        if (!authToken) {
+          setCollectionsError("請先登入後再使用個人收藏庫");
+          return;
         }
-        const items = payload?.data?.items ?? [];
-        setCollections(items);
-        if (items.length === 0) {
-          setCollectionsError("尚未建立公開收藏庫");
+        if (!ownerId) {
+          setCollectionsError("尚未取得使用者資訊");
+          return;
         }
-        return;
       }
-
-      const token = await ensureFreshAuthToken({
-        token: authToken,
-        refreshAuthToken,
-      });
-      if (!token) {
-        throw new Error("登入已過期，請重新登入");
-      }
-      const run = async (token: string, allowRetry: boolean) => {
-        const { ok, status, payload } = await apiFetchCollections(workerUrl, {
-          token,
-          ownerId,
-          pageSize: DEFAULT_PAGE_SIZE,
-        });
-        if (ok) {
+      setCollectionsLoading(true);
+      setCollectionsError(null);
+      try {
+        if (resolvedScope === "public") {
+          const { ok, payload } = await apiFetchCollections(workerUrl, {
+            visibility: "public",
+            pageSize: DEFAULT_PAGE_SIZE,
+          });
+          if (!ok) {
+            throw new Error(payload?.error ?? "載入公開收藏庫失敗");
+          }
           const items = payload?.data?.items ?? [];
           setCollections(items);
           if (items.length === 0) {
-            setCollectionsError("尚未建立收藏庫");
+            setCollectionsError("尚未建立公開收藏庫");
           }
           return;
         }
-        if (status === 401 && allowRetry) {
-          const refreshed = await refreshAuthToken();
-          if (refreshed) {
-            await run(refreshed, false);
+
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("登入已過期，請重新登入");
+        }
+        const run = async (token: string, allowRetry: boolean) => {
+          const { ok, status, payload } = await apiFetchCollections(workerUrl, {
+            token,
+            ownerId,
+            pageSize: DEFAULT_PAGE_SIZE,
+          });
+          if (ok) {
+            const items = payload?.data?.items ?? [];
+            setCollections(items);
+            if (items.length === 0) {
+              setCollectionsError("尚未建立收藏庫");
+            }
             return;
           }
-        }
-        throw new Error(payload?.error ?? "載入收藏庫失敗");
-      };
+          if (status === 401 && allowRetry) {
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+              await run(refreshed, false);
+              return;
+            }
+          }
+          throw new Error(payload?.error ?? "載入收藏庫失敗");
+        };
 
-      await run(token, true);
-    } catch (error) {
-      setCollectionsError(
-        error instanceof Error ? error.message : "載入收藏庫失敗",
-      );
-    } finally {
-      setCollectionsLoading(false);
-    }
-  }, [authToken, ownerId, refreshAuthToken, workerUrl]);
+        await run(token, true);
+      } catch (error) {
+        setCollectionsError(
+          error instanceof Error ? error.message : "載入收藏庫失敗",
+        );
+      } finally {
+        setCollectionsLoading(false);
+      }
+    },
+    [authToken, ownerId, refreshAuthToken, workerUrl],
+  );
 
   const loadCollectionItems = useCallback(
     async (collectionId: string) => {
@@ -178,7 +181,8 @@ export const useRoomCollections = ({
               typeof item.duration_sec === "number" && item.duration_sec > 0
                 ? formatSeconds(item.duration_sec)
                 : formatSeconds(safeEnd - startSec);
-            const rawTitle = item.title ?? item.answer_text ?? `歌曲 ${index + 1}`;
+            const rawTitle =
+              item.title ?? item.answer_text ?? `歌曲 ${index + 1}`;
             const answerText = item.answer_text ?? rawTitle;
             return {
               title: rawTitle,
@@ -206,7 +210,6 @@ export const useRoomCollections = ({
             workerUrl,
             null,
             collectionId,
-            DEFAULT_PAGE_SIZE,
           );
           if (!ok || !payload?.data?.items) {
             throw new Error(payload?.error ?? "載入收藏庫失敗");
@@ -225,7 +228,6 @@ export const useRoomCollections = ({
               workerUrl,
               token,
               collectionId,
-              DEFAULT_PAGE_SIZE,
             );
             if (ok) {
               handleSuccess(payload?.data?.items ?? []);

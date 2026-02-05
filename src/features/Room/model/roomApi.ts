@@ -243,10 +243,8 @@ export const apiFetchCollectionItems = (
   workerUrl: string,
   token: string | null,
   collectionId: string,
-  pageSize: number,
 ) => {
-  const url = new URL(`${workerUrl}/collections/${collectionId}/items`);
-  url.searchParams.set("pageSize", String(pageSize));
+  const url = new URL(`${workerUrl}/collections/${collectionId}/items/all`);
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
   return fetchJson<WorkerListPayload<WorkerCollectionItem>>(url.toString(), {
     headers,
