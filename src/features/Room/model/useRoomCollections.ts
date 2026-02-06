@@ -39,7 +39,10 @@ export type UseRoomCollectionsResult = {
   collectionItemsError: string | null;
   selectCollection: (collectionId: string | null) => void;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
-  loadCollectionItems: (collectionId: string) => Promise<void>;
+  loadCollectionItems: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<void>;
   resetCollectionsState: () => void;
   resetCollectionSelection: () => void;
   clearCollectionsError: () => void;
@@ -158,7 +161,7 @@ export const useRoomCollections = ({
   );
 
   const loadCollectionItems = useCallback(
-    async (collectionId: string) => {
+    async (collectionId: string, options?: { readToken?: string | null }) => {
       if (!workerUrl) {
         setCollectionItemsError("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
         return;
@@ -215,17 +218,18 @@ export const useRoomCollections = ({
           setStatusText(`已載入收藏庫，共 ${normalizedItems.length} 首`);
         };
 
-        if (!authToken) {
-          const { ok, payload } = await apiFetchCollectionItems(
-            workerUrl,
-            null,
-            collectionId,
-          );
-          if (!ok || !payload?.data?.items) {
-            throw new Error(payload?.error ?? "載入收藏庫失敗");
-          }
-          handleSuccess(payload.data.items);
-        } else {
+      if (!authToken) {
+        const { ok, payload } = await apiFetchCollectionItems(
+          workerUrl,
+          null,
+          collectionId,
+          options?.readToken ?? null,
+        );
+        if (!ok || !payload?.data?.items) {
+          throw new Error(payload?.error ?? "載入收藏庫失敗");
+        }
+        handleSuccess(payload.data.items);
+      } else {
           const token = await ensureFreshAuthToken({
             token: authToken,
             refreshAuthToken,
@@ -238,6 +242,7 @@ export const useRoomCollections = ({
               workerUrl,
               token,
               collectionId,
+              options?.readToken ?? null,
             );
             if (ok) {
               handleSuccess(payload?.data?.items ?? []);

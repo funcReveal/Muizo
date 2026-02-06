@@ -51,7 +51,11 @@ export type UseRoomPlaylistResult = {
   youtubePlaylistsError: string | null;
   fetchYoutubePlaylists: () => Promise<void>;
   importYoutubePlaylist: (playlistId: string) => Promise<void>;
-  applyPlaylistSource: (items: PlaylistItem[], sourceId: string) => void;
+  applyPlaylistSource: (
+    items: PlaylistItem[],
+    sourceId: string,
+    title?: string | null,
+  ) => void;
   clearPlaylistError: () => void;
   resetPlaylistState: () => void;
   resetYoutubePlaylists: () => void;
@@ -361,11 +365,18 @@ export const useRoomPlaylist = ({
     setStatusText("已重置來源，請重新選擇");
   }, [onResetCollection, setStatusText]);
 
-  const applyPlaylistSource = (items: PlaylistItem[], sourceId: string) => {
+  const applyPlaylistSource = (
+    items: PlaylistItem[],
+    sourceId: string,
+    title?: string | null,
+  ) => {
     setPlaylistItems(items);
     setPlaylistStage("preview");
     setPlaylistLocked(true);
     setLastFetchedPlaylistId(sourceId);
+    if (title !== undefined) {
+      setLastFetchedPlaylistTitle(title ?? null);
+    }
   };
 
   const clearPlaylistError = () => {

@@ -69,7 +69,10 @@ interface RoomCreationSectionProps {
   onImportYoutubePlaylist?: (playlistId: string) => void;
   onFetchCollections?: (scope?: "owner" | "public") => void;
   onSelectCollection?: (collectionId: string | null) => void;
-  onLoadCollectionItems?: (collectionId: string) => void;
+  onLoadCollectionItems?: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => void;
   onCreateRoom: () => void;
   onJoinRoom: (roomId: string, hasPassword: boolean) => void;
 }

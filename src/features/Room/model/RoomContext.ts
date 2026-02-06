@@ -58,7 +58,10 @@ export interface RoomContextValue {
   collectionItemsError: string | null;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
   selectCollection: (collectionId: string | null) => void;
-  loadCollectionItems: (collectionId: string) => Promise<void>;
+  loadCollectionItems: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<void>;
   usernameInput: string;
   setUsernameInput: (value: string) => void;
   username: string | null;
@@ -129,7 +132,16 @@ export interface RoomContextValue {
   }) => Promise<boolean>;
   handleKickPlayer: (targetClientId: string, durationMs?: number | null) => void;
   handleTransferHost: (targetClientId: string) => void;
-  handleSuggestPlaylist: (type: "collection" | "playlist", value: string) => void;
+  handleSuggestPlaylist: (
+    type: "collection" | "playlist",
+    value: string,
+    options?: {
+      useSnapshot?: boolean;
+      sourceId?: string | null;
+      title?: string | null;
+    },
+  ) => Promise<{ ok: boolean; error?: string }>;
+  handleApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
   handleChangePlaylist: () => Promise<void>;
   handleFetchPlaylistByUrl: (url: string) => Promise<void>;
   handleFetchPlaylist: (options?: {

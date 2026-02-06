@@ -22,31 +22,108 @@ import { RoomContext, type RoomContextValue } from "./RoomContext";
 import {
   API_URL,
   CHUNK_SIZE,
+  DEFAULT_CLIP_SEC,
   DEFAULT_PAGE_SIZE,
   QUESTION_MAX,
   SOCKET_URL,
   WORKER_API_URL,
 } from "./roomConstants";
-import { clampQuestionCount, getQuestionMax, normalizePlaylistItems } from "./roomUtils";
+import {
+  clampQuestionCount,
+  formatSeconds,
+  getQuestionMax,
+  normalizePlaylistItems,
+  thumbnailFromId,
+  videoUrlFromId,
+} from "./roomUtils";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import {
   clearRoomPassword,
   clearStoredRoomId,
+  clearStoredSessionClientId,
   clearStoredUsername,
   getOrCreateClientId,
   getRoomPassword,
+  getStoredSessionClientId,
   getStoredRoomId,
   getStoredUsername,
   setRoomPassword,
+  setStoredSessionClientId,
   setStoredQuestionCount,
   setStoredRoomId,
   setStoredUsername,
 } from "./roomStorage";
-import { apiFetchRoomById, apiFetchRooms } from "./roomApi";
+import {
+  apiFetchCollectionItems,
+  apiCreateCollectionReadToken,
+  apiFetchRoomById,
+  apiFetchRooms,
+  apiPreviewPlaylist,
+  apiFetchYoutubePlaylistItems,
+  type WorkerCollectionItem,
+} from "./roomApi";
 import { connectRoomSocket, disconnectRoomSocket } from "./roomSocket";
 import { useRoomAuth } from "./useRoomAuth";
 import { useRoomPlaylist } from "./useRoomPlaylist";
 import { useRoomCollections } from "./useRoomCollections";
+
+const mapCollectionItemsToPlaylist = (
+  collectionId: string,
+  items: WorkerCollectionItem[],
+) =>
+  items.flatMap((item, index) => {
+    const startSec = Math.max(0, item.start_sec ?? 0);
+    const endSec =
+      typeof item.end_sec === "number"
+        ? item.end_sec
+        : startSec + DEFAULT_CLIP_SEC;
+    const safeEnd = Math.max(startSec + 1, endSec);
+    const videoId = item.video_id ?? "";
+    if (!videoId) return [];
+    const durationValue =
+      typeof item.duration_sec === "number" && item.duration_sec > 0
+        ? formatSeconds(item.duration_sec)
+        : formatSeconds(safeEnd - startSec);
+    const rawTitle = item.title ?? item.answer_text ?? `歌曲 ${index + 1}`;
+    const answerText = item.answer_text ?? rawTitle;
+    return {
+      title: rawTitle,
+      answerText,
+      url: videoUrlFromId(videoId),
+      thumbnail: thumbnailFromId(videoId),
+      uploader: item.channel_title ?? undefined,
+      duration: durationValue,
+      startSec,
+      endSec: safeEnd,
+      videoId,
+      sourceId: collectionId,
+      provider: "collection",
+    };
+  });
+
+const extractVideoIdFromUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const vid = parsed.searchParams.get("v");
+    if (vid) return vid;
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    return segments.pop() || null;
+  } catch {
+    try {
+      const parsed = new URL(`https://${url}`);
+      const vid = parsed.searchParams.get("v");
+      if (vid) return vid;
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      return segments.pop() || null;
+    } catch {
+      const match =
+        url.match(/[?&]v=([^&]+)/) ||
+        url.match(/youtu\.be\/([^?&]+)/) ||
+        url.match(/youtube\.com\/embed\/([^?&]+)/);
+      return match?.[1] ?? null;
+    }
+  }
+};
 
 export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -58,6 +135,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     () => getStoredUsername() ?? null,
   );
   const [localClientId] = useState<string>(() => getOrCreateClientId());
+  const [sessionClientId, setSessionClientId] = useState<string>(
+    () => getStoredSessionClientId() ?? localClientId,
+  );
+  const [sessionClientIdLocked, setSessionClientIdLocked] = useState(() =>
+    Boolean(getStoredSessionClientId()),
+  );
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [roomNameInput, setRoomNameInput] = useState(() =>
@@ -148,9 +231,22 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   const authClientId = authUser?.id ?? null;
   const clientId = useMemo(
-    () => authClientId ?? localClientId,
-    [authClientId, localClientId],
+    () =>
+      sessionClientIdLocked
+        ? sessionClientId
+        : authClientId ?? localClientId,
+    [authClientId, localClientId, sessionClientId, sessionClientIdLocked],
   );
+  const lockSessionClientId = useCallback((nextClientId: string) => {
+    setSessionClientId(nextClientId);
+    setStoredSessionClientId(nextClientId);
+    setSessionClientIdLocked(true);
+  }, []);
+  const resetSessionClientId = useCallback(() => {
+    clearStoredSessionClientId();
+    setSessionClientId(authClientId ?? localClientId);
+    setSessionClientIdLocked(false);
+  }, [authClientId, localClientId]);
 
   const {
     playlistUrl,
@@ -185,6 +281,111 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
     onResetCollection: () => onResetCollectionRef.current(),
   });
+
+  const fetchYoutubeSnapshot = useCallback(
+    async (playlistId: string) => {
+      if (!API_URL) {
+        throw new Error("尚未設定播放清單 API 位置 (API_URL)");
+      }
+      if (!authToken) {
+        throw new Error("請先登入後再使用私人播放清單");
+      }
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!token) {
+        throw new Error("登入已過期，需要重新授權 Google");
+      }
+      const run = async (token: string, allowRetry: boolean) => {
+        const { ok, status, payload } = await apiFetchYoutubePlaylistItems(
+          API_URL,
+          token,
+          playlistId,
+        );
+        if (ok) {
+          const data = payload?.data;
+          if (!data?.items || data.items.length === 0) {
+            throw new Error("清單沒有可用影片");
+          }
+          const normalized = normalizePlaylistItems(
+            data.items.map((item) => {
+              const videoId = item.videoId ?? extractVideoIdFromUrl(item.url);
+              return {
+                ...item,
+                videoId,
+                sourceId: data.playlistId ?? playlistId,
+                provider: "youtube",
+              };
+            }),
+          );
+          const title =
+            youtubePlaylists.find((item) => item.id === playlistId)?.title ??
+            null;
+          return {
+            items: normalized,
+            title,
+            totalCount: normalized.length,
+            sourceId: data.playlistId ?? playlistId,
+          };
+        }
+        if (status === 401 && allowRetry) {
+          const refreshed = await refreshAuthToken();
+          if (refreshed) {
+            return await run(refreshed, false);
+          }
+        }
+        const message = payload?.error ?? "讀取播放清單失敗";
+        throw new Error(message);
+      };
+
+      return await run(token, true);
+    },
+    [authToken, refreshAuthToken, youtubePlaylists],
+  );
+
+  const fetchPublicPlaylistSnapshot = useCallback(
+    async (url: string, playlistId: string) => {
+      if (!API_URL) {
+        throw new Error("尚未設定播放清單 API 位置 (API_URL)");
+      }
+      const { ok, payload } = await apiPreviewPlaylist(
+        API_URL,
+        url,
+        playlistId,
+      );
+      if (!ok || !payload) {
+        throw new Error("讀取播放清單失敗，請稍後重試");
+      }
+      if ("error" in payload) {
+        throw new Error(payload.error || "讀取播放清單失敗，請稍後重試");
+      }
+      const data = payload;
+      if (!data?.items || data.items.length === 0) {
+        throw new Error(
+          "清單沒有可用影片，可能為私人/受限或自動合輯不受支援。",
+        );
+      }
+      const normalized = normalizePlaylistItems(
+        data.items.map((item) => {
+          const videoId = item.videoId ?? extractVideoIdFromUrl(item.url);
+          return {
+            ...item,
+            videoId,
+            sourceId: data.playlistId ?? playlistId,
+            provider: "youtube",
+          };
+        }),
+      );
+      return {
+        items: normalized,
+        title: data.title ?? null,
+        totalCount: normalized.length,
+        sourceId: data.playlistId ?? playlistId,
+      };
+    },
+    [],
+  );
 
   const handleUpdateQuestionCount = useCallback(
     (value: number) => {
@@ -273,6 +474,83 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     serverOffsetRef.current = offset;
     setServerOffsetMs(offset);
   }, []);
+
+  const fetchCollectionSnapshot = useCallback(
+    async (collectionId: string) => {
+      if (!WORKER_API_URL) {
+        throw new Error("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
+      }
+      if (!collectionId) {
+        throw new Error("請先選擇收藏庫");
+      }
+      const tokenToUse = authToken
+        ? await ensureFreshAuthToken({ token: authToken, refreshAuthToken })
+        : null;
+      if (authToken && !tokenToUse) {
+        throw new Error("登入已過期，請重新登入");
+      }
+      const run = async (token: string | null, allowRetry: boolean) => {
+        const { ok, status, payload } = await apiFetchCollectionItems(
+          WORKER_API_URL,
+          token,
+          collectionId,
+        );
+        if (ok) {
+          const items = payload?.data?.items ?? [];
+          if (items.length === 0) {
+            throw new Error("收藏庫內沒有歌曲");
+          }
+          return normalizePlaylistItems(
+            mapCollectionItemsToPlaylist(collectionId, items),
+          );
+        }
+        if (status === 401 && allowRetry && token) {
+          const refreshed = await refreshAuthToken();
+          if (refreshed) {
+            return await run(refreshed, false);
+          }
+        }
+        throw new Error(payload?.error ?? "載入收藏庫失敗");
+      };
+      return await run(tokenToUse, Boolean(tokenToUse));
+    },
+      [authToken, refreshAuthToken],
+    );
+
+  const createCollectionReadToken = useCallback(
+    async (collectionId: string) => {
+      if (!WORKER_API_URL) {
+        throw new Error("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
+      }
+      if (!authToken) {
+        throw new Error("請先登入後再推薦私人收藏庫");
+      }
+      const tokenToUse = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+      });
+      if (!tokenToUse) {
+        throw new Error("登入已過期，請重新登入");
+      }
+      const run = async (token: string, allowRetry: boolean) => {
+        const { ok, status, payload } = await apiCreateCollectionReadToken(
+          WORKER_API_URL,
+          token,
+          collectionId,
+        );
+        if (ok && payload?.data?.token) return payload.data.token;
+        if (status === 401 && allowRetry) {
+          const refreshed = await refreshAuthToken();
+          if (refreshed) {
+            return await run(refreshed, false);
+          }
+        }
+        throw new Error(payload?.error ?? "取得收藏庫讀取權杖失敗");
+      };
+      return await run(tokenToUse, true);
+    },
+    [authToken, refreshAuthToken],
+  );
 
   const fetchRooms = useCallback(async () => {
     if (!API_URL) {
@@ -434,7 +712,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   useEffect(() => {
-    if (!username) return;
+    if (!username || authLoading) return;
     let cancelled = false;
     const init = async () => {
       let token = authToken;
@@ -491,11 +769,13 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                     reset: true,
                   },
                 );
+                lockSessionClientId(clientId);
                 persistRoomId(state.room.id);
                 setStatusText(`恢復房間：${state.room.name}`);
                 setRouteRoomResolved(true);
               } else {
                 persistRoomId(null);
+                resetSessionClientId();
                 setRouteRoomResolved(true);
               }
             },
@@ -553,6 +833,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
           reset: true,
         });
+        lockSessionClientId(clientId);
         persistRoomId(state.room.id);
         setStatusText(`已加入房間：${state.room.name}`);
         setRouteRoomResolved(true);
@@ -628,6 +909,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setPlaylistLoadingMore(false);
         setPlaylistSuggestions([]);
         persistRoomId(null);
+        resetSessionClientId();
       },
       onPlaylistSuggestionsUpdated: ({ roomId, suggestions }) => {
         if (roomId !== currentRoomIdRef.current) return;
@@ -647,6 +929,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, [
     username,
+    authLoading,
     clientId,
     authToken,
     refreshAuthToken,
@@ -655,7 +938,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     fetchRooms,
     inviteRoomId,
     isInviteMode,
+    lockSessionClientId,
     persistRoomId,
+    resetSessionClientId,
     syncServerOffset,
   ]);
 
@@ -722,6 +1007,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setParticipants(state.participants);
         setMessages(state.messages);
         persistRoomId(state.room.id);
+        lockSessionClientId(clientId);
         const createdPassword = roomPasswordInput.trim();
         saveRoomPassword(state.room.id, createdPassword || null);
         setHostRoomPassword(createdPassword || null);
@@ -763,9 +1049,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     });
   }, [
     authToken,
+    clientId,
     fetchPlaylistPage,
     getSocket,
     lastFetchedPlaylistId,
+    lockSessionClientId,
     playlistItems,
     questionCount,
     refreshAuthToken,
@@ -815,6 +1103,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
             reset: true,
           });
+          lockSessionClientId(clientId);
           persistRoomId(state.room.id);
           setJoinPasswordInput("");
           setStatusText(`已加入房間：${state.room.name}`);
@@ -824,10 +1113,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       },
     );
   }, [
+    clientId,
     fetchCompletePlaylist,
     fetchPlaylistPage,
     getSocket,
     joinPasswordInput,
+    lockSessionClientId,
     persistRoomId,
     syncServerOffset,
     username,
@@ -851,13 +1142,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setPlaylistLoadingMore(false);
         setPlaylistSuggestions([]);
         persistRoomId(null);
+        resetSessionClientId();
         setStatusText("已離開房間");
         onLeft?.();
       } else {
         setStatusText(`離開房間失敗：{ack.error}`);
       }
     });
-  }, [currentRoom, getSocket, persistRoomId]);
+  }, [currentRoom, getSocket, persistRoomId, resetSessionClientId]);
 
   const handleSendMessage = useCallback(() => {
     const s = getSocket();
@@ -1013,28 +1305,113 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const handleSuggestPlaylist = useCallback(
-    (type: "collection" | "playlist", value: string) => {
+    async (
+      type: "collection" | "playlist",
+      value: string,
+      options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
+    ) => {
       const s = getSocket();
-      if (!s || !currentRoom) return;
-      if (gameState?.status === "playing") {
-        setStatusText("遊戲進行中無法推薦");
-        return;
+      if (!s || !currentRoom) {
+        const error = "尚未加入任何房間";
+        setStatusText(error);
+        return { ok: false, error };
       }
-      s.emit(
-        "suggestPlaylist",
-        { roomId: currentRoom.id, type, value },
-        (ack: Ack<null>) => {
-          if (!ack) return;
-          if (!ack.ok) {
-            setStatusText(`推薦失敗：{ack.error}`);
+      if (gameState?.status === "playing") {
+        const error = "遊戲進行中無法推薦";
+        setStatusText(error);
+        return { ok: false, error };
+      }
+        let snapshot:
+          | { items: PlaylistItem[]; title?: string | null; totalCount?: number; sourceId?: string | null }
+          | undefined;
+        let readToken: string | null = null;
+        if (options?.useSnapshot) {
+          try {
+            if (type === "collection") {
+              const selectedCollection = collections.find(
+                (item) => item.id === value,
+              );
+              const isPrivateCollection =
+                selectedCollection?.visibility === "private";
+              if (isPrivateCollection) {
+                if (!authUser?.id) {
+                  throw new Error("請先登入後再推薦私人收藏庫");
+                }
+                readToken = await createCollectionReadToken(value);
+              }
+              const items = await fetchCollectionSnapshot(value);
+              snapshot = {
+                items,
+                title: options?.title ?? null,
+                totalCount: items.length,
+              sourceId: options?.sourceId ?? value,
+            };
           } else {
-            setStatusText("已送出推薦");
+            const playlistId = options?.sourceId;
+            if (!playlistId) {
+              throw new Error("請輸入有效的播放清單 URL");
+            }
+            const result = authToken
+              ? await fetchYoutubeSnapshot(playlistId)
+              : await fetchPublicPlaylistSnapshot(value, playlistId);
+            snapshot = {
+              items: result.items,
+              title: result.title ?? options?.title ?? null,
+              totalCount: result.totalCount,
+              sourceId: result.sourceId ?? playlistId,
+            };
           }
-        },
-      );
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "推薦失敗";
+          setStatusText(message);
+          return { ok: false, error: message };
+        }
+      }
+      return await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        s.emit(
+          "suggestPlaylist",
+            {
+              roomId: currentRoom.id,
+              type,
+              value,
+              title: snapshot?.title ?? undefined,
+              totalCount: snapshot?.totalCount,
+              sourceId: snapshot?.sourceId ?? undefined,
+              items: snapshot?.items,
+              readToken: readToken ?? undefined,
+            },
+          (ack: Ack<null>) => {
+            if (!ack) {
+              resolve({ ok: false, error: "推薦失敗，請稍後再試" });
+              return;
+            }
+            if (!ack.ok) {
+              const message = `推薦失敗：${ack.error}`;
+              setStatusText(message);
+              resolve({ ok: false, error: message });
+              return;
+            }
+            setStatusText("已送出推薦");
+            resolve({ ok: true });
+          },
+        );
+      });
     },
-    [currentRoom, gameState, getSocket],
-  );
+      [
+        authToken,
+        authUser,
+        collections,
+        currentRoom,
+        fetchPublicPlaylistSnapshot,
+        fetchCollectionSnapshot,
+        fetchYoutubeSnapshot,
+        createCollectionReadToken,
+        gameState,
+        getSocket,
+        setStatusText,
+      ],
+    );
 
   const handleFetchPlaylistByUrl = useCallback(
     async (url: string) => {
@@ -1115,6 +1492,81 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     playlistItems,
     setStatusText,
   ]);
+
+  const handleApplySuggestionSnapshot = useCallback(
+    async (suggestion: PlaylistSuggestion) => {
+      const s = getSocket();
+      if (!s || !currentRoom) return;
+      if (gameState?.status === "playing") {
+        setStatusText("遊戲進行中無法切換歌單");
+        return;
+      }
+      const items = suggestion.items ?? [];
+      if (items.length === 0) {
+        setStatusText("推薦內容沒有可用歌曲");
+        return;
+      }
+      const normalizedItems = normalizePlaylistItems(items);
+      const uploadId =
+        crypto.randomUUID?.() ??
+        `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+      const firstChunk = normalizedItems.slice(0, CHUNK_SIZE);
+      const remaining = normalizedItems.slice(CHUNK_SIZE);
+      const isLast = remaining.length === 0;
+      const sourceId =
+        suggestion.sourceId ??
+        (suggestion.type === "collection" ? suggestion.value : undefined);
+      const title = suggestion.title ?? undefined;
+
+        s.emit(
+          "changePlaylist",
+          {
+            roomId: currentRoom.id,
+            playlist: {
+              uploadId,
+              id: sourceId ?? undefined,
+              title,
+              totalCount: normalizedItems.length,
+              items: firstChunk,
+              isLast,
+              pageSize: DEFAULT_PAGE_SIZE,
+            },
+          },
+          async (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => {
+            if (!ack) return;
+            if (!ack.ok) {
+              setStatusText(`切換歌單失敗：${ack.error}`);
+              return;
+            }
+            applyPlaylistSource(
+              normalizedItems,
+              sourceId ?? uploadId,
+              title ?? null,
+            );
+            if (remaining.length > 0) {
+              for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
+                const chunk = remaining.slice(i, i + CHUNK_SIZE);
+                const isLastChunk = i + CHUNK_SIZE >= remaining.length;
+              await new Promise<void>((resolve) => {
+                s.emit(
+                  "uploadPlaylistChunk",
+                  {
+                    roomId: currentRoom.id,
+                    uploadId,
+                    items: chunk,
+                    isLast: isLastChunk,
+                  },
+                  () => resolve(),
+                );
+              });
+            }
+          }
+          setStatusText("已切換歌單，等待房主開始遊戲");
+        },
+      );
+    },
+      [applyPlaylistSource, currentRoom, gameState?.status, getSocket, setStatusText],
+    );
 
   const resetCreateState = useCallback(() => {
     setRoomNameInput(username ? `${username}'s room` : "我的房間");
@@ -1273,6 +1725,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleKickPlayer,
       handleTransferHost,
       handleSuggestPlaylist,
+      handleApplySuggestionSnapshot,
       handleChangePlaylist,
       handleFetchPlaylistByUrl,
       handleFetchPlaylist,
@@ -1370,6 +1823,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleKickPlayer,
       handleTransferHost,
       handleSuggestPlaylist,
+      handleApplySuggestionSnapshot,
       handleChangePlaylist,
       handleFetchPlaylistByUrl,
       syncServerOffset,
