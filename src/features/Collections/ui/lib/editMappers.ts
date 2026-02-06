@@ -3,6 +3,7 @@ import type { DbCollectionItem, EditableItem } from "./editTypes";
 import {
   DEFAULT_DURATION_SEC,
   createLocalId,
+  extractVideoId,
   formatSeconds,
   parseDurationToSeconds,
   thumbnailFromId,
@@ -15,9 +16,12 @@ export const buildEditableItems = (items: PlaylistItem[]): EditableItem[] => {
     const durationSec =
       parseDurationToSeconds(item.duration) ?? DEFAULT_DURATION_SEC;
     const end = Math.min(durationSec, DEFAULT_DURATION_SEC);
+    const videoId = extractVideoId(item.url);
     return {
       ...item,
       localId: createLocalId(),
+      sourceProvider: videoId ? "youtube" : undefined,
+      sourceId: videoId ?? undefined,
       startSec: 0,
       endSec: Math.max(1, end),
       answerText: item.title ?? "",
@@ -30,7 +34,9 @@ export const buildEditableItemsFromDb = (
 ): EditableItem[] => {
   const safeItems = Array.isArray(items) ? items : [];
   return safeItems.map((item) => {
-    const videoId = item.video_id ?? "";
+    const provider = item.provider || "manual";
+    const sourceId = item.source_id || "";
+    const videoId = provider === "youtube" ? sourceId : "";
     const startSec = item.start_sec ?? 0;
     const rawDuration =
       item.duration_sec && item.duration_sec > 0 ? item.duration_sec : null;
@@ -44,8 +50,14 @@ export const buildEditableItemsFromDb = (
     return {
       localId: createLocalId(),
       dbId: item.id,
-      title: item.title ?? item.answer_text ?? videoId,
-      url: videoId ? videoUrlFromId(videoId) : "",
+      sourceProvider: provider,
+      sourceId: sourceId || undefined,
+      title: item.title ?? item.answer_text ?? (videoId || sourceId),
+      url: videoId
+        ? videoUrlFromId(videoId)
+        : sourceId.startsWith("http")
+          ? sourceId
+          : "",
       thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
       uploader: item.channel_title ?? "",
       duration: rawDuration ? formatSeconds(rawDuration) : undefined,

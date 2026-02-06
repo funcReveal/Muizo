@@ -86,7 +86,8 @@ export type WorkerCollectionItem = {
   id: string;
   collection_id: string;
   sort: number;
-  video_id: string | null;
+  provider: string;
+  source_id: string;
   title?: string | null;
   channel_title?: string | null;
   duration_sec?: number | null;

@@ -169,10 +169,15 @@ const CollectionsCreatePage = () => {
           parseDurationToSeconds(item.duration) ?? DEFAULT_DURATION_SEC;
         const safeDuration = Math.max(1, durationSec);
         const endSec = Math.min(DEFAULT_DURATION_SEC, safeDuration);
+        const id = createServerId();
+        const videoId = extractVideoId(item.url);
+        const provider = videoId ? "youtube" : "manual";
+        const sourceId = videoId ?? id;
         return {
-          id: createServerId(),
+          id,
           sort: idx,
-          video_id: extractVideoId(item.url),
+          provider,
+          source_id: sourceId,
           title: item.title || item.answerText || "Untitled",
           channel_title: item.uploader ?? null,
           start_sec: 0,
@@ -265,7 +270,7 @@ const CollectionsCreatePage = () => {
                   />
                   <Button
                     variant="contained"
-                    onClick={handleFetchPlaylist}
+                    onClick={() => handleFetchPlaylist()}
                     disabled={playlistLoading}
                   >
                     {playlistLoading ? "取得中..." : "取得播放清單"}
@@ -305,22 +310,20 @@ const CollectionsCreatePage = () => {
                   <button
                     type="button"
                     onClick={() => setVisibility("private")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "private"
-                        ? "border-amber-400/60 bg-amber-400/10 text-amber-100"
-                        : "border-slate-700 text-slate-400 hover:border-slate-500"
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs ${visibility === "private"
+                      ? "border-amber-400/60 bg-amber-400/10 text-amber-100"
+                      : "border-slate-700 text-slate-400 hover:border-slate-500"
+                      }`}
                   >
                     私密（預設）
                   </button>
                   <button
                     type="button"
                     onClick={() => setVisibility("public")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "public"
-                        ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
-                        : "border-slate-700 text-slate-400 hover:border-slate-500"
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs ${visibility === "public"
+                      ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
+                      : "border-slate-700 text-slate-400 hover:border-slate-500"
+                      }`}
                   >
                     公開
                   </button>
@@ -370,7 +373,7 @@ const CollectionsCreatePage = () => {
             </Button>
             <Button
               variant="contained"
-              onClick={handleCreateCollection}
+              onClick={() => handleCreateCollection()}
               disabled={isCreating || authLoading || !authToken}
             >
               {isCreating ? "建立中..." : "建立收藏庫"}

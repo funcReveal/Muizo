@@ -4,6 +4,34 @@ import type { DbCollection, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
+const resolveItemSource = (
+  item: EditableItem,
+  extractVideoId: (url?: string | null) => string | null,
+) => {
+  const videoId = extractVideoId(item.url);
+  if (videoId) {
+    return { provider: "youtube", source_id: videoId };
+  }
+  if (item.sourceProvider && item.sourceId) {
+    return { provider: item.sourceProvider, source_id: item.sourceId };
+  }
+  if (item.sourceProvider) {
+    const fallback =
+      item.sourceId ?? item.url ?? item.dbId ?? item.localId ?? "";
+    return {
+      provider: item.sourceProvider,
+      source_id: fallback || item.localId,
+    };
+  }
+  if (item.url) {
+    return { provider: "manual", source_id: item.url };
+  }
+  if (item.dbId) {
+    return { provider: "manual", source_id: item.dbId };
+  }
+  return { provider: "manual", source_id: item.localId };
+};
+
 type UseCollectionEditorParams = {
   authToken: string | null;
   ownerId: string | null;
@@ -60,11 +88,14 @@ export const useCollectionEditor = ({
   };
   const syncItemsToDb = useCallback(
     async (collectionId: string, token: string) => {
-      const updatePayloads = playlistItems.map((item, idx) => ({
+      const updatePayloads = playlistItems.map((item, idx) => {
+        const source = resolveItemSource(item, extractVideoId);
+        return {
         localId: item.localId,
         id: item.dbId,
         sort: idx,
-        video_id: extractVideoId(item.url),
+        provider: source.provider,
+        source_id: source.source_id,
         title: item.title || item.answerText || "Untitled",
         channel_title: item.uploader ?? null,
         start_sec: item.startSec,
@@ -74,7 +105,8 @@ export const useCollectionEditor = ({
           const parsed = parseDurationToSeconds(item.duration ?? "");
           return parsed && parsed > 0 ? parsed : undefined;
         })(),
-      }));
+      };
+      });
 
       const toUpdate = updatePayloads.filter((item) => item.id);
       const toInsert = updatePayloads.filter((item) => !item.id);
@@ -84,7 +116,8 @@ export const useCollectionEditor = ({
           toUpdate.map(async (item) => {
             await collectionsApi.updateCollectionItem(token, item.id!, {
               sort: item.sort,
-              video_id: item.video_id ?? null,
+              provider: item.provider,
+              source_id: item.source_id,
               title: item.title,
               channel_title: item.channel_title,
               start_sec: item.start_sec,
@@ -103,7 +136,8 @@ export const useCollectionEditor = ({
         const insertItems = toInsert.map((item) => ({
           id: createServerId(),
           sort: item.sort,
-          video_id: item.video_id ?? null,
+          provider: item.provider,
+          source_id: item.source_id,
           title: item.title,
           channel_title: item.channel_title,
           start_sec: item.start_sec,

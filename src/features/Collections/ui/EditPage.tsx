@@ -236,7 +236,16 @@ const EditPage = () => {
         items: items.map((item, idx) => ({
           key: item.dbId ?? item.localId,
           sort: idx,
-          videoId: extractVideoId(item.url) ?? item.url ?? "",
+          provider:
+            item.sourceProvider ??
+            (extractVideoId(item.url) ? "youtube" : "manual"),
+          sourceId:
+            item.sourceId ??
+            extractVideoId(item.url) ??
+            item.url ??
+            item.dbId ??
+            item.localId ??
+            "",
           title: item.title ?? "",
           uploader: item.uploader ?? "",
           duration: item.duration ?? "",
@@ -897,8 +906,13 @@ const EditPage = () => {
     const videoId = extractVideoId(url);
     const thumbnail = videoId ? thumbnailFromId(videoId) : undefined;
     const resolvedTitle = title || url;
+    const localId = createLocalId();
+    const provider = videoId ? "youtube" : "manual";
+    const sourceId = videoId ?? localId;
     const newItem: EditableItem = {
-      localId: createLocalId(),
+      localId,
+      sourceProvider: provider,
+      sourceId,
       title: resolvedTitle,
       url: url || "",
       thumbnail,
