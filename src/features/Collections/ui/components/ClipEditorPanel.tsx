@@ -133,13 +133,27 @@ const ClipEditorPanel = ({
               width: 3,
               height: 30,
               borderRadius: 2,
-              backgroundColor: "gray",
-              boxShadow: "0 0 0 1px rgba(15,23,42,0.9)",
-              transition: "background-color 0.15s",
+              backgroundColor: "white",
+              boxShadow: "none",
+              transition: "none",
+              marginTop: 0,
+              marginLeft: 0,
             },
             "& .MuiSlider-thumb:hover": {
-              color: "none",
-              backgroundColor: "white",
+              color: "inherit",
+              backgroundColor: "cyan",
+              boxShadow: "none",
+              transform: "translate(-50%, -50%)",
+            },
+            "& .MuiSlider-thumb.Mui-active": {
+              boxShadow: "none",
+              transform: "translate(-50%, -50%)",
+            },
+            "& .MuiSlider-thumb.Mui-focusVisible": {
+              boxShadow: "none",
+            },
+            "& .MuiSlider-thumb::before, & .MuiSlider-thumb::after": {
+              boxShadow: "none",
             },
           }}
         />

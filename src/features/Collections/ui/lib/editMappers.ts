@@ -30,7 +30,7 @@ export const buildEditableItemsFromDb = (
 ): EditableItem[] => {
   const safeItems = Array.isArray(items) ? items : [];
   return safeItems.map((item) => {
-    const videoId = item.video_id ?? "";
+    const videoId = item.source_id ?? "";
     const startSec = item.start_sec ?? 0;
     const rawDuration =
       item.duration_sec && item.duration_sec > 0 ? item.duration_sec : null;

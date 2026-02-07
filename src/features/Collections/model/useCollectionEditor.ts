@@ -8,6 +8,7 @@ type UseCollectionEditorParams = {
   authToken: string | null;
   ownerId: string | null;
   collectionTitle: string;
+  collectionVisibility: "private" | "public";
   activeCollectionId: string | null;
   playlistItems: EditableItem[];
   pendingDeleteIds: string[];
@@ -34,6 +35,7 @@ export const useCollectionEditor = ({
   authToken,
   ownerId,
   collectionTitle,
+  collectionVisibility,
   activeCollectionId,
   playlistItems,
   pendingDeleteIds,
@@ -64,7 +66,8 @@ export const useCollectionEditor = ({
         localId: item.localId,
         id: item.dbId,
         sort: idx,
-        video_id: extractVideoId(item.url),
+        source_id: extractVideoId(item.url),
+        provider: "youtube",
         title: item.title || item.answerText || "Untitled",
         channel_title: item.uploader ?? null,
         start_sec: item.startSec,
@@ -84,7 +87,8 @@ export const useCollectionEditor = ({
           toUpdate.map(async (item) => {
             await collectionsApi.updateCollectionItem(token, item.id!, {
               sort: item.sort,
-              video_id: item.video_id ?? null,
+              source_id: item.source_id ?? null,
+              provider: item.provider ?? "youtube",
               title: item.title,
               channel_title: item.channel_title,
               start_sec: item.start_sec,
@@ -103,7 +107,8 @@ export const useCollectionEditor = ({
         const insertItems = toInsert.map((item) => ({
           id: createServerId(),
           sort: item.sort,
-          video_id: item.video_id ?? null,
+          source_id: item.source_id ?? null,
+          provider: item.provider ?? "youtube",
           title: item.title,
           channel_title: item.channel_title,
           start_sec: item.start_sec,
@@ -193,7 +198,7 @@ export const useCollectionEditor = ({
                 owner_id: ownerId,
                 title: collectionTitle.trim(),
                 description: null,
-                visibility: "private",
+                visibility: collectionVisibility,
               });
             } catch (error) {
               if (allowRetry && isAuthError(error)) {
@@ -213,6 +218,7 @@ export const useCollectionEditor = ({
           try {
             await collectionsApi.updateCollection(token, collectionId, {
               title: collectionTitle.trim(),
+              visibility: collectionVisibility,
             });
           } catch (error) {
             if (allowRetry && isAuthError(error)) {
@@ -226,7 +232,11 @@ export const useCollectionEditor = ({
           setCollections((prev) =>
             prev.map((item) =>
               item.id === collectionId
-                ? { ...item, title: collectionTitle.trim() }
+                ? {
+                    ...item,
+                    title: collectionTitle.trim(),
+                    visibility: collectionVisibility,
+                  }
                 : item,
             ),
           );

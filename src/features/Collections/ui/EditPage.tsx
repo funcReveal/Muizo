@@ -2,6 +2,8 @@
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@mui/material";
+import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
+import LoadingPage from "../../../shared/ui/LoadingPage";
 import { useRoom } from "../../Room/model/useRoom";
 import type { DbCollection, EditableItem } from "./lib/editTypes";
 import {
@@ -10,6 +12,8 @@ import {
 } from "./lib/editMappers";
 import { useCollectionEditor } from "../model/useCollectionEditor";
 import { useCollectionLoader } from "../model/useCollectionLoader";
+import { collectionsApi } from "../model/collectionsApi";
+import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import CollectionPopover from "./components/CollectionPopover";
 import ClipEditorPanel from "./components/ClipEditorPanel";
 import AnswerPanel from "./components/AnswerPanel";
@@ -102,6 +106,7 @@ const EditPage = () => {
     handleResetPlaylist,
     setPlaylistUrl,
     authLoading,
+    authExpired,
   } = useRoom();
 
   const [collections, setCollections] = useState<DbCollection[]>([]);
@@ -123,6 +128,7 @@ const EditPage = () => {
   } | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const saveInFlightRef = useRef(false);
+  const progressRafRef = useRef<number | null>(null);
   const baselineSnapshotRef = useRef<string>("");
   const baselineReadyRef = useRef(false);
   const dirtyCounterRef = useRef(0);
@@ -130,6 +136,14 @@ const EditPage = () => {
 
   const [collectionTitle, setCollectionTitle] = useState("");
   const [collectionTitleTouched, setCollectionTitleTouched] = useState(false);
+  const [collectionVisibility, setCollectionVisibility] = useState<
+    "private" | "public"
+  >("private");
+  const [confirmPublicOpen, setConfirmPublicOpen] = useState(false);
+  const [pendingVisibility, setPendingVisibility] = useState<
+    "private" | "public" | null
+  >(null);
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
@@ -197,6 +211,8 @@ const EditPage = () => {
     if (!Number.isFinite(parsed)) return 50;
     return Math.min(100, Math.max(0, parsed));
   });
+  const [isMuted, setIsMuted] = useState(false);
+  const lastVolumeRef = useRef<number>(volume);
   const [autoPlayOnSwitch, setAutoPlayOnSwitch] = useState(() => {
     if (typeof window === "undefined") return false;
     const saved = window.localStorage.getItem(EDIT_AUTOPLAY_STORAGE_KEY);
@@ -233,13 +249,13 @@ const EditPage = () => {
     ): string => {
       const payload = {
         title: title.trim(),
+        visibility: collectionVisibility,
         items: items.map((item, idx) => ({
           key: item.dbId ?? item.localId,
           sort: idx,
           videoId: extractVideoId(item.url) ?? item.url ?? "",
           title: item.title ?? "",
           uploader: item.uploader ?? "",
-          duration: item.duration ?? "",
           startSec: Math.floor(item.startSec ?? 0),
           endSec: Math.floor(item.endSec ?? 0),
           answerText: item.answerText ?? "",
@@ -248,7 +264,7 @@ const EditPage = () => {
       };
       return JSON.stringify(payload);
     },
-    [extractVideoId],
+    [collectionVisibility, extractVideoId],
   );
 
   const showAutoSaveNotice = (type: "success" | "error", message: string) => {
@@ -287,6 +303,7 @@ const EditPage = () => {
     setCollectionsError,
     setActiveCollectionId,
     setCollectionTitle,
+    setCollectionVisibility,
     buildEditableItemsFromDb,
     setPlaylistItems,
     setItemsLoading,
@@ -301,6 +318,7 @@ const EditPage = () => {
     authToken,
     ownerId,
     collectionTitle,
+    collectionVisibility,
     activeCollectionId,
     playlistItems,
     pendingDeleteIds,
@@ -323,13 +341,14 @@ const EditPage = () => {
     refreshAuthToken,
     onSaved: handleSavedBaseline,
   });
-  const isReadOnly = !authToken;
+  const isReadOnly = !authToken || authExpired;
   useEffect(() => {
     if (collectionId) {
       setActiveCollectionId(collectionId);
     } else {
       setActiveCollectionId(null);
       setCollectionTitle("");
+      setCollectionVisibility("private");
     }
     baselineReadyRef.current = false;
     baselineSnapshotRef.current = "";
@@ -359,6 +378,13 @@ const EditPage = () => {
       pendingDeleteIds,
     );
     const isDirty = snapshot !== baselineSnapshotRef.current;
+    if (isDirty && dirtyCounterRef.current === 0) {
+      baselineSnapshotRef.current = snapshot;
+      if (hasUnsavedChanges) {
+        setHasUnsavedChanges(false);
+      }
+      return;
+    }
     if (isDirty !== hasUnsavedChanges) {
       setHasUnsavedChanges(isDirty);
     }
@@ -450,10 +476,6 @@ const EditPage = () => {
     Math.max(currentTimeSec - startSec, 0),
     clipDurationSec,
   );
-  const clipProgressPercent = Math.min(
-    100,
-    Math.max(0, (clipCurrentSec / clipDurationSec) * 100),
-  );
   const selectedClipDurationSec = selectedItem
     ? Math.max(0, selectedItem.endSec - selectedItem.startSec)
     : 0;
@@ -462,6 +484,51 @@ const EditPage = () => {
     if (!hasUnsavedChanges) return true;
     return window.confirm(UNSAVED_PROMPT);
   };
+
+  const applyVisibilityChange = useCallback(
+    async (value: "private" | "public") => {
+      if (!authToken || !activeCollectionId) {
+        setCollectionVisibility(value);
+        return;
+      }
+      setVisibilityUpdating(true);
+      try {
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("Unauthorized");
+        }
+        await collectionsApi.updateCollection(token, activeCollectionId, {
+          visibility: value,
+        });
+        setCollectionVisibility(value);
+        setCollections((prev) =>
+          prev.map((item) =>
+            item.id === activeCollectionId
+              ? { ...item, visibility: value }
+              : item,
+          ),
+        );
+        if (!hasUnsavedChanges) {
+          resetBaseline();
+        }
+      } catch {
+        setSaveError("更新公開狀態失敗");
+      } finally {
+        setVisibilityUpdating(false);
+      }
+    },
+    [
+      activeCollectionId,
+      authToken,
+      hasUnsavedChanges,
+      refreshAuthToken,
+      resetBaseline,
+      setCollections,
+    ],
+  );
 
   useEffect(() => {
     if (hasResetPlaylistRef.current) return;
@@ -593,15 +660,12 @@ const EditPage = () => {
             : { ...item, endSec: nextEnd };
         }),
       );
-      if (didUpdate) {
-        markDirty();
-      }
     },
-    [markDirty],
+    [],
   );
 
   useEffect(() => {
-    if (!ytReady) return;
+    if (!ytReady || itemsLoading || collectionsLoading) return;
     if (reorderRef.current && selectedVideoId && playerRef.current) {
       const currentId = playerRef.current.getVideoData?.().video_id;
       if (currentId && currentId === selectedVideoId) {
@@ -722,7 +786,13 @@ const EditPage = () => {
         playerRef.current = null;
       }
     };
-  }, [ytReady, selectedVideoId, syncDurationFromPlayer]);
+  }, [
+    ytReady,
+    itemsLoading,
+    collectionsLoading,
+    selectedVideoId,
+    syncDurationFromPlayer,
+  ]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
@@ -733,8 +803,8 @@ const EditPage = () => {
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
-    playerRef.current.setVolume?.(volume);
-  }, [volume, isPlayerReady]);
+    playerRef.current.setVolume?.(isMuted ? 0 : volume);
+  }, [volume, isMuted, isPlayerReady]);
 
   useEffect(() => {
     if (!autoPlayOnSwitch) return;
@@ -759,27 +829,40 @@ const EditPage = () => {
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
-    const timer = window.setInterval(() => {
+    let mounted = true;
+
+    const tick = () => {
+      if (!mounted) return;
       const player = playerRef.current;
-      if (!player || typeof player.getCurrentTime !== "function") return;
-      const current = player.getCurrentTime();
-      setCurrentTimeSec(current);
-      if (current >= effectiveEnd - 0.2) {
-        if (loopEnabled) {
-          player.seekTo?.(startSec, true);
-          if (isPlaying) {
-            player.playVideo?.();
+      if (player && typeof player.getCurrentTime === "function") {
+        const current = player.getCurrentTime();
+        setCurrentTimeSec(current);
+        if (isPlaying && current >= effectiveEnd - 0.2) {
+          if (loopEnabled) {
+            player.seekTo?.(startSec, true);
+            if (isPlaying) {
+              player.playVideo?.();
+            } else {
+              player.pauseVideo?.();
+            }
           } else {
+            player.seekTo?.(effectiveEnd, true);
             player.pauseVideo?.();
+            setIsPlaying(false);
           }
-        } else {
-          player.seekTo?.(effectiveEnd, true);
-          player.pauseVideo?.();
-          setIsPlaying(false);
         }
       }
-    }, 250);
-    return () => window.clearInterval(timer);
+      progressRafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    progressRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      mounted = false;
+      if (progressRafRef.current) {
+        window.cancelAnimationFrame(progressRafRef.current);
+        progressRafRef.current = null;
+      }
+    };
   }, [
     isPlayerReady,
     startSec,
@@ -1147,26 +1230,22 @@ const EditPage = () => {
   const moveItem = (fromIndex: number, toIndex: number) => {
     reorderRef.current = true;
     reorderSelectedIdRef.current = lastSelectedIdRef.current;
-    let didMove = false;
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= playlistItems.length ||
+      toIndex >= playlistItems.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
     setPlaylistItems((prev) => {
-      if (
-        fromIndex < 0 ||
-        fromIndex >= prev.length ||
-        toIndex < 0 ||
-        toIndex > prev.length
-      ) {
-        return prev;
-      }
       const next = [...prev];
       const [moved] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, moved);
-      didMove = true;
       return next;
     });
-
-    if (didMove) {
-      markDirty();
-    }
+    markDirty();
   };
 
   const removeItem = (index: number) => {
@@ -1213,9 +1292,27 @@ const EditPage = () => {
   const handleVolumeChange = (value: number) => {
     const clamped = Math.min(100, Math.max(0, value));
     setVolume(clamped);
+    if (clamped > 0) {
+      lastVolumeRef.current = clamped;
+      if (isMuted) setIsMuted(false);
+    }
     if (typeof window !== "undefined") {
       window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(clamped));
     }
+  };
+
+  const handleToggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (!next && volume === 0) {
+        const restored = Math.max(10, lastVolumeRef.current || 10);
+        setVolume(restored);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(restored));
+        }
+      }
+      return next;
+    });
   };
 
   const handleAutoPlayToggle = (value: boolean) => {
@@ -1252,6 +1349,14 @@ const EditPage = () => {
         <div className="rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-4 text-sm text-[var(--mc-text-muted)]">
           正在確認登入狀態
         </div>
+      </div>
+    );
+  }
+
+  if (collectionsLoading || itemsLoading) {
+    return (
+      <div className="mx-auto flex w-full max-w-none flex-col gap-3 overflow-x-hidden min-h-0">
+        <LoadingPage title="載入收藏庫中" subtitle="正在準備收藏庫內容，請稍候..." />
       </div>
     );
   }
@@ -1325,6 +1430,16 @@ const EditPage = () => {
         saveError={saveError}
         autoSaveNotice={autoSaveNotice}
         hasUnsavedChanges={hasUnsavedChanges}
+        visibility={collectionVisibility}
+        onVisibilityChange={(value) => {
+          if (visibilityUpdating) return;
+          if (value === "public" && collectionVisibility !== "public") {
+            setPendingVisibility(value);
+            setConfirmPublicOpen(true);
+            return;
+          }
+          void applyVisibilityChange(value);
+        }}
         collectionCount={collectionCount}
         onCollectionButtonClick={(event) => {
           setCollectionAnchor(event.currentTarget);
@@ -1357,6 +1472,7 @@ const EditPage = () => {
           setActiveCollectionId(id);
           const selected = collections.find((item) => item.id === id);
           setCollectionTitle(selected?.title ?? "");
+          setCollectionVisibility(selected?.visibility ?? "private");
           setPlaylistItems([]);
           setPlaylistAddError(null);
           setPendingDeleteIds([]);
@@ -1366,6 +1482,23 @@ const EditPage = () => {
           setSaveStatus("idle");
           setSaveError(null);
           dirtyCounterRef.current = 0;
+        }}
+      />
+      <ConfirmDialog
+        open={confirmPublicOpen}
+        title="設為公開？"
+        description="切換為公開後，任何人都能瀏覽此收藏庫內容。確定要公開嗎？"
+        confirmLabel="設為公開"
+        onConfirm={() => {
+          if (pendingVisibility) {
+            void applyVisibilityChange(pendingVisibility);
+          }
+          setPendingVisibility(null);
+          setConfirmPublicOpen(false);
+        }}
+        onCancel={() => {
+          setPendingVisibility(null);
+          setConfirmPublicOpen(false);
         }}
       />
       <PlaylistPopover
@@ -1449,7 +1582,6 @@ const EditPage = () => {
                 selectedClipDurationSec={formatSeconds(selectedClipDurationSec)}
                 clipCurrentSec={formatSeconds(clipCurrentSec)}
                 clipDurationSec={formatSeconds(clipDurationSec)}
-                clipProgressPercent={clipProgressPercent}
                 startSec={startSec}
                 effectiveEnd={effectiveEnd}
                 currentTimeSec={currentTimeSec}
@@ -1459,6 +1591,8 @@ const EditPage = () => {
                 isPlaying={isPlaying}
                 onVolumeChange={handleVolumeChange}
                 volume={volume}
+                isMuted={isMuted}
+                onToggleMute={handleToggleMute}
                 autoPlayOnSwitch={autoPlayOnSwitch}
                 onAutoPlayChange={handleAutoPlayToggle}
                 autoPlayLabel="切換自動播放"

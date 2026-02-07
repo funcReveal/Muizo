@@ -23,6 +23,7 @@ export type UseRoomAuthResult = {
   authToken: string | null;
   authUser: AuthUser | null;
   authLoading: boolean;
+  authExpired: boolean;
   needsNicknameConfirm: boolean;
   nicknameDraft: string;
   isProfileEditorOpen: boolean;
@@ -46,6 +47,7 @@ export const useRoomAuth = ({
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authExpired, setAuthExpired] = useState(false);
   const [needsNicknameConfirm, setNeedsNicknameConfirm] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
@@ -65,6 +67,7 @@ export const useRoomAuth = ({
   const clearAuth = useCallback(() => {
     setAuthToken(null);
     setAuthUser(null);
+    setAuthExpired(false);
     setNeedsNicknameConfirm(false);
     setNicknameDraft("");
     setIsProfileEditorOpen(false);
@@ -76,6 +79,7 @@ export const useRoomAuth = ({
     (token: string, user: AuthUser) => {
       setAuthToken(token);
       setAuthUser(user);
+      setAuthExpired(false);
       persistTokenExpiry(token);
       const confirmed = isProfileConfirmed(user.id);
       if (!confirmed) {
@@ -101,15 +105,16 @@ export const useRoomAuth = ({
       try {
         const { ok, payload } = await apiRefreshAuthToken(apiUrl);
         if (!ok || !payload?.token || !payload.user) {
-          clearAuth();
+          setAuthExpired(true);
           lastRefreshFailAtRef.current = Date.now();
           return null;
         }
         lastRefreshFailAtRef.current = null;
+        setAuthExpired(false);
         persistAuth(payload.token, payload.user);
         return payload.token;
       } catch {
-        clearAuth();
+        setAuthExpired(true);
         lastRefreshFailAtRef.current = Date.now();
         return null;
       } finally {
@@ -320,6 +325,7 @@ export const useRoomAuth = ({
     authToken,
     authUser,
     authLoading,
+    authExpired,
     needsNicknameConfirm,
     nicknameDraft,
     isProfileEditorOpen,

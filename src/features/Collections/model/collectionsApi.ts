@@ -69,7 +69,7 @@ export const collectionsApi = {
   async updateCollection(
     token: string,
     collectionId: string,
-    payload: { title?: string },
+    payload: { title?: string; visibility?: "private" | "public" },
   ) {
     if (!WORKER_API_URL) {
       throw new Error("尚未設定收藏庫 API 位置 (WORKER_API_URL)");

@@ -20,7 +20,8 @@ export type DbCollectionItem = {
   id: string;
   collection_id: string;
   sort: number;
-  video_id: string | null;
+  source_id: string | null;
+  provider: string | null;
   title?: string | null;
   channel_title?: string | null;
   duration_sec?: number | null;

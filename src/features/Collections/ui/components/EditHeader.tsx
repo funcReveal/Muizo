@@ -1,4 +1,10 @@
-import { Button, TextField } from "@mui/material";
+import { Button, Switch, TextField, Tooltip } from "@mui/material";
+import CloudDoneOutlined from "@mui/icons-material/CloudDoneOutlined";
+import CloudUploadOutlined from "@mui/icons-material/CloudUploadOutlined";
+import CloudOffOutlined from "@mui/icons-material/CloudOffOutlined";
+import SaveOutlined from "@mui/icons-material/SaveOutlined";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import PublicOutlined from "@mui/icons-material/PublicOutlined";
 
 type EditHeaderProps = {
   title: string;
@@ -22,6 +28,8 @@ type EditHeaderProps = {
   saveError: string | null;
   autoSaveNotice: { type: "success" | "error"; message: string } | null;
   hasUnsavedChanges: boolean;
+  visibility: "private" | "public";
+  onVisibilityChange: (value: "private" | "public") => void;
   collectionCount: number;
   onCollectionButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onPlaylistButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -51,6 +59,8 @@ const EditHeader = ({
   saveError,
   autoSaveNotice,
   hasUnsavedChanges,
+  visibility,
+  onVisibilityChange,
   collectionCount,
   onCollectionButtonClick,
   onPlaylistButtonClick,
@@ -59,15 +69,28 @@ const EditHeader = ({
 }: EditHeaderProps) => {
   const showSaved =
     !hasUnsavedChanges && !isSaving && saveStatus !== "error" && !saveError;
-  const buttonLabel = isSaving
-    ? savingLabel
-    : saveStatus === "error"
-      ? saveErrorLabel
-      : showSaved
-        ? savedLabel
-        : saveLabel;
-  const noticeTone =
-    autoSaveNotice?.type === "error" ? "text-rose-300" : "text-emerald-300";
+  const isAutoSaving = isSaving && autoSaveNotice?.type === "success";
+  const isAutoSaveError = autoSaveNotice?.type === "error";
+  const buttonLabel = isAutoSaving
+    ? "保存中"
+    : isSaving
+      ? savingLabel
+      : saveStatus === "error"
+        ? saveErrorLabel
+        : showSaved
+          ? autoSaveNotice?.type === "success"
+            ? "已同步"
+            : savedLabel
+          : "保存";
+  const buttonIcon = isAutoSaving ? (
+    <CloudUploadOutlined fontSize="small" />
+  ) : saveStatus === "error" || isAutoSaveError ? (
+    <CloudOffOutlined fontSize="small" />
+  ) : showSaved ? (
+    <CloudDoneOutlined fontSize="small" />
+  ) : (
+    <SaveOutlined fontSize="small" />
+  );
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div>
@@ -81,7 +104,7 @@ const EditHeader = ({
                 variant="standard"
                 value={titleDraft}
                 onChange={(e) => onTitleDraftChange(e.target.value)}
-                placeholder="輸入收藏庫名稱"
+                placeholder="請輸入收藏庫名稱"
                 className="min-w-[200px] rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)] px-3 py-1.5 text-base font-semibold text-[var(--mc-text)]"
               />
               <button
@@ -109,7 +132,7 @@ const EditHeader = ({
                 onClick={onStartEdit}
                 className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] hover:border-[var(--mc-accent)]/60"
               >
-                ✎ 編輯名稱
+                編輯名稱
               </button>
               {showApplyPlaylistTitle && (
                 <button
@@ -147,21 +170,56 @@ const EditHeader = ({
           播放清單
           <span className="text-xs">{playlistMenuOpen ? "▲" : "▼"}</span>
         </button>
+        <div className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-2 py-1">
+          <Tooltip title={visibility === "public" ? "公開中" : "私人"}>
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--mc-text)]">
+              {visibility === "public" ? (
+                <PublicOutlined fontSize="small" />
+              ) : (
+                <LockOutlined fontSize="small" />
+              )}
+              {visibility === "public" ? "公開" : "私人"}
+            </span>
+          </Tooltip>
+          <Switch
+            size="small"
+            checked={visibility === "public"}
+            onChange={(_, checked) =>
+              onVisibilityChange(checked ? "public" : "private")
+            }
+            sx={{
+              "& .MuiSwitch-thumb": { backgroundColor: "var(--mc-text)" },
+              "& .MuiSwitch-track": {
+                backgroundColor: "var(--mc-border)",
+                opacity: 1,
+              },
+              "& .Mui-checked + .MuiSwitch-track": {
+                backgroundColor: "var(--mc-accent)",
+                opacity: 0.65,
+              },
+            }}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="contained"
+            variant="outlined"
             size="small"
             onClick={onSave}
             disabled={isSaving || isReadOnly || !hasUnsavedChanges}
             title={saveError ? `${saveErrorLabel}: ${saveError}` : undefined}
+            startIcon={buttonIcon}
+            className="min-w-[120px] w-[120px] shrink-0 justify-center !border-[var(--mc-border)] !bg-[var(--mc-surface-strong)]/70 !text-[var(--mc-text)] hover:!border-[var(--mc-accent)]/60 disabled:!border-[var(--mc-border)]/40 disabled:!bg-[var(--mc-surface)]/40 disabled:!text-[var(--mc-text-muted)] disabled:opacity-70"
+            sx={{
+              "& .MuiButton-startIcon": {
+                marginLeft: 0,
+                marginRight: "6px",
+                width: 20,
+                justifyContent: "center",
+              },
+            }}
           >
             {buttonLabel}
           </Button>
-          {autoSaveNotice && (
-            <span className={`text-[10px] ${noticeTone}`}>
-              {autoSaveNotice.message}
-            </span>
-          )}
         </div>
       </div>
     </div>

@@ -30,6 +30,7 @@ export interface RoomContextValue {
   authToken: string | null;
   authUser: AuthUser | null;
   authLoading: boolean;
+  authExpired: boolean;
   refreshAuthToken: () => Promise<string | null>;
   loginWithGoogle: () => void;
   logout: () => void;

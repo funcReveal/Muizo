@@ -176,7 +176,7 @@ export const useRoomCollections = ({
                 ? item.end_sec
                 : startSec + DEFAULT_CLIP_SEC;
             const safeEnd = Math.max(startSec + 1, endSec);
-            const videoId = item.video_id ?? "";
+            const videoId = item.source_id ?? "";
             const durationValue =
               typeof item.duration_sec === "number" && item.duration_sec > 0
                 ? formatSeconds(item.duration_sec)
