@@ -20,7 +20,6 @@ type EditHeaderProps = {
   onSave: () => void;
   isSaving: boolean;
   isReadOnly: boolean;
-  saveLabel: string;
   savingLabel: string;
   savedLabel: string;
   saveErrorLabel: string;
@@ -51,7 +50,6 @@ const EditHeader = ({
   onSave,
   isSaving,
   isReadOnly,
-  saveLabel,
   savingLabel,
   savedLabel,
   saveErrorLabel,

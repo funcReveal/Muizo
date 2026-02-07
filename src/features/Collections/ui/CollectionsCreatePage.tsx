@@ -12,7 +12,7 @@ type DbCollection = {
   owner_id: string;
   title: string;
   description?: string | null;
-  visibility?: string;
+  visibility?: "private" | "public";
 };
 
 const DEFAULT_DURATION_SEC = 30;
@@ -330,7 +330,7 @@ const CollectionsCreatePage = () => {
                       />
                       <Button
                         variant="contained"
-                        onClick={handleFetchPlaylist}
+                        onClick={() => handleFetchPlaylist()}
                         disabled={playlistLoading}
                       >
                         {playlistLoading ? "取得中..." : "取得播放清單"}

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   Bolt,
   Pause,
@@ -177,15 +183,13 @@ const PlayerPanel = ({
     100,
     Math.max(
       0,
-      ((effectiveTime - startSec) / Math.max(1, effectiveEnd - startSec)) *
-        100,
+      ((effectiveTime - startSec) / Math.max(1, effectiveEnd - startSec)) * 100,
     ),
   );
   const previewTime =
     hoverPercent === null
       ? null
-      : startSec +
-        (hoverPercent / 100) * Math.max(1, effectiveEnd - startSec);
+      : startSec + (hoverPercent / 100) * Math.max(1, effectiveEnd - startSec);
   const formatTime = (value: number) => {
     const total = Math.max(0, Math.floor(value));
     const m = Math.floor(total / 60)

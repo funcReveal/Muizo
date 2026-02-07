@@ -14,14 +14,14 @@ import { useCollectionEditor } from "../model/useCollectionEditor";
 import { useCollectionLoader } from "../model/useCollectionLoader";
 import { collectionsApi } from "../model/collectionsApi";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
-import CollectionPopover from "./components/CollectionPopover";
-import ClipEditorPanel from "./components/ClipEditorPanel";
-import AnswerPanel from "./components/AnswerPanel";
-import EditHeader from "./components/EditHeader";
-import PlaylistListPanel from "./components/PlaylistListPanel";
-import PlaylistPopover from "./components/PlaylistPopover";
-import PlayerPanel from "./components/PlayerPanel";
-import StatusRow from "./components/StatusRow";
+import CollectionPopover from "./components/playlist/CollectionPopover";
+import ClipEditorPanel from "./components/player/ClipEditorPanel";
+import AnswerPanel from "./components/answer/AnswerPanel";
+import EditHeader from "./components/header/EditHeader";
+import PlaylistListPanel from "./components/playlist/PlaylistListPanel";
+import PlaylistPopover from "./components/playlist/PlaylistPopover";
+import PlayerPanel from "./components/player/PlayerPanel";
+import StatusRow from "./components/header/StatusRow";
 import {
   DEFAULT_DURATION_SEC,
   createLocalId,
@@ -75,7 +75,7 @@ const PAUSE_LABEL = "暫停";
 const VOLUME_LABEL = "音量";
 const DUPLICATE_SONG_ERROR = "曲目已存在";
 const CLIP_DURATION_LABEL = "播放時長";
-const SAVE_LABEL = "儲存";
+// const SAVE_LABEL = "儲存";
 const SAVING_LABEL = "儲存中";
 const SAVE_ERROR_LABEL = "儲存失敗";
 const SAVED_LABEL = "已儲存";
@@ -85,6 +85,7 @@ const COLLECTION_SELECT_LABEL = "收藏庫清單";
 const NEW_COLLECTION_LABEL = "建立新收藏庫";
 const EDIT_VOLUME_STORAGE_KEY = "mq_edit_volume";
 const LEGACY_VOLUME_STORAGE_KEY = "mq_volume";
+const EDIT_MUTE_STORAGE_KEY = "mq_edit_muted";
 const EDIT_AUTOPLAY_STORAGE_KEY = "mq_edit_autoplay";
 const EDIT_LOOP_STORAGE_KEY = "mq_edit_loop";
 const LEGACY_ID_KEY = "video" + "_id";
@@ -212,7 +213,10 @@ const EditPage = () => {
     if (!Number.isFinite(parsed)) return 50;
     return Math.min(100, Math.max(0, parsed));
   });
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(EDIT_MUTE_STORAGE_KEY) === "1";
+  });
   const lastVolumeRef = useRef<number>(volume);
   const [autoPlayOnSwitch, setAutoPlayOnSwitch] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -243,11 +247,7 @@ const EditPage = () => {
   }, []);
 
   const buildSnapshot = useCallback(
-    (
-      items: EditableItem[],
-      title: string,
-      deletes: string[],
-    ): string => {
+    (items: EditableItem[], title: string, deletes: string[]): string => {
       const payload = {
         title: title.trim(),
         visibility: collectionVisibility,
@@ -642,7 +642,6 @@ const EditPage = () => {
       if (!Number.isFinite(durationSec) || durationSec <= 0) return;
       const cap = Math.max(1, Math.floor(durationSec));
       const activeId = targetId ?? currentVideoItemIdRef.current;
-      let didUpdate = false;
       setPlaylistItems((prev) =>
         prev.map((item) => {
           if (!activeId || item.localId !== activeId) return item;
@@ -659,12 +658,6 @@ const EditPage = () => {
           const nextDuration = shouldUpdateDuration
             ? formatSeconds(cap)
             : item.duration;
-          if (item.endSec !== nextEnd) {
-            didUpdate = true;
-          }
-          if (shouldUpdateDuration && item.duration !== nextDuration) {
-            didUpdate = true;
-          }
           return shouldUpdateDuration
             ? { ...item, duration: nextDuration, endSec: nextEnd }
             : { ...item, endSec: nextEnd };
@@ -1333,8 +1326,14 @@ const EditPage = () => {
         const restored = Math.max(10, lastVolumeRef.current || 10);
         setVolume(restored);
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(restored));
+          window.localStorage.setItem(
+            EDIT_VOLUME_STORAGE_KEY,
+            String(restored),
+          );
         }
+      }
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(EDIT_MUTE_STORAGE_KEY, next ? "1" : "0");
       }
       return next;
     });
@@ -1381,7 +1380,10 @@ const EditPage = () => {
   if (collectionsLoading || itemsLoading) {
     return (
       <div className="mx-auto flex w-full max-w-none flex-col gap-3 overflow-x-hidden min-h-0">
-        <LoadingPage title="載入收藏庫中" subtitle="正在準備收藏庫內容，請稍候..." />
+        <LoadingPage
+          title="載入收藏庫中"
+          subtitle="正在準備收藏庫內容，請稍候..."
+        />
       </div>
     );
   }
@@ -1447,7 +1449,6 @@ const EditPage = () => {
         onSave={() => handleSaveCollection("manual")}
         isSaving={saveStatus === "saving"}
         isReadOnly={isReadOnly}
-        saveLabel={SAVE_LABEL}
         savingLabel={SAVING_LABEL}
         savedLabel={SAVED_LABEL}
         saveErrorLabel={SAVE_ERROR_LABEL}

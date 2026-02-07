@@ -15,7 +15,7 @@ export type DbCollection = {
   owner_id: string;
   title: string;
   description?: string | null;
-  visibility?: string;
+  visibility?: "private" | "public";
 };
 
 export type DbCollectionItem = {
