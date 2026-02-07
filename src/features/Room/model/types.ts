@@ -11,6 +11,9 @@ export interface PlaylistItem {
   startSec?: number;
   endSec?: number;
   answerText?: string;
+  videoId?: string;
+  sourceId?: string | null;
+  provider?: string;
 }
 
 export interface PlaylistState {
@@ -52,6 +55,11 @@ export interface PlaylistSuggestion {
   type: "collection" | "playlist";
   value: string;
   suggestedAt: number;
+  title?: string | null;
+  totalCount?: number;
+  sourceId?: string | null;
+  items?: PlaylistItem[];
+  readToken?: string | null;
 }
 
 export interface RoomParticipant {
@@ -183,7 +191,16 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<{ hostClientId: string }>) => void
   ) => void;
   suggestPlaylist: (
-    payload: { roomId: string; type: "collection" | "playlist"; value: string },
+    payload: {
+      roomId: string;
+      type: "collection" | "playlist";
+      value: string;
+      title?: string | null;
+      totalCount?: number;
+      sourceId?: string | null;
+      items?: PlaylistItem[];
+      readToken?: string | null;
+    },
     callback?: (ack: Ack<null>) => void
   ) => void;
   changePlaylist: (

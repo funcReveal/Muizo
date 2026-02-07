@@ -64,8 +64,16 @@ interface SuggestionPanelProps {
   onCollectionScopeChange: (scope: "public" | "owner") => void;
   collections: CollectionOption[];
   isGoogleAuthed: boolean;
+  youtubePlaylists: YoutubePlaylist[];
+  youtubePlaylistsLoading: boolean;
+  youtubePlaylistsError: string | null;
   requestCollections: (scope: "public" | "owner") => void;
-  onSuggestPlaylist: (type: "collection" | "playlist", value: string) => void;
+  requestYoutubePlaylists: () => void;
+  onSuggestPlaylist: (
+    type: "collection" | "playlist",
+    value: string,
+    options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
+  ) => Promise<{ ok: boolean; error?: string }>;
   extractPlaylistId: (url: string) => string | null;
   resolveVisibilityLabel: (visibility?: string) => string;
 }
@@ -75,31 +83,90 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
   onCollectionScopeChange,
   collections,
   isGoogleAuthed,
+  youtubePlaylists,
+  youtubePlaylistsLoading,
+  youtubePlaylistsError,
   requestCollections,
+  requestYoutubePlaylists,
   onSuggestPlaylist,
   extractPlaylistId,
   resolveVisibilityLabel,
 }) => {
-  const [suggestType, setSuggestType] = useState<"playlist" | "collection">(
-    "playlist",
-  );
+  const [suggestType, setSuggestType] = useState<
+    "playlist" | "collection" | "youtube"
+  >("playlist");
   const [suggestPlaylistUrl, setSuggestPlaylistUrl] = useState("");
   const [suggestCollectionId, setSuggestCollectionId] = useState<string | null>(
     null,
   );
-  const [hasSuggested, setHasSuggested] = useState(false);
+  const [suggestYoutubePlaylistId, setSuggestYoutubePlaylistId] = useState<
+    string | null
+  >(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggestNotice, setSuggestNotice] = useState<string | null>(null);
+  const cooldownTimerRef = useRef<number | null>(null);
+  const cooldownIntervalRef = useRef<number | null>(null);
+  const SUGGESTION_COOLDOWN_MS = 5000;
   const selectedSuggestCollection = collections.find(
     (item) => item.id === suggestCollectionId,
   );
-  const isSuggestCollectionPublic =
-    selectedSuggestCollection?.visibility === "public";
+  const isSuggestCollectionPrivate =
+    selectedSuggestCollection?.visibility === "private";
+  const isCooldownActive =
+    typeof cooldownUntil === "number" && cooldownUntil > Date.now();
+  const remainingCooldownSeconds = cooldownUntil
+    ? Math.max(0, Math.ceil((cooldownUntil - cooldownNow) / 1000))
+    : 0;
 
   useEffect(() => {
     if (suggestType !== "collection") return;
     requestCollections(collectionScope);
   }, [collectionScope, requestCollections, suggestType]);
+
+  useEffect(() => {
+    if (suggestType !== "youtube") return;
+    if (!isGoogleAuthed) return;
+    requestYoutubePlaylists();
+  }, [isGoogleAuthed, requestYoutubePlaylists, suggestType]);
+
+  useEffect(() => {
+    if (cooldownTimerRef.current) {
+      window.clearTimeout(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
+    if (cooldownIntervalRef.current) {
+      window.clearInterval(cooldownIntervalRef.current);
+      cooldownIntervalRef.current = null;
+    }
+    if (!cooldownUntil) return;
+    const remaining = cooldownUntil - Date.now();
+    if (remaining <= 0) {
+      setCooldownUntil(null);
+      setSuggestNotice(null);
+      return;
+    }
+    setCooldownNow(Date.now());
+    cooldownIntervalRef.current = window.setInterval(() => {
+      setCooldownNow(Date.now());
+    }, 500);
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setCooldownUntil(null);
+      setSuggestNotice(null);
+    }, remaining);
+    return () => {
+      if (cooldownTimerRef.current) {
+        window.clearTimeout(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+      }
+      if (cooldownIntervalRef.current) {
+        window.clearInterval(cooldownIntervalRef.current);
+        cooldownIntervalRef.current = null;
+      }
+    };
+  }, [cooldownUntil]);
 
   return (
     <Accordion
@@ -118,18 +185,21 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
             size="small"
             value={suggestType}
             onChange={(e) => {
-              setSuggestType(e.target.value as "playlist" | "collection");
+              setSuggestType(
+                e.target.value as "playlist" | "collection" | "youtube",
+              );
               if (suggestError) {
                 setSuggestError(null);
               }
             }}
-            disabled={hasSuggested}
+            disabled={isSubmitting}
             fullWidth
           >
             <MenuItem value="playlist">播放清單 URL</MenuItem>
             <MenuItem value="collection">收藏庫</MenuItem>
+            <MenuItem value="youtube">我的播放清單</MenuItem>
           </TextField>
-          {suggestType === "playlist" ? (
+          {suggestType === "playlist" && (
             <TextField
               size="small"
               value={suggestPlaylistUrl}
@@ -138,15 +208,16 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
                 if (suggestError) {
                   setSuggestError(null);
                 }
-                if (suggestNotice && !hasSuggested) {
+                if (suggestNotice && !isCooldownActive) {
                   setSuggestNotice(null);
                 }
               }}
               placeholder="貼上 YouTube 播放清單 URL"
-              disabled={hasSuggested}
+              disabled={isSubmitting}
               fullWidth
             />
-          ) : (
+          )}
+          {suggestType === "collection" && (
             <>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Button
@@ -191,11 +262,11 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
                   if (suggestError) {
                     setSuggestError(null);
                   }
-                  if (suggestNotice && !hasSuggested) {
+                  if (suggestNotice && !isCooldownActive) {
                     setSuggestNotice(null);
                   }
                 }}
-                disabled={hasSuggested}
+                disabled={isSubmitting}
                 fullWidth
               >
                 <MenuItem value="">選擇收藏庫</MenuItem>
@@ -225,6 +296,50 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
               </TextField>
             </>
           )}
+          {suggestType === "youtube" && (
+            <>
+              {!isGoogleAuthed && (
+                <Typography variant="caption" className="text-slate-400">
+                  登入後可使用我的播放清單
+                </Typography>
+              )}
+              {youtubePlaylistsLoading && (
+                <Typography variant="caption" className="text-slate-400">
+                  載入播放清單中…
+                </Typography>
+              )}
+              {youtubePlaylistsError && (
+                <Typography variant="caption" className="text-rose-300">
+                  {youtubePlaylistsError}
+                </Typography>
+              )}
+              <TextField
+                select
+                size="small"
+                value={suggestYoutubePlaylistId ?? ""}
+                onChange={(e) => {
+                  setSuggestYoutubePlaylistId(
+                    e.target.value ? e.target.value : null,
+                  );
+                  if (suggestError) {
+                    setSuggestError(null);
+                  }
+                  if (suggestNotice && !isCooldownActive) {
+                    setSuggestNotice(null);
+                  }
+                }}
+                disabled={isSubmitting || !isGoogleAuthed}
+                fullWidth
+              >
+                <MenuItem value="">選擇播放清單</MenuItem>
+                {youtubePlaylists.map((playlist) => (
+                  <MenuItem key={playlist.id} value={playlist.id}>
+                    {playlist.title} ({playlist.itemCount})
+                  </MenuItem>
+                ))}
+              </TextField>
+            </>
+          )}
           {suggestError && (
             <Typography variant="caption" className="text-rose-300">
               {suggestError}
@@ -234,53 +349,102 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
             <Typography
               variant="caption"
               className={
-                isSuggestCollectionPublic
-                  ? "text-emerald-300"
-                  : "text-amber-200"
+                isSuggestCollectionPrivate
+                  ? "text-amber-200"
+                  : "text-emerald-300"
               }
             >
-              {isSuggestCollectionPublic
-                ? "此收藏庫為公開，房主可以直接載入"
-                : "此收藏庫為私人，請先改成公開再推薦"}
+              {isSuggestCollectionPrivate
+                ? "此收藏庫為私人，將以快照推薦給房主"
+                : "此收藏庫為公開，將以快照推薦給房主"}
             </Typography>
           )}
-          {suggestNotice && (
+          {(suggestNotice || isCooldownActive) && (
             <Typography variant="caption" className="text-emerald-300">
-              {suggestNotice}
+              {isCooldownActive
+                ? `已送出，${remainingCooldownSeconds} 秒後可再推薦`
+                : suggestNotice}
             </Typography>
           )}
           <Button
             size="small"
             variant="contained"
             disabled={
-              hasSuggested ||
-              (suggestType === "playlist"
-                ? !suggestPlaylistUrl.trim()
-                : !suggestCollectionId || !isSuggestCollectionPublic)
+              isSubmitting ||
+              isCooldownActive ||
+              (suggestType === "playlist" && !suggestPlaylistUrl.trim()) ||
+              (suggestType === "collection" && !suggestCollectionId) ||
+              (suggestType === "youtube" && !suggestYoutubePlaylistId)
             }
-            onClick={() => {
-              if (suggestType === "playlist") {
-                const trimmed = suggestPlaylistUrl.trim();
-                const playlistId = extractPlaylistId(trimmed);
-                if (!playlistId) {
-                  setSuggestError("請輸入有效的播放清單 URL");
-                  setSuggestNotice(null);
-                  return;
-                }
-                onSuggestPlaylist("playlist", trimmed);
-              } else if (suggestCollectionId) {
-                if (!isSuggestCollectionPublic) {
-                  setSuggestError("此收藏庫為私人，請改成公開後再推薦");
-                  setSuggestNotice(null);
-                  return;
-                }
-                onSuggestPlaylist("collection", suggestCollectionId);
+            onClick={async () => {
+              if (isCooldownActive) {
+                const remaining = Math.max(
+                  1,
+                  Math.ceil(((cooldownUntil ?? Date.now()) - Date.now()) / 1000),
+                );
+                setSuggestNotice(`請稍候 ${remaining} 秒後再推薦`);
+                return;
               }
-              setSuggestNotice("已送出，等待房主查看");
-              setHasSuggested(true);
+              setIsSubmitting(true);
+              setSuggestError(null);
+              try {
+                let result: { ok: boolean; error?: string } | null = null;
+                if (suggestType === "playlist") {
+                  const trimmed = suggestPlaylistUrl.trim();
+                  const playlistId = extractPlaylistId(trimmed);
+                  if (!playlistId) {
+                    setSuggestError("請輸入有效的播放清單 URL");
+                    setSuggestNotice(null);
+                    return;
+                  }
+                  result = await onSuggestPlaylist("playlist", trimmed, {
+                    useSnapshot: true,
+                    sourceId: playlistId,
+                  });
+                } else if (suggestType === "youtube") {
+                  if (!suggestYoutubePlaylistId) {
+                    setSuggestError("請先選擇播放清單");
+                    setSuggestNotice(null);
+                    return;
+                  }
+                  const selected = youtubePlaylists.find(
+                    (playlist) => playlist.id === suggestYoutubePlaylistId,
+                  );
+                  result = await onSuggestPlaylist(
+                    "playlist",
+                    suggestYoutubePlaylistId,
+                    {
+                      useSnapshot: true,
+                      sourceId: suggestYoutubePlaylistId,
+                      title: selected?.title ?? null,
+                    },
+                  );
+                } else if (suggestCollectionId) {
+                  result = await onSuggestPlaylist(
+                    "collection",
+                    suggestCollectionId,
+                    {
+                      useSnapshot: true,
+                      sourceId: suggestCollectionId,
+                      title: selectedSuggestCollection?.title ?? null,
+                    },
+                  );
+                }
+                if (!result?.ok) {
+                  setSuggestError(result?.error ?? "推薦失敗");
+                  setSuggestNotice(null);
+                  return;
+                }
+                setCooldownUntil(Date.now() + SUGGESTION_COOLDOWN_MS);
+                setSuggestNotice("已送出");
+              } finally {
+                setIsSubmitting(false);
+              }
             }}
           >
-            {hasSuggested ? "已送出" : "送出推薦"}
+            {isCooldownActive
+              ? `倒數 ${Math.max(1, remainingCooldownSeconds)} 秒`
+              : "送出推薦"}
           </Button>
         </Stack>
       </AccordionDetails>
@@ -334,13 +498,21 @@ interface RoomLobbyPanelProps {
   onInvite: () => Promise<void>;
   onKickPlayer: (clientId: string, durationMs?: number | null) => void;
   onTransferHost: (clientId: string) => void;
-  onSuggestPlaylist: (type: "collection" | "playlist", value: string) => void;
+  onSuggestPlaylist: (
+    type: "collection" | "playlist",
+    value: string,
+    options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
   onChangePlaylist: () => Promise<void>;
   onPlaylistUrlChange: (value: string) => void;
   onFetchPlaylistByUrl: (url: string) => void;
   onFetchCollections: (scope?: "owner" | "public") => void;
   onSelectCollection: (collectionId: string | null) => void;
-  onLoadCollectionItems: (collectionId: string) => Promise<void>;
+  onLoadCollectionItems: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<void>;
   onFetchYoutubePlaylists: () => void;
   onImportYoutubePlaylist: (playlistId: string) => Promise<void>;
 }
@@ -385,6 +557,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onKickPlayer,
   onTransferHost,
   onSuggestPlaylist,
+  onApplySuggestionSnapshot,
   onChangePlaylist,
   onPlaylistUrlChange,
   onFetchPlaylistByUrl,
@@ -1106,59 +1279,94 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                           </Typography>
                         ) : (
                           <Stack spacing={1}>
-                            {playlistSuggestions.map((suggestion) => (
-                              <Box
-                                key={`${suggestion.clientId}-${suggestion.suggestedAt}`}
-                                className="rounded-md border border-slate-800/70 bg-slate-900/60 px-2 py-1"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="text-xs text-slate-300">
-                                    <span className="font-semibold text-slate-100">
-                                      {suggestion.username}
-                                    </span>
-                                    <span className="ml-2 text-slate-400">
-                                      {suggestion.type === "playlist"
-                                        ? "歌單"
-                                        : "收藏庫"}
-                                    </span>
-                                    <span className="ml-2 text-slate-500">
-                                      {suggestion.value}
-                                    </span>
-                                  </div>
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() => {
-                                      if (suggestion.type === "playlist") {
+                            {playlistSuggestions.map((suggestion) => {
+                              const isSnapshot = Boolean(suggestion.items?.length);
+                              const displayLabel = suggestion.title ?? suggestion.value;
+                              const displayCount =
+                                suggestion.totalCount ?? suggestion.items?.length;
+                              return (
+                                <Box
+                                  key={`${suggestion.clientId}-${suggestion.suggestedAt}`}
+                                  className="rounded-md border border-slate-800/70 bg-slate-900/60 px-2 py-1"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-xs text-slate-300">
+                                      <span className="font-semibold text-slate-100">
+                                        {suggestion.username}
+                                      </span>
+                                      <span className="ml-2 text-slate-400">
+                                        {suggestion.type === "playlist"
+                                          ? "歌單"
+                                          : "收藏庫"}
+                                      </span>
+                                      {isSnapshot && (
+                                        <Chip
+                                          size="small"
+                                          variant="outlined"
+                                          label="快照"
+                                          className="ml-2 text-slate-200 border-slate-600"
+                                        />
+                                      )}
+                                      <span className="ml-2 text-slate-500">
+                                        {displayLabel}
+                                        {displayCount
+                                          ? ` (${displayCount})`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={() => {
+                                        if (isSnapshot) {
+                                          openConfirmModal(
+                                            suggestion.type === "playlist"
+                                              ? "切換到推薦歌單？"
+                                              : "切換到推薦收藏庫？",
+                                            displayLabel,
+                                            () => {
+                                              void onApplySuggestionSnapshot(
+                                                suggestion,
+                                              );
+                                            },
+                                          );
+                                          return;
+                                        }
+                                        if (suggestion.type === "playlist") {
+                                          openConfirmModal(
+                                            "切換到推薦歌單？",
+                                            suggestion.value,
+                                            () => {
+                                              onFetchPlaylistByUrl(
+                                                suggestion.value,
+                                              );
+                                            },
+                                          );
+                                          return;
+                                        }
                                         openConfirmModal(
-                                          "切換到推薦歌單？",
+                                          "切換到推薦收藏庫？",
                                           suggestion.value,
                                           () => {
-                                            onFetchPlaylistByUrl(
+                                            setHostSourceType("collection");
+                                            onSelectCollection(suggestion.value);
+                                            void onLoadCollectionItems(
                                               suggestion.value,
+                                              {
+                                                readToken:
+                                                  suggestion.readToken ?? null,
+                                              },
                                             );
                                           },
                                         );
-                                        return;
-                                      }
-                                      openConfirmModal(
-                                        "切換到推薦收藏庫？",
-                                        suggestion.value,
-                                        () => {
-                                          setHostSourceType("collection");
-                                          onSelectCollection(suggestion.value);
-                                          void onLoadCollectionItems(
-                                            suggestion.value,
-                                          );
-                                        },
-                                      );
-                                    }}
-                                  >
-                                    載入
-                                  </Button>
-                                </div>
-                              </Box>
-                            ))}
+                                      }}
+                                    >
+                                      載入
+                                    </Button>
+                                  </div>
+                                </Box>
+                              );
+                            })}
                           </Stack>
                         )}
                       </>
@@ -1410,7 +1618,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             onCollectionScopeChange={setCollectionScope}
             collections={collections}
             isGoogleAuthed={isGoogleAuthed}
+            youtubePlaylists={youtubePlaylists}
+            youtubePlaylistsLoading={youtubePlaylistsLoading}
+            youtubePlaylistsError={youtubePlaylistsError}
             requestCollections={requestCollections}
+            requestYoutubePlaylists={onFetchYoutubePlaylists}
             onSuggestPlaylist={onSuggestPlaylist}
             extractPlaylistId={extractPlaylistId}
             resolveVisibilityLabel={resolveVisibilityLabel}

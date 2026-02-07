@@ -40,6 +40,15 @@ export const getOrCreateClientId = () => {
   return generated;
 };
 
+export const getStoredSessionClientId = () =>
+  localStorage.getItem(STORAGE_KEYS.sessionClientId);
+
+export const setStoredSessionClientId = (clientId: string) =>
+  localStorage.setItem(STORAGE_KEYS.sessionClientId, clientId);
+
+export const clearStoredSessionClientId = () =>
+  localStorage.removeItem(STORAGE_KEYS.sessionClientId);
+
 
 export const getRoomPassword = (roomId: string) =>
   localStorage.getItem(roomPasswordKey(roomId));

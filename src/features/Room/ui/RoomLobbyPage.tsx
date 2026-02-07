@@ -56,6 +56,7 @@ const RoomLobbyPage: React.FC = () => {
     handleKickPlayer,
     handleTransferHost,
     handleSuggestPlaylist,
+    handleApplySuggestionSnapshot,
     handleChangePlaylist,
     handleFetchPlaylistByUrl,
     fetchCollections,
@@ -79,6 +80,25 @@ const RoomLobbyPage: React.FC = () => {
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
           正在載入房間資訊…
+        </div>
+      </div>
+    );
+  }
+
+  if (roomId && routeRoomResolved && !currentRoom) {
+    return (
+      <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
+        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+          <div className="mb-2">
+            無法加入房間，可能已關閉或你已離開。
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/30"
+            onClick={() => navigate("/rooms", { replace: true })}
+          >
+            返回房間列表
+          </button>
         </div>
       </div>
     );
@@ -152,6 +172,7 @@ const RoomLobbyPage: React.FC = () => {
           onKickPlayer={handleKickPlayer}
           onTransferHost={handleTransferHost}
           onSuggestPlaylist={handleSuggestPlaylist}
+          onApplySuggestionSnapshot={handleApplySuggestionSnapshot}
           onChangePlaylist={handleChangePlaylist}
           onPlaylistUrlChange={setPlaylistUrl}
           onFetchPlaylistByUrl={handleFetchPlaylistByUrl}

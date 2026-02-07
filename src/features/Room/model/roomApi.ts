@@ -86,8 +86,8 @@ export type WorkerCollectionItem = {
   id: string;
   collection_id: string;
   sort: number;
-  source_id: string | null;
-  provider: string | null;
+  provider: string;
+  source_id: string;
   title?: string | null;
   channel_title?: string | null;
   duration_sec?: number | null;
@@ -244,10 +244,34 @@ export const apiFetchCollectionItems = (
   workerUrl: string,
   token: string | null,
   collectionId: string,
+  readToken?: string | null,
 ) => {
   const url = new URL(`${workerUrl}/collections/${collectionId}/items/all`);
-  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (readToken) {
+    headers["X-Collection-Read-Token"] = readToken;
+  }
   return fetchJson<WorkerListPayload<WorkerCollectionItem>>(url.toString(), {
-    headers,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
 };
+
+export const apiCreateCollectionReadToken = (
+  workerUrl: string,
+  token: string,
+  collectionId: string,
+) =>
+  fetchJson<{
+    ok?: boolean;
+    data?: { token: string; expiresAt: number };
+    error?: string;
+  }>(`${workerUrl}/collections/${collectionId}/read-token`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });

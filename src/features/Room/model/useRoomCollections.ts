@@ -1,7 +1,11 @@
 ﻿import { useCallback, useState } from "react";
 
 import type { PlaylistItem } from "./types";
-import { apiFetchCollectionItems, apiFetchCollections } from "./roomApi";
+import {
+  apiFetchCollectionItems,
+  apiFetchCollections,
+  type WorkerCollectionItem,
+} from "./roomApi";
 import {
   formatSeconds,
   normalizePlaylistItems,
@@ -35,7 +39,10 @@ export type UseRoomCollectionsResult = {
   collectionItemsError: string | null;
   selectCollection: (collectionId: string | null) => void;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
-  loadCollectionItems: (collectionId: string) => Promise<void>;
+  loadCollectionItems: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<void>;
   resetCollectionsState: () => void;
   resetCollectionSelection: () => void;
   clearCollectionsError: () => void;
@@ -120,7 +127,7 @@ export const useRoomCollections = ({
         const run = async (token: string, allowRetry: boolean) => {
           const { ok, status, payload } = await apiFetchCollections(workerUrl, {
             token,
-            ownerId,
+            ownerId: ownerId ?? undefined,
             pageSize: DEFAULT_PAGE_SIZE,
           });
           if (ok) {
@@ -154,7 +161,7 @@ export const useRoomCollections = ({
   );
 
   const loadCollectionItems = useCallback(
-    async (collectionId: string) => {
+    async (collectionId: string, options?: { readToken?: string | null }) => {
       if (!workerUrl) {
         setCollectionItemsError("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
         return;
@@ -168,7 +175,7 @@ export const useRoomCollections = ({
       onPlaylistReset();
       setSelectedCollectionId(collectionId);
       try {
-        const mapItems = (items: typeof payload.data.items) =>
+        const mapItems = (items: WorkerCollectionItem[]) =>
           items.map((item, index) => {
             const startSec = Math.max(0, item.start_sec ?? 0);
             const endSec =
@@ -176,7 +183,9 @@ export const useRoomCollections = ({
                 ? item.end_sec
                 : startSec + DEFAULT_CLIP_SEC;
             const safeEnd = Math.max(startSec + 1, endSec);
-            const videoId = item.source_id ?? "";
+            const provider = item.provider || "manual";
+            const sourceId = item.source_id || "";
+            const videoId = provider === "youtube" ? sourceId : "";
             const durationValue =
               typeof item.duration_sec === "number" && item.duration_sec > 0
                 ? formatSeconds(item.duration_sec)
@@ -187,7 +196,11 @@ export const useRoomCollections = ({
             return {
               title: rawTitle,
               answerText,
-              url: videoId ? videoUrlFromId(videoId) : "",
+              url: videoId
+                ? videoUrlFromId(videoId)
+                : sourceId.startsWith("http")
+                  ? sourceId
+                  : "",
               thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
               uploader: item.channel_title ?? undefined,
               duration: durationValue,
@@ -196,7 +209,7 @@ export const useRoomCollections = ({
             };
           });
 
-        const handleSuccess = (items: typeof payload.data.items) => {
+        const handleSuccess = (items: WorkerCollectionItem[]) => {
           if (items.length === 0) {
             throw new Error("收藏庫內沒有歌曲");
           }
@@ -210,6 +223,7 @@ export const useRoomCollections = ({
             workerUrl,
             null,
             collectionId,
+            options?.readToken ?? null,
           );
           if (!ok || !payload?.data?.items) {
             throw new Error(payload?.error ?? "載入收藏庫失敗");
@@ -228,6 +242,7 @@ export const useRoomCollections = ({
               workerUrl,
               token,
               collectionId,
+              options?.readToken ?? null,
             );
             if (ok) {
               handleSuccess(payload?.data?.items ?? []);

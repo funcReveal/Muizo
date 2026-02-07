@@ -203,11 +203,15 @@ const CollectionsCreatePage = () => {
           parseDurationToSeconds(item.duration) ?? DEFAULT_DURATION_SEC;
         const safeDuration = Math.max(1, durationSec);
         const endSec = Math.min(DEFAULT_DURATION_SEC, safeDuration);
+        const id = createServerId();
+        const videoId = extractVideoId(item.url);
+        const provider = videoId ? "youtube" : "manual";
+        const sourceId = videoId ?? id;
         return {
-          id: createServerId(),
+          id,
           sort: idx,
-          source_id: extractVideoId(item.url),
-          provider: "youtube",
+          provider,
+          source_id: sourceId,
           title: item.title || item.answerText || "Untitled",
           channel_title: item.uploader ?? null,
           start_sec: 0,
@@ -527,7 +531,7 @@ const CollectionsCreatePage = () => {
             </Button>
             <Button
               variant="contained"
-              onClick={handleCreateCollection}
+              onClick={() => handleCreateCollection()}
               disabled={isCreating || authLoading || !authToken}
             >
               {isCreating ? "建立中..." : "建立收藏庫"}

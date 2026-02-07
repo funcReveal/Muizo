@@ -41,16 +41,33 @@ interface GameRoomPageProps {
   serverOffsetMs?: number;
 }
 
-const extractYouTubeId = (url: string): string | null => {
-  try {
-    const parsed = new URL(url);
+const extractYouTubeId = (
+  url: string | null | undefined,
+  fallbackId?: string | null,
+): string | null => {
+  if (fallbackId) return fallbackId;
+  if (!url) return null;
+  const raw = url.trim();
+  if (!raw) return null;
+  const parseUrl = (value: string) => {
+    const parsed = new URL(value);
     const vid = parsed.searchParams.get("v");
     if (vid) return vid;
-    const segments = parsed.pathname.split("/");
+    const segments = parsed.pathname.split("/").filter(Boolean);
     return segments.pop() || null;
-  } catch (err) {
-    console.error("Failed to parse video id", err);
-    return null;
+  };
+  try {
+    return parseUrl(raw);
+  } catch {
+    try {
+      return parseUrl(`https://${raw}`);
+    } catch {
+      const match =
+        raw.match(/[?&]v=([^&]+)/) ||
+        raw.match(/youtu\.be\/([^?&]+)/) ||
+        raw.match(/youtube\.com\/embed\/([^?&]+)/);
+      return match?.[1] ?? null;
+    }
   }
 };
 
@@ -230,7 +247,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return Math.min(clipEndSec, Math.max(0, playerStartRef.current + elapsed));
   }, [clipEndSec, getServerNowMs]);
 
-  const videoId = item ? extractYouTubeId(item.url) : null;
+  const videoId = item ? extractYouTubeId(item.url, item.videoId) : null;
   const phaseEndsAt =
     gameState.phase === "guess"
       ? gameState.startedAt + gameState.guessDurationMs

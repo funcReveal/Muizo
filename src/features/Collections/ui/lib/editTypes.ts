@@ -3,6 +3,8 @@ import type { PlaylistItem } from "../../../Room/model/types";
 export type EditableItem = PlaylistItem & {
   localId: string;
   dbId?: string;
+  sourceProvider?: string;
+  sourceId?: string;
   startSec: number;
   endSec: number;
   answerText: string;
@@ -20,8 +22,8 @@ export type DbCollectionItem = {
   id: string;
   collection_id: string;
   sort: number;
-  source_id: string | null;
-  provider: string | null;
+  provider: string;
+  source_id: string;
   title?: string | null;
   channel_title?: string | null;
   duration_sec?: number | null;
