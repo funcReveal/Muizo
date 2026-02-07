@@ -93,6 +93,14 @@ const ClipEditorPanel = ({
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-2.5 space-y-2">
       <div className="text-[13px] text-slate-200 font-medium">{title}</div>
+      <div className="flex items-center justify-between text-[11px] text-slate-400">
+        <span>
+          {startLabel} {formatSeconds(startSec)}
+        </span>
+        <span>
+          {endLabel} {formatSeconds(endSec)}
+        </span>
+      </div>
       <div
         ref={sliderWrapRef}
         className="relative space-y-2"
