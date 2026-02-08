@@ -10,6 +10,7 @@ const RoomCreatePage: React.FC = () => {
     username,
     currentRoom,
     roomNameInput,
+    roomVisibilityInput,
     roomPasswordInput,
     playlistUrl,
     playlistItems,
@@ -35,6 +36,7 @@ const RoomCreatePage: React.FC = () => {
     authUser,
     loginWithGoogle,
     setRoomNameInput,
+    setRoomVisibilityInput,
     setRoomPasswordInput,
     setJoinPasswordInput,
     setPlaylistUrl,
@@ -63,10 +65,10 @@ const RoomCreatePage: React.FC = () => {
 
   const playlistSummary = useMemo(() => {
     if (playlistItems.length === 0) return "尚未載入";
-    return `已載入 ${playlistItems.length} 首曲目`;
+    return `已載入 ${playlistItems.length} 首歌曲`;
   }, [playlistItems.length]);
 
-  const privacyLabel = roomPasswordInput.trim() ? "私密房間" : "公開房間";
+  const privacyLabel = roomVisibilityInput === "private" ? "私人房間" : "公開房間";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-6 text-[var(--mc-text)]">
@@ -88,7 +90,7 @@ const RoomCreatePage: React.FC = () => {
                   打造你的音樂房間
                 </h2>
                 <p className="mt-2 max-w-xl text-sm text-[var(--mc-text-muted)]">
-                  選擇題庫、設定題數與房間權限，打造最適合的聆聽挑戰。
+                  先完成房間設定，再載入歌單。預覽區採固定高度，避免畫面被歌曲列表推擠。
                 </p>
               </div>
               <button
@@ -109,21 +111,15 @@ const RoomCreatePage: React.FC = () => {
                   <div className="mt-4 space-y-4">
                     <div className="flex items-center justify-between text-sm text-[var(--mc-text-muted)]">
                       <span>播放清單</span>
-                      <span className="font-semibold text-[var(--mc-text)]">
-                        {playlistSummary}
-                      </span>
+                      <span className="font-semibold text-[var(--mc-text)]">{playlistSummary}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-[var(--mc-text-muted)]">
-                      <span>題目數量</span>
-                      <span className="font-semibold text-[var(--mc-text)]">
-                        {questionCount} 題
-                      </span>
+                      <span>題數</span>
+                      <span className="font-semibold text-[var(--mc-text)]">{questionCount} 題</span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-[var(--mc-text-muted)]">
                       <span>房間權限</span>
-                      <span className="font-semibold text-[var(--mc-accent-2)]">
-                        {privacyLabel}
-                      </span>
+                      <span className="font-semibold text-[var(--mc-accent-2)]">{privacyLabel}</span>
                     </div>
                   </div>
                 </div>
@@ -134,37 +130,30 @@ const RoomCreatePage: React.FC = () => {
                   </div>
                   <div className="mt-4 space-y-4 text-sm text-[var(--mc-text-muted)]">
                     <div className="flex gap-3">
-                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">
-                        01
-                      </span>
-                      <p>輸入房間名稱與權限，先完成房間基本設定。</p>
+                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">01</span>
+                      <p>設定房間名稱、公開或私人、以及題數。</p>
                     </div>
                     <div className="flex gap-3">
-                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">
-                        02
-                      </span>
-                      <p>連結 YouTube 或收藏庫，匯入你想要的歌單。</p>
+                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">02</span>
+                      <p>貼連結、選 YouTube 或收藏庫載入歌曲。</p>
                     </div>
                     <div className="flex gap-3">
-                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">
-                        03
-                      </span>
-                      <p>調整題數後立即啟動房間，邀請朋友加入。</p>
+                      <span className="text-xs font-semibold text-[var(--mc-text-muted)]">03</span>
+                      <p>確認預覽清單後建立房間，並分享邀請連結。</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
                   <span>Playlist</span>
-                  <span className="text-[var(--mc-accent-2)]">
-                    {playlistLocked ? "已鎖定" : "尚未鎖定"}
-                  </span>
+                  <span className="text-[var(--mc-accent-2)]">{playlistLocked ? "已鎖定" : "尚未鎖定"}</span>
                 </div>
               </aside>
 
               <div className="rounded-3xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-5 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.8)]">
                 <RoomCreationSection
                   roomName={roomNameInput}
+                  roomVisibility={roomVisibilityInput}
                   roomPassword={roomPasswordInput}
                   playlistUrl={playlistUrl}
                   playlistItems={playlistItems}
@@ -182,7 +171,7 @@ const RoomCreatePage: React.FC = () => {
                   questionMin={questionMin}
                   questionMax={questionMaxLimit}
                   questionStep={questionStep}
-                  questionControlsEnabled={playlistItems.length > 0}
+                  questionControlsEnabled
                   youtubePlaylists={youtubePlaylists}
                   youtubePlaylistsLoading={youtubePlaylistsLoading}
                   youtubePlaylistsError={youtubePlaylistsError}
@@ -195,6 +184,7 @@ const RoomCreatePage: React.FC = () => {
                   isGoogleAuthed={Boolean(authUser)}
                   onGoogleLogin={loginWithGoogle}
                   onRoomNameChange={setRoomNameInput}
+                  onRoomVisibilityChange={setRoomVisibilityInput}
                   onRoomPasswordChange={setRoomPasswordInput}
                   onJoinPasswordChange={setJoinPasswordInput}
                   onPlaylistUrlChange={setPlaylistUrl}

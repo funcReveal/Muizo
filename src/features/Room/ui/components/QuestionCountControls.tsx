@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Button, Stack, Typography } from "@mui/material";
 
 interface QuestionCountControlsProps {
@@ -7,6 +7,7 @@ interface QuestionCountControlsProps {
   max: number;
   step?: number;
   disabled?: boolean;
+  compact?: boolean;
   onChange: (nextValue: number) => void;
 }
 
@@ -16,6 +17,7 @@ const QuestionCountControls: React.FC<QuestionCountControlsProps> = ({
   max,
   step = 5,
   disabled = false,
+  compact = false,
   onChange,
 }) => {
   const safeMin = Math.min(min, max);
@@ -23,9 +25,84 @@ const QuestionCountControls: React.FC<QuestionCountControlsProps> = ({
   const clampValue = (nextValue: number) =>
     Math.min(safeMax, Math.max(safeMin, nextValue));
   const adjust = (delta: number) => onChange(clampValue(value + delta));
+  const rangeLabel = `${safeMin} - ${safeMax}`;
+
+  if (compact) {
+    return (
+      <Stack
+        spacing={1}
+        className="room-question-controls room-question-controls--compact"
+      >
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => onChange(safeMin)}
+            disabled={disabled || value === safeMin}
+          >
+            最小
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => adjust(-step)}
+            disabled={disabled || value <= safeMin}
+          >
+            -{step}
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => adjust(-1)}
+            disabled={disabled || value <= safeMin}
+          >
+            -1
+          </Button>
+          <div className="room-question-pill">
+            <span>題數</span>
+            <strong>{value}</strong>
+          </div>
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => adjust(1)}
+            disabled={disabled || value >= safeMax}
+          >
+            +1
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => adjust(step)}
+            disabled={disabled || value >= safeMax}
+          >
+            +{step}
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            className="room-create-accent-button"
+            onClick={() => onChange(safeMax)}
+            disabled={disabled || value === safeMax}
+          >
+            最大
+          </Button>
+        </Stack>
+        <Typography variant="caption" className="room-create-muted">
+          可調範圍 {rangeLabel}
+        </Typography>
+      </Stack>
+    );
+  }
 
   return (
     <Stack
+      className="room-question-controls"
       direction="row"
       spacing={1.5}
       alignItems={{ sm: "center" }}
@@ -69,7 +146,7 @@ const QuestionCountControls: React.FC<QuestionCountControlsProps> = ({
           {value}
         </Typography>
         <Typography variant="caption" className="room-create-muted">
-          {safeMin}–{safeMax}
+          {rangeLabel}
         </Typography>
       </Stack>
 

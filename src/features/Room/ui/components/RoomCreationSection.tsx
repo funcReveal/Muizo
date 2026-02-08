@@ -1,27 +1,27 @@
 import React from "react";
 import {
-  Avatar,
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
+  Alert,
   Button,
-  Card,
-  CardContent,
   Chip,
-  Fade,
+  CircularProgress,
+  Divider,
+  FormControl,
+  InputLabel,
   LinearProgress,
+  MenuItem,
+  Select,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import { List as VirtualList, type RowComponentProps } from "react-window";
+
 import type { PlaylistItem, RoomSummary } from "../../model/types";
 import QuestionCountControls from "./QuestionCountControls";
+import RoomAccessSettingsFields from "./RoomAccessSettingsFields";
 
 interface RoomCreationSectionProps {
   roomName: string;
+  roomVisibility: "public" | "private";
   roomPassword: string;
   playlistUrl: string;
   playlistItems: PlaylistItem[];
@@ -59,6 +59,7 @@ interface RoomCreationSectionProps {
   isGoogleAuthed?: boolean;
   onGoogleLogin?: () => void;
   onRoomNameChange: (value: string) => void;
+  onRoomVisibilityChange: (value: "public" | "private") => void;
   onRoomPasswordChange: (value: string) => void;
   onJoinPasswordChange: (value: string) => void;
   onPlaylistUrlChange: (value: string) => void;
@@ -76,870 +77,499 @@ interface RoomCreationSectionProps {
   onJoinRoom: (roomId: string, hasPassword: boolean) => void;
 }
 
-const RoomCreationSection: React.FC<RoomCreationSectionProps> = ({
-  roomName,
-  roomPassword,
-  playlistUrl,
-  playlistItems,
-  playlistError,
-  playlistLoading,
-  playlistStage,
-  playlistLocked,
-  username,
-  playlistProgress,
-  questionCount,
-  onQuestionCountChange,
-  questionMin = 1,
-  questionMax = 100,
-  questionStep = 5,
-  questionControlsEnabled = true,
-  youtubePlaylists = [],
-  youtubePlaylistsLoading = false,
-  youtubePlaylistsError = null,
-  collections = [],
-  collectionsLoading = false,
-  collectionsError = null,
-  selectedCollectionId = null,
-  collectionItemsLoading = false,
-  collectionItemsError = null,
-  isGoogleAuthed = false,
-  onGoogleLogin,
-  onRoomNameChange,
-  onRoomPasswordChange,
-  onPlaylistUrlChange,
-  onFetchPlaylist,
-  onResetPlaylist,
-  onFetchYoutubePlaylists,
-  onImportYoutubePlaylist,
-  onFetchCollections,
-  onSelectCollection,
-  onLoadCollectionItems,
-  onCreateRoom,
-}) => {
-  const [settingsExpanded, setSettingsExpanded] = React.useState(false);
+type PlaylistSourceMode =
+  | "link"
+  | "youtube"
+  | "publicCollection"
+  | "privateCollection";
+
+const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
+  const {
+    roomName,
+    roomVisibility,
+    roomPassword,
+    playlistUrl,
+    playlistItems,
+    playlistLoading,
+    playlistError,
+    playlistLocked,
+    username,
+    playlistProgress,
+    questionCount,
+    onQuestionCountChange,
+    questionMin = 1,
+    questionMax = 100,
+    questionStep = 5,
+    questionControlsEnabled = true,
+    questionLimitLabel,
+    youtubePlaylists = [],
+    youtubePlaylistsLoading = false,
+    youtubePlaylistsError = null,
+    collections = [],
+    collectionsLoading = false,
+    collectionsError = null,
+    selectedCollectionId = null,
+    collectionItemsLoading = false,
+    collectionItemsError = null,
+    isGoogleAuthed = false,
+    onGoogleLogin,
+    onRoomNameChange,
+    onRoomVisibilityChange,
+    onRoomPasswordChange,
+    onPlaylistUrlChange,
+    onFetchPlaylist,
+    onResetPlaylist,
+    onFetchYoutubePlaylists,
+    onImportYoutubePlaylist,
+    onFetchCollections,
+    onSelectCollection,
+    onLoadCollectionItems,
+    onCreateRoom,
+  } = props;
+
+  const [sourceMode, setSourceMode] = React.useState<PlaylistSourceMode>("link");
   const [selectedYoutubeId, setSelectedYoutubeId] = React.useState("");
-  const [playlistSource, setPlaylistSource] = React.useState<
-    "link" | "mine" | "collection"
-  >("link");
-  const [collectionScope, setCollectionScope] = React.useState<
-    "public" | "owner"
-  >("public");
-  const lastRequestedCollectionScopeRef = React.useRef<
-    "public" | "owner" | null
-  >(null);
-  const lastFetchedCollectionScopeRef = React.useRef<
-    "public" | "owner" | null
-  >(null);
-  const lastRequestedYoutubeRef = React.useRef(false);
-  const hasAttemptedYoutubeFetchRef = React.useRef(false);
-  const [hasAttemptedYoutubeFetch, setHasAttemptedYoutubeFetch] = React.useState(false);
-  const [loadedCollectionScopes, setLoadedCollectionScopes] = React.useState<{
-    public: boolean;
-    owner: boolean;
-  }>({ public: false, owner: false });
-  const needsReauth = Boolean(
-    youtubePlaylistsError && youtubePlaylistsError.includes("重新授權"),
+
+  const hasFetchedYoutubeRef = React.useRef(false);
+  const hasFetchedCollectionsRef = React.useRef<{ public: boolean; owner: boolean }>(
+    {
+      public: false,
+      owner: false,
+    },
   );
-  const channelMissing = Boolean(
-    youtubePlaylistsError &&
-    youtubePlaylistsError.includes("尚未建立 YouTube 頻道"),
-  );
-  const isAsciiAlphaNum = (value: string) => /^[a-zA-Z0-9]*$/.test(value);
-  const canCreateRoom = Boolean(
-    username && roomName.trim() && playlistItems.length > 0,
-  );
-  const sourceHintText = React.useMemo(() => {
-    if (playlistSource === "link") {
-      return "貼上 YouTube 播放清單網址後按「載入清單」。";
+
+  const canCreateRoom = Boolean(username && roomName.trim() && playlistItems.length > 0);
+  const previewItems = React.useMemo(() => playlistItems.slice(0, 80), [playlistItems]);
+
+  React.useEffect(() => {
+    if (!selectedYoutubeId && youtubePlaylists.length > 0) {
+      setSelectedYoutubeId(youtubePlaylists[0].id);
     }
-    if (playlistSource === "mine") {
-      return isGoogleAuthed
-        ? "從你的 YouTube 播放清單中選擇並匯入。"
-        : "請先使用 Google 登入以讀取播放清單。";
+  }, [selectedYoutubeId, youtubePlaylists]);
+
+  React.useEffect(() => {
+    if (sourceMode !== "youtube") return;
+    if (!isGoogleAuthed || !onFetchYoutubePlaylists) return;
+    if (hasFetchedYoutubeRef.current) return;
+    hasFetchedYoutubeRef.current = true;
+    void onFetchYoutubePlaylists();
+  }, [isGoogleAuthed, onFetchYoutubePlaylists, sourceMode]);
+
+  React.useEffect(() => {
+    if (!onFetchCollections) return;
+    if (sourceMode === "publicCollection" && !hasFetchedCollectionsRef.current.public) {
+      hasFetchedCollectionsRef.current.public = true;
+      void onFetchCollections("public");
     }
-    if (collectionScope === "public") {
-      return "你目前在公開收藏庫，可直接選擇並載入。";
+    if (
+      sourceMode === "privateCollection" &&
+      isGoogleAuthed &&
+      !hasFetchedCollectionsRef.current.owner
+    ) {
+      hasFetchedCollectionsRef.current.owner = true;
+      void onFetchCollections("owner");
     }
-    return isGoogleAuthed
-      ? "你目前在私人收藏庫，可直接選擇並載入。"
-      : "私人收藏庫需要 Google 登入後才能使用。";
-  }, [collectionScope, isGoogleAuthed, playlistSource]);
-  const showPlaylistInput = playlistStage === "input";
-  const privacyLabel = roomPassword.trim() ? "需密碼" : "公開";
-  const playlistSourceLoading = playlistLoading || collectionItemsLoading;
-  const isCollectionsEmptyNotice =
-    collectionsError === "尚未建立收藏庫" ||
-    collectionsError === "尚未建立公開收藏庫";
+  }, [isGoogleAuthed, onFetchCollections, sourceMode]);
+
   const sourceStatus = React.useMemo(() => {
-    if (playlistSource === "link") {
-      if (playlistLoading) {
-        return { message: "正在載入播放清單...", tone: "info" as const };
-      }
-      if (playlistError) {
-        return { message: playlistError, tone: "error" as const };
-      }
-      return { message: sourceHintText, tone: "muted" as const };
+    if (sourceMode === "link") {
+      if (playlistLoading) return "正在載入播放清單...";
+      if (playlistError) return playlistError;
+      if (playlistItems.length > 0) return `已載入 ${playlistItems.length} 首歌曲`;
+      return "貼上 YouTube 播放清單連結後，按「載入清單」。";
     }
 
-    if (playlistSource === "mine") {
-      if (!isGoogleAuthed) {
-        return {
-          message: "請先使用 Google 登入，再讀取我的播放清單。",
-          tone: "info" as const,
-        };
-      }
-      if (youtubePlaylistsLoading) {
-        return { message: "正在讀取你的播放清單...", tone: "info" as const };
-      }
-      if (needsReauth) {
-        return {
-          message: youtubePlaylistsError ?? "Google 授權已過期，請重新授權。",
-          tone: "error" as const,
-        };
-      }
-      if (channelMissing) {
-        return {
-          message: youtubePlaylistsError ?? "尚未建立 YouTube 頻道或播放清單。",
-          tone: "info" as const,
-        };
-      }
-      if (youtubePlaylistsError) {
-        return { message: youtubePlaylistsError, tone: "error" as const };
-      }
-      if (youtubePlaylists.length === 0 && hasAttemptedYoutubeFetch) {
-        return { message: "目前沒有可匯入的播放清單。", tone: "info" as const };
-      }
-      return { message: sourceHintText, tone: "muted" as const };
+    if (sourceMode === "youtube") {
+      if (!isGoogleAuthed) return "請先登入 Google，才能讀取你的播放清單。";
+      if (youtubePlaylistsLoading) return "正在讀取你的 YouTube 播放清單...";
+      if (youtubePlaylistsError) return youtubePlaylistsError;
+      if (youtubePlaylists.length === 0) return "尚未找到可用的 YouTube 播放清單。";
+      return `已找到 ${youtubePlaylists.length} 個 YouTube 播放清單`;
     }
 
-    if (collectionScope === "owner" && !isGoogleAuthed) {
-      return {
-        message: "私人收藏庫需要先使用 Google 登入。",
-        tone: "info" as const,
-      };
+    if (sourceMode === "privateCollection" && !isGoogleAuthed) {
+      return "私人收藏庫需要先登入 Google。";
     }
-    if (collectionsLoading) {
-      return { message: "正在更新收藏庫列表...", tone: "info" as const };
-    }
-    if (collectionItemsLoading) {
-      return { message: "正在載入收藏庫歌曲...", tone: "info" as const };
-    }
-    if (collectionItemsError) {
-      return { message: collectionItemsError, tone: "error" as const };
-    }
-    if (collectionsError) {
-      return {
-        message: collectionsError,
-        tone: isCollectionsEmptyNotice ? ("info" as const) : ("error" as const),
-      };
-    }
-    if (collections.length === 0 && loadedCollectionScopes[collectionScope]) {
-      return { message: "目前沒有可用收藏庫。", tone: "info" as const };
-    }
-    return { message: sourceHintText, tone: "muted" as const };
+    if (collectionItemsLoading) return "正在載入收藏內容...";
+    if (collectionsLoading) return "正在讀取收藏庫清單...";
+    if (collectionItemsError) return collectionItemsError;
+    if (collectionsError) return collectionsError;
+    if (collections.length === 0) return "目前沒有可用收藏庫。";
+    if (selectedCollectionId) return "已選擇收藏庫，按「載入收藏」即可套用。";
+    return "請先選擇一個收藏庫。";
   }, [
-    channelMissing,
     collectionItemsError,
     collectionItemsLoading,
-    collectionScope,
     collections.length,
     collectionsError,
     collectionsLoading,
-    isCollectionsEmptyNotice,
     isGoogleAuthed,
-    hasAttemptedYoutubeFetch,
-    loadedCollectionScopes,
-    needsReauth,
     playlistError,
+    playlistItems.length,
     playlistLoading,
-    playlistSource,
-    sourceHintText,
+    selectedCollectionId,
+    sourceMode,
     youtubePlaylists.length,
     youtubePlaylistsError,
     youtubePlaylistsLoading,
   ]);
 
-  React.useEffect(() => {
-    if (collectionsLoading) return;
-    const requested = lastRequestedCollectionScopeRef.current;
-    if (!requested) return;
-    if (!collectionsError || isCollectionsEmptyNotice) {
-      lastFetchedCollectionScopeRef.current = requested;
-      setLoadedCollectionScopes((prev) => {
-        if (requested === "public" && prev.public) return prev;
-        if (requested === "owner" && prev.owner) return prev;
-        return { ...prev, [requested]: true };
-      });
-    }
-  }, [collectionsError, collectionsLoading, isCollectionsEmptyNotice]);
+  const sourceStatusTone: "error" | "info" =
+    (sourceMode === "link" && Boolean(playlistError)) ||
+    (sourceMode === "youtube" && Boolean(youtubePlaylistsError)) ||
+    ((sourceMode === "publicCollection" || sourceMode === "privateCollection") &&
+      Boolean(collectionItemsError || collectionsError))
+      ? "error"
+      : "info";
 
-  const shouldFetchCollections = React.useCallback(
-    (scope: "public" | "owner") => {
-      if (collectionsLoading) return false;
-      if (collectionsError && !isCollectionsEmptyNotice) return true;
-      if (lastFetchedCollectionScopeRef.current !== scope) return true;
-      return false;
-    },
-    [collectionsError, collectionsLoading, isCollectionsEmptyNotice],
-  );
+  const handleApplyYoutube = () => {
+    if (!selectedYoutubeId || !onImportYoutubePlaylist) return;
+    void onImportYoutubePlaylist(selectedYoutubeId);
+  };
 
-  const requestCollections = React.useCallback(
-    (scope: "public" | "owner") => {
-      if (!onFetchCollections) return;
-      if (!shouldFetchCollections(scope)) return;
-      lastRequestedCollectionScopeRef.current = scope;
-      onFetchCollections(scope);
-    },
-    [onFetchCollections, shouldFetchCollections],
-  );
+  const handleApplyCollection = () => {
+    if (!selectedCollectionId || !onLoadCollectionItems) return;
+    void onLoadCollectionItems(selectedCollectionId);
+  };
 
-  React.useEffect(() => {
-    if (youtubePlaylistsLoading) return;
-    if (!lastRequestedYoutubeRef.current) return;
-    hasAttemptedYoutubeFetchRef.current = true;
-    setHasAttemptedYoutubeFetch(true);
-  }, [youtubePlaylistsLoading]);
-
-  const shouldFetchYoutube = React.useCallback(() => {
-    if (!isGoogleAuthed || youtubePlaylistsLoading) return false;
-    return !hasAttemptedYoutubeFetchRef.current;
-  }, [isGoogleAuthed, youtubePlaylistsLoading]);
-
-  const requestYoutubePlaylists = React.useCallback((force = false) => {
+  const refreshYouTube = () => {
     if (!onFetchYoutubePlaylists) return;
-    if (!force && !shouldFetchYoutube()) return;
-    lastRequestedYoutubeRef.current = true;
-    hasAttemptedYoutubeFetchRef.current = true;
-    setHasAttemptedYoutubeFetch(true);
-    onFetchYoutubePlaylists();
-  }, [onFetchYoutubePlaylists, shouldFetchYoutube]);
+    hasFetchedYoutubeRef.current = true;
+    void onFetchYoutubePlaylists();
+  };
 
-  React.useEffect(() => {
-    if (playlistSource !== "mine") return;
-    if (!isGoogleAuthed) return;
-    requestYoutubePlaylists();
-  }, [isGoogleAuthed, playlistSource, requestYoutubePlaylists]);
-
-  React.useEffect(() => {
-    if (playlistSource !== "collection") return;
-    requestCollections(collectionScope);
-  }, [collectionScope, playlistSource, requestCollections]);
-
-  React.useEffect(() => {
-    if (collectionScope !== "owner") return;
-    if (isGoogleAuthed) return;
-    setCollectionScope("public");
-  }, [collectionScope, isGoogleAuthed]);
-
-  const rowCount = playlistItems.length;
-  const canAdjustQuestions =
-    questionControlsEnabled && playlistItems.length > 0;
-
-  const isPlaylistLink = React.useMemo(() => {
-    const url = playlistUrl.trim();
-    if (!url) return false;
-    try {
-      const parsed = new URL(url);
-      const host = parsed.hostname.toLowerCase();
-      const isYouTubeHost =
-        host.includes("youtube.com") || host.includes("youtu.be");
-      if (!isYouTubeHost) return false;
-
-      if (parsed.searchParams.get("list")) return true;
-
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      const lastSegment = segments[segments.length - 1];
-      return parsed.pathname.includes("playlist") && Boolean(lastSegment);
-    } catch {
-      return false;
-    }
-  }, [playlistUrl]);
-
-  const PlaylistRow = ({ index, style }: RowComponentProps) => {
-    const item = playlistItems[index];
-    return (
-      <div style={style}>
-        <div className="px-3 py-2 flex items-center gap-2 border-b border-[var(--mc-border)]">
-          <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-hidden">
-            <Avatar
-              variant="rounded"
-              src={item.thumbnail}
-              sx={{
-                bgcolor: "rgba(15, 23, 42, 0.8)",
-                width: 56,
-                height: 56,
-                fontSize: 14,
-                color: "rgba(226, 232, 240, 0.8)",
-              }}
-            >
-              {index + 1}
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <Typography
-                variant="body2"
-                className="max-w-99/100 truncate room-create-muted"
-              >
-                <a
-                  className="text-[var(--mc-text)] hover:text-[var(--mc-accent)] transition-colors duration-300"
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={item.title}
-                >
-                  {item.title}
-                </a>
-              </Typography>
-
-              <p className="text-[11px] text-[var(--mc-text-muted)]">
-                {item.uploader ?? "Unknown"}
-                {item.duration ? ` · ${item.duration}` : ""}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  const refreshCollections = (scope: "public" | "owner") => {
+    if (!onFetchCollections) return;
+    hasFetchedCollectionsRef.current[scope] = true;
+    void onFetchCollections(scope);
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <Card variant="outlined" className="w-full room-create-card">
-        <CardContent className="room-create-card-content">
-          <div className="room-create-section-title">
+    <Stack spacing={2.5}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="room-create-step-card">
+          <div className="room-create-step-head">
             <div>
-              <p className="room-create-kicker">Step 01</p>
-              <h3>基本設定</h3>
-              <p className="room-create-muted">
-                房間名稱與密碼會顯示在邀請連結上。
-              </p>
+              <span className="room-create-step-index">STEP 01</span>
+              <Typography variant="h5" className="room-create-step-title">
+                基本設定
+              </Typography>
+              <Typography variant="body2" className="room-create-muted">
+                設定房間名稱、權限與題數。
+              </Typography>
             </div>
-            <span className="room-create-chip">{privacyLabel}</span>
+            <Chip
+              size="small"
+              className="room-create-visibility-chip"
+              label={roomVisibility === "private" ? "私人" : "公開"}
+            />
           </div>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField
-              fullWidth
-              size="small"
-              label="房間名稱"
-              slotProps={{ inputLabel: { shrink: true } }}
-              placeholder="例如：Quiz Room #1"
-              value={roomName}
-              onChange={(e) => onRoomNameChange(e.target.value)}
-              disabled={!username}
-              variant="standard"
-              autoComplete="off"
-              className="room-create-field"
+          <TextField
+            size="small"
+            label="房間名稱"
+            value={roomName}
+            onChange={(event) => onRoomNameChange(event.target.value)}
+            placeholder="例如：阿哲的房間"
+            fullWidth
+            className="room-create-field"
+          />
+
+          <RoomAccessSettingsFields
+            visibility={roomVisibility}
+            password={roomPassword}
+            onVisibilityChange={onRoomVisibilityChange}
+            onPasswordChange={onRoomPasswordChange}
+            onPasswordClear={() => onRoomPasswordChange("")}
+            allowPasswordWhenPublic={false}
+            showClearButton={Boolean(roomPassword)}
+          />
+
+          <div className="room-create-question-card">
+            <div className="room-create-question-head">
+              <Typography variant="subtitle1" className="room-create-step-title">
+                題數設定
+              </Typography>
+              <span className="room-create-question-badge">目前 {questionCount} 題</span>
+            </div>
+            <QuestionCountControls
+              value={questionCount}
+              min={questionMin}
+              max={questionMax}
+              step={questionStep}
+              disabled={!questionControlsEnabled}
+              compact
+              onChange={onQuestionCountChange}
             />
-            <TextField
+            {questionLimitLabel && (
+              <Typography variant="caption" className="room-create-muted">
+                {questionLimitLabel}
+              </Typography>
+            )}
+          </div>
+        </div>
+
+        <div className="room-create-step-card">
+          <div className="room-create-step-head">
+            <div>
+              <span className="room-create-step-index">STEP 02</span>
+              <Typography variant="h5" className="room-create-step-title">
+                播放清單
+              </Typography>
+              <Typography variant="body2" className="room-create-muted">
+                選擇來源並載入歌曲，清單會固定在預覽區，不再把畫面往下推。
+              </Typography>
+            </div>
+            {playlistLocked && <Chip size="small" color="success" label="已鎖定" />}
+          </div>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
               size="small"
-              label="密碼（選填）"
-              slotProps={{ inputLabel: { shrink: true } }}
-              placeholder="留空代表不設密碼"
-              value={roomPassword}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!isAsciiAlphaNum(value)) return;
-                onRoomPasswordChange(value);
-              }}
-              disabled={!username}
-              variant="standard"
-              autoComplete="off"
-              className="room-create-field"
-              inputProps={{ inputMode: "text", pattern: "[A-Za-z0-9]*" }}
-            />
+              variant={sourceMode === "link" ? "contained" : "outlined"}
+              onClick={() => setSourceMode("link")}
+            >
+              貼上連結
+            </Button>
+            <Button
+              size="small"
+              variant={sourceMode === "youtube" ? "contained" : "outlined"}
+              onClick={() => setSourceMode("youtube")}
+            >
+              我的播放清單
+            </Button>
+            <Button
+              size="small"
+              variant={sourceMode === "publicCollection" ? "contained" : "outlined"}
+              onClick={() => setSourceMode("publicCollection")}
+            >
+              公開收藏庫
+            </Button>
+            <Button
+              size="small"
+              variant={sourceMode === "privateCollection" ? "contained" : "outlined"}
+              onClick={() => setSourceMode("privateCollection")}
+            >
+              私人收藏庫
+            </Button>
           </Stack>
 
-          <Accordion
-            disabled={!canAdjustQuestions}
-            disableGutters
-            square
-            expanded={settingsExpanded}
-            onChange={(_, expanded) => setSettingsExpanded(expanded)}
-            sx={{
-              borderRadius: 1.5,
-              backgroundColor: "rgba(15, 23, 42, 0.7)",
-              border: "1px solid rgba(148, 163, 184, 0.18)",
-              transition:
-                "background-color 200ms ease, border-color 200ms ease",
-              "&::before": {
-                display: "none",
-              },
-              "&.Mui-disabled": {
-                opacity: 1,
-                backgroundColor: "rgba(15, 23, 42, 0.4)",
-              },
-              "& .MuiButton-root": {
-                transition: "color 200ms ease, border-color 200ms ease",
-              },
-            }}
-          >
-            <AccordionSummary
-              sx={{
-                "& .MuiSvgIcon-root": {
-                  color: "rgba(148, 163, 184, 0.8)",
-                },
-                "&.Mui-disabled .MuiTypography-root": {
-                  color: "rgba(148, 163, 184, 0.8)",
-                  opacity: 1,
-                  transition: "color 200ms ease, opacity 200ms ease",
-                },
-                "&.Mui-disabled .MuiSvgIcon-root": {
-                  opacity: 1,
-                },
-                "&.Mui-disabled .MuiAccordionSummary-expandIconWrapper": {
-                  color: "rgba(148, 163, 184, 0.6)",
-                },
-              }}
-              expandIcon={
-                !canAdjustQuestions ? (
-                  <Fade in={!canAdjustQuestions} timeout={200} unmountOnExit>
-                    <LockOutlinedIcon
-                      fontSize="small"
-                      sx={{
-                        color: "rgba(148, 163, 184, 0.6)",
-                      }}
-                    />
-                  </Fade>
-                ) : (
-                  <ExpandMoreIcon
-                    sx={{
-                      color: canAdjustQuestions
-                        ? "rgba(226, 232, 240, 0.8)"
-                        : "rgba(148, 163, 184, 0.5)",
-                    }}
-                  />
-                )
-              }
-            >
-              <Stack direction="row" spacing={1} alignItems="center">
-                {!settingsExpanded && canAdjustQuestions ? (
-                  <Typography variant="body2" className="room-create-muted">
-                    公開、共 {questionCount} 題
-                  </Typography>
-                ) : (
-                  <Typography variant="body2" className="room-create-muted">
-                    房間設定
-                  </Typography>
-                )}
-                <Fade in={!canAdjustQuestions} timeout={200} unmountOnExit>
-                  <Typography variant="caption" className="room-create-muted">
-                    載入清單後解鎖
-                  </Typography>
-                </Fade>
+          {sourceMode === "link" && (
+            <Stack spacing={1.25}>
+              {playlistLocked && (
+                <Alert
+                  severity="info"
+                  action={
+                    <Button size="small" color="inherit" onClick={onResetPlaylist}>
+                      重選來源
+                    </Button>
+                  }
+                >
+                  播放清單已鎖定。如要更換來源，請先按「重選來源」。
+                </Alert>
+              )}
+              <Stack direction="row" spacing={1.25} alignItems="center">
+                <TextField
+                  size="small"
+                  fullWidth
+                  label="YouTube 播放清單網址"
+                  value={playlistUrl}
+                  onChange={(event) => onPlaylistUrlChange(event.target.value)}
+                  placeholder="https://www.youtube.com/playlist?list=..."
+                  disabled={playlistLocked}
+                />
+                <Button
+                  variant="contained"
+                  onClick={onFetchPlaylist}
+                  disabled={playlistLoading || playlistLocked || !playlistUrl.trim()}
+                >
+                  載入清單
+                </Button>
               </Stack>
-            </AccordionSummary>
-            <AccordionDetails>
-              <QuestionCountControls
-                value={questionCount}
-                min={questionMin}
-                max={questionMax}
-                step={questionStep}
-                disabled={!canAdjustQuestions}
-                onChange={(nextValue) => {
-                  onQuestionCountChange(nextValue);
-                }}
-              />
-            </AccordionDetails>
-          </Accordion>
-
-          {playlistProgress.total > 0 && (
-            <Chip
-              label={`進度 ${playlistProgress.received}/${playlistProgress.total}`}
-              size="small"
-              variant="outlined"
-              className="room-create-muted"
-            />
+            </Stack>
           )}
-          <div className="room-create-section-title">
-            <div>
-              <p className="room-create-kicker">Step 02</p>
-              <h3>播放清單</h3>
-              <p className="room-create-muted">
-                貼上 YouTube 播放清單連結或匯入已登入的清單。
-              </p>
-            </div>
-          </div>
-          {showPlaylistInput ? (
-            <Stack spacing={2}>
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="center"
-                className="room-create-source-switch"
-              >
-                <Button
-                  variant={playlistSource === "link" ? "contained" : "outlined"}
-                  className="room-create-accent-button"
-                  onClick={() => {
-                    setPlaylistSource("link");
-                    setSelectedYoutubeId("");
-                    onSelectCollection?.(null);
-                  }}
-                >
-                  {"貼上連結"}
-                </Button>
-                <Button
-                  variant={playlistSource === "mine" ? "contained" : "outlined"}
-                  className="room-create-accent-button"
-                  onClick={() => {
-                    setPlaylistSource("mine");
-                    onSelectCollection?.(null);
-                  }}
-                  disabled={!isGoogleAuthed}
-                >
-                  {"我的播放清單"}
-                </Button>
-                <Button
-                  variant={
-                    playlistSource === "collection" &&
-                      collectionScope === "public"
-                      ? "contained"
-                      : "outlined"
-                  }
-                  className="room-create-accent-button"
-                  onClick={() => {
-                    setPlaylistSource("collection");
-                    setCollectionScope("public");
-                    onSelectCollection?.(null);
-                    setSelectedYoutubeId("");
-                  }}
-                >
-                  {"公開收藏庫"}
-                </Button>
-                <Button
-                  variant={
-                    playlistSource === "collection" &&
-                      collectionScope === "owner"
-                      ? "contained"
-                      : "outlined"
-                  }
-                  className="room-create-accent-button"
-                  onClick={() => {
-                    setPlaylistSource("collection");
-                    setCollectionScope("owner");
-                    onSelectCollection?.(null);
-                    setSelectedYoutubeId("");
-                  }}
-                  disabled={!isGoogleAuthed}
-                >
-                  {"私人收藏庫"}
-                </Button>
-              </Stack>
-              <div className="room-create-source-status" aria-live="polite">
-                <Typography
-                  variant="caption"
-                  className={
-                    sourceStatus.tone === "error"
-                      ? "room-create-status-error"
-                      : sourceStatus.tone === "info"
-                        ? "room-create-status-info"
-                        : "room-create-muted"
-                  }
-                >
-                  {sourceStatus.message}
-                </Typography>
-              </div>
 
-              <div className="room-create-source-content">
-                {playlistSource === "link" && (
-                  <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                    <TextField
-                      sx={{
-                        flex: 1,
-                        "& .MuiInput-root.Mui-disabled:before": {
-                          borderBottom: "1px solid rgba(148, 163, 184, 0.4)",
-                        },
-                      }}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      size="small"
-                      label="YouTube 播放清單網址"
-                      variant="standard"
-                      placeholder="https://www.youtube.com/playlist?list=..."
-                      value={playlistUrl}
-                      onChange={(e) => onPlaylistUrlChange(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        const canFetch =
-                          !!username &&
-                          isPlaylistLink &&
-                          !playlistLoading &&
-                          !playlistLocked;
-                        if (canFetch) {
-                          onFetchPlaylist();
-                        }
-                      }}
-                      disabled={!username || playlistLoading || playlistLocked}
-                      autoComplete="off"
-                      className="room-create-field"
-                    />
+          {sourceMode === "youtube" && (
+            <Stack spacing={1.25}>
+              {!isGoogleAuthed ? (
+                <Button variant="outlined" onClick={onGoogleLogin}>
+                  登入 Google
+                </Button>
+              ) : (
+                <>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <Button variant="outlined" onClick={refreshYouTube}>
+                      重新整理
+                    </Button>
+                    {youtubePlaylistsLoading && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <CircularProgress size={14} />
+                        <Typography variant="caption" className="room-create-muted">
+                          讀取中
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel id="room-create-youtube-playlist">選擇播放清單</InputLabel>
+                      <Select
+                        labelId="room-create-youtube-playlist"
+                        label="選擇播放清單"
+                        value={selectedYoutubeId}
+                        onChange={(event) => setSelectedYoutubeId(String(event.target.value))}
+                      >
+                        {youtubePlaylists.map((playlist) => (
+                          <MenuItem key={playlist.id} value={playlist.id}>
+                            {playlist.title} ({playlist.itemCount})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                     <Button
                       variant="contained"
-                      color="primary"
-                      className={`room-create-accent-button ${
-                        playlistLoading ? "room-create-loading-button" : ""
-                      }`}
-                      disabled={
-                        !username ||
-                        !isPlaylistLink ||
-                        playlistLoading ||
-                        playlistLocked
-                      }
-                      onClick={onFetchPlaylist}
+                      onClick={handleApplyYoutube}
+                      disabled={!selectedYoutubeId || playlistLoading}
                     >
-                      {playlistLoading ? (
-                        <span className="room-create-loading-content">
-                          <span aria-hidden="true" className="room-create-loading-eq">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                          <span className="room-create-loading-text">
-                            載入歌單中
-                          </span>
-                        </span>
-                      ) : (
-                        "載入清單"
-                      )}
+                      載入我的清單
                     </Button>
                   </Stack>
-                )}
-
-                {playlistSource === "mine" && onFetchYoutubePlaylists && (
-                  <Stack spacing={1.5}>
-                    {!isGoogleAuthed && (
-                      <Button
-                        variant="outlined"
-                        className="room-create-accent-button"
-                        onClick={onGoogleLogin}
-                        disabled={!onGoogleLogin}
-                      >
-                        {"使用 Google 登入"}
-                      </Button>
-                    )}
-                    {isGoogleAuthed && (
-                      <Stack spacing={1} className="room-create-mine-wrap">
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={2}
-                          className="room-create-mine-row"
-                        >
-                          <select
-                            value={selectedYoutubeId}
-                            onChange={(e) =>
-                              setSelectedYoutubeId(e.target.value)
-                            }
-                            disabled={
-                              youtubePlaylistsLoading ||
-                              youtubePlaylists.length === 0
-                            }
-                            className="room-create-mine-select flex-1 rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)] px-3 py-2 text-sm text-[var(--mc-text)]"
-                          >
-                            <option value="">
-                              {youtubePlaylistsLoading
-                                ? "播放清單載入中..."
-                                : "請選擇播放清單"}
-                            </option>
-                            {youtubePlaylists.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.title} · {item.itemCount}
-                              </option>
-                            ))}
-                          </select>
-                          <Button
-                            variant="contained"
-                            color="secondary"
-                            className="room-create-accent-button room-create-mine-import-button"
-                            disabled={!selectedYoutubeId || youtubePlaylistsLoading}
-                            onClick={() =>
-                              selectedYoutubeId &&
-                              onImportYoutubePlaylist?.(selectedYoutubeId)
-                            }
-                          >
-                            {"匯入"}
-                          </Button>
-                        </Stack>
-                      </Stack>
-                    )}
-                    {(channelMissing || (needsReauth && onGoogleLogin)) && (
-                      <div className="room-create-mine-actions">
-                        {channelMissing && (
-                          <Button
-                            variant="outlined"
-                            className="room-create-accent-button"
-                            component="a"
-                            href="https://www.youtube.com"
-                            target="_blank"
-                            rel="noreferrer"
-                            disabled={youtubePlaylistsLoading}
-                          >
-                            {"前往 YouTube 建立播放清單"}
-                          </Button>
-                        )}
-                        {needsReauth && onGoogleLogin && (
-                          <Button
-                            variant="outlined"
-                            className="room-create-accent-button"
-                            onClick={onGoogleLogin}
-                            disabled={youtubePlaylistsLoading}
-                          >
-                            {"重新授權 Google"}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </Stack>
-                )}
-                {playlistSource === "collection" && (
-                  <Stack spacing={1.5}>
-                    {collectionScope === "owner" && !isGoogleAuthed && (
-                      <Button
-                        variant="outlined"
-                        onClick={onGoogleLogin}
-                        disabled={!onGoogleLogin}
-                      >
-                        {"使用 Google 登入"}
-                      </Button>
-                    )}
-
-                    <Stack spacing={1} className="room-create-collection-wrap">
-                      <Stack
-                        direction={{ xs: "column", md: "row" }}
-                        spacing={2}
-                        className="room-create-collection-row"
-                      >
-                        <select
-                          value={selectedCollectionId ?? ""}
-                          onChange={(e) =>
-                            onSelectCollection?.(
-                              e.target.value ? e.target.value : null,
-                            )
-                          }
-                          disabled={collectionsLoading || collections.length === 0}
-                          className="room-create-collection-select flex-1 rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)] px-3 py-2 text-sm text-[var(--mc-text)]"
-                        >
-                          <option value="">
-                            {collectionsLoading
-                              ? "收藏庫載入中..."
-                              : "請選擇收藏庫"}
-                          </option>
-                          {collections.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {`${item.title} · ${
-                                item.visibility === "public" ? "公開" : "私人"
-                              }`}
-                            </option>
-                          ))}
-                        </select>
-                        <Button
-                          variant="contained"
-                          color="secondary"
-                          className={`room-create-accent-button room-create-collection-load-button ${
-                            collectionItemsLoading ? "room-create-loading-button" : ""
-                          }`}
-                          disabled={
-                            collectionsLoading ||
-                            !selectedCollectionId ||
-                            collectionItemsLoading
-                          }
-                          onClick={() =>
-                            selectedCollectionId &&
-                            onLoadCollectionItems?.(selectedCollectionId)
-                          }
-                        >
-                          {collectionItemsLoading ? (
-                            <span className="room-create-loading-content">
-                              <span aria-hidden="true" className="room-create-loading-eq">
-                                <span />
-                                <span />
-                                <span />
-                              </span>
-                              <span className="room-create-loading-text">
-                                載入中
-                              </span>
-                            </span>
-                          ) : (
-                            "載入收藏庫"
-                          )}
-                        </Button>
-                      </Stack>
-                    </Stack>
-                  </Stack>
-                )}
-              </div>
+                </>
+              )}
             </Stack>
-          ) : (
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={2}
-              alignItems={{ md: "center" }}
-              justifyContent="space-between"
-            >
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" className="room-create-muted">
-                  播放清單已鎖定
-                </Typography>
-                <Typography variant="body2" className="room-create-muted">
-                  如需重選，請按「重選來源」並重新貼上網址。
-                </Typography>
-              </Stack>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Button
-                  variant="outlined"
-                  className="room-create-accent-button"
-                  onClick={() => {
-                    onResetPlaylist();
-                    setPlaylistSource("link");
-                    setSelectedYoutubeId("");
-                    onSelectCollection?.(null);
-                  }}
-                >
-                  重選來源
+          )}
+
+          {(sourceMode === "publicCollection" || sourceMode === "privateCollection") && (
+            <Stack spacing={1.25}>
+              {sourceMode === "privateCollection" && !isGoogleAuthed ? (
+                <Button variant="outlined" onClick={onGoogleLogin}>
+                  登入 Google
                 </Button>
-                <Chip
-                  label="Locked"
-                  color="success"
-                  variant="outlined"
-                  className="animate-pulse"
-                />
-              </Stack>
+              ) : (
+                <>
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <Button
+                      variant="outlined"
+                      onClick={() =>
+                        refreshCollections(sourceMode === "privateCollection" ? "owner" : "public")
+                      }
+                    >
+                      重新整理收藏庫
+                    </Button>
+                    {collectionsLoading && (
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <CircularProgress size={14} />
+                        <Typography variant="caption" className="room-create-muted">
+                          讀取中
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Stack>
+
+                  <div className="room-create-collection-list">
+                    {collections.length === 0 ? (
+                      <Typography variant="body2" className="room-create-muted">
+                        目前沒有可用收藏庫。
+                      </Typography>
+                    ) : (
+                      collections.map((item) => {
+                        const selected = selectedCollectionId === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`room-create-collection-item${selected ? " is-selected" : ""}`}
+                            onClick={() => onSelectCollection?.(item.id)}
+                          >
+                            <span className="title">{item.title}</span>
+                            <span className="meta">
+                              {item.visibility === "private" ? "私人" : "公開"}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <Button
+                    variant="contained"
+                    onClick={handleApplyCollection}
+                    disabled={!selectedCollectionId || playlistLoading || collectionItemsLoading}
+                  >
+                    載入收藏
+                  </Button>
+                </>
+              )}
             </Stack>
           )}
-          <div className="room-create-progress-slot" aria-live="polite">
-            <LinearProgress
-              color="primary"
-              className={playlistSourceLoading ? "opacity-100" : "opacity-0"}
-            />
-          </div>
-          {playlistItems.length > 0 && (
-            <div className="space-y-1 text-xs">
-              <Typography variant="subtitle2" className="room-create-muted">
-                已載入 {playlistItems.length} 首歌曲
+
+          <Alert severity={sourceStatusTone}>{sourceStatus}</Alert>
+
+          {playlistLoading && playlistProgress.total > 0 && (
+            <Stack spacing={0.75}>
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(
+                  100,
+                  Math.round((playlistProgress.received / playlistProgress.total) * 100),
+                )}
+              />
+              <Typography variant="caption" className="room-create-muted">
+                已接收 {playlistProgress.received} / {playlistProgress.total}
               </Typography>
-              <div className="room-create-track">
-                <VirtualList
-                  style={{ height: 280, width: "100%" }}
-                  rowCount={rowCount}
-                  rowHeight={75}
-                  rowProps={{}}
-                  rowComponent={PlaylistRow}
-                />
-              </div>
-            </div>
+            </Stack>
           )}
 
-          <Button
-            fullWidth
-            variant="contained"
-            disabled={!canCreateRoom}
-            onClick={onCreateRoom}
-            className="room-create-primary"
-          >
-            建立房間
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+          <Divider />
+
+          <Stack spacing={1} className="room-create-preview-wrap">
+            <Typography variant="subtitle1" className="room-create-step-title">
+              歌曲預覽
+            </Typography>
+            {playlistItems.length === 0 ? (
+              <div className="room-create-preview-empty">尚未載入歌曲</div>
+            ) : (
+              <>
+                <div className="room-create-preview-list">
+                  {previewItems.map((item, index) => (
+                    <div key={`${item.url}-${index}`} className="room-create-preview-item">
+                      <img
+                        src={item.thumbnail || "https://via.placeholder.com/96x54?text=Music"}
+                        alt={item.title}
+                        className="room-create-preview-thumb"
+                        loading="lazy"
+                      />
+                      <div className="room-create-preview-text">
+                        <div className="title">{item.title}</div>
+                        <div className="meta">
+                          {item.uploader || "未知上傳者"}
+                          {item.duration ? ` · ${item.duration}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {playlistItems.length > previewItems.length && (
+                  <Typography variant="caption" className="room-create-muted">
+                    已顯示前 {previewItems.length} 首，完整清單可在房間內查看。
+                  </Typography>
+                )}
+              </>
+            )}
+          </Stack>
+        </div>
+      </div>
+
+      <Button
+        variant="contained"
+        size="large"
+        onClick={onCreateRoom}
+        disabled={!canCreateRoom || playlistLoading}
+        className="room-create-submit"
+      >
+        建立房間
+      </Button>
+    </Stack>
   );
 };
 

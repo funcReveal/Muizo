@@ -72,6 +72,8 @@ export interface RoomContextValue {
   rooms: RoomSummary[];
   roomNameInput: string;
   setRoomNameInput: (value: string) => void;
+  roomVisibilityInput: "public" | "private";
+  setRoomVisibilityInput: (value: "public" | "private") => void;
   roomPasswordInput: string;
   setRoomPasswordInput: (value: string) => void;
   joinPasswordInput: string;

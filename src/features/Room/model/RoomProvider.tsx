@@ -151,6 +151,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [roomNameInput, setRoomNameInput] = useState(() =>
     username ? `${username}'s room` : "我的房間",
   );
+  const [roomVisibilityInput, setRoomVisibilityInput] = useState<
+    "public" | "private"
+  >("public");
   const [roomPasswordInput, setRoomPasswordInput] = useState("");
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(
@@ -972,6 +975,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       }
     }
     const trimmed = roomNameInput.trim();
+    const trimmedPassword = roomPasswordInput.trim();
     if (!trimmed) {
       setStatusText("請輸入房間名稱");
       return;
@@ -980,6 +984,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setStatusText("請先載入播放清單");
       return;
     }
+    const desiredVisibility = roomVisibilityInput;
+    const desiredPassword =
+      desiredVisibility === "private" ? trimmedPassword || null : null;
+    const shouldApplyAccessSettings =
+      desiredVisibility !== "public" || desiredPassword !== null;
 
     const uploadId =
       crypto.randomUUID?.() ??
@@ -992,7 +1001,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const payload = {
       roomName: trimmed,
       username,
-      password: roomPasswordInput.trim() || undefined,
+      password: desiredPassword ?? undefined,
       gameSettings: {
         questionCount: clampQuestionCount(
           questionCount,
@@ -1019,11 +1028,46 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setMessages(state.messages);
         persistRoomId(state.room.id);
         lockSessionClientId(clientId);
-        const createdPassword = roomPasswordInput.trim();
-        saveRoomPassword(state.room.id, createdPassword || null);
-        setHostRoomPassword(createdPassword || null);
+        let accessSettingsWarning: string | null = null;
+        if (shouldApplyAccessSettings) {
+          await new Promise<void>((resolve) => {
+            s.emit(
+              "updateRoomSettings",
+              {
+                roomId: state.room.id,
+                visibility: desiredVisibility,
+                password: desiredPassword,
+              },
+              (settingsAck: Ack<{ room: RoomSummary }>) => {
+                if (!settingsAck) {
+                  accessSettingsWarning = "房間權限同步逾時";
+                  resolve();
+                  return;
+                }
+                if (!settingsAck.ok) {
+                  accessSettingsWarning = formatAckError(
+                    "房間權限同步失敗",
+                    settingsAck.error,
+                  );
+                  resolve();
+                  return;
+                }
+                setCurrentRoom((prev) =>
+                  prev ? { ...prev, ...settingsAck.data.room } : prev,
+                );
+                resolve();
+              },
+            );
+          });
+        }
+        saveRoomPassword(state.room.id, desiredPassword);
+        setHostRoomPassword(desiredPassword);
         setRoomNameInput("");
-        setStatusText(`已建立房間：${state.room.name}`);
+        setStatusText(
+          accessSettingsWarning
+            ? `${accessSettingsWarning}（房間已建立：${state.room.name}）`
+            : `已建立房間：${state.room.name}`,
+        );
         setPlaylistProgress({
           received: state.room.playlist.receivedCount,
           total: state.room.playlist.totalCount,
@@ -1069,6 +1113,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     questionCount,
     refreshAuthToken,
     roomNameInput,
+    roomVisibilityInput,
     roomPasswordInput,
     saveRoomPassword,
     syncServerOffset,
@@ -1386,9 +1431,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               roomId: currentRoom.id,
               type,
               value,
-              title: snapshot?.title ?? undefined,
+              title: snapshot?.title ?? options?.title ?? undefined,
               totalCount: snapshot?.totalCount,
-              sourceId: snapshot?.sourceId ?? undefined,
+              sourceId: snapshot?.sourceId ?? options?.sourceId ?? undefined,
               items: snapshot?.items,
               readToken: readToken ?? undefined,
             },
@@ -1581,6 +1626,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   const resetCreateState = useCallback(() => {
     setRoomNameInput(username ? `${username}'s room` : "我的房間");
+    setRoomVisibilityInput("public");
     setRoomPasswordInput("");
     resetPlaylistState();
     resetCollectionSelection();
@@ -1681,6 +1727,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       rooms,
       roomNameInput,
       setRoomNameInput,
+      roomVisibilityInput,
+      setRoomVisibilityInput,
       roomPasswordInput,
       setRoomPasswordInput,
       joinPasswordInput,
@@ -1785,6 +1833,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       isConnected,
       rooms,
       roomNameInput,
+      roomVisibilityInput,
       roomPasswordInput,
       joinPasswordInput,
       currentRoom,
