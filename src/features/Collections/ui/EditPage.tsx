@@ -130,6 +130,11 @@ const EditPage = () => {
   } | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const saveInFlightRef = useRef(false);
+  // When we create a new collection, we update the URL to include the new id.
+  // That route-param change used to trigger a full local-state reset, which
+  // looks like a page refresh. This ref lets us treat that specific param
+  // change as a URL sync only.
+  const skipRouteResetOnNextParamRef = useRef<string | null>(null);
   const progressRafRef = useRef<number | null>(null);
   const baselineSnapshotRef = useRef<string>("");
   const baselineReadyRef = useRef(false);
@@ -327,6 +332,7 @@ const EditPage = () => {
   const { handleSaveCollection } = useCollectionEditor({
     authToken,
     ownerId,
+    authExpired,
     collectionTitle,
     collectionVisibility,
     activeCollectionId,
@@ -345,14 +351,29 @@ const EditPage = () => {
     setHasUnsavedChanges,
     dirtyCounterRef,
     saveInFlightRef,
-    navigateToEdit: (id) =>
-      navigate(`/collections/${id}/edit`, { replace: true }),
+    navigateToEdit: (id) => {
+      skipRouteResetOnNextParamRef.current = id;
+      navigate(`/collections/${id}/edit`, { replace: true });
+    },
     markDirty,
     refreshAuthToken,
+    onAuthExpired: () => {
+      setSaveStatus("error");
+      setSaveError("登入已過期，請重新登入");
+      showAutoSaveNotice("error", "登入已過期，請重新登入");
+    },
     onSaved: handleSavedBaseline,
   });
   const isReadOnly = !authToken || authExpired;
   useEffect(() => {
+    if (
+      collectionId &&
+      skipRouteResetOnNextParamRef.current === collectionId
+    ) {
+      skipRouteResetOnNextParamRef.current = null;
+      setActiveCollectionId(collectionId);
+      return;
+    }
     if (collectionId) {
       setActiveCollectionId(collectionId);
     } else {
@@ -388,6 +409,14 @@ const EditPage = () => {
       pendingDeleteIds,
     );
     const isDirty = snapshot !== baselineSnapshotRef.current;
+    if (isDirty && dirtyCounterRef.current === 0) {
+      // Data just loaded or normalized by the server; treat as baseline.
+      baselineSnapshotRef.current = snapshot;
+      if (hasUnsavedChanges) {
+        setHasUnsavedChanges(false);
+      }
+      return;
+    }
     if (isDirty !== hasUnsavedChanges) {
       setHasUnsavedChanges(isDirty);
     }
@@ -612,7 +641,7 @@ const EditPage = () => {
     if (fetchedPlaylistItems.length === 0) return;
 
     const incoming = buildEditableItems(fetchedPlaylistItems);
-    const { added, duplicates } = appendItems(incoming);
+    const { duplicates } = appendItems(incoming);
 
     if (duplicates > 0) {
       setPlaylistAddError(DUPLICATE_SONG_ERROR);

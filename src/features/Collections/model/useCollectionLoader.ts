@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import type { DbCollection, DbCollectionItem, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
@@ -57,8 +57,26 @@ export const useCollectionLoader = ({
   setSaveError,
   dirtyCounterRef,
 }: UseCollectionLoaderParams) => {
+  const lastCollectionsAuthTokenRef = useRef<string | null>(null);
+  const lastCollectionsKeyRef = useRef<string | null>(null);
+  const lastItemsAuthTokenRef = useRef<string | null>(null);
+  const lastItemsKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!ownerId || !authToken) return;
+    const key = `${ownerId}:${collectionId ?? ""}`;
+    // A token refresh updates authToken and would re-trigger this effect,
+    // causing a visible "refresh" (spinners, refetch) despite no real data change.
+    // Skip that case when only the token changed and the key is the same.
+    const tokenChanged =
+      lastCollectionsAuthTokenRef.current !== null &&
+      lastCollectionsAuthTokenRef.current !== authToken;
+    if (tokenChanged && lastCollectionsKeyRef.current === key) {
+      lastCollectionsAuthTokenRef.current = authToken;
+      return;
+    }
+    lastCollectionsAuthTokenRef.current = authToken;
+    lastCollectionsKeyRef.current = key;
     let active = true;
 
     const run = async (token: string, allowRetry: boolean) => {
@@ -163,6 +181,16 @@ export const useCollectionLoader = ({
 
   useEffect(() => {
     if (!collectionId || !authToken) return;
+    const key = collectionId;
+    const tokenChanged =
+      lastItemsAuthTokenRef.current !== null &&
+      lastItemsAuthTokenRef.current !== authToken;
+    if (tokenChanged && lastItemsKeyRef.current === key) {
+      lastItemsAuthTokenRef.current = authToken;
+      return;
+    }
+    lastItemsAuthTokenRef.current = authToken;
+    lastItemsKeyRef.current = key;
     let active = true;
 
     const run = async (token: string, allowRetry: boolean) => {

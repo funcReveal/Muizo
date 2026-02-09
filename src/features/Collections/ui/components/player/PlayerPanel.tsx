@@ -80,6 +80,18 @@ const PlayerPanel = ({
   playerContainerRef,
   thumbnail,
 }: PlayerPanelProps) => {
+  const volumeDragRef = useRef(false);
+  const volumePointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [isVolumeDragging, setIsVolumeDragging] = useState(false);
+  const updateVolumeFromEvent = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const ratio = (event.clientX - rect.left) / rect.width;
+      const next = Math.min(100, Math.max(0, Math.round(ratio * 100)));
+      onVolumeChange(next);
+    },
+    [onVolumeChange],
+  );
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragTime, setDragTime] = useState<number | null>(null);
@@ -316,14 +328,14 @@ const PlayerPanel = ({
         >
           <Repeat fontSize="small" />
         </button>
-        <div className="ml-auto flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+        <div className="ml-auto flex items-center gap-2 rounded-2xl bg-slate-950/60 px-2.5 py-1.5 text-[11px] text-slate-300 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.25)]">
           <button
             type="button"
             onClick={onToggleMute}
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-700 bg-slate-900/80 text-slate-200 hover:border-slate-500"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/70 text-slate-200 transition hover:bg-slate-800/90 hover:text-slate-50"
             onMouseDown={(event) => event.preventDefault()}
             tabIndex={-1}
-            aria-label={isMuted ? "取消靜音" : "靜音"}
+            aria-label={isMuted ? "????" : "??"}
           >
             {isMuted || volume === 0 ? (
               <VolumeOff fontSize="small" />
@@ -332,34 +344,69 @@ const PlayerPanel = ({
             )}
           </button>
           <div
-            className="relative h-2 w-24 cursor-pointer rounded-full bg-slate-800/80"
+            className="relative h-6 w-28 cursor-pointer rounded-full bg-slate-900/70"
             onPointerDown={(event) => {
               event.preventDefault();
-              const rect = event.currentTarget.getBoundingClientRect();
-              const ratio = (event.clientX - rect.left) / rect.width;
-              const next = Math.min(100, Math.max(0, Math.round(ratio * 100)));
-              onVolumeChange(next);
+              volumeDragRef.current = true;
+              setIsVolumeDragging(false);
+              volumePointerStartRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+              };
+              event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onMouseDown={(event) => event.preventDefault()}
             tabIndex={-1}
             onPointerMove={(event) => {
-              if (event.buttons !== 1) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              const ratio = (event.clientX - rect.left) / rect.width;
-              const next = Math.min(100, Math.max(0, Math.round(ratio * 100)));
-              onVolumeChange(next);
+              if (!volumeDragRef.current) return;
+              if (!isVolumeDragging) {
+                const start = volumePointerStartRef.current;
+                if (start) {
+                  const deltaX = Math.abs(event.clientX - start.x);
+                  const deltaY = Math.abs(event.clientY - start.y);
+                  if (deltaX + deltaY < 4) return;
+                }
+                setIsVolumeDragging(true);
+              }
+              updateVolumeFromEvent(event);
+            }}
+            onPointerUp={(event) => {
+              if (volumeDragRef.current) {
+                volumeDragRef.current = false;
+                setIsVolumeDragging(false);
+                if (!isVolumeDragging) {
+                  updateVolumeFromEvent(event);
+                }
+                volumePointerStartRef.current = null;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
+            }}
+            onPointerCancel={(event) => {
+              if (volumeDragRef.current) {
+                volumeDragRef.current = false;
+                setIsVolumeDragging(false);
+                volumePointerStartRef.current = null;
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
             }}
           >
+            <div className="absolute inset-x-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-slate-800" />
             <div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300"
-              style={{ width: `${isMuted ? 0 : volume}%` }}
+              className="absolute left-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300"
+              style={{
+                width: `calc(${isMuted ? 0 : volume}% - 8px)`,
+                transition: isVolumeDragging ? "none" : "width 200ms ease-out",
+              }}
             />
             <div
-              className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-sky-200 shadow-[0_0_0_2px_rgba(15,23,42,0.8)]"
-              style={{ left: `calc(${isMuted ? 0 : volume}% - 6px)` }}
+              className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-sky-200 shadow-[0_0_0_2px_rgba(15,23,42,0.8)]"
+              style={{
+                left: `calc(${isMuted ? 0 : volume}% - 6px)`,
+                transition: isVolumeDragging ? "none" : "left 200ms ease-out",
+              }}
             />
           </div>
-          <span className="w-6 text-right text-[10px] text-slate-400">
+          <span className="min-w-[28px] rounded-full bg-slate-900/70 px-2 py-0.5 text-right text-[10px] text-slate-400">
             {isMuted ? 0 : volume}
           </span>
         </div>
