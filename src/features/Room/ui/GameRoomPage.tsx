@@ -101,14 +101,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const legacyNavigator = navigator as Navigator & {
       msMaxTouchPoints?: number;
     };
-    const isTouchDevice =
-      navigator.maxTouchPoints > 0 || (legacyNavigator.msMaxTouchPoints ?? 0) > 0;
-    const hasCoarsePointer =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(pointer: coarse)").matches;
     const ua = navigator.userAgent || "";
     const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-    return (isTouchDevice || hasCoarsePointer) && isMobileUa;
+    const isIpadDesktopUa =
+      navigator.platform === "MacIntel" &&
+      (navigator.maxTouchPoints > 1 || (legacyNavigator.msMaxTouchPoints ?? 0) > 1);
+    return isMobileUa || isIpadDesktopUa;
   }, []);
   const [audioUnlocked, setAudioUnlocked] = useState(() => !requiresAudioGesture);
   const audioUnlockedRef = useRef(!requiresAudioGesture);
@@ -305,7 +303,17 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const trackLoadKey = `${videoId ?? "none"}:${clipStartSec}-${clipEndSec}`;
   const trackSessionKey = `${currentTrackIndex}`;
   const isTrackLoading = loadedTrackKey !== trackLoadKey;
-  const showLoadingMask = isTrackLoading && !isReveal;
+  const shouldShowGestureOverlay =
+    !isEnded && requiresAudioGesture && !audioUnlocked;
+  const showGuessMask = gameState.phase === "guess" && !isEnded && !waitingToStart;
+  const showPreStartMask =
+    waitingToStart &&
+    !isEnded &&
+    !shouldShowGestureOverlay;
+  const showLoadingMask =
+    isTrackLoading && !isReveal && !requiresAudioGesture && !waitingToStart;
+  const shouldHideVideoFrame =
+    shouldShowGestureOverlay || showPreStartMask || showLoadingMask || showGuessMask;
   const correctChoiceIndex = currentTrackIndex;
 
   const postCommand = useCallback(
@@ -430,7 +438,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
       startSilentAudio();
       postCommand("playVideo");
-      hasStartedPlaybackRef.current = true;
       applyVolume(volume);
     },
     [
@@ -448,16 +455,27 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     ],
   );
   const unlockAudioAndStart = useCallback(() => {
-    if (audioUnlockedRef.current) return;
-    markAudioUnlocked();
-    startSilentAudio();
-    if (playerReadyRef.current && getServerNowMs() >= gameState.startedAt) {
-      startPlayback();
+    if (!audioUnlockedRef.current) {
+      markAudioUnlocked();
     }
+    startSilentAudio();
+    if (!playerReadyRef.current) return;
+    const serverNow = getServerNowMs();
+    if (serverNow < gameState.startedAt) {
+      // Prime autoplay permission during user gesture before round start.
+      postCommand("seekTo", [clipStartSec, true]);
+      postCommand("playVideo");
+      postCommand("pauseVideo");
+      postCommand("seekTo", [clipStartSec, true]);
+      return;
+    }
+    startPlayback();
   }, [
+    clipStartSec,
     gameState.startedAt,
     getServerNowMs,
     markAudioUnlocked,
+    postCommand,
     startPlayback,
     startSilentAudio,
   ]);
@@ -485,7 +503,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       playerStartRef.current = serverPosition;
       lastSyncMsRef.current = getServerNowMs();
       postCommand("playVideo");
-      hasStartedPlaybackRef.current = true;
       applyVolume(volume);
       return false;
     },
@@ -592,9 +609,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         return;
       }
       if (
-        !hasStartedPlaybackRef.current &&
         playerReadyRef.current &&
-        now >= gameState.startedAt
+        now >= gameState.startedAt &&
+        lastPlayerStateRef.current !== 1
       ) {
         startPlayback();
       }
@@ -608,7 +625,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
     }, 500);
     return () => clearInterval(interval);
-  }, [getServerNowMs, gameState.startedAt, requestPlayerTime, startPlayback]);
+  }, [
+    getServerNowMs,
+    gameState.startedAt,
+    requestPlayerTime,
+    startPlayback,
+  ]);
 
   useEffect(() => {
     applyVolume(volume);
@@ -707,6 +729,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           : computeServerPositionSec();
         playerStartRef.current = startSec;
         loadTrack(currentId, startSec, clipEndSec, !waitingToStart);
+        setLoadedTrackKey(trackLoadKey);
         lastTrackLoadKeyRef.current = trackLoadKey;
         if (!waitingToStart) {
           startPlayback(startSec);
@@ -717,7 +740,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         lastPlayerStateRef.current =
           typeof data.info === "number" ? data.info : null;
         if (data.info === 1) {
-          markAudioUnlocked();
           hasStartedPlaybackRef.current = true;
           lastSyncMsRef.current = getServerNowMs();
           setLoadedTrackKey(trackLoadKey);
@@ -885,7 +907,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
       resumeNeedsSyncRef.current = false;
       postCommand("playVideo");
-      hasStartedPlaybackRef.current = true;
       applyVolume(volume);
       startSilentAudio();
       requestPlayerTime("visibility");
@@ -964,7 +985,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const phaseLabel = isEnded
     ? "已結束"
     : gameState.phase === "guess"
-      ? "猜歌"
+      ? "猜歌中"
       : "公布答案";
 
   const activePhaseDurationMs =
@@ -1016,7 +1037,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         <aside className="game-room-panel game-room-panel--left flex h-full flex-col gap-3 p-3 text-slate-50 overflow-hidden">
           <div className="flex items-center gap-3">
             <div>
-              <p className="game-room-kicker">Scoreboard</p>
+              <p className="game-room-kicker">排行榜</p>
               <p className="game-room-title">分數榜</p>
             </div>
             <span className="ml-2 text-[11px] text-slate-400">
@@ -1074,8 +1095,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     <div className="flex items-center gap-2">
                       {gameState.lockedClientIds?.includes(p.clientId) ? (
                         <Chip
-                          label={`第${lockedOrder.indexOf(p.clientId) + 1 || "?"
-                            }答`}
+                          label={`第${lockedOrder.indexOf(p.clientId) + 1}答`}
                           size="small"
                           color="success"
                           variant="filled"
@@ -1174,7 +1194,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div>
-                  <p className="game-room-kicker">Now Playing</p>
+                  <p className="game-room-kicker">正在播放</p>
                   <p className="game-room-title">{room.name}</p>
                   <p className="text-xs text-slate-400">
                     曲目 {boundedCursor + 1}/{trackOrderLength || "?"}
@@ -1201,7 +1221,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   title="Now playing"
                   style={{
                     pointerEvents: "none",
-                    opacity: shouldShowVideo ? 1 : 1,
+                    opacity: shouldHideVideoFrame ? 0 : shouldShowVideo ? 1 : 1,
                   }}
                   ref={iframeRef}
                   onLoad={() => {
@@ -1229,7 +1249,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 className="hidden"
                 aria-hidden="true"
               />
-              {requiresAudioGesture && !audioUnlocked && (
+              {shouldShowGestureOverlay && (
                 <div
                   className="fixed inset-0 z-[1400] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
                   onPointerDown={unlockAudioAndStart}
@@ -1250,37 +1270,19 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </div>
                 </div>
               )}
-              {gameState.phase === "guess" && !isEnded && (
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-slate-950/95">
-                  {isInitialCountdown ? (
-                    <>
-                      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-slate-400">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
-                        開始倒數
-                      </div>
-                      <div
-                        className={`mt-4 flex h-28 w-28 items-center justify-center rounded-full border ${countdownTone}`}
-                      >
-                        <span className="text-5xl font-black tracking-widest sm:text-6xl">
-                          {startCountdownSec}
-                        </span>
-                      </div>
-                      <p className="mt-3 text-xs text-slate-300">
-                        遊戲即將開始，請準備
-                      </p>
-                    </>
-                  ) : waitingToStart ? null : (
-                    <>
-                      <div className="h-24 w-24 animate-spin rounded-full border-4 border-slate-700 shadow-lg shadow-emerald-500/30" />
-                      <p className="mt-2 text-xs text-slate-300">
-                        猜歌中，影片已隱藏
-                      </p>
-                    </>
-                  )}
+              {showGuessMask && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
+                  <div className="h-24 w-24 animate-spin rounded-full border-4 border-slate-700 shadow-lg shadow-emerald-500/30" />
+                  <p className="mt-2 text-xs text-slate-300">
+                    猜歌中，影片已隱藏
+                  </p>
                 </div>
               )}
+              {showPreStartMask && (
+                <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950/95" />
+              )}
               {showLoadingMask && (
-                <div className="pointer-events-none absolute inset-0 bg-slate-950" />
+                <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950" />
               )}
             </div>
 
@@ -1333,7 +1335,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <div className="game-room-answer-body">
                   <div className="mb-3 flex items-center gap-3">
                     <div>
-                      <p className="game-room-kicker">Phase</p>
+                      <p className="game-room-kicker">階段</p>
                       <p className="game-room-title">
                         {isInterTrackWait ? "下一首準備中" : phaseLabel}
                       </p>
@@ -1393,7 +1395,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                 下一首準備中
                               </span>
                               <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-800 text-[11px] font-semibold text-slate-500">
-                                —
+                                --
                               </span>
                             </div>
                           </Button>
