@@ -35,6 +35,7 @@ const resolveItemSource = (
 type UseCollectionEditorParams = {
   authToken: string | null;
   ownerId: string | null;
+  authExpired?: boolean;
   collectionTitle: string;
   collectionVisibility: "private" | "public";
   activeCollectionId: string | null;
@@ -56,12 +57,14 @@ type UseCollectionEditorParams = {
   navigateToEdit: (id: string) => void;
   markDirty: () => void;
   refreshAuthToken: () => Promise<string | null>;
+  onAuthExpired?: () => void;
   onSaved?: () => void;
 };
 
 export const useCollectionEditor = ({
   authToken,
   ownerId,
+  authExpired,
   collectionTitle,
   collectionVisibility,
   activeCollectionId,
@@ -82,6 +85,7 @@ export const useCollectionEditor = ({
   saveInFlightRef,
   navigateToEdit,
   refreshAuthToken,
+  onAuthExpired,
   onSaved,
 }: UseCollectionEditorParams) => {
   const isAuthError = (error: unknown) => {
@@ -189,7 +193,7 @@ export const useCollectionEditor = ({
   const handleSaveCollection = useCallback(
     async (mode: "manual" | "auto" = "manual") => {
       if (saveInFlightRef.current) return;
-      if (!authToken || !ownerId) {
+      if (!authToken || !ownerId || authExpired) {
         if (mode === "auto") {
           showAutoSaveNotice("error", "自動保存失敗");
         } else {
@@ -219,7 +223,14 @@ export const useCollectionEditor = ({
           refreshAuthToken,
         });
         if (!token) {
-          throw new Error("Unauthorized");
+          if (mode === "auto") {
+            showAutoSaveNotice("error", "自動保存失敗");
+          } else {
+            setSaveStatus("error");
+            setSaveError("登入已過期，請重新登入");
+          }
+          onAuthExpired?.();
+          return;
         }
         let collectionId = activeCollectionId;
         const run = async (
