@@ -38,12 +38,23 @@ import type {
   RoomState,
 } from "../../model/types";
 import type { YoutubePlaylist } from "../../model/RoomContext";
-import { clampQuestionCount, getQuestionMax } from "../../model/roomUtils";
 import {
+  clampPlayDurationSec,
+  clampQuestionCount,
+  clampStartOffsetSec,
+  getQuestionMax,
+} from "../../model/roomUtils";
+import {
+  DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
+  PLAY_DURATION_MAX,
+  PLAY_DURATION_MIN,
   QUESTION_MIN,
   QUESTION_STEP,
+  START_OFFSET_MAX,
+  START_OFFSET_MIN,
 } from "../../model/roomConstants";
 import QuestionCountControls from "./QuestionCountControls";
 import RoomAccessSettingsFields from "./RoomAccessSettingsFields";
@@ -609,6 +620,8 @@ interface RoomLobbyPanelProps {
     visibility?: "public" | "private";
     password?: string | null;
     questionCount?: number;
+    playDurationSec?: number;
+    startOffsetSec?: number;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   onOpenGame?: () => void;
@@ -729,6 +742,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const [settingsPasswordDirty, setSettingsPasswordDirty] = useState(false);
   const [settingsQuestionCount, setSettingsQuestionCount] =
     useState(QUESTION_MIN);
+  const [settingsPlayDurationSec, setSettingsPlayDurationSec] = useState(
+    DEFAULT_PLAY_DURATION_SEC,
+  );
+  const [settingsStartOffsetSec, setSettingsStartOffsetSec] = useState(
+    DEFAULT_START_OFFSET_SEC,
+  );
   const [settingsMaxPlayers, setSettingsMaxPlayers] = useState("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const maskedRoomPassword = roomPassword
@@ -810,6 +829,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   );
   const questionMinLimit = Math.min(QUESTION_MIN, questionMaxLimit);
   const settingsDisabled = gameState?.status === "playing";
+  const roomPlayDurationSec = clampPlayDurationSec(
+    currentRoom?.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+  );
+  const roomStartOffsetSec = clampStartOffsetSec(
+    currentRoom?.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
+  );
 
   const extractPlaylistId = (url: string) => {
     try {
@@ -981,6 +1006,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     setSettingsQuestionCount(
       clampQuestionCount(baseQuestion, questionMaxLimit),
     );
+    const basePlayDurationSec =
+      currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC;
+    const baseStartOffsetSec =
+      currentRoom.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC;
+    setSettingsPlayDurationSec(clampPlayDurationSec(basePlayDurationSec));
+    setSettingsStartOffsetSec(clampStartOffsetSec(baseStartOffsetSec));
     setSettingsMaxPlayers(
       currentRoom.maxPlayers && currentRoom.maxPlayers > 0
         ? String(currentRoom.maxPlayers)
@@ -1030,10 +1061,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       settingsQuestionCount,
       questionMaxLimit,
     );
+    const nextPlayDurationSec = clampPlayDurationSec(settingsPlayDurationSec);
+    const nextStartOffsetSec = clampStartOffsetSec(settingsStartOffsetSec);
     const payload = {
       name: trimmedName,
       visibility: settingsVisibility,
       questionCount: nextQuestionCount,
+      playDurationSec: nextPlayDurationSec,
+      startOffsetSec: nextStartOffsetSec,
       maxPlayers: nextMaxPlayers,
       ...(settingsPasswordDirty ? { password: settingsPassword } : {}),
     };
@@ -1343,19 +1378,31 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`題數 ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
+                label={`Questions ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={`清單 ${currentRoom?.playlist.totalCount ?? "-"} 首`}
+                label={`Play ${roomPlayDurationSec}s`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={playlistProgress.ready ? "清單已就緒" : "清單準備中"}
+                label={`Start ${roomStartOffsetSec}s`}
+                className="text-slate-200 border-slate-600"
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Playlist ${currentRoom?.playlist.totalCount ?? "-"} songs`}
+                className="text-slate-200 border-slate-600"
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={playlistProgress.ready ? "Playlist ready" : "Playlist syncing"}
                 className="text-slate-200 border-slate-600"
               />
               {currentRoom?.hasPassword && (
@@ -2242,6 +2289,56 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   }
                 }}
               />
+            </Stack>
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" className="text-slate-200">
+                播放設定
+              </Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <TextField
+                  label="遊玩時間 (秒)"
+                  type="number"
+                  value={settingsPlayDurationSec}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    if (!Number.isFinite(next)) return;
+                    setSettingsPlayDurationSec(next);
+                    if (settingsError) {
+                      setSettingsError(null);
+                    }
+                  }}
+                  inputProps={{
+                    min: PLAY_DURATION_MIN,
+                    max: PLAY_DURATION_MAX,
+                    inputMode: "numeric",
+                  }}
+                  disabled={settingsDisabled}
+                  fullWidth
+                />
+                <TextField
+                  label="起始時間 (秒)"
+                  type="number"
+                  value={settingsStartOffsetSec}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    if (!Number.isFinite(next)) return;
+                    setSettingsStartOffsetSec(next);
+                    if (settingsError) {
+                      setSettingsError(null);
+                    }
+                  }}
+                  inputProps={{
+                    min: START_OFFSET_MIN,
+                    max: START_OFFSET_MAX,
+                    inputMode: "numeric",
+                  }}
+                  disabled={settingsDisabled}
+                  fullWidth
+                />
+              </Stack>
+              <Typography variant="caption" className="text-slate-400">
+                若超過影片長度，會自動從起始時間循環播放至本題時間結束。
+              </Typography>
             </Stack>
             {settingsError && (
               <Typography variant="caption" className="text-rose-300">

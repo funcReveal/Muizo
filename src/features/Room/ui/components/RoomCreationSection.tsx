@@ -19,6 +19,12 @@ import {
 
 import type { RoomCreateSourceMode } from "../../model/RoomContext";
 import type { PlaylistItem, RoomSummary } from "../../model/types";
+import {
+  PLAY_DURATION_MAX,
+  PLAY_DURATION_MIN,
+  START_OFFSET_MAX,
+  START_OFFSET_MIN,
+} from "../../model/roomConstants";
 import QuestionCountControls from "./QuestionCountControls";
 import RoomAccessSettingsFields from "./RoomAccessSettingsFields";
 
@@ -39,10 +45,18 @@ interface RoomCreationSectionProps {
   joinPassword: string;
   playlistProgress: { received: number; total: number; ready: boolean };
   questionCount: number;
+  playDurationSec: number;
+  startOffsetSec: number;
   onQuestionCountChange: (value: number) => void;
+  onPlayDurationChange: (value: number) => void;
+  onStartOffsetChange: (value: number) => void;
   questionMin?: number;
   questionMax?: number;
   questionStep?: number;
+  playDurationMin?: number;
+  playDurationMax?: number;
+  startOffsetMin?: number;
+  startOffsetMax?: number;
   questionControlsEnabled?: boolean;
   questionLimitLabel?: string;
   showRoomList?: boolean;
@@ -154,12 +168,20 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     username,
     playlistProgress,
     questionCount,
+    playDurationSec,
+    startOffsetSec,
     onQuestionCountChange,
+    onPlayDurationChange,
+    onStartOffsetChange,
     questionMin = 1,
     questionMax = 100,
     questionStep = 5,
     questionControlsEnabled = true,
     questionLimitLabel,
+    playDurationMin = PLAY_DURATION_MIN,
+    playDurationMax = PLAY_DURATION_MAX,
+    startOffsetMin = START_OFFSET_MIN,
+    startOffsetMax = START_OFFSET_MAX,
     youtubePlaylists = [],
     youtubePlaylistsLoading = false,
     youtubePlaylistsError = null,
@@ -675,6 +697,62 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
               </Typography>
             )}
           </div>
+
+          <Stack spacing={1} className="room-create-question-card">
+            <div className="room-create-question-head">
+              <Typography variant="subtitle1" className="room-create-step-title">
+                播放設定
+              </Typography>
+              <span className="room-create-question-badge">
+                {playDurationSec}s / {startOffsetSec}s
+              </span>
+            </div>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+              <TextField
+                size="small"
+                type="number"
+                label="遊玩時間 (秒)"
+                value={playDurationSec}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isFinite(next)) return;
+                  onPlayDurationChange(next);
+                }}
+                slotProps={{
+                  htmlInput: {
+                    min: playDurationMin,
+                    max: playDurationMax,
+                    inputMode: "numeric",
+                  },
+                }}
+                fullWidth
+                className="room-create-field"
+              />
+              <TextField
+                size="small"
+                type="number"
+                label="起始時間 (秒)"
+                value={startOffsetSec}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isFinite(next)) return;
+                  onStartOffsetChange(next);
+                }}
+                slotProps={{
+                  htmlInput: {
+                    min: startOffsetMin,
+                    max: startOffsetMax,
+                    inputMode: "numeric",
+                  },
+                }}
+                fullWidth
+                className="room-create-field"
+              />
+            </Stack>
+            <Typography variant="caption" className="room-create-muted">
+              若超過影片長度會自動從起始時間循環播放，直到本題時間結束。
+            </Typography>
+          </Stack>
         </div>
 
         <div className="room-create-step-card">

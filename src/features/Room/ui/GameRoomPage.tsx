@@ -23,6 +23,11 @@ import type {
   RoomParticipant,
   RoomState,
 } from "../model/types";
+import {
+  DEFAULT_CLIP_SEC,
+  DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_START_OFFSET_SEC,
+} from "../model/roomConstants";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
 
 interface GameRoomPageProps {
@@ -142,6 +147,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastPlayerTimeSecRef = useRef<number | null>(null);
   const lastPlayerTimeAtMsRef = useRef<number>(0);
   const lastTimeRequestReasonRef = useRef("init");
+  const guessLoopSpanRef = useRef<number | null>(null);
 
   const openExitConfirm = () => setExitConfirmOpen(true);
   const closeExitConfirm = () => setExitConfirmOpen(false);
@@ -240,15 +246,53 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return playlist[currentTrackIndex] ?? playlist[0];
   }, [playlist, currentTrackIndex]);
 
-  const clipStartSec = Math.max(0, item?.startSec ?? 0);
-  const fallbackDurationSec = Math.max(
+  const roomPlayDurationSec = Math.max(
     1,
-    Math.round(gameState.guessDurationMs / 1000),
+    room.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
   );
+  const configuredGuessDurationMs = Math.max(
+    1000,
+    Math.floor(roomPlayDurationSec * 1000),
+  );
+  const effectiveGuessDurationMs =
+    typeof room.gameSettings?.playDurationSec === "number"
+      ? configuredGuessDurationMs
+      : Number.isFinite(gameState.guessDurationMs) && gameState.guessDurationMs > 0
+        ? Math.max(1000, Math.floor(gameState.guessDurationMs))
+        : configuredGuessDurationMs;
+  const roomStartOffsetSec = Math.max(
+    0,
+    room.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
+  );
+  const hasExplicitEndSec = Boolean(
+    item &&
+      (typeof item.hasExplicitEndSec === "boolean"
+        ? item.hasExplicitEndSec
+        : (typeof item.endSec === "number" &&
+            Math.abs(
+              item.endSec -
+                ((typeof item.startSec === "number" ? item.startSec : 0) +
+                  DEFAULT_CLIP_SEC),
+            ) > 0.001)),
+  );
+  const hasExplicitStartSec = Boolean(
+    item &&
+      (typeof item.hasExplicitStartSec === "boolean"
+        ? item.hasExplicitStartSec
+        : (typeof item.startSec === "number" && item.startSec > 0) ||
+          hasExplicitEndSec),
+  );
+  const shouldUseRoomSettings = !hasExplicitStartSec && !hasExplicitEndSec;
+  const clipStartSec = shouldUseRoomSettings
+    ? roomStartOffsetSec
+    : Math.max(0, item?.startSec ?? 0);
+  const fallbackDurationSec = Math.max(1, roomPlayDurationSec);
   const clipEndSec =
-    typeof item?.endSec === "number" && item.endSec > clipStartSec
-      ? item.endSec
-      : clipStartSec + fallbackDurationSec;
+    shouldUseRoomSettings
+      ? clipStartSec + fallbackDurationSec
+      : typeof item?.endSec === "number" && item.endSec > clipStartSec
+        ? item.endSec
+        : clipStartSec + DEFAULT_CLIP_SEC;
   const revealDurationSec = Math.max(0, gameState.revealDurationMs / 1000);
   const revealStartAt = gameState.revealEndsAt - gameState.revealDurationMs;
   const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
@@ -258,8 +302,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       0,
       (getServerNowMs() - gameState.startedAt) / 1000,
     );
+    const loopSpan = guessLoopSpanRef.current;
+    if (gameState.phase === "guess" && loopSpan && loopSpan > 0.01) {
+      const offset = elapsed % loopSpan;
+      return Math.min(clipEndSec, clipStartSec + offset);
+    }
     return Math.min(clipEndSec, clipStartSec + elapsed);
-  }, [clipEndSec, clipStartSec, gameState.startedAt, getServerNowMs]);
+  }, [clipEndSec, clipStartSec, gameState.phase, gameState.startedAt, getServerNowMs]);
   const computeRevealPositionSec = useCallback(() => {
     const elapsed = Math.max(0, (getServerNowMs() - revealStartAt) / 1000);
     const effectiveElapsed =
@@ -288,7 +337,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const videoId = item ? extractYouTubeId(item.url, item.videoId) : null;
   const phaseEndsAt =
     gameState.phase === "guess"
-      ? gameState.startedAt + gameState.guessDurationMs
+      ? gameState.startedAt + effectiveGuessDurationMs
       : gameState.revealEndsAt;
   const phaseRemainingMs = Math.max(0, phaseEndsAt - nowMs);
   const revealCountdownMs = Math.max(0, gameState.revealEndsAt - nowMs);
@@ -315,6 +364,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const shouldHideVideoFrame =
     shouldShowGestureOverlay || showPreStartMask || showLoadingMask || showGuessMask;
   const correctChoiceIndex = currentTrackIndex;
+
+  useEffect(() => {
+    guessLoopSpanRef.current = null;
+  }, [trackLoadKey, trackSessionKey]);
 
   const postCommand = useCallback(
     (func: string, args: unknown[] = []) => {
@@ -759,9 +812,38 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             postCommand("playVideo");
           }
         }
-        if (data.info === 0 && isReveal) {
-          revealReplayRef.current = true;
-          startPlayback(computeRevealPositionSec(), true);
+        if (data.info === 0) {
+          const serverNow = getServerNowMs();
+          const guessEndsAt = gameState.startedAt + effectiveGuessDurationMs;
+          if (
+            gameState.phase === "guess" &&
+            shouldUseRoomSettings &&
+            !isEnded &&
+            !waitingToStart &&
+            serverNow < guessEndsAt
+          ) {
+            const latestPlayerTime = lastPlayerTimeSecRef.current;
+            if (
+              typeof latestPlayerTime === "number" &&
+              latestPlayerTime > clipStartSec + 0.05
+            ) {
+              guessLoopSpanRef.current = Math.max(
+                0.25,
+                latestPlayerTime - clipStartSec,
+              );
+            } else if (!guessLoopSpanRef.current) {
+              guessLoopSpanRef.current = Math.max(
+                0.5,
+                Math.min(5, fallbackDurationSec),
+              );
+            }
+            startPlayback(computeServerPositionSec(), true);
+            return;
+          }
+          if (isReveal) {
+            revealReplayRef.current = true;
+            startPlayback(computeRevealPositionSec(), true);
+          }
         }
       }
       if (data.event === "infoDelivery") {
@@ -806,8 +888,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     clipStartSec,
     computeServerPositionSec,
     computeRevealPositionSec,
+    fallbackDurationSec,
+    effectiveGuessDurationMs,
+    gameState.phase,
     getDesiredPositionSec,
     getServerNowMs,
+    isEnded,
     isReveal,
     loadTrack,
     postCommand,
@@ -821,6 +907,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     waitingToStart,
     markAudioUnlocked,
     scheduleResumeResync,
+    shouldUseRoomSettings,
   ]);
 
   useEffect(() => {
@@ -990,7 +1077,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   const activePhaseDurationMs =
     gameState.phase === "guess"
-      ? gameState.guessDurationMs
+      ? effectiveGuessDurationMs
       : gameState.revealDurationMs;
   const progressPct =
     phaseEndsAt === gameState.startedAt || activePhaseDurationMs <= 0

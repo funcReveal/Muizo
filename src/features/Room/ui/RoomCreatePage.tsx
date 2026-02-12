@@ -31,6 +31,8 @@ const RoomCreatePage: React.FC = () => {
     joinPasswordInput,
     playlistProgress,
     questionCount,
+    playDurationSec,
+    startOffsetSec,
     questionMin,
     questionMaxLimit,
     questionStep,
@@ -55,6 +57,8 @@ const RoomCreatePage: React.FC = () => {
     setJoinPasswordInput,
     setPlaylistUrl,
     updateQuestionCount,
+    updatePlayDurationSec,
+    updateStartOffsetSec,
     handleFetchPlaylist,
     fetchYoutubePlaylists,
     importYoutubePlaylist,
@@ -349,7 +353,11 @@ const RoomCreatePage: React.FC = () => {
                   joinPassword={joinPasswordInput}
                   playlistProgress={playlistProgress}
                   questionCount={questionCount}
+                  playDurationSec={playDurationSec}
+                  startOffsetSec={startOffsetSec}
                   onQuestionCountChange={updateQuestionCount}
+                  onPlayDurationChange={updatePlayDurationSec}
+                  onStartOffsetChange={updateStartOffsetSec}
                   questionMin={safeQuestionMin}
                   questionMax={safeQuestionMax}
                   questionStep={questionStep}

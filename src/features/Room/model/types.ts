@@ -10,6 +10,8 @@ export interface PlaylistItem {
   thumbnail?: string;
   startSec?: number;
   endSec?: number;
+  hasExplicitStartSec?: boolean;
+  hasExplicitEndSec?: boolean;
   answerText?: string;
   videoId?: string;
   sourceId?: string | null;
@@ -91,6 +93,8 @@ export interface RoomSummary {
   playlistCount: number;
   gameSettings?: {
     questionCount: number;
+    playDurationSec?: number;
+    startOffsetSec?: number;
   };
   visibility?: "public" | "private";
   maxPlayers?: number | null;
@@ -114,7 +118,11 @@ export interface ClientToServerEvents {
       roomName: string;
       username: string;
       password?: string;
-      gameSettings?: { questionCount: number };
+      gameSettings?: {
+        questionCount: number;
+        playDurationSec?: number;
+        startOffsetSec?: number;
+      };
       playlist: {
         uploadId: string;
         id?: string;
@@ -178,6 +186,8 @@ export interface ClientToServerEvents {
       visibility?: "public" | "private";
       password?: string | null;
       questionCount?: number;
+      playDurationSec?: number;
+      startOffsetSec?: number;
       maxPlayers?: number | null;
     },
     callback?: (ack: Ack<{ room: RoomSummary }>) => void

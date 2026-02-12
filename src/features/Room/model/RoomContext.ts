@@ -115,6 +115,8 @@ export interface RoomContextValue {
   playlistProgress: { received: number; total: number; ready: boolean };
   playlistSuggestions: PlaylistSuggestion[];
   questionCount: number;
+  playDurationSec: number;
+  startOffsetSec: number;
   questionMin: number;
   questionMax: number;
   questionStep: number;
@@ -143,6 +145,8 @@ export interface RoomContextValue {
     visibility?: "public" | "private";
     password?: string | null;
     questionCount?: number;
+    playDurationSec?: number;
+    startOffsetSec?: number;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   handleKickPlayer: (targetClientId: string, durationMs?: number | null) => void;
@@ -167,6 +171,8 @@ export interface RoomContextValue {
   handleResetPlaylist: () => void;
   loadMorePlaylist: () => void;
   updateQuestionCount: (value: number) => void;
+  updatePlayDurationSec: (value: number) => number;
+  updateStartOffsetSec: (value: number) => number;
   syncServerOffset: (serverNow: number) => void;
   fetchRooms: () => Promise<void>;
   fetchRoomById: (roomId: string) => Promise<RoomSummary | null>;

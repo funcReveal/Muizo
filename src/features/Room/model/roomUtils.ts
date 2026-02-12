@@ -1,8 +1,14 @@
 import type { PlaylistItem } from "./types";
 import {
   DEFAULT_CLIP_SEC,
+  DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_START_OFFSET_SEC,
+  PLAY_DURATION_MAX,
+  PLAY_DURATION_MIN,
   QUESTION_MAX,
   QUESTION_MIN,
+  START_OFFSET_MAX,
+  START_OFFSET_MIN,
   WORKER_API_URL,
 } from "./roomConstants";
 
@@ -27,9 +33,32 @@ export const thumbnailFromId = (videoId: string) =>
 
 export const normalizePlaylistItems = (items: PlaylistItem[]) =>
   items.map((item) => {
-    const startSec = item.startSec ?? 0;
+    const startSec = Math.max(0, item.startSec ?? 0);
+    const isLegacyCollectionDefaultClip =
+      item.provider === "collection" &&
+      item.hasExplicitStartSec === true &&
+      item.hasExplicitEndSec === true &&
+      startSec <= 0.001 &&
+      typeof item.endSec === "number" &&
+      Math.abs(item.endSec - (startSec + DEFAULT_CLIP_SEC)) <= 0.001;
+    const explicitEndFromFlag = isLegacyCollectionDefaultClip
+      ? false
+      : item.hasExplicitEndSec;
+    const explicitStartFromFlag = isLegacyCollectionDefaultClip
+      ? false
+      : item.hasExplicitStartSec;
+    const inferredExplicitEndSec =
+      typeof item.endSec === "number" &&
+        Math.abs(
+          item.endSec - (startSec + DEFAULT_CLIP_SEC),
+        ) > 0.001;
+    const hasExplicitEndSec =
+      explicitEndFromFlag ?? inferredExplicitEndSec;
+    const hasExplicitStartSec =
+      explicitStartFromFlag ??
+      (startSec > 0 || hasExplicitEndSec);
     const endSec =
-      item.endSec !== undefined && item.endSec !== null
+      hasExplicitEndSec && item.endSec !== undefined && item.endSec !== null
         ? item.endSec
         : startSec + DEFAULT_CLIP_SEC;
     const answerText = item.answerText ?? item.title;
@@ -37,6 +66,8 @@ export const normalizePlaylistItems = (items: PlaylistItem[]) =>
       ...item,
       startSec,
       endSec: Math.max(startSec + 1, endSec),
+      hasExplicitStartSec: Boolean(hasExplicitStartSec),
+      hasExplicitEndSec: Boolean(hasExplicitEndSec),
       answerText,
     };
   });
@@ -54,3 +85,29 @@ export const getQuestionMax = (playlistCount: number) =>
 
 export const clampQuestionCount = (value: number, maxValue: number) =>
   Math.min(maxValue, Math.max(QUESTION_MIN, value));
+
+const clampNumber = (
+  value: number,
+  min: number,
+  max: number,
+  fallback: number,
+) => {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(value)));
+};
+
+export const clampPlayDurationSec = (value: number) =>
+  clampNumber(
+    value,
+    PLAY_DURATION_MIN,
+    PLAY_DURATION_MAX,
+    DEFAULT_PLAY_DURATION_SEC,
+  );
+
+export const clampStartOffsetSec = (value: number) =>
+  clampNumber(
+    value,
+    START_OFFSET_MIN,
+    START_OFFSET_MAX,
+    DEFAULT_START_OFFSET_SEC,
+  );

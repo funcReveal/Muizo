@@ -235,10 +235,12 @@ export const useRoomCollections = ({
         const mapItems = (items: WorkerCollectionItem[]) =>
           items.map((item, index) => {
             const startSec = Math.max(0, item.start_sec ?? 0);
-            const endSec =
-              typeof item.end_sec === "number"
-                ? item.end_sec
-                : startSec + DEFAULT_CLIP_SEC;
+            const hasExplicitEndSec =
+              typeof item.end_sec === "number" && item.end_sec > startSec;
+            const hasExplicitStartSec = startSec > 0;
+            const endSec = hasExplicitEndSec
+              ? item.end_sec
+              : startSec + DEFAULT_CLIP_SEC;
             const safeEnd = Math.max(startSec + 1, endSec);
             const provider = item.provider || "manual";
             const sourceId = item.source_id || "";
@@ -264,6 +266,8 @@ export const useRoomCollections = ({
               duration: durationValue,
               startSec,
               endSec: safeEnd,
+              hasExplicitStartSec,
+              hasExplicitEndSec,
               ...(videoId ? { videoId } : {}),
               sourceId: collectionId,
               provider: "collection",

@@ -29,6 +29,8 @@ import {
   CHUNK_SIZE,
   DEFAULT_CLIP_SEC,
   DEFAULT_PAGE_SIZE,
+  DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
   QUESTION_MAX,
@@ -36,7 +38,9 @@ import {
   WORKER_API_URL,
 } from "./roomConstants";
 import {
+  clampPlayDurationSec,
   clampQuestionCount,
+  clampStartOffsetSec,
   formatSeconds,
   getQuestionMax,
   normalizePlaylistItems,
@@ -80,10 +84,12 @@ const mapCollectionItemsToPlaylist = (
 ) =>
   items.flatMap((item, index) => {
     const startSec = Math.max(0, item.start_sec ?? 0);
-    const endSec =
-      typeof item.end_sec === "number"
-        ? item.end_sec
-        : startSec + DEFAULT_CLIP_SEC;
+    const hasExplicitEndSec =
+      typeof item.end_sec === "number" && item.end_sec > startSec;
+    const hasExplicitStartSec = startSec > 0;
+    const endSec = hasExplicitEndSec
+      ? item.end_sec
+      : startSec + DEFAULT_CLIP_SEC;
     const safeEnd = Math.max(startSec + 1, endSec);
     const videoId = item.source_id?.trim() ?? "";
     if (!videoId) return [];
@@ -102,6 +108,8 @@ const mapCollectionItemsToPlaylist = (
       duration: durationValue,
       startSec,
       endSec: safeEnd,
+      hasExplicitStartSec,
+      hasExplicitEndSec,
       videoId,
       sourceId: collectionId,
       provider: "collection",
@@ -137,6 +145,50 @@ const formatAckError = (prefix: string, error?: string) => {
   return `${prefix}：${detail || "未知錯誤"}`;
 };
 
+const mergeRoomSummaryIntoCurrentRoom = (
+  current: RoomState["room"],
+  summary: RoomSummary,
+): RoomState["room"] => ({
+  ...current,
+  ...summary,
+  gameSettings: summary.gameSettings
+    ? {
+        ...(current.gameSettings ?? {}),
+        ...summary.gameSettings,
+      }
+    : current.gameSettings,
+});
+
+const applyGameSettingsPatch = (
+  current: RoomState["room"],
+  patch: {
+    questionCount?: number;
+    playDurationSec?: number;
+    startOffsetSec?: number;
+  },
+): RoomState["room"] => {
+  const hasPatch =
+    typeof patch.questionCount === "number" ||
+    typeof patch.playDurationSec === "number" ||
+    typeof patch.startOffsetSec === "number";
+  if (!hasPatch) return current;
+  return {
+    ...current,
+    gameSettings: {
+      ...(current.gameSettings ?? {}),
+      ...(typeof patch.questionCount === "number"
+        ? { questionCount: patch.questionCount }
+        : {}),
+      ...(typeof patch.playDurationSec === "number"
+        ? { playDurationSec: patch.playDurationSec }
+        : {}),
+      ...(typeof patch.startOffsetSec === "number"
+        ? { startOffsetSec: patch.startOffsetSec }
+        : {}),
+    },
+  };
+};
+
 export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -170,6 +222,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     useState<RoomCreateSourceMode>("link");
   const [roomPasswordInput, setRoomPasswordInput] = useState("");
   const [roomMaxPlayersInput, setRoomMaxPlayersInput] = useState("");
+  const [playDurationSec, setPlayDurationSec] = useState(
+    DEFAULT_PLAY_DURATION_SEC,
+  );
+  const [startOffsetSec, setStartOffsetSec] = useState(
+    DEFAULT_START_OFFSET_SEC,
+  );
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(
     null,
@@ -420,6 +478,18 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     },
     [updateQuestionCount],
   );
+
+  const handleUpdatePlayDurationSec = useCallback((value: number) => {
+    const clamped = clampPlayDurationSec(value);
+    setPlayDurationSec(clamped);
+    return clamped;
+  }, []);
+
+  const handleUpdateStartOffsetSec = useCallback((value: number) => {
+    const clamped = clampStartOffsetSec(value);
+    setStartOffsetSec(clamped);
+    return clamped;
+  }, []);
 
   const {
     collections,
@@ -725,10 +795,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 ) {
                   loadPage(page + 1);
                 } else {
-                  resolve(aggregated);
+                  resolve(normalizePlaylistItems(aggregated));
                 }
               } else {
-                resolve(aggregated);
+                resolve(normalizePlaylistItems(aggregated));
               }
             },
           );
@@ -932,7 +1002,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       },
       onRoomUpdated: ({ room }) => {
         if (room.id !== currentRoomIdRef.current) return;
-        setCurrentRoom((prev) => (prev ? { ...prev, ...room } : prev));
+        setCurrentRoom((prev) =>
+          prev ? mergeRoomSummaryIntoCurrentRoom(prev, room) : prev,
+        );
       },
       onKicked: ({ roomId, reason, bannedUntil }) => {
         if (roomId !== currentRoomIdRef.current) return;
@@ -1032,10 +1104,18 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
     const desiredVisibility = roomVisibilityInput;
     const desiredPassword = trimmedPassword || null;
-    const shouldApplyAccessSettings =
+    const nextQuestionCount = clampQuestionCount(
+      questionCount,
+      getQuestionMax(playlistItems.length),
+    );
+    const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
+    const nextStartOffsetSec = clampStartOffsetSec(startOffsetSec);
+    const shouldSyncRoomSettings =
       desiredVisibility !== "public" ||
       desiredPassword !== null ||
-      desiredMaxPlayers !== null;
+      desiredMaxPlayers !== null ||
+      nextPlayDurationSec !== DEFAULT_PLAY_DURATION_SEC ||
+      nextStartOffsetSec !== DEFAULT_START_OFFSET_SEC;
 
     const uploadId =
       crypto.randomUUID?.() ??
@@ -1050,10 +1130,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       username,
       password: desiredPassword ?? undefined,
       gameSettings: {
-        questionCount: clampQuestionCount(
-          questionCount,
-          getQuestionMax(normalizedItems.length),
-        ),
+        questionCount: nextQuestionCount,
+        playDurationSec: nextPlayDurationSec,
+        startOffsetSec: nextStartOffsetSec,
       },
       playlist: {
         uploadId,
@@ -1076,7 +1155,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         persistRoomId(state.room.id);
         lockSessionClientId(clientId);
         let accessSettingsWarning: string | null = null;
-        if (shouldApplyAccessSettings) {
+        if (shouldSyncRoomSettings) {
           await new Promise<void>((resolve) => {
             s.emit(
               "updateRoomSettings",
@@ -1084,6 +1163,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 roomId: state.room.id,
                 visibility: desiredVisibility,
                 password: desiredPassword,
+                questionCount: nextQuestionCount,
+                playDurationSec: nextPlayDurationSec,
+                startOffsetSec: nextStartOffsetSec,
                 maxPlayers: desiredMaxPlayers,
               },
               (settingsAck: Ack<{ room: RoomSummary }>) => {
@@ -1101,7 +1183,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                   return;
                 }
                 setCurrentRoom((prev) =>
-                  prev ? { ...prev, ...settingsAck.data.room } : prev,
+                  prev
+                    ? applyGameSettingsPatch(
+                        mergeRoomSummaryIntoCurrentRoom(prev, settingsAck.data.room),
+                        {
+                          questionCount: nextQuestionCount,
+                          playDurationSec: nextPlayDurationSec,
+                          startOffsetSec: nextStartOffsetSec,
+                        },
+                      )
+                    : prev,
                 );
                 resolve();
               },
@@ -1159,6 +1250,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     lastFetchedPlaylistId,
     lockSessionClientId,
     playlistItems,
+    playDurationSec,
     questionCount,
     refreshAuthToken,
     roomMaxPlayersInput,
@@ -1166,6 +1258,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     roomVisibilityInput,
     roomPasswordInput,
     saveRoomPassword,
+    startOffsetSec,
     syncServerOffset,
     username,
     persistRoomId,
@@ -1335,6 +1428,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       visibility?: "public" | "private";
       password?: string | null;
       questionCount?: number;
+      playDurationSec?: number;
+      startOffsetSec?: number;
       maxPlayers?: number | null;
     }) => {
       const s = getSocket();
@@ -1342,10 +1437,19 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setStatusText("尚未加入任何房間");
         return false;
       }
+      const normalizedPayload = {
+        ...payload,
+        ...(typeof payload.playDurationSec === "number"
+          ? { playDurationSec: clampPlayDurationSec(payload.playDurationSec) }
+          : {}),
+        ...(typeof payload.startOffsetSec === "number"
+          ? { startOffsetSec: clampStartOffsetSec(payload.startOffsetSec) }
+          : {}),
+      };
       return await new Promise<boolean>((resolve) => {
         s.emit(
           "updateRoomSettings",
-          { roomId: currentRoom.id, ...payload },
+          { roomId: currentRoom.id, ...normalizedPayload },
           (ack: Ack<{ room: RoomSummary }>) => {
             if (!ack) {
               resolve(false);
@@ -1357,10 +1461,19 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               return;
             }
             setCurrentRoom((prev) =>
-              prev ? { ...prev, ...ack.data.room } : prev,
+              prev
+                ? applyGameSettingsPatch(
+                    mergeRoomSummaryIntoCurrentRoom(prev, ack.data.room),
+                    {
+                      questionCount: normalizedPayload.questionCount,
+                      playDurationSec: normalizedPayload.playDurationSec,
+                      startOffsetSec: normalizedPayload.startOffsetSec,
+                    },
+                  )
+                : prev,
             );
-            if (payload.password !== undefined) {
-              const trimmed = payload.password?.trim() ?? "";
+            if (normalizedPayload.password !== undefined) {
+              const trimmed = normalizedPayload.password?.trim() ?? "";
               const nextPassword = trimmed ? trimmed : null;
               saveRoomPassword(currentRoom.id, nextPassword);
               setHostRoomPassword(nextPassword);
@@ -1680,6 +1793,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setRoomCreateSourceMode("link");
     setRoomPasswordInput("");
     setRoomMaxPlayersInput("");
+    setPlayDurationSec(DEFAULT_PLAY_DURATION_SEC);
+    setStartOffsetSec(DEFAULT_START_OFFSET_SEC);
     resetPlaylistState();
     resetCollectionSelection();
     clearCollectionsError();
@@ -1816,6 +1931,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       playlistProgress,
       playlistSuggestions,
       questionCount,
+      playDurationSec,
+      startOffsetSec,
       questionMin,
       questionMax: QUESTION_MAX,
       questionStep,
@@ -1850,6 +1967,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleResetPlaylist,
       loadMorePlaylist,
       updateQuestionCount: handleUpdateQuestionCount,
+      updatePlayDurationSec: handleUpdatePlayDurationSec,
+      updateStartOffsetSec: handleUpdateStartOffsetSec,
       syncServerOffset,
       fetchRooms,
       fetchRoomById,
@@ -1921,6 +2040,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       playlistProgress,
       playlistSuggestions,
       questionCount,
+      playDurationSec,
+      startOffsetSec,
       questionMin,
       questionStep,
       questionMaxLimit,
@@ -1955,6 +2076,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleResetPlaylist,
       loadMorePlaylist,
       handleUpdateQuestionCount,
+      handleUpdatePlayDurationSec,
+      handleUpdateStartOffsetSec,
       fetchRooms,
       fetchRoomById,
       resetCreateState,
