@@ -68,6 +68,13 @@ type SystemStatusPayload = {
       totalBytes: number;
       usedPercent: number;
     };
+    containerMemory?: {
+      source: "cgroup-v1" | "cgroup-v2";
+      usedBytes: number | null;
+      limitBytes: number | null;
+      remainingBytes: number | null;
+      usedPercent: number | null;
+    } | null;
   };
 };
 
@@ -629,6 +636,30 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
                       {formatBytes(systemStatus?.os.memory.usedBytes ?? 0)} /{" "}
                       {formatBytes(systemStatus?.os.memory.totalBytes ?? 0)} ({" "}
                       {systemStatus?.os.memory.usedPercent ?? 0}%)
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      p: 1.4,
+                      borderRadius: 2,
+                      border: "1px solid rgba(245, 158, 11, 0.12)",
+                      background: "rgba(0,0,0,0.22)",
+                    }}
+                  >
+                    <Typography variant="caption" color="var(--mc-text-muted)">
+                      Render 容器剩餘記憶體
+                    </Typography>
+                    <Typography variant="body2">
+                      {systemStatus?.os.containerMemory?.remainingBytes !== null &&
+                      systemStatus?.os.containerMemory?.remainingBytes !==
+                        undefined
+                        ? formatBytes(systemStatus.os.containerMemory.remainingBytes)
+                        : "N/A"}
+                    </Typography>
+                    <Typography variant="caption" color="var(--mc-text-muted)">
+                      {systemStatus?.os.containerMemory
+                        ? `${systemStatus.os.containerMemory.usedBytes !== null ? formatBytes(systemStatus.os.containerMemory.usedBytes) : "N/A"} / ${systemStatus.os.containerMemory.limitBytes !== null ? formatBytes(systemStatus.os.containerMemory.limitBytes) : "N/A"} (${systemStatus.os.containerMemory.usedPercent !== null ? `${systemStatus.os.containerMemory.usedPercent}%` : "N/A"}) · ${systemStatus.os.containerMemory.source}`
+                        : "目前環境未提供 cgroup 記憶體資訊"}
                     </Typography>
                   </Box>
                 </Box>
