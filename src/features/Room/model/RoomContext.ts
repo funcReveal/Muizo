@@ -117,6 +117,7 @@ export interface RoomContextValue {
   questionCount: number;
   playDurationSec: number;
   startOffsetSec: number;
+  allowCollectionClipTiming: boolean;
   questionMin: number;
   questionMax: number;
   questionStep: number;
@@ -147,6 +148,7 @@ export interface RoomContextValue {
     questionCount?: number;
     playDurationSec?: number;
     startOffsetSec?: number;
+    allowCollectionClipTiming?: boolean;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   handleKickPlayer: (targetClientId: string, durationMs?: number | null) => void;
@@ -173,6 +175,7 @@ export interface RoomContextValue {
   updateQuestionCount: (value: number) => void;
   updatePlayDurationSec: (value: number) => number;
   updateStartOffsetSec: (value: number) => number;
+  updateAllowCollectionClipTiming: (value: boolean) => boolean;
   syncServerOffset: (serverNow: number) => void;
   fetchRooms: () => Promise<void>;
   fetchRoomById: (roomId: string) => Promise<RoomSummary | null>;

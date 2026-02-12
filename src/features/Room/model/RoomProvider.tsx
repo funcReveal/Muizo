@@ -34,6 +34,7 @@ import {
   PLAYER_MAX,
   PLAYER_MIN,
   QUESTION_MAX,
+  QUESTION_MIN,
   SOCKET_URL,
   WORKER_API_URL,
 } from "./roomConstants";
@@ -84,13 +85,16 @@ const mapCollectionItemsToPlaylist = (
 ) =>
   items.flatMap((item, index) => {
     const startSec = Math.max(0, item.start_sec ?? 0);
-    const hasExplicitEndSec =
-      typeof item.end_sec === "number" && item.end_sec > startSec;
+    const explicitEndSec =
+      typeof item.end_sec === "number" && item.end_sec > startSec
+        ? item.end_sec
+        : null;
+    const hasExplicitEndSec = explicitEndSec !== null;
     const hasExplicitStartSec = startSec > 0;
-    const endSec = hasExplicitEndSec
-      ? item.end_sec
-      : startSec + DEFAULT_CLIP_SEC;
-    const safeEnd = Math.max(startSec + 1, endSec);
+    const safeEnd = Math.max(
+      startSec + 1,
+      explicitEndSec ?? startSec + DEFAULT_CLIP_SEC,
+    );
     const videoId = item.source_id?.trim() ?? "";
     if (!videoId) return [];
     const durationValue =
@@ -110,6 +114,10 @@ const mapCollectionItemsToPlaylist = (
       endSec: safeEnd,
       hasExplicitStartSec,
       hasExplicitEndSec,
+      collectionClipStartSec: startSec,
+      collectionClipEndSec: explicitEndSec ?? undefined,
+      collectionHasExplicitStartSec: hasExplicitStartSec,
+      collectionHasExplicitEndSec: hasExplicitEndSec,
       videoId,
       sourceId: collectionId,
       provider: "collection",
@@ -145,49 +153,139 @@ const formatAckError = (prefix: string, error?: string) => {
   return `${prefix}：${detail || "未知錯誤"}`;
 };
 
+const normalizeQuestionCount = (value: number | undefined, fallback: number) => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+  return Math.floor(value);
+};
+
+type RoomGameSettings = NonNullable<RoomSummary["gameSettings"]>;
+
+const mergeGameSettings = (
+  current: RoomSummary["gameSettings"] | undefined,
+  incoming: Partial<RoomGameSettings> | undefined,
+): RoomGameSettings => {
+  const fallbackQuestionCount = normalizeQuestionCount(
+    current?.questionCount,
+    QUESTION_MIN,
+  );
+  return {
+    questionCount: normalizeQuestionCount(
+      incoming?.questionCount,
+      fallbackQuestionCount,
+    ),
+    playDurationSec: clampPlayDurationSec(
+      incoming?.playDurationSec ??
+        current?.playDurationSec ??
+        DEFAULT_PLAY_DURATION_SEC,
+    ),
+    startOffsetSec: clampStartOffsetSec(
+      incoming?.startOffsetSec ??
+        current?.startOffsetSec ??
+        DEFAULT_START_OFFSET_SEC,
+    ),
+    allowCollectionClipTiming:
+      incoming?.allowCollectionClipTiming ??
+      current?.allowCollectionClipTiming ??
+      true,
+  };
+};
+
+const applyGameSettingsPatch = (
+  room: RoomState["room"],
+  patch: Partial<RoomGameSettings>,
+): RoomState["room"] => ({
+  ...room,
+  gameSettings: mergeGameSettings(room.gameSettings, {
+    ...room.gameSettings,
+    ...patch,
+  }),
+});
+
+const buildUploadPlaylistItems = (
+  sourceItems: PlaylistItem[],
+  options: {
+    playDurationSec: number;
+    startOffsetSec: number;
+    allowCollectionClipTiming: boolean;
+  },
+): PlaylistItem[] => {
+  const roomPlayDurationSec = clampPlayDurationSec(options.playDurationSec);
+  const roomStartOffsetSec = clampStartOffsetSec(options.startOffsetSec);
+  return normalizePlaylistItems(sourceItems).map((item) => {
+    const itemStartSec = Math.max(0, item.startSec ?? 0);
+    const rawHasExplicitEndSec =
+      typeof item.hasExplicitEndSec === "boolean"
+        ? item.hasExplicitEndSec
+        : typeof item.endSec === "number" && item.endSec > itemStartSec;
+    const rawHasExplicitStartSec =
+      typeof item.hasExplicitStartSec === "boolean"
+        ? item.hasExplicitStartSec
+        : itemStartSec > 0 || rawHasExplicitEndSec;
+    const collectionClipStartSec = Math.max(
+      0,
+      item.collectionClipStartSec ?? itemStartSec,
+    );
+    const inferredTrackClip = item.timingSource === "track_clip";
+    const collectionHasExplicitStartSec =
+      typeof item.collectionHasExplicitStartSec === "boolean"
+        ? item.collectionHasExplicitStartSec
+        : inferredTrackClip
+          ? rawHasExplicitStartSec
+          : false;
+    const collectionHasExplicitEndSec =
+      typeof item.collectionHasExplicitEndSec === "boolean"
+        ? item.collectionHasExplicitEndSec
+        : inferredTrackClip
+          ? rawHasExplicitEndSec
+          : false;
+    const collectionClipEndSec =
+      typeof item.collectionClipEndSec === "number" &&
+      item.collectionClipEndSec > collectionClipStartSec
+        ? item.collectionClipEndSec
+        : collectionHasExplicitEndSec &&
+            typeof item.endSec === "number" &&
+            item.endSec > collectionClipStartSec
+          ? item.endSec
+          : undefined;
+    const isCollectionItem = item.provider === "collection";
+    const useTrackClip =
+      options.allowCollectionClipTiming &&
+      isCollectionItem &&
+      (collectionHasExplicitStartSec || collectionHasExplicitEndSec);
+    const startSec = useTrackClip ? collectionClipStartSec : roomStartOffsetSec;
+    const fallbackEndSec = startSec + roomPlayDurationSec;
+    const itemEndSec =
+      useTrackClip && collectionHasExplicitEndSec && collectionClipEndSec
+        ? collectionClipEndSec
+        : fallbackEndSec;
+    const endSec = Math.max(startSec + 1, useTrackClip ? itemEndSec : fallbackEndSec);
+    return {
+      ...item,
+      startSec,
+      endSec,
+      hasExplicitStartSec: useTrackClip ? collectionHasExplicitStartSec : false,
+      hasExplicitEndSec: useTrackClip ? collectionHasExplicitEndSec : false,
+      collectionClipStartSec,
+      collectionClipEndSec,
+      collectionHasExplicitStartSec,
+      collectionHasExplicitEndSec,
+      timingSource: useTrackClip
+        ? ("track_clip" as const)
+        : ("room_settings" as const),
+    };
+  });
+};
+
 const mergeRoomSummaryIntoCurrentRoom = (
   current: RoomState["room"],
   summary: RoomSummary,
 ): RoomState["room"] => ({
   ...current,
   ...summary,
-  gameSettings: summary.gameSettings
-    ? {
-        ...(current.gameSettings ?? {}),
-        ...summary.gameSettings,
-      }
-    : current.gameSettings,
+  gameSettings: mergeGameSettings(current.gameSettings, summary.gameSettings),
 });
-
-const applyGameSettingsPatch = (
-  current: RoomState["room"],
-  patch: {
-    questionCount?: number;
-    playDurationSec?: number;
-    startOffsetSec?: number;
-  },
-): RoomState["room"] => {
-  const hasPatch =
-    typeof patch.questionCount === "number" ||
-    typeof patch.playDurationSec === "number" ||
-    typeof patch.startOffsetSec === "number";
-  if (!hasPatch) return current;
-  return {
-    ...current,
-    gameSettings: {
-      ...(current.gameSettings ?? {}),
-      ...(typeof patch.questionCount === "number"
-        ? { questionCount: patch.questionCount }
-        : {}),
-      ...(typeof patch.playDurationSec === "number"
-        ? { playDurationSec: patch.playDurationSec }
-        : {}),
-      ...(typeof patch.startOffsetSec === "number"
-        ? { startOffsetSec: patch.startOffsetSec }
-        : {}),
-    },
-  };
-};
 
 export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -228,6 +326,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [startOffsetSec, setStartOffsetSec] = useState(
     DEFAULT_START_OFFSET_SEC,
   );
+  const [allowCollectionClipTiming, setAllowCollectionClipTiming] =
+    useState(true);
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(
     null,
@@ -489,6 +589,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const clamped = clampStartOffsetSec(value);
     setStartOffsetSec(clamped);
     return clamped;
+  }, []);
+
+  const handleUpdateAllowCollectionClipTiming = useCallback((value: boolean) => {
+    setAllowCollectionClipTiming(Boolean(value));
+    return Boolean(value);
   }, []);
 
   const {
@@ -809,6 +914,87 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     [getSocket, playlistPageSize],
   );
 
+  const syncRoomPlaylistTiming = useCallback(
+    async (
+      room: RoomState["room"],
+      gameSettingsOverride?: Partial<RoomGameSettings>,
+    ) => {
+      const s = getSocket();
+      if (!s) return false;
+      const sourceItems = await fetchCompletePlaylist(room.id);
+      if (sourceItems.length === 0) return false;
+      const gameSettings = mergeGameSettings(
+        room.gameSettings,
+        gameSettingsOverride,
+      );
+      const uploadItems = buildUploadPlaylistItems(sourceItems, {
+        playDurationSec: gameSettings.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+        startOffsetSec: gameSettings.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
+        allowCollectionClipTiming: gameSettings.allowCollectionClipTiming ?? true,
+      });
+      if (uploadItems.length === 0) return false;
+
+      const uploadId =
+        crypto.randomUUID?.() ??
+        `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+      const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
+      const remaining = uploadItems.slice(CHUNK_SIZE);
+      const isLast = remaining.length === 0;
+
+      const changePlaylistOk = await new Promise<boolean>((resolve) => {
+        s.emit(
+          "changePlaylist",
+          {
+            roomId: room.id,
+            playlist: {
+              uploadId,
+              id: room.playlist.id,
+              title: room.playlist.title,
+              totalCount: uploadItems.length,
+              items: firstChunk,
+              isLast,
+              pageSize: room.playlist.pageSize || DEFAULT_PAGE_SIZE,
+            },
+          },
+          (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => {
+            resolve(Boolean(ack?.ok));
+          },
+        );
+      });
+      if (!changePlaylistOk) {
+        setStatusText("同步歌曲時間設定失敗");
+        return false;
+      }
+
+      if (remaining.length > 0) {
+        for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
+          const chunk = remaining.slice(i, i + CHUNK_SIZE);
+          const isLastChunk = i + CHUNK_SIZE >= remaining.length;
+          const chunkOk = await new Promise<boolean>((resolve) => {
+            s.emit(
+              "uploadPlaylistChunk",
+              {
+                roomId: room.id,
+                uploadId,
+                items: chunk,
+                isLast: isLastChunk,
+              },
+              (ack: Ack<{ receivedCount: number; totalCount: number }>) => {
+                resolve(Boolean(ack?.ok));
+              },
+            );
+          });
+          if (!chunkOk) {
+            setStatusText("同步歌曲時間設定失敗");
+            return false;
+          }
+        }
+      }
+      return true;
+    },
+    [fetchCompletePlaylist, getSocket, setStatusText],
+  );
+
   useEffect(() => {
     if (!username || authLoading) return;
     if (!shouldConnectSocket) {
@@ -850,7 +1036,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               if (ack?.ok) {
                 const state = ack.data;
                 syncServerOffset(state.serverNow);
-                setCurrentRoom(state.room);
+                setCurrentRoom(applyGameSettingsPatch(state.room, {}));
                 setParticipants(state.participants);
                 setMessages(state.messages);
                 setPlaylistProgress({
@@ -926,7 +1112,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       },
       onJoinedRoom: (state) => {
         syncServerOffset(state.serverNow);
-        setCurrentRoom(state.room);
+        setCurrentRoom(applyGameSettingsPatch(state.room, {}));
         setParticipants(state.participants);
         setMessages(state.messages);
         setPlaylistSuggestions([]);
@@ -1110,34 +1296,43 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     );
     const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
     const nextStartOffsetSec = clampStartOffsetSec(startOffsetSec);
+    const nextAllowCollectionClipTiming = Boolean(allowCollectionClipTiming);
     const shouldSyncRoomSettings =
       desiredVisibility !== "public" ||
       desiredPassword !== null ||
       desiredMaxPlayers !== null ||
       nextPlayDurationSec !== DEFAULT_PLAY_DURATION_SEC ||
-      nextStartOffsetSec !== DEFAULT_START_OFFSET_SEC;
+      nextStartOffsetSec !== DEFAULT_START_OFFSET_SEC ||
+      !nextAllowCollectionClipTiming;
 
     const uploadId =
       crypto.randomUUID?.() ??
       `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-    const normalizedItems = normalizePlaylistItems(playlistItems);
-    const firstChunk = normalizedItems.slice(0, CHUNK_SIZE);
-    const remaining = normalizedItems.slice(CHUNK_SIZE);
+    const uploadItems = buildUploadPlaylistItems(playlistItems, {
+      playDurationSec: nextPlayDurationSec,
+      startOffsetSec: nextStartOffsetSec,
+      allowCollectionClipTiming: nextAllowCollectionClipTiming,
+    });
+    const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
+    const remaining = uploadItems.slice(CHUNK_SIZE);
     const isLast = remaining.length === 0;
 
     const payload = {
       roomName: trimmed,
       username,
       password: desiredPassword ?? undefined,
+      visibility: desiredVisibility,
+      maxPlayers: desiredMaxPlayers,
       gameSettings: {
         questionCount: nextQuestionCount,
         playDurationSec: nextPlayDurationSec,
         startOffsetSec: nextStartOffsetSec,
+        allowCollectionClipTiming: nextAllowCollectionClipTiming,
       },
       playlist: {
         uploadId,
         id: lastFetchedPlaylistId,
-        totalCount: normalizedItems.length,
+        totalCount: uploadItems.length,
         items: firstChunk,
         isLast,
         pageSize: DEFAULT_PAGE_SIZE,
@@ -1149,7 +1344,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       if (ack.ok) {
         const state = ack.data;
         syncServerOffset(state.serverNow);
-        setCurrentRoom(state.room);
+        setCurrentRoom(
+          applyGameSettingsPatch(state.room, {
+            questionCount: nextQuestionCount,
+            playDurationSec: nextPlayDurationSec,
+            startOffsetSec: nextStartOffsetSec,
+            allowCollectionClipTiming: nextAllowCollectionClipTiming,
+          }),
+        );
         setParticipants(state.participants);
         setMessages(state.messages);
         persistRoomId(state.room.id);
@@ -1166,6 +1368,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 questionCount: nextQuestionCount,
                 playDurationSec: nextPlayDurationSec,
                 startOffsetSec: nextStartOffsetSec,
+                allowCollectionClipTiming: nextAllowCollectionClipTiming,
                 maxPlayers: desiredMaxPlayers,
               },
               (settingsAck: Ack<{ room: RoomSummary }>) => {
@@ -1185,11 +1388,15 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 setCurrentRoom((prev) =>
                   prev
                     ? applyGameSettingsPatch(
-                        mergeRoomSummaryIntoCurrentRoom(prev, settingsAck.data.room),
+                        mergeRoomSummaryIntoCurrentRoom(
+                          prev,
+                          settingsAck.data.room,
+                        ),
                         {
-                          questionCount: nextQuestionCount,
                           playDurationSec: nextPlayDurationSec,
                           startOffsetSec: nextStartOffsetSec,
+                          allowCollectionClipTiming:
+                            nextAllowCollectionClipTiming,
                         },
                       )
                     : prev,
@@ -1243,6 +1450,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       }
     });
   }, [
+    allowCollectionClipTiming,
     authToken,
     clientId,
     fetchPlaylistPage,
@@ -1283,7 +1491,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         if (ack.ok) {
           const state = ack.data;
           syncServerOffset(state.serverNow);
-          setCurrentRoom(state.room);
+          setCurrentRoom(applyGameSettingsPatch(state.room, {}));
           setParticipants(state.participants);
           setMessages(state.messages);
           setPlaylistProgress({
@@ -1379,10 +1587,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setStatusText("播放清單尚未準備完成");
       return;
     }
+    const guessDurationMs =
+      clampPlayDurationSec(
+        currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+      ) * 1000;
 
     s.emit(
       "startGame",
-      { roomId: currentRoom.id },
+      { roomId: currentRoom.id, guessDurationMs },
       (ack: Ack<{ gameState: GameState; serverNow: number }>) => {
         if (!ack) return;
         if (ack.ok) {
@@ -1430,6 +1642,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       questionCount?: number;
       playDurationSec?: number;
       startOffsetSec?: number;
+      allowCollectionClipTiming?: boolean;
       maxPlayers?: number | null;
     }) => {
       const s = getSocket();
@@ -1444,6 +1657,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           : {}),
         ...(typeof payload.startOffsetSec === "number"
           ? { startOffsetSec: clampStartOffsetSec(payload.startOffsetSec) }
+          : {}),
+        ...(typeof payload.allowCollectionClipTiming === "boolean"
+          ? { allowCollectionClipTiming: payload.allowCollectionClipTiming }
           : {}),
       };
       return await new Promise<boolean>((resolve) => {
@@ -1460,15 +1676,30 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               resolve(false);
               return;
             }
+            const gameSettingsPatch = {
+              ...(typeof normalizedPayload.playDurationSec === "number"
+                ? { playDurationSec: normalizedPayload.playDurationSec }
+                : {}),
+              ...(typeof normalizedPayload.startOffsetSec === "number"
+                ? { startOffsetSec: normalizedPayload.startOffsetSec }
+                : {}),
+              ...(typeof normalizedPayload.allowCollectionClipTiming === "boolean"
+                ? {
+                    allowCollectionClipTiming:
+                      normalizedPayload.allowCollectionClipTiming,
+                  }
+                : {}),
+            } satisfies Partial<RoomGameSettings>;
+            const mergedRoom = mergeRoomSummaryIntoCurrentRoom(
+              currentRoom,
+              ack.data.room,
+            );
+            const patchedRoom = applyGameSettingsPatch(mergedRoom, gameSettingsPatch);
             setCurrentRoom((prev) =>
               prev
                 ? applyGameSettingsPatch(
                     mergeRoomSummaryIntoCurrentRoom(prev, ack.data.room),
-                    {
-                      questionCount: normalizedPayload.questionCount,
-                      playDurationSec: normalizedPayload.playDurationSec,
-                      startOffsetSec: normalizedPayload.startOffsetSec,
-                    },
+                    gameSettingsPatch,
                   )
                 : prev,
             );
@@ -1478,13 +1709,38 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               saveRoomPassword(currentRoom.id, nextPassword);
               setHostRoomPassword(nextPassword);
             }
-            setStatusText("房間設定已更新");
-            resolve(true);
+            const shouldSyncTiming =
+              typeof normalizedPayload.playDurationSec === "number" ||
+              typeof normalizedPayload.startOffsetSec === "number" ||
+              typeof normalizedPayload.allowCollectionClipTiming === "boolean";
+            if (!shouldSyncTiming) {
+              setStatusText("房間設定已更新");
+              resolve(true);
+              return;
+            }
+            void (async () => {
+              const synced = await syncRoomPlaylistTiming(
+                patchedRoom,
+                gameSettingsPatch,
+              );
+              setStatusText(
+                synced
+                  ? "房間設定已更新（歌曲時間已同步）"
+                  : "房間設定已更新，但歌曲時間同步失敗",
+              );
+              resolve(true);
+            })();
           },
         );
       });
     },
-    [currentRoom, getSocket, saveRoomPassword, setStatusText],
+    [
+      currentRoom,
+      getSocket,
+      saveRoomPassword,
+      setStatusText,
+      syncRoomPlaylistTiming,
+    ],
   );
 
   const handleKickPlayer = useCallback(
@@ -1656,9 +1912,21 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const uploadId =
       crypto.randomUUID?.() ??
       `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-    const normalizedItems = normalizePlaylistItems(playlistItems);
-    const firstChunk = normalizedItems.slice(0, CHUNK_SIZE);
-    const remaining = normalizedItems.slice(CHUNK_SIZE);
+    const roomPlayDurationSec = clampPlayDurationSec(
+      currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+    );
+    const roomStartOffsetSec = clampStartOffsetSec(
+      currentRoom.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
+    );
+    const roomAllowCollectionClipTiming =
+      currentRoom.gameSettings?.allowCollectionClipTiming ?? true;
+    const uploadItems = buildUploadPlaylistItems(playlistItems, {
+      playDurationSec: roomPlayDurationSec,
+      startOffsetSec: roomStartOffsetSec,
+      allowCollectionClipTiming: roomAllowCollectionClipTiming,
+    });
+    const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
+    const remaining = uploadItems.slice(CHUNK_SIZE);
     const isLast = remaining.length === 0;
 
     s.emit(
@@ -1669,7 +1937,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           uploadId,
           id: lastFetchedPlaylistId,
           title: lastFetchedPlaylistTitle ?? undefined,
-          totalCount: normalizedItems.length,
+          totalCount: uploadItems.length,
           items: firstChunk,
           isLast,
           pageSize: DEFAULT_PAGE_SIZE,
@@ -1725,12 +1993,24 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setStatusText("推薦內容沒有可用歌曲");
         return;
       }
-      const normalizedItems = normalizePlaylistItems(items);
+      const roomPlayDurationSec = clampPlayDurationSec(
+        currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+      );
+      const roomStartOffsetSec = clampStartOffsetSec(
+        currentRoom.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
+      );
+      const roomAllowCollectionClipTiming =
+        currentRoom.gameSettings?.allowCollectionClipTiming ?? true;
+      const uploadItems = buildUploadPlaylistItems(items, {
+        playDurationSec: roomPlayDurationSec,
+        startOffsetSec: roomStartOffsetSec,
+        allowCollectionClipTiming: roomAllowCollectionClipTiming,
+      });
       const uploadId =
         crypto.randomUUID?.() ??
         `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-      const firstChunk = normalizedItems.slice(0, CHUNK_SIZE);
-      const remaining = normalizedItems.slice(CHUNK_SIZE);
+      const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
+      const remaining = uploadItems.slice(CHUNK_SIZE);
       const isLast = remaining.length === 0;
       const sourceId =
         suggestion.sourceId ??
@@ -1745,7 +2025,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               uploadId,
               id: sourceId ?? undefined,
               title,
-              totalCount: normalizedItems.length,
+              totalCount: uploadItems.length,
               items: firstChunk,
               isLast,
               pageSize: DEFAULT_PAGE_SIZE,
@@ -1758,7 +2038,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
               return;
             }
             applyPlaylistSource(
-              normalizedItems,
+              uploadItems,
               sourceId ?? uploadId,
               title ?? null,
             );
@@ -1795,6 +2075,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setRoomMaxPlayersInput("");
     setPlayDurationSec(DEFAULT_PLAY_DURATION_SEC);
     setStartOffsetSec(DEFAULT_START_OFFSET_SEC);
+    setAllowCollectionClipTiming(true);
     resetPlaylistState();
     resetCollectionSelection();
     clearCollectionsError();
@@ -1825,6 +2106,52 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleUpdateQuestionCount(questionMaxLimit);
     }
   }, [handleUpdateQuestionCount, playlistItems.length, questionCount, questionMaxLimit]);
+
+  useEffect(() => {
+    if (!currentRoom) return;
+    if (playlistViewItems.length === 0) return;
+    const needsBackfill =
+      currentRoom.gameSettings?.playDurationSec === undefined ||
+      currentRoom.gameSettings?.startOffsetSec === undefined ||
+      currentRoom.gameSettings?.allowCollectionClipTiming === undefined;
+    if (!needsBackfill) return;
+    const firstRoomSettingsItem = playlistViewItems.find(
+      (item) => item.timingSource === "room_settings",
+    );
+    if (!firstRoomSettingsItem) return;
+    const inferredStartOffsetSec = clampStartOffsetSec(
+      firstRoomSettingsItem.startSec ?? DEFAULT_START_OFFSET_SEC,
+    );
+    const inferredPlayDurationSec = clampPlayDurationSec(
+      typeof firstRoomSettingsItem.endSec === "number" &&
+        firstRoomSettingsItem.endSec > inferredStartOffsetSec
+        ? firstRoomSettingsItem.endSec - inferredStartOffsetSec
+        : currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+    );
+    const inferredAllowCollectionClipTiming = playlistViewItems.some(
+      (item) => item.timingSource === "track_clip",
+    );
+    setCurrentRoom((prev) => {
+      if (!prev || prev.id !== currentRoom.id) return prev;
+      const mergedSettings = mergeGameSettings(prev.gameSettings, {
+        playDurationSec: inferredPlayDurationSec,
+        startOffsetSec: inferredStartOffsetSec,
+        allowCollectionClipTiming: inferredAllowCollectionClipTiming,
+      });
+      if (
+        prev.gameSettings?.playDurationSec === mergedSettings.playDurationSec &&
+        prev.gameSettings?.startOffsetSec === mergedSettings.startOffsetSec &&
+        prev.gameSettings?.allowCollectionClipTiming ===
+          mergedSettings.allowCollectionClipTiming
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        gameSettings: mergedSettings,
+      };
+    });
+  }, [currentRoom, playlistViewItems]);
 
   useEffect(() => {
     if (!currentRoom?.id) {
@@ -1933,6 +2260,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       questionCount,
       playDurationSec,
       startOffsetSec,
+      allowCollectionClipTiming,
       questionMin,
       questionMax: QUESTION_MAX,
       questionStep,
@@ -1969,6 +2297,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       updateQuestionCount: handleUpdateQuestionCount,
       updatePlayDurationSec: handleUpdatePlayDurationSec,
       updateStartOffsetSec: handleUpdateStartOffsetSec,
+      updateAllowCollectionClipTiming: handleUpdateAllowCollectionClipTiming,
       syncServerOffset,
       fetchRooms,
       fetchRoomById,
@@ -2042,6 +2371,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       questionCount,
       playDurationSec,
       startOffsetSec,
+      allowCollectionClipTiming,
       questionMin,
       questionStep,
       questionMaxLimit,
@@ -2078,6 +2408,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleUpdateQuestionCount,
       handleUpdatePlayDurationSec,
       handleUpdateStartOffsetSec,
+      handleUpdateAllowCollectionClipTiming,
       fetchRooms,
       fetchRoomById,
       resetCreateState,

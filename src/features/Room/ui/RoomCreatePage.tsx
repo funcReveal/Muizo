@@ -33,6 +33,7 @@ const RoomCreatePage: React.FC = () => {
     questionCount,
     playDurationSec,
     startOffsetSec,
+    allowCollectionClipTiming,
     questionMin,
     questionMaxLimit,
     questionStep,
@@ -59,6 +60,7 @@ const RoomCreatePage: React.FC = () => {
     updateQuestionCount,
     updatePlayDurationSec,
     updateStartOffsetSec,
+    updateAllowCollectionClipTiming,
     handleFetchPlaylist,
     fetchYoutubePlaylists,
     importYoutubePlaylist,
@@ -355,9 +357,13 @@ const RoomCreatePage: React.FC = () => {
                   questionCount={questionCount}
                   playDurationSec={playDurationSec}
                   startOffsetSec={startOffsetSec}
+                  allowCollectionClipTiming={allowCollectionClipTiming}
                   onQuestionCountChange={updateQuestionCount}
                   onPlayDurationChange={updatePlayDurationSec}
                   onStartOffsetChange={updateStartOffsetSec}
+                  onAllowCollectionClipTimingChange={
+                    updateAllowCollectionClipTiming
+                  }
                   questionMin={safeQuestionMin}
                   questionMax={safeQuestionMax}
                   questionStep={questionStep}

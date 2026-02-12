@@ -79,6 +79,27 @@ const extractYouTubeId = (
 const SILENT_AUDIO_SRC =
   "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
+const collectAnsweredClientIds = (
+  lockedOrder?: string[],
+  lockedClientIds?: string[],
+) => {
+  const ordered = [...(lockedOrder ?? []), ...(lockedClientIds ?? [])];
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  ordered.forEach((clientId) => {
+    if (!clientId || seen.has(clientId)) return;
+    seen.add(clientId);
+    unique.push(clientId);
+  });
+  return unique;
+};
+
+const buildScoreBaselineMap = (rows: RoomParticipant[]) =>
+  rows.reduce<Record<string, number>>((acc, row) => {
+    acc[row.clientId] = row.score;
+    return acc;
+  }, {});
+
 const GameRoomPage: React.FC<GameRoomPageProps> = ({
   room,
   gameState,
@@ -148,6 +169,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastPlayerTimeAtMsRef = useRef<number>(0);
   const lastTimeRequestReasonRef = useRef("init");
   const guessLoopSpanRef = useRef<number | null>(null);
+  const legacyClipWarningShownRef = useRef(false);
 
   const openExitConfirm = () => setExitConfirmOpen(true);
   const closeExitConfirm = () => setExitConfirmOpen(false);
@@ -239,12 +261,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const countdownTone = isFinalCountdown
     ? "border-rose-400/70 bg-rose-500/20 text-rose-100 shadow-[0_0_35px_rgba(244,63,94,0.45)]"
     : "border-amber-400/60 bg-amber-400/15 text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.35)]";
-  const lockedCount = gameState.lockedClientIds?.length ?? 0;
-  const lockedOrder = gameState.lockedOrder ?? [];
 
   const item = useMemo(() => {
     return playlist[currentTrackIndex] ?? playlist[0];
   }, [playlist, currentTrackIndex]);
+  const resolvedAnswerTitle =
+    item?.answerText?.trim() ||
+    item?.title?.trim() ||
+    gameState.answerTitle ||
+    "（未提供名稱）";
 
   const roomPlayDurationSec = Math.max(
     1,
@@ -254,12 +279,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     1000,
     Math.floor(roomPlayDurationSec * 1000),
   );
+  const serverGuessDurationMs =
+    Number.isFinite(gameState.guessDurationMs) && gameState.guessDurationMs > 0
+      ? Math.max(1000, Math.floor(gameState.guessDurationMs))
+      : null;
   const effectiveGuessDurationMs =
-    typeof room.gameSettings?.playDurationSec === "number"
-      ? configuredGuessDurationMs
-      : Number.isFinite(gameState.guessDurationMs) && gameState.guessDurationMs > 0
-        ? Math.max(1000, Math.floor(gameState.guessDurationMs))
-        : configuredGuessDurationMs;
+    serverGuessDurationMs ?? configuredGuessDurationMs;
   const roomStartOffsetSec = Math.max(
     0,
     room.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
@@ -282,17 +307,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         : (typeof item.startSec === "number" && item.startSec > 0) ||
           hasExplicitEndSec),
   );
-  const shouldUseRoomSettings = !hasExplicitStartSec && !hasExplicitEndSec;
-  const clipStartSec = shouldUseRoomSettings
-    ? roomStartOffsetSec
+  const itemTimingSource =
+    item?.timingSource === "room_settings" || item?.timingSource === "track_clip"
+      ? item.timingSource
+      : null;
+  const fallbackClipSource: "room_settings" | "track_clip" =
+    itemTimingSource ??
+    (!hasExplicitStartSec && !hasExplicitEndSec ? "room_settings" : "track_clip");
+  const serverClipSource =
+    gameState.clipSource === "room_settings" || gameState.clipSource === "track_clip"
+      ? gameState.clipSource
+      : null;
+  const effectiveClipSource = serverClipSource ?? fallbackClipSource;
+  const derivedClipStartSec = fallbackClipSource === "room_settings"
+    ? Math.max(0, item?.startSec ?? roomStartOffsetSec)
     : Math.max(0, item?.startSec ?? 0);
-  const fallbackDurationSec = Math.max(1, roomPlayDurationSec);
-  const clipEndSec =
-    shouldUseRoomSettings
-      ? clipStartSec + fallbackDurationSec
-      : typeof item?.endSec === "number" && item.endSec > clipStartSec
+  const fallbackDurationSec = Math.max(1, Math.floor(effectiveGuessDurationMs / 1000));
+  const derivedClipEndSec =
+    fallbackClipSource === "room_settings"
+      ? typeof item?.endSec === "number" && item.endSec > derivedClipStartSec
         ? item.endSec
-        : clipStartSec + DEFAULT_CLIP_SEC;
+        : derivedClipStartSec + fallbackDurationSec
+      : typeof item?.endSec === "number" && item.endSec > derivedClipStartSec
+        ? item.endSec
+        : derivedClipStartSec + DEFAULT_CLIP_SEC;
+  const serverClipStartSec =
+    typeof gameState.clipStartSec === "number" && gameState.clipStartSec >= 0
+      ? gameState.clipStartSec
+      : null;
+  const serverClipEndSec =
+    typeof gameState.clipEndSec === "number" && gameState.clipEndSec > 0
+      ? gameState.clipEndSec
+      : null;
+  const clipStartSec = serverClipStartSec ?? derivedClipStartSec;
+  const clipEndSec =
+    serverClipEndSec !== null && serverClipEndSec > clipStartSec
+      ? serverClipEndSec
+      : derivedClipEndSec;
+  const shouldLoopRoomSettingsClip = effectiveClipSource === "room_settings";
   const revealDurationSec = Math.max(0, gameState.revealDurationMs / 1000);
   const revealStartAt = gameState.revealEndsAt - gameState.revealDurationMs;
   const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
@@ -350,7 +402,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       : null;
 
   const trackLoadKey = `${videoId ?? "none"}:${clipStartSec}-${clipEndSec}`;
-  const trackSessionKey = `${currentTrackIndex}`;
+  const trackSessionKey = `${gameState.startedAt}:${trackCursor}:${currentTrackIndex}`;
+  const [answeredOrderSnapshot, setAnsweredOrderSnapshot] = useState<{
+    trackSessionKey: string;
+    order: string[];
+  }>(() => ({
+    trackSessionKey,
+    order: collectAnsweredClientIds(gameState.lockedOrder, gameState.lockedClientIds),
+  }));
+  const [scoreBaselineState, setScoreBaselineState] = useState<{
+    trackSessionKey: string;
+    byClientId: Record<string, number>;
+  }>(() => ({
+    trackSessionKey,
+    byClientId: buildScoreBaselineMap(participants),
+  }));
   const isTrackLoading = loadedTrackKey !== trackLoadKey;
   const shouldShowGestureOverlay =
     !isEnded && requiresAudioGesture && !audioUnlocked;
@@ -364,6 +430,81 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const shouldHideVideoFrame =
     shouldShowGestureOverlay || showPreStartMask || showLoadingMask || showGuessMask;
   const correctChoiceIndex = currentTrackIndex;
+
+  useEffect(() => {
+    if (legacyClipWarningShownRef.current) return;
+    if (
+      typeof gameState.clipStartSec === "number" &&
+      typeof gameState.clipEndSec === "number" &&
+      (gameState.clipSource === "room_settings" ||
+        gameState.clipSource === "track_clip")
+    ) {
+      return;
+    }
+    legacyClipWarningShownRef.current = true;
+    console.warn(
+      "[GameRoomPage] gameState clip fields are missing; using local fallback clip calculation.",
+    );
+  }, [gameState.clipEndSec, gameState.clipSource, gameState.clipStartSec]);
+
+  useEffect(() => {
+    setAnsweredOrderSnapshot((prev) => {
+      const incoming = collectAnsweredClientIds(
+        gameState.lockedOrder,
+        gameState.lockedClientIds,
+      );
+      if (prev.trackSessionKey !== trackSessionKey) {
+        return {
+          trackSessionKey,
+          order: incoming,
+        };
+      }
+      if (incoming.length === 0) {
+        return prev;
+      }
+      const nextOrder = [...prev.order];
+      const seen = new Set(nextOrder);
+      let changed = false;
+      incoming.forEach((clientId) => {
+        if (seen.has(clientId)) return;
+        seen.add(clientId);
+        nextOrder.push(clientId);
+        changed = true;
+      });
+      if (!changed) {
+        return prev;
+      }
+      return {
+        trackSessionKey: prev.trackSessionKey,
+        order: nextOrder,
+      };
+    });
+  }, [gameState.lockedClientIds, gameState.lockedOrder, trackSessionKey]);
+
+  useEffect(() => {
+    setScoreBaselineState((prev) => {
+      if (prev.trackSessionKey !== trackSessionKey) {
+        return {
+          trackSessionKey,
+          byClientId: buildScoreBaselineMap(participants),
+        };
+      }
+      let changed = false;
+      const nextByClientId = { ...prev.byClientId };
+      participants.forEach((participant) => {
+        if (nextByClientId[participant.clientId] !== undefined) return;
+        nextByClientId[participant.clientId] = participant.score;
+        changed = true;
+      });
+      if (!changed) {
+        return prev;
+      }
+      return {
+        trackSessionKey: prev.trackSessionKey,
+        byClientId: nextByClientId,
+      };
+    });
+  }, [participants, trackSessionKey]);
 
   useEffect(() => {
     guessLoopSpanRef.current = null;
@@ -817,7 +958,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           const guessEndsAt = gameState.startedAt + effectiveGuessDurationMs;
           if (
             gameState.phase === "guess" &&
-            shouldUseRoomSettings &&
+            shouldLoopRoomSettingsClip &&
             !isEnded &&
             !waitingToStart &&
             serverNow < guessEndsAt
@@ -907,7 +1048,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     waitingToStart,
     markAudioUnlocked,
     scheduleResumeResync,
-    shouldUseRoomSettings,
+    shouldLoopRoomSettingsClip,
   ]);
 
   useEffect(() => {
@@ -1084,6 +1225,125 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? 0
       : ((activePhaseDurationMs - phaseRemainingMs) / activePhaseDurationMs) *
       100;
+  const isGuessUrgency =
+    gameState.phase === "guess" &&
+    !isInterTrackWait &&
+    !isEnded &&
+    phaseRemainingMs > 0 &&
+    phaseRemainingMs <= 3000;
+
+  const participantIdSet = useMemo(
+    () => new Set(participants.map((participant) => participant.clientId)),
+    [participants],
+  );
+  const answeredOrderForCurrentParticipants = useMemo(
+    () =>
+      answeredOrderSnapshot.order.filter((clientId) =>
+        participantIdSet.has(clientId),
+      ),
+    [answeredOrderSnapshot.order, participantIdSet],
+  );
+  const answeredClientIdSet = useMemo(
+    () => new Set(answeredOrderForCurrentParticipants),
+    [answeredOrderForCurrentParticipants],
+  );
+  const answeredRankByClientId = useMemo(() => {
+    const rankMap = new Map<string, number>();
+    answeredOrderForCurrentParticipants.forEach((clientId, idx) => {
+      rankMap.set(clientId, idx + 1);
+    });
+    return rankMap;
+  }, [answeredOrderForCurrentParticipants]);
+  const answeredCount = answeredOrderForCurrentParticipants.length;
+
+  const scorePartsByClientId = useMemo(() => {
+    const partsMap = new Map<string, { base: number; gain: number }>();
+    participants.forEach((participant) => {
+      const baseline =
+        scoreBaselineState.byClientId[participant.clientId] ?? participant.score;
+      const gain = Math.max(0, participant.score - baseline);
+      partsMap.set(participant.clientId, {
+        base: participant.score - gain,
+        gain,
+      });
+    });
+    return partsMap;
+  }, [participants, scoreBaselineState.byClientId]);
+  const meParticipant = useMemo(
+    () =>
+      participants.find((participant) => participant.clientId === meClientId) ??
+      null,
+    [participants, meClientId],
+  );
+  const myScoreParts =
+    meParticipant !== null
+      ? scorePartsByClientId.get(meParticipant.clientId) ?? {
+        base: meParticipant.score,
+        gain: 0,
+      }
+      : null;
+  const myGain = myScoreParts?.gain ?? 0;
+  const myHasAnswered = Boolean(meClientId && answeredClientIdSet.has(meClientId));
+  const myIsCorrect = selectedChoice !== null && selectedChoice === correctChoiceIndex;
+  const myFeedback = useMemo(() => {
+    if (isInterTrackWait) {
+      return {
+        tone: "neutral" as const,
+        title: "下一首準備中",
+        detail: `${startCountdownSec} 秒後開始`,
+      };
+    }
+    if (gameState.phase === "guess") {
+      if (!myHasAnswered) {
+        return {
+          tone: "neutral" as const,
+          title: "尚未作答",
+          detail: "請在倒數結束前選擇答案。",
+        };
+      }
+      return {
+        tone: "locked" as const,
+        title: "已鎖定答案，等待公布",
+        detail: "你已作答，本題無法再修改。",
+      };
+    }
+    if (!meClientId) {
+      return {
+        tone: "neutral" as const,
+        title: "本題結果已公布",
+        detail: "",
+      };
+    }
+    if (!myHasAnswered || selectedChoice === null) {
+      return {
+        tone: "neutral" as const,
+        title: "本題未作答",
+        detail: "",
+      };
+    }
+    if (myIsCorrect) {
+      return {
+        tone: "correct" as const,
+        title: `答對！本題 +${myGain}`,
+        detail: "",
+      };
+    }
+    return {
+      tone: "wrong" as const,
+      title: "答錯！",
+      detail: "",
+    };
+  }, [
+    gameState.phase,
+    isInterTrackWait,
+    meClientId,
+    myHasAnswered,
+    myGain,
+    myIsCorrect,
+    startCountdownSec,
+    selectedChoice,
+  ]);
+  const revealTone = myFeedback?.tone ?? "neutral";
 
   const sortedParticipants = participants
     .slice()
@@ -1131,7 +1391,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               (前五名 + 自己)
             </span>
             <Chip
-              label={`已答 ${lockedCount}/${participants.length || 0}`}
+              label={`已答 ${answeredCount}/${participants.length || 0}`}
               size="small"
               color="success"
               variant="outlined"
@@ -1158,17 +1418,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   );
                 }
                 const p = row.player;
+                const hasAnswered = answeredClientIdSet.has(p.clientId);
+                const answerRank = answeredRankByClientId.get(p.clientId);
+                const scoreParts = scorePartsByClientId.get(p.clientId) ?? {
+                  base: p.score,
+                  gain: 0,
+                };
                 return (
                   <div
                     key={p.clientId}
-                    className={`game-room-score-row flex items-center justify-between text-sm ${gameState.lockedClientIds?.includes(p.clientId)
+                    className={`game-room-score-row flex items-center justify-between text-sm ${hasAnswered
                       ? "game-room-score-row--locked"
                       : ""
                       } ${p.clientId === meClientId ? "game-room-score-row--me" : ""
                       }`}
                   >
                     <span className="truncate flex items-center gap-2">
-                      {gameState.lockedClientIds?.includes(p.clientId) && (
+                      {hasAnswered && (
                         <span
                           className="h-2 w-2 rounded-full bg-emerald-400"
                           title="已選答案"
@@ -1180,9 +1446,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         : p.username}
                     </span>
                     <div className="flex items-center gap-2">
-                      {gameState.lockedClientIds?.includes(p.clientId) ? (
+                      {typeof answerRank === "number" ? (
                         <Chip
-                          label={`第${lockedOrder.indexOf(p.clientId) + 1}答`}
+                          label={`第${answerRank}答`}
                           size="small"
                           color="success"
                           variant="filled"
@@ -1190,8 +1456,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       ) : (
                         <Chip label="未答" size="small" variant="outlined" />
                       )}
-                      <span className="font-semibold text-emerald-300">
-                        {p.score}
+                      <span className="font-semibold text-emerald-300 tabular-nums">
+                        {`${scoreParts.base}+ ${scoreParts.gain}`}
                         {p.combo > 1 && (
                           <span className="ml-1 text-amber-300">
                             x{p.combo}
@@ -1442,25 +1708,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                             : "success"
                       }
                       variant="outlined"
-                      className="game-room-chip"
+                      className={`game-room-chip ${isGuessUrgency ? "game-room-chip--urgent" : ""}`}
                     />
                   </div>
 
-                  <LinearProgress
-                    variant={isInterTrackWait ? "indeterminate" : "determinate"}
-                    value={
-                      isInterTrackWait
-                        ? undefined
-                        : Math.min(100, Math.max(0, progressPct))
-                    }
-                    color={
-                      isInterTrackWait
-                        ? "info"
-                        : gameState.phase === "guess"
-                          ? "warning"
-                          : "success"
-                    }
-                  />
+                  <div
+                    className={`game-room-phase-progress ${isGuessUrgency ? "game-room-phase-progress--urgent" : ""}`}
+                  >
+                    <LinearProgress
+                      variant={isInterTrackWait ? "indeterminate" : "determinate"}
+                      value={
+                        isInterTrackWait
+                          ? undefined
+                          : Math.min(100, Math.max(0, progressPct))
+                      }
+                      color={
+                        isInterTrackWait
+                          ? "info"
+                          : gameState.phase === "guess"
+                            ? "warning"
+                            : "success"
+                      }
+                      className="game-room-phase-progress-bar"
+                    />
+                  </div>
 
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {isInterTrackWait
@@ -1492,6 +1763,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         const isSelected = selectedChoice === choice.index;
                         const isCorrect = choice.index === correctChoiceIndex;
                         const isLocked = isReveal || isEnded;
+                        const choiceDisplayTitle =
+                          playlist[choice.index]?.answerText?.trim() ||
+                          playlist[choice.index]?.title?.trim() ||
+                          choice.title;
+                        const isMyChoice = selectedChoice === choice.index;
+                        const showCorrectTag = isReveal && isCorrect;
+                        const showMyChoiceTag = isReveal && isMyChoice;
+                        const showMyCorrectTag = isReveal && isMyChoice && isCorrect;
 
                         return (
                           <Button
@@ -1541,10 +1820,27 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                               onSubmitChoice(choice.index);
                             }}
                           >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="truncate">{choice.title}</span>
-                              <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
+                            <div className="flex w-full items-center justify-between gap-2">
+                              <span className="truncate">{choiceDisplayTitle}</span>
+                              <span className="ml-3 inline-flex items-center gap-1">
+                                {showCorrectTag && (
+                                  <span className="game-room-choice-tag game-room-choice-tag--correct">
+                                    正解
+                                  </span>
+                                )}
+                                {showMyChoiceTag && (
+                                  <span
+                                    className={`game-room-choice-tag ${showMyCorrectTag
+                                      ? "game-room-choice-tag--you-correct"
+                                      : "game-room-choice-tag--you"
+                                      }`}
+                                  >
+                                    {showMyCorrectTag ? "你答對" : "你的答案"}
+                                  </span>
+                                )}
+                                <span className="inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
                                 {(keyBindings[idx] ?? "").toUpperCase()}
+                                </span>
                               </span>
                             </div>
                           </Button>
@@ -1554,41 +1850,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
 
                 <div className="game-room-reveal mt-3">
-                  {isReveal ? (
-                    <div className="game-room-reveal-card rounded-lg border border-emerald-700 bg-emerald-900/30">
-                      <p className="text-sm font-semibold text-emerald-100">
-                        正確答案
-                      </p>
-                      <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
-                        {gameState.answerTitle ?? "（未提供名稱）"}
-                      </p>
-                      {gameState.status === "playing" ? (
-                        <p className="mt-1 text-xs text-emerald-200">
-                          下一首將在 {Math.ceil(revealCountdownMs / 1000)}{" "}
-                          秒後開始
+                  <div
+                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone}`}
+                  >
+                    <p className="game-room-feedback-title">{myFeedback.title}</p>
+                    {myFeedback.detail && (
+                      <p className="game-room-feedback-detail">{myFeedback.detail}</p>
+                    )}
+                    {isReveal && (
+                      <>
+                        <p className="mt-2 text-sm font-semibold text-emerald-100">
+                          正確答案
                         </p>
-                      ) : (
-                        <div className="mt-1 flex items-center justify-between">
-                          <p className="text-xs text-emerald-200">
-                            已播放完本輪歌曲，請房主挑選新的歌單。
+                        <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
+                          {resolvedAnswerTitle}
+                        </p>
+                        {gameState.status === "playing" ? (
+                          <p className="mt-1 text-xs text-emerald-200">
+                            下一首將在 {Math.ceil(revealCountdownMs / 1000)}{" "}
+                            秒後開始
                           </p>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="inherit"
-                            onClick={openExitConfirm}
-                          >
-                            退出遊戲
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div
-                      className="game-room-reveal-card game-room-reveal-placeholder rounded-lg border border-transparent bg-transparent"
-                      aria-hidden="true"
-                    />
-                  )}
+                        ) : (
+                          <div className="mt-1 flex items-center justify-between">
+                            <p className="text-xs text-emerald-200">
+                              已播放完本輪歌曲，請房主挑選新的歌單。
+                            </p>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="inherit"
+                              onClick={openExitConfirm}
+                            >
+                              退出遊戲
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </>
             )}

@@ -12,6 +12,11 @@ export interface PlaylistItem {
   endSec?: number;
   hasExplicitStartSec?: boolean;
   hasExplicitEndSec?: boolean;
+  timingSource?: "room_settings" | "track_clip";
+  collectionClipStartSec?: number;
+  collectionClipEndSec?: number;
+  collectionHasExplicitStartSec?: boolean;
+  collectionHasExplicitEndSec?: boolean;
   answerText?: string;
   videoId?: string;
   sourceId?: string | null;
@@ -42,6 +47,9 @@ export interface GameState {
   revealEndsAt: number;
   guessDurationMs: number;
   revealDurationMs: number;
+  clipStartSec?: number;
+  clipEndSec?: number;
+  clipSource?: "room_settings" | "track_clip";
   choices: GameChoice[];
   answerTitle?: string;
   showVideo: boolean;
@@ -95,6 +103,7 @@ export interface RoomSummary {
     questionCount: number;
     playDurationSec?: number;
     startOffsetSec?: number;
+    allowCollectionClipTiming?: boolean;
   };
   visibility?: "public" | "private";
   maxPlayers?: number | null;
@@ -118,10 +127,13 @@ export interface ClientToServerEvents {
       roomName: string;
       username: string;
       password?: string;
+      visibility?: "public" | "private";
+      maxPlayers?: number | null;
       gameSettings?: {
         questionCount: number;
         playDurationSec?: number;
         startOffsetSec?: number;
+        allowCollectionClipTiming?: boolean;
       };
       playlist: {
         uploadId: string;
@@ -172,7 +184,12 @@ export interface ClientToServerEvents {
     }>) => void
   ) => void;
   startGame: (
-    payload: { roomId: string },
+    payload: {
+      roomId: string;
+      guessDurationMs?: number;
+      revealDurationMs?: number;
+      showVideo?: boolean;
+    },
     callback?: (ack: Ack<{ gameState: GameState; serverNow: number }>) => void
   ) => void;
   submitAnswer: (
@@ -188,6 +205,7 @@ export interface ClientToServerEvents {
       questionCount?: number;
       playDurationSec?: number;
       startOffsetSec?: number;
+      allowCollectionClipTiming?: boolean;
       maxPlayers?: number | null;
     },
     callback?: (ack: Ack<{ room: RoomSummary }>) => void

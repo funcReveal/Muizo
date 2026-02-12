@@ -110,7 +110,7 @@ const RoomLobbyPage: React.FC = () => {
         <GameRoomPage
           room={currentRoom}
           gameState={gameState}
-          playlist={gamePlaylist.length > 0 ? gamePlaylist : playlistViewItems}
+          playlist={gamePlaylist}
           onExitGame={() =>
             handleLeaveRoom(() => navigate("/rooms", { replace: true }))
           }

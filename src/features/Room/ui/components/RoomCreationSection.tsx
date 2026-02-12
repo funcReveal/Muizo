@@ -8,11 +8,13 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   InputLabel,
   LinearProgress,
   MenuItem,
   Select,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -47,9 +49,11 @@ interface RoomCreationSectionProps {
   questionCount: number;
   playDurationSec: number;
   startOffsetSec: number;
+  allowCollectionClipTiming: boolean;
   onQuestionCountChange: (value: number) => void;
   onPlayDurationChange: (value: number) => void;
   onStartOffsetChange: (value: number) => void;
+  onAllowCollectionClipTimingChange: (value: boolean) => void;
   questionMin?: number;
   questionMax?: number;
   questionStep?: number;
@@ -170,9 +174,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     questionCount,
     playDurationSec,
     startOffsetSec,
+    allowCollectionClipTiming,
     onQuestionCountChange,
     onPlayDurationChange,
     onStartOffsetChange,
+    onAllowCollectionClipTimingChange,
     questionMin = 1,
     questionMax = 100,
     questionStep = 5,
@@ -752,6 +758,22 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
             <Typography variant="caption" className="room-create-muted">
               若超過影片長度會自動從起始時間循環播放，直到本題時間結束。
             </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  checked={allowCollectionClipTiming}
+                  onChange={(_event, checked) =>
+                    onAllowCollectionClipTimingChange(checked)
+                  }
+                />
+              }
+              label="使用收藏庫設定的時間"
+              className="room-create-muted"
+            />
+            <Typography variant="caption" className="room-create-muted">
+              開啟：收藏庫歌曲用收藏庫的起始/結束時間；關閉：全部使用房間設定時間。
+            </Typography>
           </Stack>
         </div>
 
@@ -1058,5 +1080,4 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 };
 
 export default RoomCreationSection;
-
 

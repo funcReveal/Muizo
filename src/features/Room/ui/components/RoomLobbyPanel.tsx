@@ -16,12 +16,14 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
   List as MUIList,
   ListItem,
   MenuItem,
   Popover,
   Stack,
+  Switch,
   TextField,
   Typography,
   useMediaQuery,
@@ -622,6 +624,7 @@ interface RoomLobbyPanelProps {
     questionCount?: number;
     playDurationSec?: number;
     startOffsetSec?: number;
+    allowCollectionClipTiming?: boolean;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   onOpenGame?: () => void;
@@ -748,6 +751,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const [settingsStartOffsetSec, setSettingsStartOffsetSec] = useState(
     DEFAULT_START_OFFSET_SEC,
   );
+  const [settingsAllowCollectionClipTiming, setSettingsAllowCollectionClipTiming] =
+    useState(true);
   const [settingsMaxPlayers, setSettingsMaxPlayers] = useState("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const maskedRoomPassword = roomPassword
@@ -835,6 +840,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const roomStartOffsetSec = clampStartOffsetSec(
     currentRoom?.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
   );
+  const roomAllowCollectionClipTiming =
+    currentRoom?.gameSettings?.allowCollectionClipTiming ?? true;
 
   const extractPlaylistId = (url: string) => {
     try {
@@ -1010,8 +1017,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC;
     const baseStartOffsetSec =
       currentRoom.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC;
+    const baseAllowCollectionClipTiming =
+      currentRoom.gameSettings?.allowCollectionClipTiming ?? true;
     setSettingsPlayDurationSec(clampPlayDurationSec(basePlayDurationSec));
     setSettingsStartOffsetSec(clampStartOffsetSec(baseStartOffsetSec));
+    setSettingsAllowCollectionClipTiming(baseAllowCollectionClipTiming);
     setSettingsMaxPlayers(
       currentRoom.maxPlayers && currentRoom.maxPlayers > 0
         ? String(currentRoom.maxPlayers)
@@ -1069,6 +1079,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       questionCount: nextQuestionCount,
       playDurationSec: nextPlayDurationSec,
       startOffsetSec: nextStartOffsetSec,
+      allowCollectionClipTiming: settingsAllowCollectionClipTiming,
       maxPlayers: nextMaxPlayers,
       ...(settingsPasswordDirty ? { password: settingsPassword } : {}),
     };
@@ -1391,6 +1402,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 size="small"
                 variant="outlined"
                 label={`Start ${roomStartOffsetSec}s`}
+                className="text-slate-200 border-slate-600"
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={
+                  roomAllowCollectionClipTiming
+                    ? "收藏庫時間：開啟"
+                    : "收藏庫時間：關閉"
+                }
                 className="text-slate-200 border-slate-600"
               />
               <Chip
@@ -2336,8 +2357,27 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   fullWidth
                 />
               </Stack>
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={settingsAllowCollectionClipTiming}
+                    onChange={(_event, checked) => {
+                      setSettingsAllowCollectionClipTiming(checked);
+                      if (settingsError) {
+                        setSettingsError(null);
+                      }
+                    }}
+                    disabled={settingsDisabled}
+                  />
+                }
+                label="使用收藏庫設定的時間"
+              />
               <Typography variant="caption" className="text-slate-400">
                 若超過影片長度，會自動從起始時間循環播放至本題時間結束。
+              </Typography>
+              <Typography variant="caption" className="text-slate-400">
+                開啟：收藏庫歌曲優先使用收藏庫起始/結束時間；關閉：全部使用房主設定。
               </Typography>
             </Stack>
             {settingsError && (
