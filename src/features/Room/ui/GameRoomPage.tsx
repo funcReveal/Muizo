@@ -649,6 +649,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
       startSilentAudio();
       postCommand("playVideo");
+      postCommand("unMute");
       applyVolume(volume);
     },
     [
@@ -1107,22 +1108,40 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       lastRevealStartKeyRef.current = null;
       return;
     }
-    const revealKey = `${trackLoadKey}:reveal`;
+    const revealKey = `${trackSessionKey}:${gameState.revealEndsAt}:reveal`;
     if (lastRevealStartKeyRef.current === revealKey) return;
     lastRevealStartKeyRef.current = revealKey;
-    const serverAtEnd = computeServerPositionSec() >= clipEndSec - 0.05;
+    const latestPlayerTime = getFreshPlayerTimeSec();
     const playerEnded = lastPlayerStateRef.current === 0;
-    if (serverAtEnd || playerEnded) {
+    const playerAtEnd =
+      typeof latestPlayerTime === "number" &&
+      latestPlayerTime >= clipEndSec - 0.05;
+
+    if (playerEnded || playerAtEnd) {
+      // Entered reveal after clip already ended: restart from reveal timeline.
       revealReplayRef.current = true;
       startPlayback(computeRevealPositionSec(), true);
+      return;
     }
+
+    // Entered reveal while clip is still playing: continue current playback.
+    revealReplayRef.current = false;
+    postCommand("playVideo");
+    postCommand("unMute");
+    applyVolume(volume);
+    startSilentAudio();
   }, [
+    applyVolume,
     clipEndSec,
     computeRevealPositionSec,
-    computeServerPositionSec,
+    getFreshPlayerTimeSec,
+    gameState.revealEndsAt,
     isReveal,
+    postCommand,
+    startSilentAudio,
     startPlayback,
-    trackLoadKey,
+    trackSessionKey,
+    volume,
   ]);
 
   useEffect(() => {
