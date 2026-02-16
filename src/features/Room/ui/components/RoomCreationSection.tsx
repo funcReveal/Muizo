@@ -256,6 +256,10 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   const previewItems = React.useMemo(() => playlistItems.slice(0, 80), [playlistItems]);
   const stageLabel = playlistStage === "preview" ? "預覽中" : "設定中";
   const sourceModeLabel = sourceModeLabelMap[sourceMode];
+  const isCollectionSource =
+    sourceMode === "publicCollection" || sourceMode === "privateCollection";
+  const useCollectionTimingForSource =
+    isCollectionSource && allowCollectionClipTiming;
   const createHelperText = React.useMemo(() => {
     if (!roomName.trim()) return "請先填寫房間名稱。";
     if (maxPlayersInvalid) {
@@ -709,57 +713,14 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
           <Stack spacing={1} className="room-create-question-card">
             <div className="room-create-question-head">
               <Typography variant="subtitle1" className="room-create-step-title">
-                播放設定
+                作答時間設定
               </Typography>
               <span className="room-create-question-badge">
-                {playDurationSec}s / {startOffsetSec}s
+                {useCollectionTimingForSource
+                  ? "收藏庫時間"
+                  : `${playDurationSec}s / ${startOffsetSec}s`}
               </span>
             </div>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-              <TextField
-                size="small"
-                type="number"
-                label="遊玩時間 (秒)"
-                value={playDurationSec}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) return;
-                  onPlayDurationChange(next);
-                }}
-                slotProps={{
-                  htmlInput: {
-                    min: playDurationMin,
-                    max: playDurationMax,
-                    inputMode: "numeric",
-                  },
-                }}
-                fullWidth
-                className="room-create-field"
-              />
-              <TextField
-                size="small"
-                type="number"
-                label="起始時間 (秒)"
-                value={startOffsetSec}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) return;
-                  onStartOffsetChange(next);
-                }}
-                slotProps={{
-                  htmlInput: {
-                    min: startOffsetMin,
-                    max: startOffsetMax,
-                    inputMode: "numeric",
-                  },
-                }}
-                fullWidth
-                className="room-create-field"
-              />
-            </Stack>
-            <Typography variant="caption" className="room-create-muted">
-              若超過影片長度會自動從起始時間循環播放，直到本題時間結束。
-            </Typography>
             <FormControlLabel
               control={
                 <Switch
@@ -776,6 +737,59 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
             <Typography variant="caption" className="room-create-muted">
               開啟：收藏庫歌曲用收藏庫的起始/結束時間；關閉：全部使用房間設定時間。
             </Typography>
+            {useCollectionTimingForSource ? (
+              <Typography variant="caption" className="room-create-muted">
+                目前來源為收藏庫，已套用收藏庫時間。關閉此選項後可自訂作答時間與起始時間。
+              </Typography>
+            ) : (
+              <>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                  <TextField
+                    size="small"
+                    type="number"
+                    label="作答時間設定"
+                    value={playDurationSec}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      if (!Number.isFinite(next)) return;
+                      onPlayDurationChange(next);
+                    }}
+                    slotProps={{
+                      htmlInput: {
+                        min: playDurationMin,
+                        max: playDurationMax,
+                        inputMode: "numeric",
+                      },
+                    }}
+                    fullWidth
+                    className="room-create-field"
+                  />
+                  <TextField
+                    size="small"
+                    type="number"
+                    label="起始時間 (秒)"
+                    value={startOffsetSec}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      if (!Number.isFinite(next)) return;
+                      onStartOffsetChange(next);
+                    }}
+                    slotProps={{
+                      htmlInput: {
+                        min: startOffsetMin,
+                        max: startOffsetMax,
+                        inputMode: "numeric",
+                      },
+                    }}
+                    fullWidth
+                    className="room-create-field"
+                  />
+                </Stack>
+                <Typography variant="caption" className="room-create-muted">
+                  若超過影片長度會自動從起始時間循環播放，直到本題時間結束。
+                </Typography>
+              </>
+            )}
           </Stack>
         </div>
 

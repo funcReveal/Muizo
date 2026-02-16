@@ -834,6 +834,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   );
   const questionMinLimit = Math.min(QUESTION_MIN, questionMaxLimit);
   const settingsDisabled = gameState?.status === "playing";
+  const settingsSourceItems =
+    playlistItemsForChange.length > 0 ? playlistItemsForChange : playlistItems;
+  const settingsUseCollectionSource = settingsSourceItems.some(
+    (item) => item.provider === "collection",
+  );
+  const useCollectionTimingForSettings =
+    settingsUseCollectionSource && settingsAllowCollectionClipTiming;
   const roomPlayDurationSec = clampPlayDurationSec(
     currentRoom?.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
   );
@@ -1389,19 +1396,19 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Questions ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
+                label={`題數 ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Play ${roomPlayDurationSec}s`}
+                label={`作答時間 ${roomPlayDurationSec} 秒`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Start ${roomStartOffsetSec}s`}
+                label={`起始 ${roomStartOffsetSec} 秒`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
@@ -1417,13 +1424,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Playlist ${currentRoom?.playlist.totalCount ?? "-"} songs`}
+                label={`歌單 ${currentRoom?.playlist.totalCount ?? "-"} 首`}
                 className="text-slate-200 border-slate-600"
               />
               <Chip
                 size="small"
                 variant="outlined"
-                label={playlistProgress.ready ? "Playlist ready" : "Playlist syncing"}
+                label={playlistProgress.ready ? "歌單已準備" : "歌單同步中"}
                 className="text-slate-200 border-slate-600"
               />
               {currentRoom?.hasPassword && (
@@ -1483,7 +1490,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                             <span>{p.username}</span>
                             {host && (
                               <span className="text-amber-200 text-[10px]">
-                                Host
+                                房主
                               </span>
                             )}
                             {isSelf && (
@@ -2167,7 +2174,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             }}
           />
           <Button variant="contained" onClick={onSend}>
-            Send
+            送出
           </Button>
         </Stack>
 
@@ -2313,50 +2320,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             </Stack>
             <Stack spacing={1}>
               <Typography variant="subtitle2" className="text-slate-200">
-                播放設定
+                作答時間設定
               </Typography>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                <TextField
-                  label="遊玩時間 (秒)"
-                  type="number"
-                  value={settingsPlayDurationSec}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    if (!Number.isFinite(next)) return;
-                    setSettingsPlayDurationSec(next);
-                    if (settingsError) {
-                      setSettingsError(null);
-                    }
-                  }}
-                  inputProps={{
-                    min: PLAY_DURATION_MIN,
-                    max: PLAY_DURATION_MAX,
-                    inputMode: "numeric",
-                  }}
-                  disabled={settingsDisabled}
-                  fullWidth
-                />
-                <TextField
-                  label="起始時間 (秒)"
-                  type="number"
-                  value={settingsStartOffsetSec}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    if (!Number.isFinite(next)) return;
-                    setSettingsStartOffsetSec(next);
-                    if (settingsError) {
-                      setSettingsError(null);
-                    }
-                  }}
-                  inputProps={{
-                    min: START_OFFSET_MIN,
-                    max: START_OFFSET_MAX,
-                    inputMode: "numeric",
-                  }}
-                  disabled={settingsDisabled}
-                  fullWidth
-                />
-              </Stack>
               <FormControlLabel
                 control={
                   <Switch
@@ -2374,11 +2339,61 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 label="使用收藏庫設定的時間"
               />
               <Typography variant="caption" className="text-slate-400">
-                若超過影片長度，會自動從起始時間循環播放至本題時間結束。
-              </Typography>
-              <Typography variant="caption" className="text-slate-400">
                 開啟：收藏庫歌曲優先使用收藏庫起始/結束時間；關閉：全部使用房主設定。
               </Typography>
+              {useCollectionTimingForSettings ? (
+                <Typography variant="caption" className="text-slate-400">
+                  目前來源為收藏庫，已套用收藏庫時間。關閉此選項後可自訂作答時間與起始時間。
+                </Typography>
+              ) : (
+                <>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <TextField
+                      label="作答時間設定"
+                      type="number"
+                      value={settingsPlayDurationSec}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        if (!Number.isFinite(next)) return;
+                        setSettingsPlayDurationSec(next);
+                        if (settingsError) {
+                          setSettingsError(null);
+                        }
+                      }}
+                      inputProps={{
+                        min: PLAY_DURATION_MIN,
+                        max: PLAY_DURATION_MAX,
+                        inputMode: "numeric",
+                      }}
+                      disabled={settingsDisabled}
+                      fullWidth
+                    />
+                    <TextField
+                      label="起始時間 (秒)"
+                      type="number"
+                      value={settingsStartOffsetSec}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        if (!Number.isFinite(next)) return;
+                        setSettingsStartOffsetSec(next);
+                        if (settingsError) {
+                          setSettingsError(null);
+                        }
+                      }}
+                      inputProps={{
+                        min: START_OFFSET_MIN,
+                        max: START_OFFSET_MAX,
+                        inputMode: "numeric",
+                      }}
+                      disabled={settingsDisabled}
+                      fullWidth
+                    />
+                  </Stack>
+                  <Typography variant="caption" className="text-slate-400">
+                    若超過影片長度，會自動從起始時間循環播放至本題時間結束。
+                  </Typography>
+                </>
+              )}
             </Stack>
             {settingsError && (
               <Typography variant="caption" className="text-rose-300">

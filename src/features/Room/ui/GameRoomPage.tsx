@@ -29,12 +29,14 @@ import {
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
+import GameSettlementPanel from "./components/GameSettlementPanel";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
   gameState: GameState;
   playlist: PlaylistItem[];
   onExitGame: () => void;
+  onBackToLobby?: () => void;
   onSubmitChoice: (choiceIndex: number) => void;
   participants?: RoomState["participants"];
   meClientId?: string;
@@ -105,6 +107,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   gameState,
   playlist,
   onExitGame,
+  onBackToLobby,
   onSubmitChoice,
   participants = [],
   meClientId,
@@ -429,6 +432,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     isTrackLoading && !isReveal && !requiresAudioGesture && !waitingToStart;
   const shouldHideVideoFrame =
     shouldShowGestureOverlay || showPreStartMask || showLoadingMask || showGuessMask;
+  const showAudioOnlyMask = !shouldHideVideoFrame && !showVideo;
   const correctChoiceIndex = currentTrackIndex;
 
   useEffect(() => {
@@ -1210,6 +1214,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         }
       }
       if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if (waitingToStart) return;
       if (isReveal || isEnded) return;
       if (!gameState.choices?.length) return;
 
@@ -1238,13 +1243,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     isReveal,
     keyBindings,
     onSubmitChoice,
+    waitingToStart,
   ]);
 
   const effectivePlayerVideoId = playerVideoId ?? videoId;
   const iframeSrc = effectivePlayerVideoId
     ? `https://www.youtube-nocookie.com/embed/${effectivePlayerVideoId}?autoplay=0&controls=1&enablejsapi=1&rel=0&playsinline=1`
     : null;
-  const shouldShowVideo = true;
+  const shouldShowVideo = showVideo;
 
   const phaseLabel = isEnded
     ? "已結束"
@@ -1384,6 +1390,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const sortedParticipants = participants
     .slice()
     .sort((a, b) => b.score - a.score);
+  const playedQuestionCount = trackOrderLength || room.gameSettings?.questionCount || 0;
   const topFive = sortedParticipants.slice(0, 5);
   const self = sortedParticipants.find((p) => p.clientId === meClientId);
   const scoreboardList =
@@ -1413,6 +1420,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [messages.length]);
+
+  const exitGameDialog = (
+    <Dialog open={exitConfirmOpen} onClose={closeExitConfirm}>
+      <DialogTitle>退出遊戲？</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" className="text-slate-600">
+          確定要放棄本局並返回房間列表嗎？
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeExitConfirm} variant="text">
+          取消
+        </Button>
+        <Button onClick={handleExitConfirm} variant="contained" color="error">
+          退出遊戲
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
+  if (isEnded) {
+    return (
+      <div className="game-room-shell">
+        <GameSettlementPanel
+          room={room}
+          participants={participants}
+          messages={messages}
+          playlistItems={playlist}
+          trackOrder={gameState.trackOrder}
+          playedQuestionCount={playedQuestionCount}
+          meClientId={meClientId}
+          onBackToLobby={onBackToLobby}
+          onRequestExit={openExitConfirm}
+        />
+        {exitGameDialog}
+      </div>
+    );
+  }
 
   return (
     <div className="game-room-shell">
@@ -1533,7 +1578,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       )}
                       <span className="font-semibold text-emerald-300 tabular-nums">
                         {`${scoreParts.base}+ ${scoreParts.gain}`}
-                        {p.combo > 1 && (
+                        {p.combo > 0 && (
                           <span className="ml-1 text-amber-300">
                             x{p.combo}
                           </span>
@@ -1649,7 +1694,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   title="Now playing"
                   style={{
                     pointerEvents: "none",
-                    opacity: shouldHideVideoFrame ? 0 : shouldShowVideo ? 1 : 1,
+                    opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
                   }}
                   ref={iframeRef}
                   onLoad={() => {
@@ -1711,6 +1756,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               )}
               {showLoadingMask && (
                 <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950" />
+              )}
+              {showAudioOnlyMask && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
+                  <div className="rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
+                    Audio Mode
+                  </div>
+                  <p className="mt-2 text-xs text-slate-300">
+                    目前僅播放音訊，影片與控制面板已隱藏
+                  </p>
+                </div>
               )}
             </div>
 
@@ -1968,22 +2023,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             )}
           </div>
         </section>
-        <Dialog open={exitConfirmOpen} onClose={closeExitConfirm}>
-          <DialogTitle>退出遊戲？</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" className="text-slate-600">
-              確定要放棄本局並返回房間列表嗎？
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={closeExitConfirm} variant="text">
-              取消
-            </Button>
-            <Button onClick={handleExitConfirm} variant="contained" color="error">
-              退出遊戲
-            </Button>
-          </DialogActions>
-        </Dialog>
+        {exitGameDialog}
       </div>
     </div>
   );

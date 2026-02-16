@@ -111,6 +111,7 @@ const RoomLobbyPage: React.FC = () => {
           room={currentRoom}
           gameState={gameState}
           playlist={gamePlaylist}
+          onBackToLobby={() => setIsGameView(false)}
           onExitGame={() =>
             handleLeaveRoom(() => navigate("/rooms", { replace: true }))
           }

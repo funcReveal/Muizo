@@ -1681,15 +1681,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   ]);
 
   useEffect(() => {
-    if (gameState?.status === "ended" && isGameView) {
-      setIsGameView(false);
-      setStatusText("遊戲已結束，返回聊天室");
+    if (gameState?.status === "ended") {
+      setStatusText("遊戲已結束，請查看結算頁");
     }
-  }, [gameState?.status, isGameView]);
+  }, [gameState?.status]);
 
   const handleSubmitChoice = useCallback((choiceIndex: number) => {
     if (!currentRoom || !gameState) return;
     if (gameState.phase !== "guess") return;
+    const serverNow = Date.now() + serverOffsetRef.current;
+    if (gameState.startedAt > serverNow) return;
     const trackKey = `${gameState.startedAt}:${gameState.currentIndex}`;
     const previousPending = pendingAnswerSubmitRef.current;
     if (

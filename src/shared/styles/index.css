@@ -1767,6 +1767,166 @@ body {
   color: #a7f3d0;
 }
 
+.game-settlement-stage {
+  --gs-border: rgba(251, 191, 36, 0.28);
+  --gs-ink: #f8fafc;
+  font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
+  isolation: isolate;
+}
+
+.game-settlement-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(250, 204, 21, 0.11), transparent 38%),
+    radial-gradient(circle at 84% 86%, rgba(56, 189, 248, 0.1), transparent 42%),
+    repeating-linear-gradient(
+      118deg,
+      rgba(148, 163, 184, 0.028) 0,
+      rgba(148, 163, 184, 0.028) 2px,
+      transparent 2px,
+      transparent 12px
+    );
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+.game-settlement-confetti {
+  opacity: 0;
+  animation-name: game-settlement-confetti-path;
+  animation-timing-function: cubic-bezier(0.24, 0.92, 0.34, 1);
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+.game-settlement-leader-glint {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(251, 191, 36, 0.06) 30%,
+    rgba(251, 191, 36, 0.34) 48%,
+    rgba(125, 211, 252, 0.22) 58%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  animation: game-settlement-leader-glint 1850ms linear infinite;
+}
+
+.game-settlement-leader-beacon {
+  animation: game-settlement-leader-beacon 1.25s ease-in-out infinite;
+}
+
+.game-settlement-mvp-badge {
+  animation: game-settlement-mvp-badge 1.35s ease-in-out infinite;
+}
+
+.game-settlement-scorebar {
+  position: relative;
+  overflow: hidden;
+}
+
+.game-settlement-scorebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 16%,
+    rgba(255, 255, 255, 0.62) 48%,
+    rgba(255, 255, 255, 0) 84%
+  );
+  transform: translateX(-130%);
+  animation: game-settlement-scorebar-glint 2.35s linear infinite;
+}
+
+.game-settlement-scorebar--winner::after {
+  animation-duration: 1.75s;
+}
+
+.game-settlement-metric-fill {
+  position: relative;
+  overflow: hidden;
+  animation: game-settlement-metric-fill 2.6s ease-in-out infinite;
+}
+
+.game-settlement-metric-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 24% 50%,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0) 62%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+.game-settlement-reveal {
+  opacity: 0;
+  animation: game-settlement-reveal 560ms cubic-bezier(0.24, 0.94, 0.34, 1)
+    forwards;
+  animation-delay: var(--gs-reveal-delay, 0ms);
+}
+
+.game-settlement-track-card {
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.game-settlement-track-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(148, 163, 184, 0.72);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: 0 14px 24px -18px rgba(14, 165, 233, 0.5);
+}
+
+.game-settlement-tip-pill {
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.game-settlement-tip-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 24px -18px rgba(56, 189, 248, 0.55);
+}
+
+.game-settlement-stat-card {
+  transition:
+    border-color 220ms ease,
+    transform 220ms ease;
+}
+
+.game-settlement-stat-card:hover {
+  border-color: rgba(148, 163, 184, 0.72);
+  transform: translateY(-1px);
+}
+
+.game-settlement-stat-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.game-settlement-stat-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 16%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 84%
+  );
+  transform: translateX(-130%);
+  animation: game-settlement-scorebar-glint 2.45s linear infinite;
+}
+
 @keyframes game-room-urgent-chip {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
@@ -1812,6 +1972,135 @@ body {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes game-settlement-confetti-path {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -22px, 0) rotate(0deg) scale(0.62);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  40% {
+    transform: translate3d(var(--mq-confetti-drift, 18px), 10px, 0)
+      rotate(calc(var(--mq-confetti-spin, 160deg) * 0.45)) scale(1);
+  }
+
+  72% {
+    opacity: 0.95;
+    transform: translate3d(calc(var(--mq-confetti-drift, 18px) * -0.55), 40px, 0)
+      rotate(calc(var(--mq-confetti-spin, 160deg) * 0.8)) scale(0.95);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 74px, 0) rotate(var(--mq-confetti-spin, 160deg))
+      scale(0.72);
+  }
+}
+
+@keyframes game-settlement-leader-glint {
+  from {
+    transform: translateX(-120%);
+  }
+
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes game-settlement-leader-beacon {
+  0%,
+  100% {
+    transform: translate3d(0, -50%, 0) scale(0.82);
+    opacity: 0.56;
+    filter: blur(0.1px);
+  }
+
+  50% {
+    transform: translate3d(0, -50%, 0) scale(1.12);
+    opacity: 0.96;
+    filter: blur(0);
+  }
+}
+
+@keyframes game-settlement-mvp-badge {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.2);
+  }
+
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px -10px rgba(251, 191, 36, 0.65);
+  }
+}
+
+@keyframes game-settlement-scorebar-glint {
+  from {
+    transform: translateX(-130%);
+  }
+
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@keyframes game-settlement-metric-fill {
+  0%,
+  100% {
+    filter: brightness(0.92) saturate(1);
+  }
+
+  50% {
+    filter: brightness(1.18) saturate(1.14);
+  }
+}
+
+@keyframes game-settlement-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-settlement-confetti,
+  .game-settlement-leader-glint,
+  .game-settlement-leader-beacon,
+  .game-settlement-mvp-badge,
+  .game-settlement-scorebar::after,
+  .game-settlement-stat-fill::after,
+  .game-settlement-metric-fill,
+  .game-settlement-reveal {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .game-settlement-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .game-settlement-track-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .game-settlement-tip-pill:hover,
+  .game-settlement-stat-card:hover {
+    transform: none;
+    box-shadow: none;
   }
 }
 
