@@ -1,15 +1,70 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <!-- <link rel="icon" type="image/svg+xml" href="/vite.svg" /> -->
-     <link rel="icon" type="image/png" href="/muizo.png" />
+    <link rel="icon" type="image/png" href="/muizo.png" />
+    <link rel="apple-touch-icon" href="/muizo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Muizo</title>
+
+    <meta
+      name="description"
+      content="Muizo 音樂競猜平台，支援 Google 登入、YouTube 播放清單同步與多人房間遊玩。"
+    />
+    <meta
+      name="keywords"
+      content="Muizo, 音樂猜歌, 猜歌遊戲, 音樂遊戲, YouTube 播放清單, 題庫對戰"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0b0a08" />
+    <meta name="application-name" content="Muizo" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://muizo.vercel.app/" />
+    <meta property="og:site_name" content="Muizo" />
+    <meta property="og:locale" content="zh_TW" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+    <meta property="og:title" content="Muizo - 音樂猜歌與題庫對戰平台" />
+    <meta
+      property="og:description"
+      content="快速進房，建立題庫，和朋友一起挑戰音樂、迷因、遊戲 BGM。"
+    />
+    <meta property="og:image" content="/muizo.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Muizo - 音樂猜歌與題庫對戰平台" />
+    <meta
+      name="twitter:description"
+      content="支援 Google 登入與播放清單同步，快速建立你的音樂題庫。"
+    />
+    <meta name="twitter:image" content="/muizo.png" />
+
+    <link rel="canonical" href="https://muizo.vercel.app/" />
+    <title>Muizo - 音樂猜歌與題庫對戰平台</title>
+
+    <script>
+      (function () {
+        var supported = ["zh-Hant", "en", "ja", "ko"];
+        var raw =
+          localStorage.getItem("muizo_locale") ||
+          navigator.language ||
+          navigator.userLanguage ||
+          "zh-TW";
+        var lower = String(raw).toLowerCase();
+        var lang = "zh-Hant";
+        if (lower.indexOf("en") === 0) lang = "en";
+        if (lower.indexOf("ja") === 0) lang = "ja";
+        if (lower.indexOf("ko") === 0) lang = "ko";
+        if (lower.indexOf("zh") === 0) lang = "zh-Hant";
+        if (supported.indexOf(lang) >= 0) {
+          document.documentElement.lang = lang;
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

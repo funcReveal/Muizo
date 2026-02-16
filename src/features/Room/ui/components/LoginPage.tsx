@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 interface LoginPageProps {
@@ -9,7 +9,7 @@ interface LoginPageProps {
   googleLoading?: boolean;
 }
 
-const rotatingWords = ["流行歌曲", "迷因 meme", "遊戲 BGM", "J-POP", "K-POP"];
+const rotatingWords = ["華語流行", "迷因 meme", "遊戲 BGM", "J-POP", "K-POP"];
 
 const TYPING_SPEED_MS = 95;
 const DELETING_SPEED_MS = 60;
@@ -99,36 +99,30 @@ const LoginPage: React.FC<LoginPageProps> = ({
               </span>
               <h3 className="mq-auth-card-title">Google 登入</h3>
               <p className="mq-auth-card-desc">
-                開啟完整功能，避免重整後狀態遺失，適合長期使用與建立個人題庫。
+                你的進度與資料會穩定保存，避免重整後狀態遺失，也能跨裝置無縫延續。
               </p>
             </header>
 
             <ul className="mq-auth-feature-list">
               <li className="mq-auth-feature-item">
-                同步 YouTube 播放清單，快速建題
+                同步 YouTube 播放清單，快速建立題庫
               </li>
               <li className="mq-auth-feature-item">保留個人收藏與編輯紀錄</li>
               <li className="mq-auth-feature-item">跨裝置延續登入狀態</li>
-              <li className="mq-auth-feature-item">未來功能優先支援帳號用戶</li>
+              <li className="mq-auth-feature-item">新功能優先支援帳號用戶</li>
             </ul>
 
             <div className="flex h-full flex-col justify-end">
-              <div className="mq-auth-google-wrap rounded-2xl p-2.5">
-                <button
-                  type="button"
-                  onClick={onGoogleLogin}
-                  disabled={googleLoading}
-                  className="mq-auth-button mq-auth-button-google flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.85)]" />
-                    {googleLoading ? "登入中..." : "Continue with Google"}
-                  </span>
-                  <span className="text-[11px] text-emerald-200/90">
-                    Sync On
-                  </span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onGoogleLogin}
+                disabled={googleLoading}
+                className="mq-auth-button mq-auth-button-google cursor-pointer flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm tracking-[0.14em] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2 ">
+                  {googleLoading ? "登入中..." : "透過 Google 登入"}
+                </span>
+              </button>
             </div>
           </article>
 
@@ -158,7 +152,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
               <button
                 type="button"
                 onClick={onConfirm}
-                className="mq-auth-button mq-auth-button-guest w-full rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.18em]"
+                className="mq-auth-button mq-auth-button-guest cursor-pointer w-full rounded-2xl px-4 py-3 text-sm uppercase tracking-[0.18em]"
               >
                 以訪客進入
               </button>
@@ -170,13 +164,13 @@ const LoginPage: React.FC<LoginPageProps> = ({
       <style>
         {`
           .mq-auth-shell {
-            font-family: "Alegreya Sans", "Noto Sans TC", sans-serif;
+            font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
             background-color: #000;
           }
 
           .mq-auth-title {
-            font-family: "Newsreader", "Noto Serif TC", serif;
-            font-weight: 700;
+            font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
+            font-weight: 500;
           }
 
           .mq-auth-title-accent {
@@ -186,6 +180,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
+            font-weight: 400;
           }
 
           .mq-auth-word-slot {
@@ -202,12 +197,14 @@ const LoginPage: React.FC<LoginPageProps> = ({
             color: #8ff3dd;
             text-shadow: 0 0 16px rgba(45, 212, 191, 0.52);
             line-height: 1;
+            padding-bottom: 16px;
           }
 
           .mq-auth-word-caret {
             width: 1px;
             height: 0.9em;
             margin-left: 4px;
+            margin-bottom: 10px;
             background: rgba(143, 243, 221, 0.95);
             box-shadow: 0 0 10px rgba(45, 212, 191, 0.7);
             animation: mqCaretBlink 820ms steps(1, end) infinite;
@@ -221,13 +218,14 @@ const LoginPage: React.FC<LoginPageProps> = ({
           .mq-auth-card {
             min-height: 280px;
             border-radius: 22px;
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            background:
-              linear-gradient(180deg, rgba(23, 17, 12, 0.82), rgba(12, 10, 8, 0.86)),
-              rgba(15, 11, 9, 0.7);
+            border: 1px solid rgba(226, 232, 240, 0.22);
+            background: rgba(12, 18, 34, 0.34);
+            backdrop-filter: blur(18px) saturate(118%);
+            -webkit-backdrop-filter: blur(18px) saturate(118%);
             box-shadow:
-              inset 0 1px 0 rgba(252, 211, 77, 0.16),
-              0 18px 34px -28px rgba(0, 0, 0, 0.8);
+              inset 0 1px 0 rgba(255, 255, 255, 0.14),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+              0 18px 28px -24px rgba(2, 6, 23, 0.76);
             padding: 18px;
             display: flex;
             flex-direction: column;
@@ -241,26 +239,72 @@ const LoginPage: React.FC<LoginPageProps> = ({
             content: "";
             position: absolute;
             inset: 0;
+            border-radius: inherit;
             background:
-              linear-gradient(130deg, rgba(245, 158, 11, 0.12), transparent 42%),
-              radial-gradient(circle at 120% -20%, rgba(45, 212, 191, 0.16), transparent 48%);
+              radial-gradient(
+                120px 90px at 10% 8%,
+                rgba(0, 255, 255, 0.18),
+                transparent 72%
+              ),
+              radial-gradient(
+                130px 96px at 88% 92%,
+                rgba(143, 0, 255, 0.18),
+                transparent 74%
+              );
             pointer-events: none;
           }
 
+          .mq-auth-card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            pointer-events: none;
+            mix-blend-mode: screen;
+          }
+
           .mq-auth-card-google {
-            border-color: rgba(45, 212, 191, 0.46);
+            order: 2;
+            border-color: rgba(0, 255, 255, 0.4);
+            background: rgba(8, 26, 34, 0.32);
             box-shadow:
-              inset 0 1px 0 rgba(94, 234, 212, 0.22),
-              0 22px 38px -26px rgba(16, 185, 129, 0.42);
+              inset 0 1px 0 rgba(0, 255, 255, 0.2),
+              inset 0 0 0 1px rgba(0, 255, 255, 0.07),
+              0 20px 30px -24px rgba(6, 182, 212, 0.28);
+          }
+
+          .mq-auth-card-guest {
+            order: 1;
+            border-color: rgba(251, 191, 36, 0.34);
+            background: rgba(30, 20, 10, 0.3);
+            box-shadow:
+              inset 0 1px 0 rgba(251, 191, 36, 0.2),
+              inset 0 0 0 1px rgba(245, 158, 11, 0.08),
+              0 18px 28px -24px rgba(245, 158, 11, 0.24);
+          }
+
+          .mq-auth-card-guest::before {
+            background:
+              radial-gradient(
+                120px 90px at 92% 10%,
+                rgba(245, 158, 11, 0.14),
+                transparent 72%
+              ),
+              radial-gradient(
+                120px 90px at 8% 92%,
+                rgba(251, 191, 36, 0.12),
+                transparent 72%
+              );
           }
 
           .mq-auth-badge {
             display: inline-flex;
             align-items: center;
             border-radius: 999px;
-            border: 1px solid rgba(245, 158, 11, 0.36);
-            background: rgba(245, 158, 11, 0.14);
-            color: rgba(254, 243, 199, 0.92);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            background: rgba(245, 158, 11, 0.12);
+            color: rgba(254, 243, 199, 0.94);
             padding: 6px 11px;
             font-size: 11px;
             letter-spacing: 0.2em;
@@ -268,14 +312,14 @@ const LoginPage: React.FC<LoginPageProps> = ({
           }
 
           .mq-auth-badge-recommended {
-            border-color: rgba(45, 212, 191, 0.42);
-            background: rgba(16, 185, 129, 0.14);
-            color: #a7f3d0;
+            border-color: rgba(0, 255, 255, 0.36);
+            background: rgba(0, 255, 255, 0.1);
+            color: rgba(207, 250, 254, 0.95);
           }
 
           .mq-auth-card-title {
             margin: 0;
-            font-family: "Newsreader", "Noto Serif TC", serif;
+            font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
             font-size: 1.45rem;
             line-height: 1.2;
             color: var(--mc-text);
@@ -344,25 +388,20 @@ const LoginPage: React.FC<LoginPageProps> = ({
           }
 
           .mq-auth-button-guest {
-            border-color: rgba(245, 158, 11, 0.42);
-            background: linear-gradient(120deg, rgba(245, 158, 11, 0.28), rgba(251, 191, 36, 0.15));
-            box-shadow: 0 12px 22px -20px rgba(245, 158, 11, 0.5);
-          }
-
-          .mq-auth-google-wrap {
-            border: 1px solid rgba(45, 212, 191, 0.3);
-            background: rgba(10, 19, 17, 0.74);
+            border-color: rgba(251, 191, 36, 0.44);
+            background: rgba(245, 158, 11, 0.22);
+            box-shadow: none;
           }
 
           .mq-auth-button-google {
             color: #eafaf2;
-            border-color: rgba(45, 212, 191, 0.42);
-            background: linear-gradient(120deg, rgba(14, 116, 144, 0.42), rgba(16, 185, 129, 0.24));
-            box-shadow: 0 14px 26px -20px rgba(16, 185, 129, 0.82);
+            border-color: rgba(0, 255, 255, 0.4);
+            background: rgba(8, 90, 110, 0.54);
+            box-shadow: none;
           }
 
           .mq-auth-button-google:hover {
-            box-shadow: 0 18px 30px -18px rgba(16, 185, 129, 0.9);
+            box-shadow: none;
           }
 
           @media (max-width: 640px) {
