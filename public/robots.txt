@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Keep private/internal routes out of search indexes
+Disallow: /collections
+Disallow: /collections/
+Disallow: /invited
+Disallow: /invited/
+
+Sitemap: https://muizo.vercel.app/sitemap.xml
