@@ -1520,6 +1520,55 @@ body {
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.45);
 }
 
+.game-room-danmu-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.game-room-danmu-item {
+  position: absolute;
+  left: 100%;
+  max-width: min(70vw, 520px);
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(241, 245, 249, 0.96);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 4px rgba(2, 6, 23, 0.65);
+  box-shadow:
+    0 8px 18px -14px rgba(14, 165, 233, 0.75),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  animation-name: game-room-danmu-roll;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+
+@media (max-width: 980px) {
+  .game-room-danmu-item {
+    max-width: min(86vw, 420px);
+    padding: 6px 12px;
+    font-size: 13px;
+    line-height: 1.32;
+    border-color: rgba(148, 163, 184, 0.55);
+    background: rgba(2, 6, 23, 0.8);
+    box-shadow:
+      0 8px 18px -12px rgba(14, 165, 233, 0.82),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+}
+
 .game-room-score-row {
   border-radius: 14px;
   padding: 6px 10px;
@@ -1586,18 +1635,171 @@ body {
   border-radius: 14px;
 }
 
+.game-room-choice-button.MuiButton-root {
+  text-transform: none;
+  min-height: 72px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.game-room-choice-content {
+  min-width: 0;
+}
+
+.game-room-choice-meta {
+  flex-shrink: 0;
+}
+
+.game-room-choice-title {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  line-height: 1.3;
+  word-break: break-word;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.game-room-choice-key {
+  flex-shrink: 0;
+}
+
+.game-room-answer-layout {
+  --gr-feedback-row: clamp(96px, 13vh, 124px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--gr-feedback-row);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.game-room-answer-layout--guess {
+  --gr-feedback-row: clamp(96px, 13vh, 124px);
+}
+
+.game-room-answer-layout--guess.game-room-answer-layout--neutral {
+  --gr-feedback-row: clamp(96px, 13vh, 124px);
+}
+
+.game-room-answer-layout--reveal {
+  --gr-feedback-row: clamp(96px, 13vh, 124px);
+}
+
+.game-room-answer-body {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.game-room-answer-head {
+  min-height: 0;
+}
+
+.game-room-options-grid {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+  align-content: start;
+}
+
+.game-room-options-grid .game-room-choice-button.MuiButton-root {
+  height: 100%;
+}
+
+@media (max-width: 980px) {
+  .game-room-answer-layout {
+    --gr-feedback-row: clamp(90px, 13vh, 118px);
+    gap: 8px;
+  }
+
+  .game-room-answer-layout--guess {
+    --gr-feedback-row: clamp(90px, 13vh, 118px);
+  }
+
+  .game-room-answer-layout--guess.game-room-answer-layout--neutral {
+    --gr-feedback-row: clamp(90px, 13vh, 118px);
+  }
+
+  .game-room-answer-layout--reveal {
+    --gr-feedback-row: clamp(90px, 13vh, 118px);
+  }
+
+  .game-room-answer-body {
+    gap: 8px;
+  }
+
+  .game-room-choice-button.MuiButton-root {
+    min-height: 78px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .game-room-choice-title {
+    font-size: 13px;
+    line-height: 1.32;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .game-room-choice-key {
+    display: none;
+  }
+
+  .game-room-choice-meta {
+    margin-left: 8px;
+    align-self: flex-start;
+  }
+
+  .game-room-reveal-card--result .game-room-feedback-title {
+    font-size: 13px;
+  }
+
+  .game-room-reveal-answer {
+    font-size: 14px;
+    -webkit-line-clamp: 4;
+  }
+}
+
 .game-room-reveal {
-  min-height: clamp(112px, 14vh, 170px);
+  min-height: 0;
+  height: 100%;
+  flex-shrink: 0;
 }
 
 .game-room-reveal-card {
   min-height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 4px;
   padding: 8px 10px;
+}
+
+.game-room-reveal-card--result {
+  border-color: rgba(56, 189, 248, 0.45);
+  background:
+    radial-gradient(
+      280px 140px at 18% 12%,
+      rgba(56, 189, 248, 0.2),
+      transparent 72%
+    ),
+    linear-gradient(120deg, rgba(3, 105, 161, 0.26), rgba(14, 116, 144, 0.12)),
+    rgba(2, 6, 23, 0.82);
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.16),
+    0 16px 30px -20px rgba(2, 132, 199, 0.45);
+}
+
+.game-room-reveal-card--result .game-room-feedback-title {
+  font-size: 14px;
 }
 
 .game-room-reveal-card--neutral {
@@ -1635,9 +1837,12 @@ body {
 }
 
 .game-room-reveal-answer {
+  font-size: 15px;
+  line-height: 1.42;
+  font-weight: 700;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   overflow: hidden;
 }
 
@@ -1862,6 +2067,26 @@ body {
   );
   mix-blend-mode: screen;
   opacity: 0.72;
+}
+
+@keyframes game-room-danmu-roll {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  92% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-170vw);
+  }
 }
 
 .game-settlement-reveal {

@@ -612,6 +612,7 @@ interface RoomLobbyPanelProps {
   isHost: boolean;
   gameState?: GameState | null;
   canStartGame: boolean;
+  hasLastSettlement?: boolean;
   onLeave: () => void;
   onInputChange: (value: string) => void;
   onSend: () => void;
@@ -627,6 +628,7 @@ interface RoomLobbyPanelProps {
     allowCollectionClipTiming?: boolean;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
+  onOpenLastSettlement?: () => void;
   onOpenGame?: () => void;
   /** Invite handler that returns Promise<void>; surface errors via throw or status text */
   onInvite: () => Promise<void>;
@@ -680,12 +682,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   isHost,
   gameState,
   canStartGame,
+  hasLastSettlement = false,
   onLeave,
   onInputChange,
   onSend,
   onLoadMorePlaylist,
   onStartGame,
   onUpdateRoomSettings,
+  onOpenLastSettlement,
   onOpenGame,
   onInvite,
   onKickPlayer,
@@ -1310,6 +1314,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         }
         action={
           <Stack direction="row" spacing={1}>
+            {hasLastSettlement && (
+              <Button
+                variant="outlined"
+                color="inherit"
+                size="small"
+                onClick={() => onOpenLastSettlement?.()}
+              >
+                上一輪結算
+              </Button>
+            )}
             {gameState?.status === "playing" && (
               <Button
                 variant="contained"
