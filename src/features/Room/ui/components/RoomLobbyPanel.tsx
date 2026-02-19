@@ -66,6 +66,8 @@ const formatTime = (timestamp: number) => {
   return d.toLocaleTimeString();
 };
 
+const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
+
 type CollectionOption = {
   id: string;
   title: string;
@@ -90,7 +92,6 @@ interface SuggestionPanelProps {
     options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
   ) => Promise<{ ok: boolean; error?: string }>;
   extractPlaylistId: (url: string) => string | null;
-  resolveVisibilityLabel: (visibility?: string) => string;
 }
 
 const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
@@ -106,7 +107,6 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
   requestYoutubePlaylists,
   onSuggestPlaylist,
   extractPlaylistId,
-  resolveVisibilityLabel,
 }) => {
   const [suggestType, setSuggestType] = useState<
     "playlist" | "collection" | "youtube"
@@ -379,34 +379,14 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
                       (item) => item.id === selectedId,
                     );
                     if (!selectedOption) return selectedId;
-                    return `${selectedOption.title} · ${resolveVisibilityLabel(
-                      selectedOption.visibility,
-                    )}`;
+                    return selectedOption.title;
                   },
                 }}
               >
                 <MenuItem value="">選擇收藏庫</MenuItem>
                 {collections.map((collection) => (
                   <MenuItem key={collection.id} value={collection.id}>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      alignItems="center"
-                      sx={{ width: "100%" }}
-                    >
-                      <span>{collection.title}</span>
-                      <Chip
-                        size="small"
-                        label={resolveVisibilityLabel(collection.visibility)}
-                        variant="outlined"
-                        color={
-                          collection.visibility === "public"
-                            ? "success"
-                            : "default"
-                        }
-                        sx={{ ml: "auto" }}
-                      />
-                    </Stack>
+                    {collection.title}
                   </MenuItem>
                 ))}
               </TextField>
@@ -629,6 +609,7 @@ interface RoomLobbyPanelProps {
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   onOpenLastSettlement?: () => void;
+  onOpenSettlementByRoundKey?: (roundKey: string) => void;
   onOpenGame?: () => void;
   /** Invite handler that returns Promise<void>; surface errors via throw or status text */
   onInvite: () => Promise<void>;
@@ -690,6 +671,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onStartGame,
   onUpdateRoomSettings,
   onOpenLastSettlement,
+  onOpenSettlementByRoundKey,
   onOpenGame,
   onInvite,
   onKickPlayer,
@@ -877,8 +859,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       onFetchPlaylistByUrl(trimmed);
     });
   };
-  const resolveVisibilityLabel = (visibility?: string) =>
-    visibility === "public" ? "公開" : "私人";
   const isCollectionsEmptyNotice =
     collectionsError === "尚未建立收藏庫" ||
     collectionsError === "尚未建立公開收藏庫";
@@ -1900,11 +1880,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                                 const selected = collections.find(
                                   (item) => item.id === nextId,
                                 );
-                                const label = selected
-                                  ? `${selected.title} · ${resolveVisibilityLabel(
-                                    selected.visibility,
-                                  )}`
-                                  : nextId;
+                                const label = selected ? selected.title : nextId;
                                 openConfirmModal("切換到收藏庫？", label, () => {
                                   onSelectCollection(nextId);
                                   void onLoadCollectionItems(nextId);
@@ -1924,36 +1900,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                                     (item) => item.id === selectedId,
                                   );
                                   if (!selectedOption) return selectedId;
-                                  return `${selectedOption.title} · ${resolveVisibilityLabel(
-                                    selectedOption.visibility,
-                                  )}`;
+                                  return selectedOption.title;
                                 },
                               }}
                             >
                               <MenuItem value="">選擇收藏庫</MenuItem>
                               {collections.map((collection) => (
                                 <MenuItem key={collection.id} value={collection.id}>
-                                  <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
-                                    sx={{ width: "100%" }}
-                                  >
-                                    <span>{collection.title}</span>
-                                    <Chip
-                                      size="small"
-                                      label={resolveVisibilityLabel(
-                                        collection.visibility,
-                                      )}
-                                      variant="outlined"
-                                      color={
-                                        collection.visibility === "public"
-                                          ? "success"
-                                          : "default"
-                                      }
-                                      sx={{ ml: "auto" }}
-                                    />
-                                  </Stack>
+                                  {collection.title}
                                 </MenuItem>
                               ))}
                             </TextField>
@@ -2085,7 +2039,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               requestYoutubePlaylists={requestYoutubePlaylists}
               onSuggestPlaylist={onSuggestPlaylist}
               extractPlaylistId={extractPlaylistId}
-              resolveVisibilityLabel={resolveVisibilityLabel}
             />
           )}
         </div>
@@ -2116,6 +2069,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             <MUIList dense disablePadding>
               {messages.map((msg) => {
                 // const isSelf = msg.username === username;
+                const settlementRoundKey =
+                  msg.userId === "system:settlement-review" &&
+                  msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
+                    ? msg.id.slice(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX.length)
+                    : null;
+                const canOpenSettlementReview = Boolean(
+                  settlementRoundKey && onOpenSettlementByRoundKey,
+                );
                 return (
                   <ListItem
                     key={msg.id}
@@ -2164,6 +2125,19 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       >
                         {msg.content}
                       </Typography>
+                      {canOpenSettlementReview && settlementRoundKey && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          sx={{ mt: 1, borderColor: "rgba(148,163,184,0.6)" }}
+                          onClick={() =>
+                            onOpenSettlementByRoundKey?.(settlementRoundKey)
+                          }
+                        >
+                          查看結算
+                        </Button>
+                      )}
                     </Box>
                   </ListItem>
                 );

@@ -15,6 +15,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  RoomSettlementSnapshot,
   RoomParticipant,
   RoomState,
   RoomSummary,
@@ -339,6 +340,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [settlementHistory, setSettlementHistory] = useState<
+    RoomSettlementSnapshot[]
+  >([]);
   const [messageInput, setMessageInput] = useState("");
   const [statusText, setStatusText] = useState<string | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -1050,6 +1054,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 setCurrentRoom(applyGameSettingsPatch(state.room, {}));
                 setParticipants(state.participants);
                 setMessages(state.messages);
+                setSettlementHistory(state.settlementHistory ?? []);
                 setPlaylistProgress({
                   received: state.room.playlist.receivedCount,
                   total: state.room.playlist.totalCount,
@@ -1101,6 +1106,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentRoom(null);
         setParticipants([]);
         setMessages([]);
+        setSettlementHistory([]);
         setGameState(null);
         setGamePlaylist([]);
         setIsGameView(false);
@@ -1126,6 +1132,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentRoom(applyGameSettingsPatch(state.room, {}));
         setParticipants(state.participants);
         setMessages(state.messages);
+        setSettlementHistory(state.settlementHistory ?? []);
         setPlaylistSuggestions([]);
         setPlaylistProgress({
           received: state.room.playlist.receivedCount,
@@ -1212,6 +1219,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentRoom(null);
         setParticipants([]);
         setMessages([]);
+        setSettlementHistory([]);
         setGameState(null);
         setGamePlaylist([]);
         setIsGameView(false);
@@ -1225,6 +1233,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       onPlaylistSuggestionsUpdated: ({ roomId, suggestions }) => {
         if (roomId !== currentRoomIdRef.current) return;
         setPlaylistSuggestions(suggestions);
+      },
+      onSettlementHistoryUpdated: ({ roomId, settlementHistory }) => {
+        if (roomId !== currentRoomIdRef.current) return;
+        setSettlementHistory(settlementHistory);
       },
     });
 
@@ -1417,6 +1429,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         );
         setParticipants(state.participants);
         setMessages(state.messages);
+        setSettlementHistory(state.settlementHistory ?? []);
         persistRoomId(state.room.id);
         lockSessionClientId(clientId);
         let accessSettingsWarning: string | null = null;
@@ -1558,6 +1571,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           setCurrentRoom(applyGameSettingsPatch(state.room, {}));
           setParticipants(state.participants);
           setMessages(state.messages);
+          setSettlementHistory(state.settlementHistory ?? []);
           setPlaylistProgress({
             received: state.room.playlist.receivedCount,
             total: state.room.playlist.totalCount,
@@ -1605,6 +1619,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setCurrentRoom(null);
         setParticipants([]);
         setMessages([]);
+        setSettlementHistory([]);
         setGameState(null);
         setGamePlaylist([]);
         setIsGameView(false);
@@ -1682,7 +1697,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (gameState?.status === "ended") {
-      setStatusText("遊戲已結束，請查看結算頁");
+      setIsGameView(false);
+      setStatusText("遊戲已結束，可從回顧查看結算");
     }
   }, [gameState?.status]);
 
@@ -2385,6 +2401,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       currentRoomId,
       participants,
       messages,
+      settlementHistory,
       messageInput,
       setMessageInput,
       statusText,
@@ -2499,6 +2516,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       currentRoomId,
       participants,
       messages,
+      settlementHistory,
       messageInput,
       statusText,
       setStatusText,

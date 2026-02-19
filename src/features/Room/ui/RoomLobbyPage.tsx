@@ -1,36 +1,13 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import GameRoomPage from "./GameRoomPage";
-import GameSettlementPanel, {
-  type SettlementQuestionRecap,
-} from "./components/GameSettlementPanel";
+import GameSettlementPanel from "./components/GameSettlementPanel";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
-import type {
-  ChatMessage,
-  PlaylistItem,
-  RoomParticipant,
-  RoomState,
-} from "../model/types";
+import type { ChatMessage, RoomSettlementSnapshot } from "../model/types";
 import { useRoom } from "../model/useRoom";
 
-type LastSettlementSnapshot = {
-  roundKey: string;
-  room: RoomState["room"];
-  participants: RoomParticipant[];
-  messages: ChatMessage[];
-  playlistItems: PlaylistItem[];
-  trackOrder: number[];
-  playedQuestionCount: number;
-  questionRecaps: SettlementQuestionRecap[];
-  meClientId?: string;
-};
-
-const cloneQuestionRecaps = (recaps: SettlementQuestionRecap[]) =>
-  recaps.map((recap) => ({
-    ...recap,
-    choices: recap.choices.map((choice) => ({ ...choice })),
-  }));
+const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
@@ -40,6 +17,7 @@ const RoomLobbyPage: React.FC = () => {
     currentRoom,
     participants,
     messages,
+    settlementHistory,
     messageInput,
     setMessageInput,
     playlistViewItems,
@@ -90,71 +68,54 @@ const RoomLobbyPage: React.FC = () => {
     selectCollection,
     loadCollectionItems,
   } = useRoom();
-  const [lastSettlementSnapshot, setLastSettlementSnapshot] =
-    useState<LastSettlementSnapshot | null>(null);
-  const [latestQuestionRecaps, setLatestQuestionRecaps] = useState<
-    SettlementQuestionRecap[]
-  >([]);
-  const [showLastSettlement, setShowLastSettlement] = useState(false);
-  const roomIdentityRef = useRef<string | null>(null);
-  const capturedRoundKeyRef = useRef<string | null>(null);
+  const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<string | null>(null);
 
   useEffect(() => {
-    const nextRoomId = currentRoom?.id ?? null;
-    if (roomIdentityRef.current === nextRoomId) return;
-    roomIdentityRef.current = nextRoomId;
-    capturedRoundKeyRef.current = null;
-    setShowLastSettlement(false);
-    setLatestQuestionRecaps([]);
-    setLastSettlementSnapshot(null);
-  }, [currentRoom?.id]);
+    if (gameState?.status !== "ended") return;
+    if (!isGameView) return;
+    setIsGameView(false);
+    setStatusText("遊戲已結束，返回聊天室");
+  }, [gameState?.status, isGameView, setIsGameView, setStatusText]);
 
-  useEffect(() => {
-    if (!currentRoom || !gameState || gameState.status !== "ended") return;
-    const roundKey = `${currentRoom.id}:${gameState.startedAt}`;
-    const normalizedRecaps = cloneQuestionRecaps(latestQuestionRecaps);
-    const isSameRound = capturedRoundKeyRef.current === roundKey;
-    const previousRecapCount =
-      isSameRound && lastSettlementSnapshot?.roundKey === roundKey
-        ? lastSettlementSnapshot.questionRecaps.length
-        : -1;
-    if (isSameRound && previousRecapCount >= normalizedRecaps.length) return;
-    capturedRoundKeyRef.current = roundKey;
+  const resolvedActiveSettlementRoundKey = useMemo(() => {
+    if (!activeSettlementRoundKey) return null;
+    const nextRoomId = currentRoom?.id;
+    if (!nextRoomId) return null;
+    if (!activeSettlementRoundKey.startsWith(`${nextRoomId}:`)) return null;
+    return activeSettlementRoundKey;
+  }, [activeSettlementRoundKey, currentRoom]);
 
-    const playedQuestionCount =
-      gameState.trackOrder.length || currentRoom.gameSettings?.questionCount || 0;
+  const activeSettlementSnapshot = useMemo<RoomSettlementSnapshot | null>(() => {
+    if (!resolvedActiveSettlementRoundKey) return null;
+    return (
+      settlementHistory.find((item) => item.roundKey === resolvedActiveSettlementRoundKey) ??
+      null
+    );
+  }, [resolvedActiveSettlementRoundKey, settlementHistory]);
 
-    setLastSettlementSnapshot({
-      roundKey,
-      room: {
-        ...currentRoom,
-        gameSettings: currentRoom.gameSettings
-          ? { ...currentRoom.gameSettings }
-          : undefined,
-        playlist: {
-          ...currentRoom.playlist,
-          items: currentRoom.playlist.items.map((item) => ({ ...item })),
-        },
-      },
-      participants: participants.map((participant) => ({ ...participant })),
-      messages: messages.map((message) => ({ ...message })),
-      playlistItems: gamePlaylist.map((item) => ({ ...item })),
-      trackOrder: [...gameState.trackOrder],
-      playedQuestionCount,
-      questionRecaps: normalizedRecaps,
-      meClientId: clientId,
-    });
-  }, [
-    clientId,
-    currentRoom,
-    gamePlaylist,
-    gameState,
-    lastSettlementSnapshot?.questionRecaps.length,
-    lastSettlementSnapshot?.roundKey,
-    latestQuestionRecaps,
-    messages,
-    participants,
-  ]);
+  const latestSettlementSnapshot = settlementHistory[0] ?? null;
+
+  const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
+    if (!currentRoom?.id) return [];
+    return settlementHistory
+      .slice()
+      .sort((a, b) => a.endedAt - b.endedAt)
+      .map((snapshot) => ({
+        id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
+        roomId: currentRoom.id,
+        userId: "system:settlement-review",
+        username: "系統",
+        content: `對戰回顧：第 ${snapshot.roundNo} 局`,
+        timestamp: snapshot.endedAt,
+      }));
+  }, [currentRoom, settlementHistory]);
+
+  const lobbyMessages = useMemo(() => {
+    if (settlementReviewMessages.length === 0) return messages;
+    return [...messages, ...settlementReviewMessages].sort(
+      (a, b) => a.timestamp - b.timestamp,
+    );
+  }, [messages, settlementReviewMessages]);
 
   useEffect(() => {
     setRouteRoomId(roomId ?? null);
@@ -171,7 +132,7 @@ const RoomLobbyPage: React.FC = () => {
     return (
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          正在載入房間資訊…
+          正在連線並嘗試恢復房間...
         </div>
       </div>
     );
@@ -181,9 +142,7 @@ const RoomLobbyPage: React.FC = () => {
     return (
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          <div className="mb-2">
-            無法加入房間，可能已關閉或你已離開。
-          </div>
+          <div className="mb-2">房間不存在或已關閉，請返回房間列表。</div>
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/30"
@@ -196,19 +155,18 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (showLastSettlement && lastSettlementSnapshot) {
+  if (activeSettlementSnapshot) {
     return (
       <div className="flex w-full justify-center">
         <GameSettlementPanel
-          room={lastSettlementSnapshot.room}
-          participants={lastSettlementSnapshot.participants}
-          messages={lastSettlementSnapshot.messages}
-          playlistItems={lastSettlementSnapshot.playlistItems}
-          trackOrder={lastSettlementSnapshot.trackOrder}
-          playedQuestionCount={lastSettlementSnapshot.playedQuestionCount}
-          questionRecaps={lastSettlementSnapshot.questionRecaps}
-          meClientId={lastSettlementSnapshot.meClientId}
-          onBackToLobby={() => setShowLastSettlement(false)}
+          room={activeSettlementSnapshot.room}
+          participants={activeSettlementSnapshot.participants}
+          messages={activeSettlementSnapshot.messages}
+          playlistItems={activeSettlementSnapshot.playlistItems}
+          trackOrder={activeSettlementSnapshot.trackOrder}
+          playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
+          meClientId={clientId}
+          onBackToLobby={() => setActiveSettlementRoundKey(null)}
           onRequestExit={() =>
             handleLeaveRoom(() => navigate("/rooms", { replace: true }))
           }
@@ -217,7 +175,7 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (currentRoom && gameState && isGameView) {
+  if (currentRoom && gameState && isGameView && gameState.status === "playing") {
     return (
       <div className="flex w-full justify-center">
         <GameRoomPage
@@ -237,7 +195,6 @@ const RoomLobbyPage: React.FC = () => {
           onSendMessage={handleSendMessage}
           username={username}
           serverOffsetMs={serverOffsetMs}
-          onSettlementRecapChange={setLatestQuestionRecaps}
         />
       </div>
     );
@@ -249,7 +206,7 @@ const RoomLobbyPage: React.FC = () => {
         <RoomLobbyPanel
           currentRoom={currentRoom}
           participants={participants}
-          messages={messages}
+          messages={lobbyMessages}
           username={username}
           roomPassword={hostRoomPassword}
           messageInput={messageInput}
@@ -283,10 +240,17 @@ const RoomLobbyPage: React.FC = () => {
           onLoadMorePlaylist={loadMorePlaylist}
           onStartGame={handleStartGame}
           onUpdateRoomSettings={handleUpdateRoomSettings}
-          hasLastSettlement={Boolean(lastSettlementSnapshot)}
-          onOpenLastSettlement={() => setShowLastSettlement(true)}
+          hasLastSettlement={Boolean(latestSettlementSnapshot)}
+          onOpenLastSettlement={() =>
+            latestSettlementSnapshot
+              ? setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey)
+              : undefined
+          }
+          onOpenSettlementByRoundKey={(roundKey) =>
+            setActiveSettlementRoundKey(roundKey)
+          }
           onOpenGame={() => {
-            setShowLastSettlement(false);
+            setActiveSettlementRoundKey(null);
             setIsGameView(true);
           }}
           onKickPlayer={handleKickPlayer}
@@ -309,9 +273,9 @@ const RoomLobbyPage: React.FC = () => {
             if (navigator.clipboard?.writeText) {
               try {
                 await navigator.clipboard.writeText(inviteText);
-                setStatusText("已複製邀請連結");
+                setStatusText("邀請連結已複製");
               } catch {
-                setStatusText("複製邀請連結失敗");
+                setStatusText("無法複製邀請連結");
               }
             } else {
               setStatusText(inviteText);

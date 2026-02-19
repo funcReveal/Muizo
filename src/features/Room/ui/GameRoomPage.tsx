@@ -159,6 +159,32 @@ type DanmuItem = {
   durationMs: number;
 };
 
+type FrozenSettlementSnapshot = {
+  roundKey: string;
+  room: RoomState["room"];
+  participants: RoomParticipant[];
+  messages: ChatMessage[];
+  playlistItems: PlaylistItem[];
+  trackOrder: number[];
+  playedQuestionCount: number;
+  questionRecaps: SettlementQuestionRecap[];
+};
+
+const cloneSettlementQuestionRecaps = (recaps: SettlementQuestionRecap[]) =>
+  recaps.map((recap) => ({
+    ...recap,
+    choices: recap.choices.map((choice) => ({ ...choice })),
+  }));
+
+const cloneRoomForSettlement = (room: RoomState["room"]): RoomState["room"] => ({
+  ...room,
+  gameSettings: room.gameSettings ? { ...room.gameSettings } : undefined,
+  playlist: {
+    ...room.playlist,
+    items: room.playlist.items.map((item) => ({ ...item })),
+  },
+});
+
 const GameRoomPage: React.FC<GameRoomPageProps> = ({
   room,
   gameState,
@@ -193,6 +219,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const danmuTimersRef = useRef<number[]>([]);
   const [questionRecaps, setQuestionRecaps] = useState<SettlementQuestionRecap[]>(
     [],
+  );
+  const [endedSnapshot, setEndedSnapshot] = useState<FrozenSettlementSnapshot | null>(
+    null,
   );
   const recapCapturedTrackSessionKeysRef = useRef<Set<string>>(new Set());
   const requiresAudioGesture = useMemo(() => {
@@ -1650,6 +1679,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     .slice()
     .sort((a, b) => b.score - a.score);
   const playedQuestionCount = trackOrderLength || room.gameSettings?.questionCount || 0;
+  const endedRoundKey = `${room.id}:${gameState.startedAt}`;
   const topFive = sortedParticipants.slice(0, 5);
   const self = sortedParticipants.find((p) => p.clientId === meClientId);
   const scoreboardList =
@@ -1671,6 +1701,50 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   ];
 
   const recentMessages = messages.slice(-80);
+
+  useEffect(() => {
+    if (!isEnded) {
+      setEndedSnapshot(null);
+      return;
+    }
+    const normalizedRecaps = cloneSettlementQuestionRecaps(questionRecaps);
+    setEndedSnapshot((prev) => {
+      if (!prev || prev.roundKey !== endedRoundKey) {
+        return {
+          roundKey: endedRoundKey,
+          room: cloneRoomForSettlement(room),
+          participants: participants.map((participant) => ({ ...participant })),
+          messages: messages.map((message) => ({ ...message })),
+          playlistItems: playlist.map((item) => ({ ...item })),
+          trackOrder: [...gameState.trackOrder],
+          playedQuestionCount,
+          questionRecaps: normalizedRecaps,
+        };
+      }
+      if (prev.questionRecaps.length >= normalizedRecaps.length) {
+        return prev;
+      }
+      return {
+        ...prev,
+        questionRecaps: normalizedRecaps,
+      };
+    });
+  }, [
+    endedRoundKey,
+    gameState.trackOrder,
+    isEnded,
+    messages,
+    participants,
+    playedQuestionCount,
+    playlist,
+    questionRecaps,
+    room,
+  ]);
+
+  const settlementSnapshot =
+    endedSnapshot && endedSnapshot.roundKey === endedRoundKey
+      ? endedSnapshot
+      : null;
 
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -1728,14 +1802,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return (
       <div className="game-room-shell">
         <GameSettlementPanel
-          room={room}
-          participants={participants}
-          messages={messages}
-          playlistItems={playlist}
-          trackOrder={gameState.trackOrder}
-          playedQuestionCount={playedQuestionCount}
+          room={settlementSnapshot?.room ?? room}
+          participants={settlementSnapshot?.participants ?? participants}
+          messages={settlementSnapshot?.messages ?? messages}
+          playlistItems={settlementSnapshot?.playlistItems ?? playlist}
+          trackOrder={settlementSnapshot?.trackOrder ?? gameState.trackOrder}
+          playedQuestionCount={
+            settlementSnapshot?.playedQuestionCount ?? playedQuestionCount
+          }
           meClientId={meClientId}
-          questionRecaps={questionRecaps}
+          questionRecaps={settlementSnapshot?.questionRecaps ?? questionRecaps}
           onBackToLobby={onBackToLobby}
           onRequestExit={openExitConfirm}
         />

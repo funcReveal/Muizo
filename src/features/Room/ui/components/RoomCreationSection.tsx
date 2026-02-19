@@ -601,6 +601,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   };
 
   const handleCollectionSelectionChange = (collectionId: string) => {
+    if (collectionItemsLoading) return;
     const nextCollectionId = collectionId || null;
     if (nextCollectionId === selectedCollectionId) return;
     const targetTitle =
@@ -623,6 +624,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   };
 
   const isSourceImporting = playlistLoading || collectionItemsLoading;
+  const collectionSelectionDisabled = collectionsLoading || collectionItemsLoading;
   const importStatusText = React.useMemo(() => {
     if (sourceMode === "link") return "正在匯入 YouTube 播放清單...";
     if (sourceMode === "youtube") return "正在載入你的播放清單歌曲...";
@@ -643,6 +645,10 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     return `可調 ${questionMin}~${questionMax}`;
   }, [questionLimitLabel, questionMax, questionMin]);
   const [activeStep, setActiveStep] = React.useState<1 | 2>(1);
+  const [stepTransitionDirection, setStepTransitionDirection] = React.useState<
+    "forward" | "backward"
+  >("forward");
+  const prevActiveStepRef = React.useRef<1 | 2>(1);
 
   const previewRowProps = React.useMemo<PreviewVirtualRowProps>(
     () => ({
@@ -651,6 +657,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     }),
     [previewItems, selectedCollectionId, selectedYoutubeId, sourceMode],
   );
+  const prevSourceStepReadyRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!sourceStepReady) {
@@ -658,6 +665,21 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
       return;
     }
   }, [sourceStepReady]);
+
+  React.useEffect(() => {
+    const wasReady = prevSourceStepReadyRef.current;
+    const becameReady = sourceStepReady && !wasReady;
+    prevSourceStepReadyRef.current = sourceStepReady;
+    if (!becameReady || isSourceImporting) return;
+    setActiveStep((prev) => (prev === 2 ? prev : 2));
+  }, [isSourceImporting, sourceStepReady]);
+
+  React.useEffect(() => {
+    const previousStep = prevActiveStepRef.current;
+    if (previousStep === activeStep) return;
+    setStepTransitionDirection(activeStep > previousStep ? "forward" : "backward");
+    prevActiveStepRef.current = activeStep;
+  }, [activeStep]);
 
   React.useEffect(() => {
     onStepChange?.(activeStep);
@@ -787,7 +809,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
       </div>
 
       {activeStep === 2 && (
-        <div className="room-create-step-card room-create-v3-pane">
+        <div
+          className={`room-create-step-card room-create-v3-pane room-create-v3-pane--enter room-create-v3-pane--${stepTransitionDirection}`}
+        >
           <div className="room-create-step-head">
             <div>
               <Typography variant="h5" className="room-create-step-title">
@@ -969,7 +993,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
       )}
 
       {activeStep === 1 && (
-        <div className="room-create-step-card room-create-v3-pane">
+        <div
+          className={`room-create-step-card room-create-v3-pane room-create-v3-pane--enter room-create-v3-pane--${stepTransitionDirection}`}
+        >
           <div className="room-create-step-head">
             <div>
               <Typography variant="h5" className="room-create-step-title">
@@ -1107,12 +1133,12 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                             onChange={(event) =>
                               handleCollectionSelectionChange(String(event.target.value))
                             }
+                            disabled={collectionSelectionDisabled}
                           >
                             <MenuItem value="">請選擇收藏庫</MenuItem>
                             {collectionOptions.map((item) => (
                               <MenuItem key={item.id} value={item.id}>
                                 {item.title}
-                                {item.visibility === "private" ? "（私人）" : "（公開）"}
                               </MenuItem>
                             ))}
                           </Select>
