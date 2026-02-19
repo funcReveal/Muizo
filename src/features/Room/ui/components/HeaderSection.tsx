@@ -25,7 +25,7 @@ import {
   Typography,
 } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import BrandLogo from "../../../../shared/ui/BrandLogo";
 
@@ -116,9 +116,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   onNavigateCollections,
 }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const isHomeRoute =
-    location.pathname === "/" || location.pathname === "/rooms";
+
   const authLabel =
     authUser?.display_name || authUser?.id || displayUsername || "Guest";
   const authSubLabel = authUser?.email ?? null;
@@ -255,16 +253,13 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
 
   return (
     <header className="flex items-center justify-between gap-4 text-[var(--mc-text)]">
-      {isHomeRoute ? (
-        <Link
-          to="/rooms"
-          className="inline-flex items-cente px-3 py-2 transition "
-        >
-          <BrandLogo compact />
-        </Link>
-      ) : (
-        <div />
-      )}
+      <Link
+        to="/rooms"
+        className="inline-flex items-cente px-3 py-2 transition "
+      >
+        <BrandLogo compact />
+      </Link>
+
       <div className="relative inline-flex items-center">
         {authUser ? (
           <button
