@@ -144,6 +144,14 @@ const toDanmuText = (message: ChatMessage) => {
   return `${message.username}: ${compactContent || "..."}`;
 };
 
+const deferStateUpdate = (callback: () => void) => {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback);
+    return;
+  }
+  void Promise.resolve().then(callback);
+};
+
 type DanmuItem = {
   id: string;
   text: string;
@@ -257,14 +265,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   useEffect(() => {
     if (danmuEnabled) return;
     clearDanmuTimers();
-    setDanmuItems([]);
+    deferStateUpdate(() => {
+      setDanmuItems([]);
+    });
   }, [clearDanmuTimers, danmuEnabled]);
 
   useEffect(() => {
     danmuSeenMessageIdsRef.current.clear();
     danmuLaneCursorRef.current = 0;
     clearDanmuTimers();
-    setDanmuItems([]);
+    deferStateUpdate(() => {
+      setDanmuItems([]);
+    });
   }, [clearDanmuTimers, room.id]);
 
   useEffect(() => {
@@ -568,7 +580,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   useEffect(() => {
     recapCapturedTrackSessionKeysRef.current.clear();
-    setQuestionRecaps([]);
+    deferStateUpdate(() => {
+      setQuestionRecaps([]);
+    });
   }, [room.id]);
 
   useEffect(() => {
@@ -576,7 +590,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (gameState.phase !== "guess") return;
     if (!waitingToStart || trackCursor !== 0) return;
     recapCapturedTrackSessionKeysRef.current.clear();
-    setQuestionRecaps([]);
+    deferStateUpdate(() => {
+      setQuestionRecaps([]);
+    });
   }, [gameState.phase, gameState.status, trackCursor, waitingToStart]);
 
   useEffect(() => {
@@ -596,48 +612,50 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [gameState.clipEndSec, gameState.clipSource, gameState.clipStartSec]);
 
   useEffect(() => {
-    setAnsweredOrderSnapshot((prev) => {
-      const incoming = collectAnsweredClientIds(
-        gameState.lockedOrder,
-        gameState.lockedClientIds,
-      );
-      if (prev.trackSessionKey !== trackSessionKey) {
-        return {
-          trackSessionKey,
-          order: incoming,
-        };
-      }
-      if (gameState.phase === "guess") {
-        if (
-          incoming.length === prev.order.length &&
-          incoming.every((clientId, idx) => clientId === prev.order[idx])
-        ) {
+    deferStateUpdate(() => {
+      setAnsweredOrderSnapshot((prev) => {
+        const incoming = collectAnsweredClientIds(
+          gameState.lockedOrder,
+          gameState.lockedClientIds,
+        );
+        if (prev.trackSessionKey !== trackSessionKey) {
+          return {
+            trackSessionKey,
+            order: incoming,
+          };
+        }
+        if (gameState.phase === "guess") {
+          if (
+            incoming.length === prev.order.length &&
+            incoming.every((clientId, idx) => clientId === prev.order[idx])
+          ) {
+            return prev;
+          }
+          return {
+            trackSessionKey: prev.trackSessionKey,
+            order: incoming,
+          };
+        }
+        if (incoming.length === 0) {
+          return prev;
+        }
+        const nextOrder = [...prev.order];
+        const seen = new Set(nextOrder);
+        let changed = false;
+        incoming.forEach((clientId) => {
+          if (seen.has(clientId)) return;
+          seen.add(clientId);
+          nextOrder.push(clientId);
+          changed = true;
+        });
+        if (!changed) {
           return prev;
         }
         return {
           trackSessionKey: prev.trackSessionKey,
-          order: incoming,
+          order: nextOrder,
         };
-      }
-      if (incoming.length === 0) {
-        return prev;
-      }
-      const nextOrder = [...prev.order];
-      const seen = new Set(nextOrder);
-      let changed = false;
-      incoming.forEach((clientId) => {
-        if (seen.has(clientId)) return;
-        seen.add(clientId);
-        nextOrder.push(clientId);
-        changed = true;
       });
-      if (!changed) {
-        return prev;
-      }
-      return {
-        trackSessionKey: prev.trackSessionKey,
-        order: nextOrder,
-      };
     });
   }, [
     gameState.lockedClientIds,
@@ -647,27 +665,29 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   ]);
 
   useEffect(() => {
-    setScoreBaselineState((prev) => {
-      if (prev.trackSessionKey !== trackSessionKey) {
+    deferStateUpdate(() => {
+      setScoreBaselineState((prev) => {
+        if (prev.trackSessionKey !== trackSessionKey) {
+          return {
+            trackSessionKey,
+            byClientId: buildScoreBaselineMap(participants),
+          };
+        }
+        let changed = false;
+        const nextByClientId = { ...prev.byClientId };
+        participants.forEach((participant) => {
+          if (nextByClientId[participant.clientId] !== undefined) return;
+          nextByClientId[participant.clientId] = participant.score;
+          changed = true;
+        });
+        if (!changed) {
+          return prev;
+        }
         return {
-          trackSessionKey,
-          byClientId: buildScoreBaselineMap(participants),
+          trackSessionKey: prev.trackSessionKey,
+          byClientId: nextByClientId,
         };
-      }
-      let changed = false;
-      const nextByClientId = { ...prev.byClientId };
-      participants.forEach((participant) => {
-        if (nextByClientId[participant.clientId] !== undefined) return;
-        nextByClientId[participant.clientId] = participant.score;
-        changed = true;
       });
-      if (!changed) {
-        return prev;
-      }
-      return {
-        trackSessionKey: prev.trackSessionKey,
-        byClientId: nextByClientId,
-      };
     });
   }, [participants, trackSessionKey]);
 
@@ -1216,6 +1236,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     fallbackDurationSec,
     effectiveGuessDurationMs,
     gameState.phase,
+    gameState.startedAt,
     getDesiredPositionSec,
     getServerNowMs,
     isEnded,
@@ -1596,10 +1617,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       })),
     };
 
-    setQuestionRecaps((prev) => {
-      const next = [...prev.filter((item) => item.key !== recapItem.key), recapItem];
-      next.sort((a, b) => a.order - b.order || a.trackIndex - b.trackIndex);
-      return next;
+    deferStateUpdate(() => {
+      setQuestionRecaps((prev) => {
+        const next = [...prev.filter((item) => item.key !== recapItem.key), recapItem];
+        next.sort((a, b) => a.order - b.order || a.trackIndex - b.trackIndex);
+        return next;
+      });
     });
   }, [
     answeredClientIdSet,

@@ -8,6 +8,7 @@ interface QuestionCountControlsProps {
   step?: number;
   disabled?: boolean;
   compact?: boolean;
+  showRangeHint?: boolean;
   onChange: (nextValue: number) => void;
 }
 
@@ -18,6 +19,7 @@ const QuestionCountControls: React.FC<QuestionCountControlsProps> = ({
   step = 5,
   disabled = false,
   compact = false,
+  showRangeHint = true,
   onChange,
 }) => {
   const safeMin = Math.min(min, max);
@@ -93,9 +95,11 @@ const QuestionCountControls: React.FC<QuestionCountControlsProps> = ({
             最大
           </Button>
         </div>
-        <Typography variant="caption" className="room-create-muted">
-          可調範圍 {rangeLabel}
-        </Typography>
+        {showRangeHint && (
+          <Typography variant="caption" className="room-create-muted">
+            可調範圍 {rangeLabel}
+          </Typography>
+        )}
       </Stack>
     );
   }

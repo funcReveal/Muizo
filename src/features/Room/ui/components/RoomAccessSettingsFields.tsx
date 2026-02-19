@@ -33,7 +33,7 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
   showClearButton = true,
   passwordFieldVariant = "outlined",
   passwordFieldSize = "small",
-  passwordFieldLabelShrink = false,
+  passwordFieldLabelShrink,
   onVisibilityChange,
   onPasswordChange,
   onPasswordClear,
@@ -52,6 +52,11 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
     : visibility === "private"
       ? "密碼為選填；若有設定，加入時需要輸入。"
       : "公開房間通常不需要密碼，可留空。";
+
+  const inputLabelSlotProps =
+    passwordFieldLabelShrink === undefined
+      ? undefined
+      : { shrink: passwordFieldLabelShrink };
 
   return (
     <Stack spacing={1.25} className={classes?.root}>
@@ -85,7 +90,7 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
       <TextField
         size={passwordFieldSize}
         variant={passwordFieldVariant}
-        slotProps={{ inputLabel: { shrink: passwordFieldLabelShrink } }}
+        slotProps={inputLabelSlotProps ? { inputLabel: inputLabelSlotProps } : undefined}
         label="房間密碼（選填）"
         value={password}
         onChange={(e) => onPasswordChange(e.target.value)}

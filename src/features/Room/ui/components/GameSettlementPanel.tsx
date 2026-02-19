@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Button, Chip } from "@mui/material";
 import { List as VirtualList, type RowComponentProps } from "react-window";
 
@@ -75,14 +75,17 @@ const RECAP_RESULT_META: Record<
   },
 };
 
-const RecapRow: React.FC<RowComponentProps<RecapRowProps>> = ({
+const RecapRow = ({
   index,
   style,
   items,
   expandedKey,
   onToggle,
-}) => {
+}: RowComponentProps<RecapRowProps>): React.JSX.Element => {
   const item = items[index];
+  if (!item) {
+    return <div style={style} className="px-1 pb-2" />;
+  }
   const resultMeta = RECAP_RESULT_META[item.myResult];
   const isExpanded = expandedKey === item.key;
   return (
@@ -539,13 +542,6 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
   const handleToggleRecap = useCallback((key: string) => {
     setExpandedRecapKey((prev) => (prev === key ? null : key));
   }, []);
-  useEffect(() => {
-    if (!expandedRecapKey) return;
-    if (normalizedQuestionRecaps.some((item) => item.key === expandedRecapKey)) {
-      return;
-    }
-    setExpandedRecapKey(null);
-  }, [expandedRecapKey, normalizedQuestionRecaps]);
   const expandedRecap = useMemo(
     () =>
       normalizedQuestionRecaps.find((item) => item.key === expandedRecapKey) ??
