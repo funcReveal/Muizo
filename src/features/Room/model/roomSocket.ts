@@ -5,6 +5,7 @@ import type {
   ClientSocket,
   GameState,
   PlaylistState,
+  RoomSettlementSnapshot,
   PlaylistSuggestion,
   RoomParticipant,
   RoomState,
@@ -50,6 +51,10 @@ type RoomSocketHandlers = {
     roomId: string;
     suggestions: PlaylistSuggestion[];
   }) => void;
+  onSettlementHistoryUpdated?: (payload: {
+    roomId: string;
+    settlementHistory: RoomSettlementSnapshot[];
+  }) => void;
 };
 
 type RoomSocketAuth =
@@ -89,6 +94,9 @@ export const connectRoomSocket = (
   socket.on("kicked", (payload) => handlers.onKicked?.(payload));
   socket.on("playlistSuggestionsUpdated", (payload) =>
     handlers.onPlaylistSuggestionsUpdated?.(payload),
+  );
+  socket.on("settlementHistoryUpdated", (payload) =>
+    handlers.onSettlementHistoryUpdated?.(payload),
   );
 
   return socket;

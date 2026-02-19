@@ -1,9 +1,13 @@
-﻿import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import GameRoomPage from "./GameRoomPage";
+import GameSettlementPanel from "./components/GameSettlementPanel";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
+import type { ChatMessage, RoomSettlementSnapshot } from "../model/types";
 import { useRoom } from "../model/useRoom";
+
+const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
@@ -13,6 +17,7 @@ const RoomLobbyPage: React.FC = () => {
     currentRoom,
     participants,
     messages,
+    settlementHistory,
     messageInput,
     setMessageInput,
     playlistViewItems,
@@ -63,6 +68,54 @@ const RoomLobbyPage: React.FC = () => {
     selectCollection,
     loadCollectionItems,
   } = useRoom();
+  const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (gameState?.status !== "ended") return;
+    if (!isGameView) return;
+    setIsGameView(false);
+    setStatusText("遊戲已結束，返回聊天室");
+  }, [gameState?.status, isGameView, setIsGameView, setStatusText]);
+
+  const resolvedActiveSettlementRoundKey = useMemo(() => {
+    if (!activeSettlementRoundKey) return null;
+    const nextRoomId = currentRoom?.id;
+    if (!nextRoomId) return null;
+    if (!activeSettlementRoundKey.startsWith(`${nextRoomId}:`)) return null;
+    return activeSettlementRoundKey;
+  }, [activeSettlementRoundKey, currentRoom]);
+
+  const activeSettlementSnapshot = useMemo<RoomSettlementSnapshot | null>(() => {
+    if (!resolvedActiveSettlementRoundKey) return null;
+    return (
+      settlementHistory.find((item) => item.roundKey === resolvedActiveSettlementRoundKey) ??
+      null
+    );
+  }, [resolvedActiveSettlementRoundKey, settlementHistory]);
+
+  const latestSettlementSnapshot = settlementHistory[0] ?? null;
+
+  const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
+    if (!currentRoom?.id) return [];
+    return settlementHistory
+      .slice()
+      .sort((a, b) => a.endedAt - b.endedAt)
+      .map((snapshot) => ({
+        id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
+        roomId: currentRoom.id,
+        userId: "system:settlement-review",
+        username: "系統",
+        content: `對戰回顧：第 ${snapshot.roundNo} 局`,
+        timestamp: snapshot.endedAt,
+      }));
+  }, [currentRoom, settlementHistory]);
+
+  const lobbyMessages = useMemo(() => {
+    if (settlementReviewMessages.length === 0) return messages;
+    return [...messages, ...settlementReviewMessages].sort(
+      (a, b) => a.timestamp - b.timestamp,
+    );
+  }, [messages, settlementReviewMessages]);
 
   useEffect(() => {
     setRouteRoomId(roomId ?? null);
@@ -79,7 +132,7 @@ const RoomLobbyPage: React.FC = () => {
     return (
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          正在載入房間資訊…
+          正在連線並嘗試恢復房間...
         </div>
       </div>
     );
@@ -89,9 +142,7 @@ const RoomLobbyPage: React.FC = () => {
     return (
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
         <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          <div className="mb-2">
-            無法加入房間，可能已關閉或你已離開。
-          </div>
+          <div className="mb-2">房間不存在或已關閉，請返回房間列表。</div>
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/30"
@@ -104,7 +155,27 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (currentRoom && gameState && isGameView) {
+  if (activeSettlementSnapshot) {
+    return (
+      <div className="flex w-full justify-center">
+        <GameSettlementPanel
+          room={activeSettlementSnapshot.room}
+          participants={activeSettlementSnapshot.participants}
+          messages={activeSettlementSnapshot.messages}
+          playlistItems={activeSettlementSnapshot.playlistItems}
+          trackOrder={activeSettlementSnapshot.trackOrder}
+          playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
+          meClientId={clientId}
+          onBackToLobby={() => setActiveSettlementRoundKey(null)}
+          onRequestExit={() =>
+            handleLeaveRoom(() => navigate("/rooms", { replace: true }))
+          }
+        />
+      </div>
+    );
+  }
+
+  if (currentRoom && gameState && isGameView && gameState.status === "playing") {
     return (
       <div className="flex w-full justify-center">
         <GameRoomPage
@@ -135,7 +206,7 @@ const RoomLobbyPage: React.FC = () => {
         <RoomLobbyPanel
           currentRoom={currentRoom}
           participants={participants}
-          messages={messages}
+          messages={lobbyMessages}
           username={username}
           roomPassword={hostRoomPassword}
           messageInput={messageInput}
@@ -169,7 +240,19 @@ const RoomLobbyPage: React.FC = () => {
           onLoadMorePlaylist={loadMorePlaylist}
           onStartGame={handleStartGame}
           onUpdateRoomSettings={handleUpdateRoomSettings}
-          onOpenGame={() => setIsGameView(true)}
+          hasLastSettlement={Boolean(latestSettlementSnapshot)}
+          onOpenLastSettlement={() =>
+            latestSettlementSnapshot
+              ? setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey)
+              : undefined
+          }
+          onOpenSettlementByRoundKey={(roundKey) =>
+            setActiveSettlementRoundKey(roundKey)
+          }
+          onOpenGame={() => {
+            setActiveSettlementRoundKey(null);
+            setIsGameView(true);
+          }}
           onKickPlayer={handleKickPlayer}
           onTransferHost={handleTransferHost}
           onSuggestPlaylist={handleSuggestPlaylist}
@@ -190,9 +273,9 @@ const RoomLobbyPage: React.FC = () => {
             if (navigator.clipboard?.writeText) {
               try {
                 await navigator.clipboard.writeText(inviteText);
-                setStatusText("已複製邀請連結");
+                setStatusText("邀請連結已複製");
               } catch {
-                setStatusText("複製邀請連結失敗");
+                setStatusText("無法複製邀請連結");
               }
             } else {
               setStatusText(inviteText);

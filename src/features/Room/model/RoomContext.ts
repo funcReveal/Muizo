@@ -5,6 +5,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  RoomSettlementSnapshot,
   RoomParticipant,
   RoomState,
   RoomSummary,
@@ -94,6 +95,7 @@ export interface RoomContextValue {
   currentRoomId: string | null;
   participants: RoomParticipant[];
   messages: ChatMessage[];
+  settlementHistory: RoomSettlementSnapshot[];
   messageInput: string;
   setMessageInput: (value: string) => void;
   statusText: string | null;

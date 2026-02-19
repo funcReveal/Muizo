@@ -81,6 +81,8 @@ export interface RoomParticipant {
   lastSeen: number;
   score: number;
   combo: number;
+  maxCombo?: number;
+  correctCount?: number;
 }
 
 export interface ChatMessage {
@@ -90,6 +92,22 @@ export interface ChatMessage {
   username: string;
   content: string;
   timestamp: number;
+}
+
+export interface RoomSettlementSnapshot {
+  roundKey: string;
+  roundNo: number;
+  startedAt: number;
+  endedAt: number;
+  room: RoomSummary & {
+    hostClientId: string;
+    playlist: PlaylistState;
+  };
+  participants: RoomParticipant[];
+  messages: ChatMessage[];
+  playlistItems: PlaylistItem[];
+  trackOrder: number[];
+  playedQuestionCount: number;
 }
 
 export interface RoomSummary {
@@ -117,6 +135,7 @@ export interface RoomState {
   participants: RoomParticipant[];
   messages: ChatMessage[];
   gameState?: GameState | null;
+  settlementHistory: RoomSettlementSnapshot[];
   serverNow: number;
 }
 
@@ -271,6 +290,10 @@ export interface ServerToClientEvents {
   roomUpdated: (payload: { room: RoomSummary }) => void;
   kicked: (payload: { roomId: string; reason: string; bannedUntil: number | null }) => void;
   playlistSuggestionsUpdated: (payload: { roomId: string; suggestions: PlaylistSuggestion[] }) => void;
+  settlementHistoryUpdated: (payload: {
+    roomId: string;
+    settlementHistory: RoomSettlementSnapshot[];
+  }) => void;
 }
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

@@ -5,6 +5,7 @@
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   Button,
   Chip,
@@ -29,7 +30,10 @@ import {
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
-import GameSettlementPanel from "./components/GameSettlementPanel";
+import GameSettlementPanel, {
+  type SettlementQuestionRecap,
+  type SettlementQuestionResult,
+} from "./components/GameSettlementPanel";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -46,6 +50,7 @@ interface GameRoomPageProps {
   onSendMessage?: () => void;
   username?: string | null;
   serverOffsetMs?: number;
+  onSettlementRecapChange?: (recaps: SettlementQuestionRecap[]) => void;
 }
 
 const extractYouTubeId = (
@@ -102,6 +107,84 @@ const buildScoreBaselineMap = (rows: RoomParticipant[]) =>
     return acc;
   }, {});
 
+const MAX_DANMU_TEXT_LENGTH = 56;
+const DANMU_LANE_COUNT = 6;
+const ANSWER_INPUT_UNLOCK_DELAY_MS = 900;
+const MOBILE_UA_PATTERN = /Android|iPhone|iPad|iPod|Mobile/i;
+
+const isMobileDevice = () => {
+  if (typeof navigator === "undefined") return false;
+  const legacyNavigator = navigator as Navigator & {
+    msMaxTouchPoints?: number;
+  };
+  const ua = navigator.userAgent || "";
+  const isMobileUa = MOBILE_UA_PATTERN.test(ua);
+  const isIpadDesktopUa =
+    navigator.platform === "MacIntel" &&
+    (navigator.maxTouchPoints > 1 || (legacyNavigator.msMaxTouchPoints ?? 0) > 1);
+  return isMobileUa || isIpadDesktopUa;
+};
+
+const isDanmuCandidateMessage = (message: ChatMessage) => {
+  const text = message.content?.trim() ?? "";
+  if (!text) return false;
+  const username = message.username?.trim().toLowerCase() ?? "";
+  const userId = message.userId?.trim().toLowerCase() ?? "";
+  if (!username || !userId) return true;
+  if (username === "system" || username === "系統") return false;
+  if (userId === "system" || userId === "sys") return false;
+  return true;
+};
+
+const toDanmuText = (message: ChatMessage) => {
+  const compactContent = message.content
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_DANMU_TEXT_LENGTH);
+  return `${message.username}: ${compactContent || "..."}`;
+};
+
+const deferStateUpdate = (callback: () => void) => {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback);
+    return;
+  }
+  void Promise.resolve().then(callback);
+};
+
+type DanmuItem = {
+  id: string;
+  text: string;
+  lane: number;
+  durationMs: number;
+};
+
+type FrozenSettlementSnapshot = {
+  roundKey: string;
+  room: RoomState["room"];
+  participants: RoomParticipant[];
+  messages: ChatMessage[];
+  playlistItems: PlaylistItem[];
+  trackOrder: number[];
+  playedQuestionCount: number;
+  questionRecaps: SettlementQuestionRecap[];
+};
+
+const cloneSettlementQuestionRecaps = (recaps: SettlementQuestionRecap[]) =>
+  recaps.map((recap) => ({
+    ...recap,
+    choices: recap.choices.map((choice) => ({ ...choice })),
+  }));
+
+const cloneRoomForSettlement = (room: RoomState["room"]): RoomState["room"] => ({
+  ...room,
+  gameSettings: room.gameSettings ? { ...room.gameSettings } : undefined,
+  playlist: {
+    ...room.playlist,
+    items: room.playlist.items.map((item) => ({ ...item })),
+  },
+});
+
 const GameRoomPage: React.FC<GameRoomPageProps> = ({
   room,
   gameState,
@@ -116,6 +199,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   onMessageChange,
   onSendMessage,
   serverOffsetMs = 0,
+  onSettlementRecapChange,
 }) => {
   const [volume, setVolume] = useState(() => {
     const stored = localStorage.getItem("mq_volume");
@@ -123,19 +207,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const parsed = Number(stored);
     return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 50;
   });
+  const [danmuEnabled, setDanmuEnabled] = useState(() => {
+    const stored = localStorage.getItem("mq_danmu_enabled");
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+    return isMobileDevice();
+  });
+  const [danmuItems, setDanmuItems] = useState<DanmuItem[]>([]);
+  const danmuSeenMessageIdsRef = useRef<Set<string>>(new Set());
+  const danmuLaneCursorRef = useRef(0);
+  const danmuTimersRef = useRef<number[]>([]);
+  const [questionRecaps, setQuestionRecaps] = useState<SettlementQuestionRecap[]>(
+    [],
+  );
+  const [endedSnapshot, setEndedSnapshot] = useState<FrozenSettlementSnapshot | null>(
+    null,
+  );
+  const recapCapturedTrackSessionKeysRef = useRef<Set<string>>(new Set());
   const requiresAudioGesture = useMemo(() => {
-    if (typeof navigator === "undefined" || typeof window === "undefined") {
-      return false;
-    }
-    const legacyNavigator = navigator as Navigator & {
-      msMaxTouchPoints?: number;
-    };
-    const ua = navigator.userAgent || "";
-    const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-    const isIpadDesktopUa =
-      navigator.platform === "MacIntel" &&
-      (navigator.maxTouchPoints > 1 || (legacyNavigator.msMaxTouchPoints ?? 0) > 1);
-    return isMobileUa || isIpadDesktopUa;
+    if (typeof window === "undefined") return false;
+    return isMobileDevice();
   }, []);
   const [audioUnlocked, setAudioUnlocked] = useState(() => !requiresAudioGesture);
   const audioUnlockedRef = useRef(!requiresAudioGesture);
@@ -191,6 +282,73 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => Date.now() + serverOffsetMs,
     [serverOffsetMs],
   );
+  const clearDanmuTimers = useCallback(() => {
+    danmuTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    danmuTimersRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("mq_danmu_enabled", danmuEnabled ? "1" : "0");
+  }, [danmuEnabled]);
+
+  useEffect(() => {
+    if (danmuEnabled) return;
+    clearDanmuTimers();
+    deferStateUpdate(() => {
+      setDanmuItems([]);
+    });
+  }, [clearDanmuTimers, danmuEnabled]);
+
+  useEffect(() => {
+    danmuSeenMessageIdsRef.current.clear();
+    danmuLaneCursorRef.current = 0;
+    clearDanmuTimers();
+    deferStateUpdate(() => {
+      setDanmuItems([]);
+    });
+  }, [clearDanmuTimers, room.id]);
+
+  useEffect(() => {
+    if (!danmuEnabled || messages.length === 0) return;
+    const unseenMessages: ChatMessage[] = [];
+    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+      const message = messages[idx];
+      if (danmuSeenMessageIdsRef.current.has(message.id)) break;
+      danmuSeenMessageIdsRef.current.add(message.id);
+      if (!isDanmuCandidateMessage(message)) {
+        continue;
+      }
+      unseenMessages.push(message);
+      if (unseenMessages.length >= 4) break;
+    }
+    if (unseenMessages.length === 0) return;
+
+    unseenMessages.reverse().forEach((message, orderIdx) => {
+      const lane = danmuLaneCursorRef.current % DANMU_LANE_COUNT;
+      danmuLaneCursorRef.current += 1;
+      const durationMs = 7600 + (lane % 3) * 700 + orderIdx * 120;
+      const itemId = `${message.id}-${Date.now()}-${orderIdx}`;
+      const nextItem: DanmuItem = {
+        id: itemId,
+        text: toDanmuText(message),
+        lane,
+        durationMs,
+      };
+      setDanmuItems((prev) => [...prev.slice(-24), nextItem]);
+      const timerId = window.setTimeout(() => {
+        setDanmuItems((prev) => prev.filter((item) => item.id !== itemId));
+      }, durationMs + 320);
+      danmuTimersRef.current.push(timerId);
+    });
+  }, [danmuEnabled, messages]);
+
+  useEffect(
+    () => () => {
+      clearDanmuTimers();
+    },
+    [clearDanmuTimers],
+  );
+
   const markAudioUnlocked = useCallback(() => {
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
@@ -247,9 +405,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     trackCursor,
     Math.max(trackOrderLength - 1, 0),
   );
+  const backendTrackIndex = effectiveTrackOrder[boundedCursor];
   const currentTrackIndex =
+    backendTrackIndex ??
     gameState.currentIndex ??
-    effectiveTrackOrder[boundedCursor] ??
     effectiveTrackOrder[0] ??
     0;
   const waitingToStart = gameState.startedAt > nowMs;
@@ -269,9 +428,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return playlist[currentTrackIndex] ?? playlist[0];
   }, [playlist, currentTrackIndex]);
   const resolvedAnswerTitle =
+    gameState.answerTitle?.trim() ||
     item?.answerText?.trim() ||
     item?.title?.trim() ||
-    gameState.answerTitle ||
     "（未提供名稱）";
 
   const roomPlayDurationSec = Math.max(
@@ -394,6 +553,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase === "guess"
       ? gameState.startedAt + effectiveGuessDurationMs
       : gameState.revealEndsAt;
+  const answerInputUnlockAtMs = gameState.startedAt + ANSWER_INPUT_UNLOCK_DELAY_MS;
+  const answerLeadInLocked =
+    gameState.status === "playing" &&
+    gameState.phase === "guess" &&
+    nowMs < answerInputUnlockAtMs;
   const phaseRemainingMs = Math.max(0, phaseEndsAt - nowMs);
   const revealCountdownMs = Math.max(0, gameState.revealEndsAt - nowMs);
   const isEnded = gameState.status === "ended";
@@ -423,6 +587,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isTrackLoading = loadedTrackKey !== trackLoadKey;
   const shouldShowGestureOverlay =
     !isEnded && requiresAudioGesture && !audioUnlocked;
+  const canAnswerNow =
+    gameState.status === "playing" &&
+    gameState.phase === "guess" &&
+    !waitingToStart &&
+    !isReveal &&
+    !isEnded &&
+    !shouldShowGestureOverlay &&
+    !answerLeadInLocked;
   const showGuessMask = gameState.phase === "guess" && !isEnded && !waitingToStart;
   const showPreStartMask =
     waitingToStart &&
@@ -434,6 +606,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     shouldShowGestureOverlay || showPreStartMask || showLoadingMask || showGuessMask;
   const showAudioOnlyMask = !shouldHideVideoFrame && !showVideo;
   const correctChoiceIndex = currentTrackIndex;
+
+  useEffect(() => {
+    recapCapturedTrackSessionKeysRef.current.clear();
+    deferStateUpdate(() => {
+      setQuestionRecaps([]);
+    });
+  }, [room.id]);
+
+  useEffect(() => {
+    if (gameState.status !== "playing") return;
+    if (gameState.phase !== "guess") return;
+    if (!waitingToStart || trackCursor !== 0) return;
+    recapCapturedTrackSessionKeysRef.current.clear();
+    deferStateUpdate(() => {
+      setQuestionRecaps([]);
+    });
+  }, [gameState.phase, gameState.status, trackCursor, waitingToStart]);
 
   useEffect(() => {
     if (legacyClipWarningShownRef.current) return;
@@ -452,48 +641,50 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [gameState.clipEndSec, gameState.clipSource, gameState.clipStartSec]);
 
   useEffect(() => {
-    setAnsweredOrderSnapshot((prev) => {
-      const incoming = collectAnsweredClientIds(
-        gameState.lockedOrder,
-        gameState.lockedClientIds,
-      );
-      if (prev.trackSessionKey !== trackSessionKey) {
-        return {
-          trackSessionKey,
-          order: incoming,
-        };
-      }
-      if (gameState.phase === "guess") {
-        if (
-          incoming.length === prev.order.length &&
-          incoming.every((clientId, idx) => clientId === prev.order[idx])
-        ) {
+    deferStateUpdate(() => {
+      setAnsweredOrderSnapshot((prev) => {
+        const incoming = collectAnsweredClientIds(
+          gameState.lockedOrder,
+          gameState.lockedClientIds,
+        );
+        if (prev.trackSessionKey !== trackSessionKey) {
+          return {
+            trackSessionKey,
+            order: incoming,
+          };
+        }
+        if (gameState.phase === "guess") {
+          if (
+            incoming.length === prev.order.length &&
+            incoming.every((clientId, idx) => clientId === prev.order[idx])
+          ) {
+            return prev;
+          }
+          return {
+            trackSessionKey: prev.trackSessionKey,
+            order: incoming,
+          };
+        }
+        if (incoming.length === 0) {
+          return prev;
+        }
+        const nextOrder = [...prev.order];
+        const seen = new Set(nextOrder);
+        let changed = false;
+        incoming.forEach((clientId) => {
+          if (seen.has(clientId)) return;
+          seen.add(clientId);
+          nextOrder.push(clientId);
+          changed = true;
+        });
+        if (!changed) {
           return prev;
         }
         return {
           trackSessionKey: prev.trackSessionKey,
-          order: incoming,
+          order: nextOrder,
         };
-      }
-      if (incoming.length === 0) {
-        return prev;
-      }
-      const nextOrder = [...prev.order];
-      const seen = new Set(nextOrder);
-      let changed = false;
-      incoming.forEach((clientId) => {
-        if (seen.has(clientId)) return;
-        seen.add(clientId);
-        nextOrder.push(clientId);
-        changed = true;
       });
-      if (!changed) {
-        return prev;
-      }
-      return {
-        trackSessionKey: prev.trackSessionKey,
-        order: nextOrder,
-      };
     });
   }, [
     gameState.lockedClientIds,
@@ -503,27 +694,29 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   ]);
 
   useEffect(() => {
-    setScoreBaselineState((prev) => {
-      if (prev.trackSessionKey !== trackSessionKey) {
+    deferStateUpdate(() => {
+      setScoreBaselineState((prev) => {
+        if (prev.trackSessionKey !== trackSessionKey) {
+          return {
+            trackSessionKey,
+            byClientId: buildScoreBaselineMap(participants),
+          };
+        }
+        let changed = false;
+        const nextByClientId = { ...prev.byClientId };
+        participants.forEach((participant) => {
+          if (nextByClientId[participant.clientId] !== undefined) return;
+          nextByClientId[participant.clientId] = participant.score;
+          changed = true;
+        });
+        if (!changed) {
+          return prev;
+        }
         return {
-          trackSessionKey,
-          byClientId: buildScoreBaselineMap(participants),
+          trackSessionKey: prev.trackSessionKey,
+          byClientId: nextByClientId,
         };
-      }
-      let changed = false;
-      const nextByClientId = { ...prev.byClientId };
-      participants.forEach((participant) => {
-        if (nextByClientId[participant.clientId] !== undefined) return;
-        nextByClientId[participant.clientId] = participant.score;
-        changed = true;
       });
-      if (!changed) {
-        return prev;
-      }
-      return {
-        trackSessionKey: prev.trackSessionKey,
-        byClientId: nextByClientId,
-      };
     });
   }, [participants, trackSessionKey]);
 
@@ -567,28 +760,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: "Muizo",
-        artist: "",
-        album: "",
+        artist: "Music Quiz",
+        album: "Competitive Audio Mode",
       });
       navigator.mediaSession.playbackState =
-        waitingToStart || isEnded ? "paused" : "playing";
+        isEnded ? "paused" : "playing";
     } catch (err) {
       console.error("mediaSession setup failed", err);
     }
-  }, [isEnded, waitingToStart]);
+  }, [isEnded]);
 
   const startSilentAudio = useCallback(() => {
     const audio = silentAudioRef.current;
     if (!audio) return;
     audio.loop = true;
     audio.preload = "auto";
+    // Keep this track "active" to take over media session metadata.
     audio.muted = false;
-    audio.volume = 0;
+    audio.volume = 1;
     updateMediaSession();
     const playPromise = audio.play();
     if (playPromise && typeof playPromise.catch === "function") {
       playPromise.catch(() => {
-
+        // Keep overriding media metadata even if autoplay is blocked.
+        updateMediaSession();
       });
     }
     window.setTimeout(() => {
@@ -812,6 +1007,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const interval = setInterval(() => {
       const now = getServerNowMs();
       setNowMs(now);
+      updateMediaSession();
       if (
         resumeNeedsSyncRef.current &&
         playerReadyRef.current &&
@@ -846,6 +1042,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.startedAt,
     requestPlayerTime,
     startPlayback,
+    updateMediaSession,
   ]);
 
   useEffect(() => {
@@ -858,6 +1055,20 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       stopSilentAudio();
     }
   }, [isEnded, stopSilentAudio]);
+
+  useEffect(() => {
+    if (isEnded) return;
+    if (requiresAudioGesture && !audioUnlockedRef.current) return;
+    startSilentAudio();
+  }, [
+    audioUnlocked,
+    currentTrackIndex,
+    gameState.phase,
+    gameState.startedAt,
+    isEnded,
+    requiresAudioGesture,
+    startSilentAudio,
+  ]);
 
   useEffect(() => {
     applyVolume(volume);
@@ -1054,6 +1265,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     fallbackDurationSec,
     effectiveGuessDurationMs,
     gameState.phase,
+    gameState.startedAt,
     getDesiredPositionSec,
     getServerNowMs,
     isEnded,
@@ -1214,8 +1426,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         }
       }
       if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-      if (waitingToStart) return;
-      if (isReveal || isEnded) return;
+      if (!canAnswerNow) return;
       if (!gameState.choices?.length) return;
 
       const pressed = e.key.toUpperCase();
@@ -1239,16 +1450,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [
     currentTrackIndex,
     gameState.choices,
+    gameState.phase,
+    gameState.status,
     isEnded,
     isReveal,
     keyBindings,
     onSubmitChoice,
+    shouldShowGestureOverlay,
+    getServerNowMs,
     waitingToStart,
+    canAnswerNow,
   ]);
 
   const effectivePlayerVideoId = playerVideoId ?? videoId;
   const iframeSrc = effectivePlayerVideoId
-    ? `https://www.youtube-nocookie.com/embed/${effectivePlayerVideoId}?autoplay=0&controls=1&enablejsapi=1&rel=0&playsinline=1`
+    ? `https://www.youtube-nocookie.com/embed/${effectivePlayerVideoId}?autoplay=0&controls=0&fs=0&disablekb=1&modestbranding=1&iv_load_policy=3&enablejsapi=1&rel=0&playsinline=1`
     : null;
   const shouldShowVideo = showVideo;
 
@@ -1325,7 +1541,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
       : null;
   const myGain = myScoreParts?.gain ?? 0;
-  const myHasAnswered = Boolean(meClientId && answeredClientIdSet.has(meClientId));
+  const myHasAnswered =
+    selectedChoice !== null ||
+    Boolean(meClientId && answeredClientIdSet.has(meClientId));
   const myIsCorrect = selectedChoice !== null && selectedChoice === correctChoiceIndex;
   const myFeedback = useMemo(() => {
     if (isInterTrackWait) {
@@ -1386,11 +1604,82 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     selectedChoice,
   ]);
   const revealTone = myFeedback?.tone ?? "neutral";
+  useEffect(() => {
+    if (!isReveal) return;
+    if (!gameState.choices.length) return;
+    if (recapCapturedTrackSessionKeysRef.current.has(trackSessionKey)) return;
+    recapCapturedTrackSessionKeysRef.current.add(trackSessionKey);
+
+    const myChoiceIndex =
+      selectedChoiceState.trackIndex === currentTrackIndex
+        ? selectedChoiceState.choiceIndex
+        : null;
+    const myAnswered =
+      myChoiceIndex !== null ||
+      Boolean(meClientId && answeredClientIdSet.has(meClientId));
+    const myResult: SettlementQuestionResult = !myAnswered
+      ? "unanswered"
+      : myChoiceIndex === correctChoiceIndex
+        ? "correct"
+        : "wrong";
+
+    const recapItem: SettlementQuestionRecap = {
+      key: trackSessionKey,
+      order: trackCursor + 1,
+      trackIndex: currentTrackIndex,
+      title: resolvedAnswerTitle,
+      uploader: item?.uploader?.trim() || "Unknown",
+      duration: item?.duration?.trim() || null,
+      thumbnail: item?.thumbnail || null,
+      myResult,
+      myChoiceIndex,
+      correctChoiceIndex,
+      choices: gameState.choices.map((choice) => ({
+        index: choice.index,
+        title:
+          choice.title?.trim() ||
+          playlist[choice.index]?.answerText?.trim() ||
+          playlist[choice.index]?.title?.trim() ||
+          "（未提供名稱）",
+        isCorrect: choice.index === correctChoiceIndex,
+        isSelectedByMe: choice.index === myChoiceIndex,
+      })),
+    };
+
+    deferStateUpdate(() => {
+      setQuestionRecaps((prev) => {
+        const next = [...prev.filter((item) => item.key !== recapItem.key), recapItem];
+        next.sort((a, b) => a.order - b.order || a.trackIndex - b.trackIndex);
+        return next;
+      });
+    });
+  }, [
+    answeredClientIdSet,
+    correctChoiceIndex,
+    currentTrackIndex,
+    gameState.choices,
+    isReveal,
+    item?.duration,
+    item?.thumbnail,
+    item?.uploader,
+    meClientId,
+    playlist,
+    resolvedAnswerTitle,
+    selectedChoiceState.choiceIndex,
+    selectedChoiceState.trackIndex,
+    trackCursor,
+    trackSessionKey,
+  ]);
+
+  useEffect(() => {
+    onSettlementRecapChange?.(questionRecaps);
+  }, [onSettlementRecapChange, questionRecaps]);
 
   const sortedParticipants = participants
     .slice()
     .sort((a, b) => b.score - a.score);
   const playedQuestionCount = trackOrderLength || room.gameSettings?.questionCount || 0;
+  const endedRoundKey = `${room.id}:${gameState.startedAt}`;
   const topFive = sortedParticipants.slice(0, 5);
   const self = sortedParticipants.find((p) => p.clientId === meClientId);
   const scoreboardList =
@@ -1412,6 +1701,50 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   ];
 
   const recentMessages = messages.slice(-80);
+
+  useEffect(() => {
+    if (!isEnded) {
+      setEndedSnapshot(null);
+      return;
+    }
+    const normalizedRecaps = cloneSettlementQuestionRecaps(questionRecaps);
+    setEndedSnapshot((prev) => {
+      if (!prev || prev.roundKey !== endedRoundKey) {
+        return {
+          roundKey: endedRoundKey,
+          room: cloneRoomForSettlement(room),
+          participants: participants.map((participant) => ({ ...participant })),
+          messages: messages.map((message) => ({ ...message })),
+          playlistItems: playlist.map((item) => ({ ...item })),
+          trackOrder: [...gameState.trackOrder],
+          playedQuestionCount,
+          questionRecaps: normalizedRecaps,
+        };
+      }
+      if (prev.questionRecaps.length >= normalizedRecaps.length) {
+        return prev;
+      }
+      return {
+        ...prev,
+        questionRecaps: normalizedRecaps,
+      };
+    });
+  }, [
+    endedRoundKey,
+    gameState.trackOrder,
+    isEnded,
+    messages,
+    participants,
+    playedQuestionCount,
+    playlist,
+    questionRecaps,
+    room,
+  ]);
+
+  const settlementSnapshot =
+    endedSnapshot && endedSnapshot.roundKey === endedRoundKey
+      ? endedSnapshot
+      : null;
 
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -1439,18 +1772,46 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       </DialogActions>
     </Dialog>
   );
+  const audioGestureOverlay =
+    shouldShowGestureOverlay && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[2400] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
+            onPointerDown={unlockAudioAndStart}
+            role="button"
+            tabIndex={0}
+            aria-label="點擊後開始播放"
+          >
+            <div className="mx-4 w-full max-w-sm rounded-2xl border border-emerald-300/40 bg-slate-900/85 px-6 py-6 text-center shadow-[0_20px_60px_rgba(2,6,23,0.6)]">
+              <button
+                type="button"
+                className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100"
+              >
+                點擊後開始播放
+              </button>
+              <p className="mt-3 text-xs text-slate-300">
+                手機瀏覽器需要先手勢觸發，音樂才能播放
+              </p>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   if (isEnded) {
     return (
       <div className="game-room-shell">
         <GameSettlementPanel
-          room={room}
-          participants={participants}
-          messages={messages}
-          playlistItems={playlist}
-          trackOrder={gameState.trackOrder}
-          playedQuestionCount={playedQuestionCount}
+          room={settlementSnapshot?.room ?? room}
+          participants={settlementSnapshot?.participants ?? participants}
+          messages={settlementSnapshot?.messages ?? messages}
+          playlistItems={settlementSnapshot?.playlistItems ?? playlist}
+          trackOrder={settlementSnapshot?.trackOrder ?? gameState.trackOrder}
+          playedQuestionCount={
+            settlementSnapshot?.playedQuestionCount ?? playedQuestionCount
+          }
           meClientId={meClientId}
+          questionRecaps={settlementSnapshot?.questionRecaps ?? questionRecaps}
           onBackToLobby={onBackToLobby}
           onRequestExit={openExitConfirm}
         />
@@ -1597,9 +1958,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <div className="flex items-center gap-2">
                 <span>聊天室</span>
               </div>
-              <span className="text-xs text-slate-400">
-                {messages.length} 則訊息
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">彈幕</span>
+                <Switch
+                  size="small"
+                  color="info"
+                  checked={danmuEnabled}
+                  onChange={(event) => setDanmuEnabled(event.target.checked)}
+                />
+                <span className="text-[11px] text-slate-500">
+                  {danmuEnabled ? "開啟" : "關閉"}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {messages.length} 則訊息
+                </span>
+              </div>
             </div>
             <div className="h-px bg-slate-800/70" />
             <div
@@ -1684,7 +2057,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </Button>
             </div>
 
-            <div className="game-room-media-frame relative w-full overflow-hidden h-[180px] sm:h-[240px] md:h-[280px] xl:h-[300px]">
+            <div className="game-room-media-frame relative w-full overflow-hidden h-[140px] sm:h-[188px] md:h-[214px] xl:h-[236px]">
               {iframeSrc ? (
                 <iframe
                   src={iframeSrc}
@@ -1719,32 +2092,27 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 loop
                 preload="auto"
                 playsInline
-                className="hidden"
+                className="pointer-events-none absolute h-0 w-0 opacity-0"
                 aria-hidden="true"
               />
-              {shouldShowGestureOverlay && (
-                <div
-                  className="fixed inset-0 z-[1400] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
-                  onPointerDown={unlockAudioAndStart}
-                  role="button"
-                  tabIndex={0}
-                  aria-label="點擊後開始播放"
-                >
-                  <div className="mx-4 w-full max-w-sm rounded-2xl border border-emerald-300/40 bg-slate-900/85 px-6 py-6 text-center shadow-[0_20px_60px_rgba(2,6,23,0.6)]">
-                    <button
-                      type="button"
-                      className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100"
+              {danmuEnabled && (
+                <div className="game-room-danmu-layer" aria-hidden="true">
+                  {danmuItems.map((danmu) => (
+                    <div
+                      key={danmu.id}
+                      className="game-room-danmu-item"
+                      style={{
+                        top: `${8 + danmu.lane * 14}%`,
+                        animationDuration: `${danmu.durationMs}ms`,
+                      }}
                     >
-                      點擊後開始播放
-                    </button>
-                    <p className="mt-3 text-xs text-slate-300">
-                      手機瀏覽器需要先手勢觸發，音樂才能播放
-                    </p>
-                  </div>
+                      {danmu.text}
+                    </div>
+                  ))}
                 </div>
               )}
               {showGuessMask && (
-                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
+                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
                   <div className="h-24 w-24 animate-spin rounded-full border-4 border-slate-700 shadow-lg shadow-emerald-500/30" />
                   <p className="mt-2 text-xs text-slate-300">
                     猜歌中，影片已隱藏
@@ -1752,13 +2120,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
               )}
               {showPreStartMask && (
-                <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950/95" />
+                <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950" />
               )}
               {showLoadingMask && (
                 <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950" />
               )}
               {showAudioOnlyMask && (
-                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
+                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
                   <div className="rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
                     Audio Mode
                   </div>
@@ -1814,9 +2182,19 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </p>
               </div>
             ) : (
-              <>
+              <div
+                className={`game-room-answer-layout ${
+                  isReveal
+                    ? "game-room-answer-layout--reveal"
+                    : "game-room-answer-layout--guess"
+                } ${
+                  !isReveal && revealTone === "neutral"
+                    ? "game-room-answer-layout--neutral"
+                    : ""
+                }`}
+              >
                 <div className="game-room-answer-body">
-                  <div className="mb-3 flex items-center gap-3">
+                  <div className="game-room-answer-head flex items-center gap-3">
                     <div>
                       <p className="game-room-kicker">階段</p>
                       <p className="game-room-title">
@@ -1863,7 +2241,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     />
                   </div>
 
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="game-room-options-grid grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {isInterTrackWait
                       ? Array.from(
                         {
@@ -1876,13 +2254,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                             size="large"
                             disabled
                             variant="outlined"
-                            className="game-room-choice-placeholder justify-start"
+                            className="game-room-choice-button game-room-choice-placeholder justify-start"
                           >
-                            <div className="flex w-full items-center justify-between">
-                              <span className="truncate text-slate-500">
+                            <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
+                              <span className="game-room-choice-title text-slate-500">
                                 下一首準備中
                               </span>
-                              <span className="ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-800 text-[11px] font-semibold text-slate-500">
+                              <span className="game-room-choice-key ml-3 inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-800 text-[11px] font-semibold text-slate-500">
                                 --
                               </span>
                             </div>
@@ -1894,9 +2272,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         const isCorrect = choice.index === correctChoiceIndex;
                         const isLocked = isReveal || isEnded;
                         const choiceDisplayTitle =
+                          choice.title?.trim() ||
                           playlist[choice.index]?.answerText?.trim() ||
                           playlist[choice.index]?.title?.trim() ||
-                          choice.title;
+                          "（未提供名稱）";
                         const isMyChoice = selectedChoice === choice.index;
                         const showCorrectTag = isReveal && isCorrect;
                         const showMyChoiceTag = isReveal && isMyChoice;
@@ -1908,8 +2287,20 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                             fullWidth
                             size="large"
                             disableRipple
-                            aria-disabled={isLocked}
-                            tabIndex={isLocked ? -1 : 0}
+                            aria-disabled={
+                              isLocked ||
+                              waitingToStart ||
+                              shouldShowGestureOverlay ||
+                              answerLeadInLocked
+                            }
+                            tabIndex={
+                              isLocked ||
+                              waitingToStart ||
+                              shouldShowGestureOverlay ||
+                              answerLeadInLocked
+                                ? -1
+                                : 0
+                            }
                             variant={
                               isReveal
                                 ? isCorrect || isSelected
@@ -1930,7 +2321,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                   ? "info"
                                   : "info"
                             }
-                            className={`justify-start ${isReveal
+                            className={`game-room-choice-button justify-start ${isReveal
                               ? isCorrect
                                 ? "bg-emerald-700/40"
                                 : isSelected
@@ -1939,10 +2330,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                               : isSelected
                                 ? "bg-sky-700/30"
                                 : ""
-                              } ${isLocked ? "pointer-events-none" : ""}`}
+                              } ${isLocked || waitingToStart || shouldShowGestureOverlay || answerLeadInLocked ? "pointer-events-none" : ""}`}
                             disabled={false}
                             onClick={() => {
-                              if (isLocked) return;
+                              if (isLocked || !canAnswerNow) return;
                               setSelectedChoiceState({
                                 trackIndex: currentTrackIndex,
                                 choiceIndex: choice.index,
@@ -1950,9 +2341,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                               onSubmitChoice(choice.index);
                             }}
                           >
-                            <div className="flex w-full items-center justify-between gap-2">
-                              <span className="truncate">{choiceDisplayTitle}</span>
-                              <span className="ml-3 inline-flex items-center gap-1">
+                            <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
+                              <span
+                                className="game-room-choice-title"
+                                title={choiceDisplayTitle}
+                              >
+                                {choiceDisplayTitle}
+                              </span>
+                              <span className="game-room-choice-meta ml-3 inline-flex items-center gap-1">
                                 {showCorrectTag && (
                                   <span className="game-room-choice-tag game-room-choice-tag--correct">
                                     正解
@@ -1968,7 +2364,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                     {showMyCorrectTag ? "你答對" : "你的答案"}
                                   </span>
                                 )}
-                                <span className="inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
+                                <span className="game-room-choice-key inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
                                 {(keyBindings[idx] ?? "").toUpperCase()}
                                 </span>
                               </span>
@@ -1979,9 +2375,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </div>
                 </div>
 
-                <div className="game-room-reveal mt-3">
+                <div className="game-room-reveal">
                   <div
-                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone}`}
+                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result" : ""}`}
                   >
                     <p className="game-room-feedback-title">{myFeedback.title}</p>
                     {myFeedback.detail && (
@@ -2019,10 +2415,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     )}
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </section>
+        {audioGestureOverlay}
         {exitGameDialog}
       </div>
     </div>

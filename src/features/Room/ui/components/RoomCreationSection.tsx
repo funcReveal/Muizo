@@ -18,6 +18,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { List as VirtualList, type RowComponentProps } from "react-window";
 
 import type { RoomCreateSourceMode } from "../../model/RoomContext";
 import type { PlaylistItem, RoomSummary } from "../../model/types";
@@ -101,9 +102,8 @@ interface RoomCreationSectionProps {
     collectionId: string,
     options?: { readToken?: string | null; force?: boolean },
   ) => void;
-  isCreatingRoom?: boolean;
-  onCreateRoom: () => void;
   onJoinRoom: (roomId: string, hasPassword: boolean) => void;
+  onStepChange?: (step: 1 | 2) => void;
   playerMin?: number;
   playerMax?: number;
 }
@@ -156,6 +156,47 @@ const extractYoutubePlaylistId = (value: string) => {
     const match = trimmed.match(/[?&]list=([^&#]+)/);
     return match?.[1] ?? null;
   }
+};
+
+type PreviewVirtualRowProps = {
+  items: PlaylistItem[];
+  keyPrefix: string;
+};
+
+const PreviewVirtualRow = ({
+  index,
+  style,
+  items,
+  keyPrefix,
+}: RowComponentProps<PreviewVirtualRowProps>) => {
+  const item = items[index];
+  if (!item) {
+    return <div style={style} />;
+  }
+
+  return (
+    <div
+      style={style}
+      className="room-create-preview-virtual-row"
+      data-row-key={`${keyPrefix}-${index}`}
+    >
+      <div className="room-create-preview-item room-create-preview-item--virtual">
+        <img
+          src={item.thumbnail || "https://via.placeholder.com/96x54?text=Music"}
+          alt={item.title}
+          className="room-create-preview-thumb"
+          loading="lazy"
+        />
+        <div className="room-create-preview-text">
+          <div className="title">{item.title}</div>
+          <div className="meta">
+            {item.uploader || "未知上傳者"}
+            {item.duration ? ` · ${item.duration}` : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
@@ -213,8 +254,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     onFetchCollections,
     onSelectCollection,
     onLoadCollectionItems,
-    isCreatingRoom = false,
-    onCreateRoom,
+    onStepChange,
     playerMin = 1,
     playerMax = 100,
   } = props;
@@ -253,7 +293,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
       !maxPlayersInvalid,
   );
 
-  const previewItems = React.useMemo(() => playlistItems.slice(0, 80), [playlistItems]);
+  const previewItems = React.useMemo(() => playlistItems, [playlistItems]);
   const stageLabel = playlistStage === "preview" ? "預覽中" : "設定中";
   const sourceModeLabel = sourceModeLabelMap[sourceMode];
   const isCollectionSource =
@@ -261,11 +301,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   const useCollectionTimingForSource =
     isCollectionSource && allowCollectionClipTiming;
   const createHelperText = React.useMemo(() => {
+    if (playlistItems.length === 0) return "請先載入至少一首歌曲。";
     if (!roomName.trim()) return "請先填寫房間名稱。";
     if (maxPlayersInvalid) {
       return `人數限制需介於 ${playerMin} 到 ${playerMax} 人。`;
     }
-    if (playlistItems.length === 0) return "請先載入至少一首歌曲。";
     if (playlistLoading) return "歌曲仍在載入，完成後即可建立。";
     return "設定已完成，可以建立房間。";
   }, [
@@ -276,15 +316,6 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     playlistLoading,
     roomName,
   ]);
-
-  const sourceStatusClass = React.useCallback(
-    (tone: "info" | "success" | "error") => {
-      if (tone === "error") return "text-rose-300";
-      if (tone === "success") return "text-emerald-300";
-      return "room-create-muted";
-    },
-    [],
-  );
 
   const targetCollectionScope =
     sourceMode === "privateCollection"
@@ -570,6 +601,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   };
 
   const handleCollectionSelectionChange = (collectionId: string) => {
+    if (collectionItemsLoading) return;
     const nextCollectionId = collectionId || null;
     if (nextCollectionId === selectedCollectionId) return;
     const targetTitle =
@@ -592,6 +624,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   };
 
   const isSourceImporting = playlistLoading || collectionItemsLoading;
+  const collectionSelectionDisabled = collectionsLoading || collectionItemsLoading;
   const importStatusText = React.useMemo(() => {
     if (sourceMode === "link") return "正在匯入 YouTube 播放清單...";
     if (sourceMode === "youtube") return "正在載入你的播放清單歌曲...";
@@ -601,207 +634,375 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     return "正在載入歌曲...";
   }, [sourceMode]);
   const previewAnimationKey = `${sourceMode}-${selectedCollectionId ?? "none"}-${selectedYoutubeId}-${playlistItems.length}`;
+  const baseStepReady = Boolean(roomName.trim()) && !maxPlayersInvalid;
+  const sourceStepReady = playlistItems.length > 0;
+  const questionRangeText = React.useMemo(() => {
+    if (questionLimitLabel && questionLimitLabel.trim()) {
+      return questionLimitLabel
+        .replace(/^可調範圍\s*/u, "可調 ")
+        .replace(/\s*-\s*/gu, "~");
+    }
+    return `可調 ${questionMin}~${questionMax}`;
+  }, [questionLimitLabel, questionMax, questionMin]);
+  const [activeStep, setActiveStep] = React.useState<1 | 2>(1);
+  const [stepTransitionDirection, setStepTransitionDirection] = React.useState<
+    "forward" | "backward"
+  >("forward");
+  const prevActiveStepRef = React.useRef<1 | 2>(1);
+
+  const previewRowProps = React.useMemo<PreviewVirtualRowProps>(
+    () => ({
+      items: previewItems,
+      keyPrefix: `${sourceMode}-${selectedCollectionId ?? "none"}-${selectedYoutubeId}`,
+    }),
+    [previewItems, selectedCollectionId, selectedYoutubeId, sourceMode],
+  );
+  const prevSourceStepReadyRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!sourceStepReady) {
+      setActiveStep((prev) => (prev === 1 ? prev : 1));
+      return;
+    }
+  }, [sourceStepReady]);
+
+  React.useEffect(() => {
+    const wasReady = prevSourceStepReadyRef.current;
+    const becameReady = sourceStepReady && !wasReady;
+    prevSourceStepReadyRef.current = sourceStepReady;
+    if (!becameReady || isSourceImporting) return;
+    setActiveStep((prev) => (prev === 2 ? prev : 2));
+  }, [isSourceImporting, sourceStepReady]);
+
+  React.useEffect(() => {
+    const previousStep = prevActiveStepRef.current;
+    if (previousStep === activeStep) return;
+    setStepTransitionDirection(activeStep > previousStep ? "forward" : "backward");
+    prevActiveStepRef.current = activeStep;
+  }, [activeStep]);
+
+  React.useEffect(() => {
+    onStepChange?.(activeStep);
+  }, [activeStep, onStepChange]);
+
+  const stepItems = React.useMemo(
+    () => [
+      {
+        id: 1 as const,
+        label: "步驟 1",
+        title: "選擇題庫",
+        hint: "連結 / YouTube / 收藏庫",
+        ready: sourceStepReady,
+      },
+      {
+        id: 2 as const,
+        label: "步驟 2",
+        title: "基本設定",
+        hint: "房名、權限、題數",
+        ready: sourceStepReady && baseStepReady && canCreateRoom && !isSourceImporting,
+      },
+    ],
+    [baseStepReady, canCreateRoom, isSourceImporting, sourceStepReady],
+  );
+
+  const canOpenStep = React.useCallback(
+    (step: 1 | 2) => {
+      if (step === 1) return true;
+      return sourceStepReady;
+    },
+    [sourceStepReady],
+  );
+
+  const activeSourceStatus =
+    sourceMode === "link"
+      ? linkStatus
+      : sourceMode === "youtube"
+        ? youtubeStatus
+        : collectionStatus;
+
+  const triggerLinkImport = React.useCallback(() => {
+    const targetUrl = playlistUrl.trim();
+    if (!targetUrl) return;
+    confirmBeforeReplace(
+      "YouTube 連結",
+      () => {
+        void handleFetchPlaylistByLink(targetUrl);
+      },
+      "載入這份播放清單？",
+    );
+  }, [confirmBeforeReplace, handleFetchPlaylistByLink, playlistUrl]);
+
+  const renderPreviewPanel = React.useCallback(
+    (panelKey: string) => (
+      <Stack
+        spacing={1}
+        className="room-create-playlist-panel room-create-playlist-panel-preview room-create-v3-stage-panel room-create-v3-stage-panel--side"
+      >
+        <div className="room-create-preview-headline">
+          <Typography variant="subtitle1" className="room-create-step-title">
+            歌曲預覽
+          </Typography>
+          <span className="room-create-question-badge">共 {playlistItems.length} 首</span>
+        </div>
+        <div className={`room-create-preview-stage${isSourceImporting ? " is-loading" : ""}`}>
+          {playlistItems.length === 0 ? (
+            <div className="room-create-preview-empty">尚未載入歌曲</div>
+          ) : (
+            <div
+              key={panelKey}
+              className="room-create-preview-list room-create-preview-list--virtual room-create-preview-list--animated"
+            >
+              <VirtualList
+                style={{ height: "100%", width: "100%" }}
+                rowCount={previewItems.length}
+                rowHeight={56}
+                rowProps={previewRowProps}
+                rowComponent={PreviewVirtualRow}
+              />
+            </div>
+          )}
+
+          {isSourceImporting && (
+            <div className="room-create-preview-loading-mask" role="status" aria-live="polite">
+              <div className="room-create-preview-loading-content">
+                <CircularProgress size={16} />
+                <span>{importStatusText}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Stack>
+    ),
+    [
+      importStatusText,
+      isSourceImporting,
+      playlistItems.length,
+      previewItems.length,
+      previewRowProps,
+    ],
+  );
 
   return (
-    <Stack spacing={2.5}>
-      <div className="room-create-setup-strip">
-        <span className="room-create-setup-strip-label">來源模式</span>
-        <span className="room-create-setup-strip-value">{sourceModeLabel}</span>
-        <span className="room-create-setup-strip-dot" aria-hidden="true" />
-        <span className="room-create-setup-strip-label">狀態</span>
-        <span className="room-create-setup-strip-value">{stageLabel}</span>
+    <Stack spacing={2.5} className="room-create-v3-flow">
+      <div className="room-create-v3-guide-tabs" role="tablist" aria-label="建立房間步驟">
+        {stepItems.map((step) => {
+          const isActive = activeStep === step.id;
+          const locked = !canOpenStep(step.id);
+          return (
+            <button
+              key={step.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              disabled={locked}
+              className={`room-create-v3-guide-tab ${isActive ? "is-active" : ""} ${
+                step.ready ? "is-done" : ""
+              }`}
+              onClick={() => setActiveStep(step.id)}
+            >
+              <span className="room-create-v3-guide-label">{step.label}</span>
+              <strong className="room-create-v3-guide-title">{step.title}</strong>
+              <span className="room-create-v3-guide-hint">{step.hint}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="room-create-step-card">
+      {activeStep === 2 && (
+        <div
+          className={`room-create-step-card room-create-v3-pane room-create-v3-pane--enter room-create-v3-pane--${stepTransitionDirection}`}
+        >
           <div className="room-create-step-head">
             <div>
-              <span className="room-create-step-index">STEP 01</span>
               <Typography variant="h5" className="room-create-step-title">
-                基本設定
+                步驟 2：基本設定
               </Typography>
               <Typography variant="body2" className="room-create-muted">
-                設定房間名稱、權限、題數與可加入人數。
+                題庫就緒後，再設定房名、規則與題數。
               </Typography>
             </div>
             <Chip
               size="small"
               className="room-create-visibility-chip"
-              label={roomVisibility === "private" ? "私人" : "公開"}
+              label={baseStepReady ? "已完成" : "進行中"}
             />
           </div>
-
-          <TextField
-            size="small"
-            label="房間名稱"
-            value={roomName}
-            onChange={(event) => onRoomNameChange(event.target.value)}
-            placeholder="例如：阿哲的 room"
-            fullWidth
-            className="room-create-field"
-          />
-
-          <RoomAccessSettingsFields
-            visibility={roomVisibility}
-            password={roomPassword}
-            onVisibilityChange={onRoomVisibilityChange}
-            onPasswordChange={onRoomPasswordChange}
-            onPasswordClear={() => onRoomPasswordChange("")}
-            allowPasswordWhenPublic
-            showClearButton={Boolean(roomPassword)}
-            classes={{
-              root: "room-create-access-block",
-              visibilityRow: "room-create-visibility-switch",
-              visibilityButton: "room-create-visibility-button",
-              helperText: "room-create-muted",
-              passwordField: "room-create-field",
-              noteText: "room-create-muted",
-            }}
-          />
-
-          <TextField
-            size="small"
-            type="number"
-            label="人數限制（選填）"
-            value={roomMaxPlayers}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-              if (!/^\d*$/.test(nextValue)) return;
-              onRoomMaxPlayersChange(nextValue);
-            }}
-            placeholder="留空代表不限制"
-            fullWidth
-            className="room-create-field"
-            error={maxPlayersInvalid}
-            helperText={
-              maxPlayersInvalid
-                ? `請輸入 ${playerMin}-${playerMax} 的整數`
-                : `可留空；若設定，允許 ${playerMin}-${playerMax} 人`
-            }
-            slotProps={{
-              htmlInput: {
-                min: playerMin,
-                max: playerMax,
-                inputMode: "numeric",
-              },
-            }}
-          />
-
-          <div className="room-create-question-card">
-            <div className="room-create-question-head">
-              <Typography variant="subtitle1" className="room-create-step-title">
-                題數設定
-              </Typography>
-              <span className="room-create-question-badge">目前 {questionCount} 題</span>
-            </div>
-            <QuestionCountControls
-              value={questionCount}
-              min={questionMin}
-              max={questionMax}
-              step={questionStep}
-              disabled={!questionControlsEnabled}
-              compact
-              onChange={onQuestionCountChange}
-            />
-            {questionLimitLabel && (
-              <Typography variant="caption" className="room-create-muted">
-                {questionLimitLabel}
-              </Typography>
-            )}
-          </div>
-
-          <Stack spacing={1} className="room-create-question-card">
-            <div className="room-create-question-head">
-              <Typography variant="subtitle1" className="room-create-step-title">
-                作答時間設定
-              </Typography>
-              <span className="room-create-question-badge">
-                {useCollectionTimingForSource
-                  ? "收藏庫時間"
-                  : `${playDurationSec}s / ${startOffsetSec}s`}
-              </span>
-            </div>
-            <FormControlLabel
-              control={
-                <Switch
+          <div className="room-create-v3-pane-body">
+            <div className="room-create-v3-stage-shell">
+              <Stack
+                spacing={1}
+                className="room-create-playlist-panel room-create-v3-stage-panel room-create-v3-stage-panel--form"
+              >
+                <TextField
                   size="small"
-                  checked={allowCollectionClipTiming}
-                  onChange={(_event, checked) =>
-                    onAllowCollectionClipTimingChange(checked)
-                  }
+                  label="房間名稱"
+                  value={roomName}
+                  onChange={(event) => onRoomNameChange(event.target.value)}
+                  placeholder="例如：阿哲的 room"
+                  fullWidth
+                  className="room-create-field"
                 />
-              }
-              label="使用收藏庫設定的時間"
-              className="room-create-muted"
-            />
-            <Typography variant="caption" className="room-create-muted">
-              開啟：收藏庫歌曲用收藏庫的起始/結束時間；關閉：全部使用房間設定時間。
-            </Typography>
-            {useCollectionTimingForSource ? (
-              <Typography variant="caption" className="room-create-muted">
-                目前來源為收藏庫，已套用收藏庫時間。關閉此選項後可自訂作答時間與起始時間。
-              </Typography>
-            ) : (
-              <>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
-                  <TextField
-                    size="small"
-                    type="number"
-                    label="作答時間設定"
-                    value={playDurationSec}
-                    onChange={(event) => {
-                      const next = Number(event.target.value);
-                      if (!Number.isFinite(next)) return;
-                      onPlayDurationChange(next);
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: playDurationMin,
-                        max: playDurationMax,
-                        inputMode: "numeric",
-                      },
-                    }}
-                    fullWidth
-                    className="room-create-field"
-                  />
-                  <TextField
-                    size="small"
-                    type="number"
-                    label="起始時間 (秒)"
-                    value={startOffsetSec}
-                    onChange={(event) => {
-                      const next = Number(event.target.value);
-                      if (!Number.isFinite(next)) return;
-                      onStartOffsetChange(next);
-                    }}
-                    slotProps={{
-                      htmlInput: {
-                        min: startOffsetMin,
-                        max: startOffsetMax,
-                        inputMode: "numeric",
-                      },
-                    }}
-                    fullWidth
-                    className="room-create-field"
-                  />
-                </Stack>
-                <Typography variant="caption" className="room-create-muted">
-                  若超過影片長度會自動從起始時間循環播放，直到本題時間結束。
-                </Typography>
-              </>
-            )}
-          </Stack>
-        </div>
 
-        <div className="room-create-step-card">
+                <RoomAccessSettingsFields
+                  visibility={roomVisibility}
+                  password={roomPassword}
+                  onVisibilityChange={onRoomVisibilityChange}
+                  onPasswordChange={onRoomPasswordChange}
+                  onPasswordClear={() => onRoomPasswordChange("")}
+                  allowPasswordWhenPublic
+                  showClearButton={false}
+                  classes={{
+                    root: "room-create-access-block",
+                    visibilityRow: "room-create-visibility-switch",
+                    visibilityButton: "room-create-visibility-button",
+                    helperText: "room-create-muted room-create-v3-helper-note",
+                    passwordField: "room-create-field",
+                    noteText: "room-create-muted room-create-v3-helper-note",
+                  }}
+                />
+
+                <TextField
+                  size="small"
+                  type="number"
+                  label="人數限制（選填）"
+                  value={roomMaxPlayers}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    if (!/^\d*$/.test(nextValue)) return;
+                    onRoomMaxPlayersChange(nextValue);
+                  }}
+                  placeholder="留空代表不限制"
+                  fullWidth
+                  className="room-create-field"
+                  error={maxPlayersInvalid}
+                  helperText={maxPlayersInvalid ? `請輸入 ${playerMin}-${playerMax} 的整數` : undefined}
+                  slotProps={{
+                    htmlInput: {
+                      min: playerMin,
+                      max: playerMax,
+                      inputMode: "numeric",
+                    },
+                  }}
+                />
+
+                <div className="room-create-question-card">
+                  <div className="room-create-question-head">
+                    <Typography variant="subtitle1" className="room-create-step-title">
+                      題數設定
+                    </Typography>
+                    <div className="room-create-question-head-meta">
+                      <span className="room-create-question-badge">目前 {questionCount} 題</span>
+                      <span className="room-create-question-range">{questionRangeText}</span>
+                    </div>
+                  </div>
+                  <QuestionCountControls
+                    value={questionCount}
+                    min={questionMin}
+                    max={questionMax}
+                    step={questionStep}
+                    disabled={!questionControlsEnabled}
+                    compact
+                    showRangeHint={false}
+                    onChange={onQuestionCountChange}
+                  />
+                </div>
+
+                <Stack spacing={1} className="room-create-question-card">
+                  <div className="room-create-question-head">
+                    <Typography variant="subtitle1" className="room-create-step-title">
+                      作答時間設定
+                    </Typography>
+                    <span className="room-create-question-badge">
+                      {useCollectionTimingForSource
+                        ? "收藏庫時間"
+                        : `${playDurationSec}s / ${startOffsetSec}s`}
+                    </span>
+                  </div>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={allowCollectionClipTiming}
+                        onChange={(_event, checked) =>
+                          onAllowCollectionClipTimingChange(checked)
+                        }
+                      />
+                    }
+                    label="使用收藏庫設定的時間"
+                    className="room-create-muted"
+                  />
+                  {!useCollectionTimingForSource && (
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="作答時間設定"
+                        value={playDurationSec}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          if (!Number.isFinite(next)) return;
+                          onPlayDurationChange(next);
+                        }}
+                        slotProps={{
+                          htmlInput: {
+                            min: playDurationMin,
+                            max: playDurationMax,
+                            inputMode: "numeric",
+                          },
+                        }}
+                        fullWidth
+                        className="room-create-field"
+                      />
+                      <TextField
+                        size="small"
+                        type="number"
+                        label="起始時間 (秒)"
+                        value={startOffsetSec}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          if (!Number.isFinite(next)) return;
+                          onStartOffsetChange(next);
+                        }}
+                        slotProps={{
+                          htmlInput: {
+                            min: startOffsetMin,
+                            max: startOffsetMax,
+                            inputMode: "numeric",
+                          },
+                        }}
+                        fullWidth
+                        className="room-create-field"
+                      />
+                    </Stack>
+                  )}
+                </Stack>
+              </Stack>
+
+              {renderPreviewPanel(`step2-${previewAnimationKey}`)}
+            </div>
+          </div>
+
+          <Typography
+            variant="caption"
+            className="room-create-muted room-create-v3-pane-helper room-create-v3-step-tip room-create-v3-step-tip--ghost"
+            aria-hidden="true"
+          >
+            {createHelperText}
+          </Typography>
+        </div>
+      )}
+
+      {activeStep === 1 && (
+        <div
+          className={`room-create-step-card room-create-v3-pane room-create-v3-pane--enter room-create-v3-pane--${stepTransitionDirection}`}
+        >
           <div className="room-create-step-head">
             <div>
-              <span className="room-create-step-index">STEP 02</span>
               <Typography variant="h5" className="room-create-step-title">
-                播放清單
+                步驟 1：選擇題庫
               </Typography>
               <Typography variant="body2" className="room-create-muted">
-                先選來源，再於下方確認清單預覽，避免操作被分散。
+                先選來源並完成歌曲匯入，再進入題數與規則設定。
               </Typography>
             </div>
             <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
@@ -828,252 +1029,180 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
             </Stack>
           </div>
 
-          <div className="room-create-source-grid">
-            {sourceModeOptions.map((option) => {
-              const isActive = sourceMode === option.mode;
-              return (
-                <button
-                  key={option.mode}
-                  type="button"
-                  className={`room-create-source-pill${isActive ? " is-active" : ""}`}
-                  onClick={() => handleSourceModeChange(option.mode)}
-                >
-                  <span className="label">{option.label}</span>
-                  <span className="hint">{option.hint}</span>
-                </button>
-              );
-            })}
+          <div className="room-create-v3-pane-body">
+            <div className="room-create-v3-stage-shell">
+              <Stack
+                spacing={1.25}
+                className="room-create-playlist-panel room-create-playlist-panel-controls room-create-v3-stage-panel room-create-v3-stage-panel--form"
+              >
+                <div className="room-create-source-grid">
+                  {sourceModeOptions.map((option) => {
+                    const isActive = sourceMode === option.mode;
+                    return (
+                      <button
+                        key={option.mode}
+                        type="button"
+                        className={`room-create-source-pill${isActive ? " is-active" : ""}`}
+                        onClick={() => handleSourceModeChange(option.mode)}
+                      >
+                        <span className="label">{option.label}</span>
+                        <span className="hint">{option.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {sourceMode === "link" && (
+                  <Stack spacing={1.25}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                      <TextField
+                        size="small"
+                        fullWidth
+                        label="YouTube 播放清單網址"
+                        value={playlistUrl}
+                        onChange={(event) => onPlaylistUrlChange(event.target.value)}
+                        onPaste={handlePlaylistPaste}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          triggerLinkImport();
+                        }}
+                        placeholder="https://www.youtube.com/playlist?list=..."
+                        className="room-create-field"
+                      />
+                      <Button
+                        variant="outlined"
+                        onClick={triggerLinkImport}
+                        disabled={!playlistUrl.trim() || playlistLoading}
+                        className="room-create-link-load-button"
+                      >
+                        {playlistLoading ? "載入中..." : "載入清單"}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                )}
+
+                {sourceMode === "youtube" && (
+                  <Stack spacing={1.25}>
+                    {!isGoogleAuthed ? (
+                      <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
+                        登入 Google
+                      </Button>
+                    ) : (
+                      <>
+                        <FormControl size="small" fullWidth className="room-create-field">
+                          <InputLabel id="room-create-youtube-playlist">選擇清單</InputLabel>
+                          <Select
+                            labelId="room-create-youtube-playlist"
+                            label="選擇清單"
+                            value={selectedYoutubeId}
+                            onChange={(event) =>
+                              handleYoutubeSelectionChange(String(event.target.value))
+                            }
+                          >
+                            <MenuItem value="">請選擇清單</MenuItem>
+                            {youtubePlaylists.map((playlist) => (
+                              <MenuItem key={playlist.id} value={playlist.id}>
+                                {playlist.title}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </>
+                    )}
+                  </Stack>
+                )}
+
+                {(sourceMode === "publicCollection" ||
+                  sourceMode === "privateCollection") && (
+                  <Stack spacing={1.25}>
+                    {sourceMode === "privateCollection" && !isGoogleAuthed ? (
+                      <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
+                        登入 Google
+                      </Button>
+                    ) : (
+                      <>
+                        <FormControl size="small" fullWidth className="room-create-field">
+                          <InputLabel id="room-create-collection-select">
+                            選擇收藏庫
+                          </InputLabel>
+                          <Select
+                            labelId="room-create-collection-select"
+                            label="選擇收藏庫"
+                            value={hasCollectionScopeMatch ? selectedCollectionId ?? "" : ""}
+                            onChange={(event) =>
+                              handleCollectionSelectionChange(String(event.target.value))
+                            }
+                            disabled={collectionSelectionDisabled}
+                          >
+                            <MenuItem value="">請選擇收藏庫</MenuItem>
+                            {collectionOptions.map((item) => (
+                              <MenuItem key={item.id} value={item.id}>
+                                {item.title}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </>
+                    )}
+                  </Stack>
+                )}
+
+                {activeSourceStatus && (
+                  <div
+                    className={`room-create-v3-source-status room-create-v3-source-status--${activeSourceStatus.tone}`}
+                  >
+                    {activeSourceStatus.text}
+                  </div>
+                )}
+
+                {isSourceImporting && (
+                  <Stack spacing={0.75}>
+                    <LinearProgress
+                      variant={
+                        playlistLoading && playlistProgress.total > 0
+                          ? "determinate"
+                          : "indeterminate"
+                      }
+                      value={
+                        playlistLoading && playlistProgress.total > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                (playlistProgress.received / playlistProgress.total) * 100,
+                              ),
+                            )
+                          : undefined
+                      }
+                    />
+                    <Typography variant="caption" className="room-create-muted">
+                      {playlistLoading && playlistProgress.total > 0
+                        ? `已接收 ${playlistProgress.received} / ${playlistProgress.total}`
+                        : importStatusText}
+                    </Typography>
+                  </Stack>
+                )}
+              </Stack>
+
+              {renderPreviewPanel(`step1-${previewAnimationKey}`)}
+            </div>
           </div>
 
-          <Stack spacing={1.25} className="room-create-playlist-panel room-create-playlist-panel-controls">
-            {sourceMode === "link" && (
-              <Stack spacing={1.25}>
-                <TextField
-                  size="small"
-                  fullWidth
-                  label="YouTube 播放清單網址"
-                  value={playlistUrl}
-                  onChange={(event) => onPlaylistUrlChange(event.target.value)}
-                  onPaste={handlePlaylistPaste}
-                  placeholder="https://www.youtube.com/playlist?list=..."
-                  className="room-create-field"
-                />
-                {linkStatus && (
-                  <Typography
-                    variant="caption"
-                    className={sourceStatusClass(linkStatus.tone)}
-                  >
-                    {linkStatus.text}
-                  </Typography>
-                )}
-              </Stack>
-            )}
-
-            {sourceMode === "youtube" && (
-              <Stack spacing={1.25}>
-                {!isGoogleAuthed ? (
-                  <>
-                    <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
-                      登入 Google
-                    </Button>
-                    {youtubeStatus && (
-                      <Typography
-                        variant="caption"
-                        className={sourceStatusClass(youtubeStatus.tone)}
-                      >
-                        {youtubeStatus.text}
-                      </Typography>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <FormControl size="small" fullWidth className="room-create-field">
-                      <InputLabel id="room-create-youtube-playlist">選擇清單</InputLabel>
-                      <Select
-                        labelId="room-create-youtube-playlist"
-                        label="選擇清單"
-                        value={selectedYoutubeId}
-                        onChange={(event) =>
-                          handleYoutubeSelectionChange(String(event.target.value))
-                        }
-                      >
-                        <MenuItem value="">請選擇清單</MenuItem>
-                        {youtubePlaylists.map((playlist) => (
-                          <MenuItem key={playlist.id} value={playlist.id}>
-                            {playlist.title}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    {youtubePlaylistsLoading && (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <CircularProgress size={14} />
-                      </Stack>
-                    )}
-                    {youtubeStatus && (
-                      <Typography
-                        variant="caption"
-                        className={sourceStatusClass(youtubeStatus.tone)}
-                      >
-                        {youtubeStatus.text}
-                      </Typography>
-                    )}
-                  </>
-                )}
-              </Stack>
-            )}
-
-            {(sourceMode === "publicCollection" || sourceMode === "privateCollection") && (
-              <Stack spacing={1.25}>
-                {sourceMode === "privateCollection" && !isGoogleAuthed ? (
-                  <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
-                    登入 Google
-                  </Button>
-                ) : (
-                  <>
-                    <FormControl size="small" fullWidth className="room-create-field">
-                      <InputLabel id="room-create-collection-select">選擇收藏庫</InputLabel>
-                      <Select
-                        labelId="room-create-collection-select"
-                        label="選擇收藏庫"
-                        value={hasCollectionScopeMatch ? selectedCollectionId ?? "" : ""}
-                        onChange={(event) =>
-                          handleCollectionSelectionChange(String(event.target.value))
-                        }
-                      >
-                        <MenuItem value="">請選擇收藏庫</MenuItem>
-                        {collectionOptions.map((item) => (
-                          <MenuItem key={item.id} value={item.id}>
-                            {item.title}
-                            {item.visibility === "private" ? "（私人）" : "（公開）"}
-                          </MenuItem>
-                          ))}
-                        </Select>
-                    </FormControl>
-                    {collectionStatus && (
-                      <Typography
-                        variant="caption"
-                        className={sourceStatusClass(collectionStatus.tone)}
-                      >
-                        {collectionStatus.text}
-                      </Typography>
-                    )}
-                    {(collectionsLoading || collectionItemsLoading) && (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <CircularProgress size={14} />
-                        <Typography variant="caption" className="room-create-muted">
-                          {collectionsLoading ? "正在同步收藏庫..." : "正在載入收藏庫歌曲..."}
-                        </Typography>
-                      </Stack>
-                    )}
-                  </>
-                )}
-                {sourceMode === "privateCollection" && !isGoogleAuthed && collectionStatus && (
-                  <Typography
-                    variant="caption"
-                    className={sourceStatusClass(collectionStatus.tone)}
-                  >
-                    {collectionStatus.text}
-                  </Typography>
-                )}
-              </Stack>
-            )}
-
-            {isSourceImporting && (
-              <Stack spacing={0.75}>
-                <LinearProgress
-                  variant={
-                    playlistLoading && playlistProgress.total > 0
-                      ? "determinate"
-                      : "indeterminate"
-                  }
-                  value={
-                    playlistLoading && playlistProgress.total > 0
-                      ? Math.min(
-                          100,
-                          Math.round((playlistProgress.received / playlistProgress.total) * 100),
-                        )
-                      : undefined
-                  }
-                />
-                <Typography variant="caption" className="room-create-muted">
-                  {playlistLoading && playlistProgress.total > 0
-                    ? `已接收 ${playlistProgress.received} / ${playlistProgress.total}`
-                    : importStatusText}
-                </Typography>
-              </Stack>
-            )}
-          </Stack>
-
-          <Stack spacing={1} className="room-create-playlist-panel room-create-playlist-panel-preview">
-            <div className="room-create-preview-headline">
-              <Typography variant="subtitle1" className="room-create-step-title">
-                歌曲預覽
-              </Typography>
-              <span className="room-create-question-badge">共 {playlistItems.length} 首</span>
+          {sourceStepReady && !isSourceImporting ? (
+            <div
+              className="room-create-v3-step-ready-tip room-create-v3-step-tip"
+              role="status"
+              aria-live="polite"
+            >
+              題庫已準備完成，可點上方「步驟 2：基本設定」完成建房設定。
             </div>
-            <div className={`room-create-preview-stage${isSourceImporting ? " is-loading" : ""}`}>
-              {playlistItems.length === 0 ? (
-                <div className="room-create-preview-empty">尚未載入歌曲</div>
-              ) : (
-                <>
-                  <div
-                    key={previewAnimationKey}
-                    className="room-create-preview-list room-create-preview-list--animated"
-                  >
-                    {previewItems.map((item, index) => (
-                      <div key={`${item.url}-${index}`} className="room-create-preview-item">
-                        <img
-                          src={item.thumbnail || "https://via.placeholder.com/96x54?text=Music"}
-                          alt={item.title}
-                          className="room-create-preview-thumb"
-                          loading="lazy"
-                        />
-                        <div className="room-create-preview-text">
-                          <div className="title">{item.title}</div>
-                          <div className="meta">
-                            {item.uploader || "未知上傳者"}
-                            {item.duration ? ` · ${item.duration}` : ""}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {playlistItems.length > previewItems.length && (
-                    <Typography variant="caption" className="room-create-muted">
-                      已顯示前 {previewItems.length} 首，完整清單可在房間內查看。
-                    </Typography>
-                  )}
-                </>
-              )}
-
-              {isSourceImporting && (
-                <div className="room-create-preview-loading-mask" role="status" aria-live="polite">
-                  <div className="room-create-preview-loading-content">
-                    <CircularProgress size={16} />
-                    <span>{importStatusText}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Stack>
+          ) : (
+            <Typography variant="caption" className="room-create-muted room-create-v3-step-tip">
+              請先載入至少一首歌曲，再切換至步驟 2。
+            </Typography>
+          )}
         </div>
-      </div>
-
-      <div className="room-create-submit-wrap">
-        <Button
-          variant="contained"
-          size="large"
-          onClick={onCreateRoom}
-          disabled={!canCreateRoom || isSourceImporting || isCreatingRoom}
-          className="room-create-submit"
-        >
-          {isCreatingRoom ? "建立中..." : "建立房間"}
-        </Button>
-        <Typography variant="caption" className="room-create-muted">
-          {createHelperText}
-        </Typography>
-      </div>
+      )}
 
       <Dialog open={Boolean(confirmModal)} onClose={closeConfirmModal}>
         <DialogTitle>{confirmModal?.title ?? "切換播放來源"}</DialogTitle>
@@ -1096,3 +1225,4 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 };
 
 export default RoomCreationSection;
+

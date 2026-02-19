@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Button, Chip } from "@mui/material";
+import { List as VirtualList, type RowComponentProps } from "react-window";
 
 import type {
   ChatMessage,
@@ -9,8 +10,9 @@ import type {
 } from "../../model/types";
 
 const SETTLEMENT_DURATION_PREFIXES = [
-  "本輪作答總時長：",
-  "本輪遊玩總時長：",
+  "作答時間設定",
+  "作答時間",
+  "遊玩時間",
 ] as const;
 
 interface GameSettlementPanelProps {
@@ -21,9 +23,104 @@ interface GameSettlementPanelProps {
   trackOrder?: number[];
   playedQuestionCount: number;
   meClientId?: string;
+  questionRecaps?: SettlementQuestionRecap[];
   onBackToLobby?: () => void;
   onRequestExit: () => void;
 }
+
+export type SettlementQuestionResult = "correct" | "wrong" | "unanswered";
+
+export type SettlementQuestionChoice = {
+  index: number;
+  title: string;
+  isCorrect: boolean;
+  isSelectedByMe: boolean;
+};
+
+export type SettlementQuestionRecap = {
+  key: string;
+  order: number;
+  trackIndex: number;
+  title: string;
+  uploader: string;
+  duration: string | null;
+  thumbnail: string | null;
+  myResult: SettlementQuestionResult;
+  myChoiceIndex: number | null;
+  correctChoiceIndex: number;
+  choices: SettlementQuestionChoice[];
+};
+
+type RecapRowProps = {
+  items: SettlementQuestionRecap[];
+  expandedKey: string | null;
+  onToggle: (key: string) => void;
+};
+
+const RECAP_RESULT_META: Record<
+  SettlementQuestionResult,
+  { label: string; toneClass: string }
+> = {
+  correct: {
+    label: "答對",
+    toneClass: "border-emerald-300/45 bg-emerald-400/15 text-emerald-100",
+  },
+  wrong: {
+    label: "答錯",
+    toneClass: "border-rose-300/45 bg-rose-400/15 text-rose-100",
+  },
+  unanswered: {
+    label: "未作答",
+    toneClass: "border-slate-500/70 bg-slate-800/70 text-slate-200",
+  },
+};
+
+const RecapRow = ({
+  index,
+  style,
+  items,
+  expandedKey,
+  onToggle,
+}: RowComponentProps<RecapRowProps>): React.JSX.Element => {
+  const item = items[index];
+  if (!item) {
+    return <div style={style} className="px-1 pb-2" />;
+  }
+  const resultMeta = RECAP_RESULT_META[item.myResult];
+  const isExpanded = expandedKey === item.key;
+  return (
+    <div style={style} className="px-1 pb-2">
+      <button
+        type="button"
+        className={`game-settlement-track-card w-full rounded-xl border px-3 py-2 text-left transition ${isExpanded
+          ? "border-amber-300/60 bg-amber-400/12"
+          : "border-slate-700/80 bg-slate-950/55 hover:border-slate-600"
+          }`}
+        onClick={() => onToggle(item.key)}
+      >
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-amber-300/40 bg-amber-400/10 text-xs font-semibold text-amber-100">
+            {item.order}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-100">
+              {item.title}
+            </p>
+            <p className="truncate text-[11px] text-slate-400">
+              {item.uploader}
+              {item.duration ? ` · ${item.duration}` : ""}
+            </p>
+          </div>
+          <span
+            className={`inline-flex flex-none items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${resultMeta.toneClass}`}
+          >
+            {resultMeta.label}
+          </span>
+        </div>
+      </button>
+    </div>
+  );
+};
 
 const WINNER_CONFETTI = [
   {
@@ -101,7 +198,7 @@ const WINNER_CONFETTI = [
 ] as const;
 
 const resolveTrackTitle = (item?: PlaylistItem) =>
-  item?.answerText?.trim() || item?.title?.trim() || "（未提供曲名）";
+  item?.answerText?.trim() || item?.title?.trim() || "（未提供名稱）";
 
 const clampPercent = (value: number) =>
   Math.max(0, Math.min(100, Math.round(value)));
@@ -118,6 +215,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
   trackOrder,
   playedQuestionCount,
   meClientId,
+  questionRecaps = [],
   onBackToLobby,
   onRequestExit,
 }) => {
@@ -227,22 +325,22 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
       )
     : 0;
   const battleMood =
-    topGap <= 40 ? "激戰" : topGap <= 100 ? "拉鋸" : "領先";
+    topGap <= 40 ? "緊張" : topGap <= 100 ? "激戰" : "拉開";
   const pulseMetrics = [
     {
-      label: "對戰",
+      label: "競爭強度",
       value: competitionTension,
       mood: battleMood,
       barClass: "from-amber-300 via-orange-300 to-rose-300",
     },
     {
-      label: "連擊",
+      label: "連擊火力",
       value: comboIntensity,
       mood: comboKing ? `x${Math.max(1, comboKing.combo)}` : "--",
       barClass: "from-sky-300 via-cyan-300 to-emerald-300",
     },
     {
-      label: "進度",
+      label: "進度完成",
       value: playedRate,
       mood: `${playedQuestionCount}/${totalTrackCount}`,
       barClass: "from-fuchsia-300 via-violet-300 to-indigo-300",
@@ -253,21 +351,21 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
       key: "mvp",
       title: "MVP",
       name: winner?.username ?? "--",
-      detail: winner ? `${winner.score} 分` : "無資料",
+      detail: winner ? `${winner.score} 分` : "--",
       toneClass: "border-amber-300/45 bg-amber-400/10 text-amber-100",
     },
     {
       key: "combo",
       title: "連擊王",
       name: comboKing?.username ?? "--",
-      detail: comboKing ? `最高連擊 x${Math.max(1, comboKing.combo)}` : "無資料",
+      detail: comboKing ? `最高連擊 x${Math.max(1, comboKing.combo)}` : "--",
       toneClass: "border-cyan-300/45 bg-cyan-400/10 text-cyan-100",
     },
     {
       key: "stable",
-      title: "穩定王",
+      title: "穩定發揮",
       name: stablePerformer?.username ?? "--",
-      detail: stablePerformer ? `貼近中位數 ${medianScore}` : "無資料",
+      detail: stablePerformer ? `最接近中位數 ${medianScore}` : "--",
       toneClass: "border-emerald-300/40 bg-emerald-400/10 text-emerald-100",
     },
     {
@@ -275,8 +373,8 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
       title: "黑馬",
       name: darkHorse?.username ?? "--",
       detail: darkHorse
-        ? `排名外圈最高連擊 x${Math.max(1, darkHorse.combo)}`
-        : "本輪無黑馬資料",
+        ? `後段爆發，最高連擊 x${Math.max(1, darkHorse.combo)}`
+        : "本輪無明顯黑馬",
       toneClass: "border-fuchsia-300/45 bg-fuchsia-400/10 text-fuchsia-100",
     },
   ] as const;
@@ -291,61 +389,61 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
     if (topGap >= 120) {
       tips.push({
         key: "gap",
-        title: "拉近差距",
-        action: "加題 / 縮時",
-        detail: "冠軍分差偏大，下一局可嘗試增加題數或縮短作答時間。",
+        title: "差距偏大",
+        action: "調整節奏",
+        detail: "建議縮短作答時間或調整起始秒數，讓追分空間更大。",
         toneClass: "border-amber-300/40 bg-amber-400/10 text-amber-100",
       });
     } else if (topGap <= 40) {
       tips.push({
         key: "close",
-        title: "維持纏鬥",
-        action: "保持設定",
-        detail: "戰況很接近，可維持目前設定打造更刺激的拉鋸戰。",
+        title: "比分接近",
+        action: "維持配置",
+        detail: "下一輪維持目前節奏，勝負會集中在答題速度與穩定度。",
         toneClass: "border-sky-300/40 bg-sky-400/10 text-sky-100",
       });
     }
     if (playedRate < 70) {
       tips.push({
         key: "progress",
-        title: "提高完賽",
-        action: "減題數",
-        detail: "本輪完成比例偏低，建議下局減少題數提高完賽率。",
+        title: "曲目偏少",
+        action: "增加題數",
+        detail: "本輪題數偏少，建議提高題數讓排名更有代表性。",
         toneClass: "border-fuchsia-300/40 bg-fuchsia-400/10 text-fuchsia-100",
       });
     }
     if (comboIntensity < 35) {
       tips.push({
         key: "combo",
-        title: "連擊提升",
-        action: "熟歌單",
-        detail: "連擊張力偏低，可改用更熟悉歌單提升節奏感。",
+        title: "連擊偏低",
+        action: "提早搶答",
+        detail: "建議玩家在熟悉題型後更快作答，提升連擊與得分上限。",
         toneClass: "border-emerald-300/40 bg-emerald-400/10 text-emerald-100",
       });
     }
     if (myParticipant && myRank > 1 && myGapToWinner !== null) {
       tips.push({
         key: "me",
-        title: "衝刺開局",
-        action: `差 ${myGapToWinner}`,
-        detail: `你與第一名差 ${myGapToWinner} 分，建議優先衝刺開局連擊。`,
+        title: "我的追分",
+        action: `差 ${myGapToWinner} 分`,
+        detail: `距離第一名還有 ${myGapToWinner} 分，下一輪可優先拼速度題。`,
         toneClass: "border-cyan-300/40 bg-cyan-400/10 text-cyan-100",
       });
     } else if (myParticipant && myRank === 1) {
       tips.push({
         key: "defend",
-        title: "守住領先",
-        action: "穩定節奏",
-        detail: "你已領先，下一局可維持穩定答題節奏鞏固優勢。",
+        title: "守住優勢",
+        action: "保持穩定",
+        detail: "你目前領先，下一輪可維持穩定作答策略，避免失誤。",
         toneClass: "border-amber-300/45 bg-amber-400/12 text-amber-100",
       });
     }
     if (tips.length === 0) {
       tips.push({
         key: "default",
-        title: "配置平衡",
-        action: "可換歌單",
-        detail: "目前數據均衡，可維持設定並嘗試不同歌單風格。",
+        title: "保持節奏",
+        action: "直接下一輪",
+        detail: "本輪整體表現均衡，直接開始下一輪通常是最佳選擇。",
         toneClass: "border-slate-500/60 bg-slate-800/60 text-slate-100",
       });
     }
@@ -403,23 +501,97 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
         }),
     [effectiveTrackOrder, playedQuestionCount, playlistItems],
   );
+  const normalizedQuestionRecaps = useMemo(() => {
+    if (questionRecaps.length > 0) {
+      return questionRecaps
+        .slice()
+        .sort((a, b) => a.order - b.order || a.trackIndex - b.trackIndex);
+    }
+    return recapTracks.map((item) => ({
+      key: item.key,
+      order: item.order,
+      trackIndex: item.trackIndex,
+      title: item.title,
+      uploader: item.uploader,
+      duration: item.duration,
+      thumbnail: item.thumbnail,
+      myResult: "unanswered" as const,
+      myChoiceIndex: null,
+      correctChoiceIndex: item.trackIndex,
+      choices: [],
+    }));
+  }, [questionRecaps, recapTracks]);
+  const recapSummary = useMemo(
+    () =>
+      normalizedQuestionRecaps.reduce(
+        (acc, item) => {
+          if (item.myResult === "correct") {
+            acc.correct += 1;
+          } else if (item.myResult === "wrong") {
+            acc.wrong += 1;
+          } else {
+            acc.unanswered += 1;
+          }
+          return acc;
+        },
+        { correct: 0, wrong: 0, unanswered: 0 },
+      ),
+    [normalizedQuestionRecaps],
+  );
+  const [expandedRecapKey, setExpandedRecapKey] = useState<string | null>(null);
+  const handleToggleRecap = useCallback((key: string) => {
+    setExpandedRecapKey((prev) => (prev === key ? null : key));
+  }, []);
+  const expandedRecap = useMemo(
+    () =>
+      normalizedQuestionRecaps.find((item) => item.key === expandedRecapKey) ??
+      null,
+    [expandedRecapKey, normalizedQuestionRecaps],
+  );
+  const selectedChoiceTitle = useMemo(() => {
+    if (!expandedRecap) return null;
+    if (expandedRecap.myChoiceIndex === null) return null;
+    const selectedChoice = expandedRecap.choices.find(
+      (choice) => choice.index === expandedRecap.myChoiceIndex,
+    );
+    return selectedChoice?.title ?? null;
+  }, [expandedRecap]);
+  const correctChoiceTitle = useMemo(() => {
+    if (!expandedRecap) return null;
+    const correctChoice = expandedRecap.choices.find(
+      (choice) => choice.index === expandedRecap.correctChoiceIndex,
+    );
+    return correctChoice?.title ?? null;
+  }, [expandedRecap]);
+  const recapListHeight = Math.min(
+    360,
+    Math.max(96, normalizedQuestionRecaps.length * 74),
+  );
+  const recapRowProps = useMemo(
+    () => ({
+      items: normalizedQuestionRecaps,
+      expandedKey: expandedRecapKey,
+      onToggle: handleToggleRecap,
+    }),
+    [expandedRecapKey, handleToggleRecap, normalizedQuestionRecaps],
+  );
   const podiumPlayers = sortedParticipants.slice(0, 3);
   const quickStats = [
     {
       key: "rank",
-      label: "我的名次",
+      label: "我的排名",
       value: myRank > 0 ? `No.${myRank}` : "--",
       progress: myRank > 0 ? myPercentile : 0,
     },
     {
       key: "share",
-      label: "分數佔比",
+      label: "得分佔比",
       value: myParticipant ? `${myScoreShare}%` : "--",
       progress: myParticipant ? myScoreShare : 0,
     },
     {
       key: "gap",
-      label: "與第一差",
+      label: "與第一差距",
       value: myGapToWinner !== null ? `${myGapToWinner}` : "--",
       progress:
         myGapToWinner !== null && winner
@@ -442,7 +614,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
     },
     {
       key: "spread",
-      label: "分差",
+      label: "總分差距",
       value: `${scoreSpread}`,
       progress:
         maxScore > 0 ? clampPercent((scoreSpread / Math.max(1, maxScore)) * 100) : 0,
@@ -461,11 +633,11 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                 Match Report
               </div>
               <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-100 sm:text-3xl">
-                本輪結算
+                結算總覽
               </h2>
               <p className="mt-1 text-sm text-slate-300">
                 {room.name}
-                {room.playlist.title ? ` ・ ${room.playlist.title}` : ""}
+                {room.playlist.title ? ` · ${room.playlist.title}` : ""}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -530,12 +702,14 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                     </p>
                     <p className="mt-1 text-sm text-slate-200">
                       分數 {winner.score}
-                      {winner.combo > 1 ? ` ・ 最高連擊 x${winner.combo}` : ""}
+                      {winner.combo > 1 ? ` · COMBO x${winner.combo}` : ""}
                     </p>
                   </div>
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-400">本輪沒有可用成績。</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  本輪暫無玩家資料
+                </p>
               )}
 
               <p className="mt-4 text-xs uppercase tracking-[0.25em] text-slate-400">
@@ -548,11 +722,15 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                   </p>
                   <p className="mt-1 text-sm text-slate-200">
                     分數 {myParticipant.score}
-                    {winner ? ` ・ 與第一差 ${Math.max(0, winner.score - myParticipant.score)}` : ""}
+                    {winner
+                      ? ` · 與第一差 ${Math.max(0, winner.score - myParticipant.score)}`
+                      : ""}
                   </p>
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-400">你沒有本輪成績紀錄。</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  尚未取得你的回顧資料
+                </p>
               )}
             </div>
 
@@ -570,7 +748,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
               </div>
               {sortedParticipants.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-6 text-center text-sm text-slate-500">
-                  尚無結算資料
+                  目前沒有玩家資料
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -627,11 +805,11 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                           </p>
                           <p className="text-xs text-amber-200">
                             {participant.combo > 1
-                              ? `連擊 x${participant.combo}`
-                              : "連擊 x1"}
+                              ? `COMBO x${participant.combo}`
+                              : "COMBO x1"}
                           </p>
                           <p className="text-[10px] text-slate-400">
-                            強度 {scoreProgress}%
+                            進度 {scoreProgress}%
                           </p>
                         </div>
                       </div>
@@ -649,7 +827,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
             <div className="rounded-2xl border border-slate-700/80 bg-slate-900/68 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs uppercase tracking-[0.25em] text-slate-300">
-                  戰局脈搏
+                  對戰脈動
                 </p>
                 <p className="text-xs text-slate-500">Match Pulse</p>
               </div>
@@ -749,7 +927,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs uppercase tracking-[0.25em] text-slate-300">
-                速覽儀表
+                我的關鍵數據
               </p>
               <p className="text-xs text-slate-500">Compact Metrics</p>
             </div>
@@ -783,7 +961,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs uppercase tracking-[0.25em] text-slate-300">
-                下一局建議
+                下一輪建議
               </p>
               <p className="text-xs text-slate-500">Next Round Coach</p>
             </div>
@@ -817,44 +995,115 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                 題目回顧
               </p>
               <p className="text-xs text-slate-500">
-                共 {recapTracks.length} 題
+                共 {normalizedQuestionRecaps.length} 題
               </p>
             </div>
-            {recapTracks.length === 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-full border border-emerald-300/45 bg-emerald-400/10 px-2 py-0.5 font-semibold text-emerald-100">
+                答對 {recapSummary.correct} 題
+              </span>
+              <span className="rounded-full border border-rose-300/45 bg-rose-400/10 px-2 py-0.5 font-semibold text-rose-100">
+                答錯 {recapSummary.wrong} 題
+              </span>
+              {recapSummary.unanswered > 0 && (
+                <span className="rounded-full border border-slate-500/70 bg-slate-800/70 px-2 py-0.5 font-semibold text-slate-200">
+                  未作答 {recapSummary.unanswered} 題
+                </span>
+              )}
+            </div>
+            {normalizedQuestionRecaps.length === 0 ? (
               <div className="mt-3 rounded-xl border border-dashed border-slate-700 bg-slate-950/60 px-4 py-6 text-center text-sm text-slate-500">
-                目前沒有可回顧的題目資料
+                尚未產生可回顧的題目資料
               </div>
             ) : (
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {recapTracks.map((item) => (
-                  <div
-                    key={item.key}
-                    className="game-settlement-track-card flex items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-950/55 px-3 py-2"
-                  >
-                    <div className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full border border-amber-300/40 bg-amber-400/10 text-xs font-semibold text-amber-100">
-                      {item.order}
+              <div className="mt-3 space-y-3">
+                <VirtualList
+                  style={{ height: recapListHeight, width: "100%" }}
+                  rowCount={normalizedQuestionRecaps.length}
+                  rowHeight={74}
+                  rowProps={recapRowProps}
+                  rowComponent={RecapRow}
+                />
+
+                {expandedRecap && (
+                  <div className="rounded-xl border border-slate-700/80 bg-slate-950/60 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          題目 {expandedRecap.order}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-100">
+                          {expandedRecap.title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {expandedRecap.uploader}
+                          {expandedRecap.duration
+                            ? ` · ${expandedRecap.duration}`
+                            : ""}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${RECAP_RESULT_META[expandedRecap.myResult].toneClass}`}
+                      >
+                        {RECAP_RESULT_META[expandedRecap.myResult].label}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-100">
-                        {item.title}
-                      </p>
-                      <p className="truncate text-xs text-slate-400">
-                        {item.uploader}
-                        {item.duration ? ` ・ ${item.duration}` : ""}
-                      </p>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full border border-slate-600 bg-slate-800/70 px-2 py-0.5 text-slate-200">
+                        你的答案：
+                        {selectedChoiceTitle ??
+                          (expandedRecap.myChoiceIndex === null ? "未作答" : "--")}
+                      </span>
+                      <span className="rounded-full border border-emerald-300/45 bg-emerald-400/10 px-2 py-0.5 text-emerald-100">
+                        正解：{correctChoiceTitle ?? "--"}
+                      </span>
                     </div>
-                    {item.thumbnail && (
-                      <img
-                        src={item.thumbnail}
-                        alt={item.title}
-                        className="h-10 w-16 flex-none rounded-md border border-slate-700/80 object-cover"
-                        loading="lazy"
-                      />
-                    )}
+
+                    <div className="mt-3 grid gap-2">
+                      {expandedRecap.choices.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+                          此題沒有可回顧的選項資料。
+                        </div>
+                      ) : (
+                        expandedRecap.choices.map((choice) => {
+                          const toneClass = choice.isCorrect
+                            ? "border-emerald-300/45 bg-emerald-500/14"
+                            : choice.isSelectedByMe
+                              ? "border-rose-300/45 bg-rose-500/14"
+                              : "border-slate-700/80 bg-slate-900/70";
+                          return (
+                            <div
+                              key={`${expandedRecap.key}-choice-${choice.index}`}
+                              className={`rounded-lg border px-3 py-2 ${toneClass}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm text-slate-100">
+                                  {choice.title}
+                                </p>
+                                <div className="flex flex-wrap items-center justify-end gap-1">
+                                  {choice.isCorrect && (
+                                    <span className="rounded-full border border-emerald-300/45 bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100">
+                                      正解
+                                    </span>
+                                  )}
+                                  {choice.isSelectedByMe && (
+                                    <span className="rounded-full border border-sky-300/45 bg-sky-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-100">
+                                      你的答案
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
             )}
+
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
