@@ -890,6 +890,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     startPlayback,
     startSilentAudio,
   ]);
+  const handleGestureOverlayTrigger = useCallback(() => {
+    unlockAudioAndStart();
+  }, [unlockAudioAndStart]);
 
   const syncToServerPosition = useCallback(
     (
@@ -1703,32 +1706,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const recentMessages = messages.slice(-80);
 
   useEffect(() => {
+    let cancelled = false;
     if (!isEnded) {
-      setEndedSnapshot(null);
-      return;
+      deferStateUpdate(() => {
+        if (cancelled) return;
+        setEndedSnapshot(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     const normalizedRecaps = cloneSettlementQuestionRecaps(questionRecaps);
-    setEndedSnapshot((prev) => {
-      if (!prev || prev.roundKey !== endedRoundKey) {
+    deferStateUpdate(() => {
+      if (cancelled) return;
+      setEndedSnapshot((prev) => {
+        if (!prev || prev.roundKey !== endedRoundKey) {
+          return {
+            roundKey: endedRoundKey,
+            room: cloneRoomForSettlement(room),
+            participants: participants.map((participant) => ({ ...participant })),
+            messages: messages.map((message) => ({ ...message })),
+            playlistItems: playlist.map((item) => ({ ...item })),
+            trackOrder: [...gameState.trackOrder],
+            playedQuestionCount,
+            questionRecaps: normalizedRecaps,
+          };
+        }
+        if (prev.questionRecaps.length >= normalizedRecaps.length) {
+          return prev;
+        }
         return {
-          roundKey: endedRoundKey,
-          room: cloneRoomForSettlement(room),
-          participants: participants.map((participant) => ({ ...participant })),
-          messages: messages.map((message) => ({ ...message })),
-          playlistItems: playlist.map((item) => ({ ...item })),
-          trackOrder: [...gameState.trackOrder],
-          playedQuestionCount,
+          ...prev,
           questionRecaps: normalizedRecaps,
         };
-      }
-      if (prev.questionRecaps.length >= normalizedRecaps.length) {
-        return prev;
-      }
-      return {
-        ...prev,
-        questionRecaps: normalizedRecaps,
-      };
+      });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [
     endedRoundKey,
     gameState.trackOrder,
@@ -1777,7 +1792,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? createPortal(
           <div
             className="fixed inset-0 z-[2400] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm"
-            onPointerDown={unlockAudioAndStart}
+            onPointerDown={handleGestureOverlayTrigger}
+            onTouchStart={handleGestureOverlayTrigger}
+            onClick={handleGestureOverlayTrigger}
             role="button"
             tabIndex={0}
             aria-label="點擊後開始播放"
@@ -1785,6 +1802,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <div className="mx-4 w-full max-w-sm rounded-2xl border border-emerald-300/40 bg-slate-900/85 px-6 py-6 text-center shadow-[0_20px_60px_rgba(2,6,23,0.6)]">
               <button
                 type="button"
+                onClick={handleGestureOverlayTrigger}
+                onTouchStart={handleGestureOverlayTrigger}
                 className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100"
               >
                 點擊後開始播放
@@ -2241,7 +2260,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     />
                   </div>
 
-                  <div className="game-room-options-grid grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="game-room-options-grid grid grid-cols-1 gap-2 md:grid-cols-2">
                     {isInterTrackWait
                       ? Array.from(
                         {

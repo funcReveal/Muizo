@@ -1721,7 +1721,7 @@ body {
 }
 
 .game-room-options-grid .game-room-choice-button.MuiButton-root {
-  height: 100%;
+  height: auto;
 }
 
 @media (max-width: 980px) {
@@ -1747,9 +1747,13 @@ body {
   }
 
   .game-room-choice-button.MuiButton-root {
-    min-height: 78px;
+    min-height: 84px;
     padding-top: 8px;
     padding-bottom: 8px;
+  }
+
+  .game-room-options-grid .game-room-choice-button.MuiButton-root {
+    height: auto;
   }
 
   .game-room-choice-title {
