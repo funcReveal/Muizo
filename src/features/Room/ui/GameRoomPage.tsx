@@ -230,6 +230,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, []);
   const [audioUnlocked, setAudioUnlocked] = useState(() => !requiresAudioGesture);
   const audioUnlockedRef = useRef(!requiresAudioGesture);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now() + serverOffsetMs);
   const playerStartRef = useRef(0);
   const [showVideoOverride, setShowVideoOverride] = useState<boolean | null>(
@@ -866,21 +867,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     ],
   );
   const unlockAudioAndStart = useCallback(() => {
+    if (!playerReadyRef.current) {
+      return false;
+    }
     if (!audioUnlockedRef.current) {
       markAudioUnlocked();
     }
     startSilentAudio();
-    if (!playerReadyRef.current) return;
     const serverNow = getServerNowMs();
     if (serverNow < gameState.startedAt) {
       // Prime autoplay permission during user gesture before round start.
       postCommand("seekTo", [clipStartSec, true]);
       postCommand("playVideo");
-      postCommand("pauseVideo");
-      postCommand("seekTo", [clipStartSec, true]);
-      return;
+      window.setTimeout(() => {
+        postCommand("pauseVideo");
+        postCommand("seekTo", [clipStartSec, true]);
+      }, 120);
+      return true;
     }
     startPlayback();
+    return true;
   }, [
     clipStartSec,
     gameState.startedAt,
@@ -890,7 +896,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     startPlayback,
     startSilentAudio,
   ]);
-  const handleGestureOverlayTrigger = useCallback(() => {
+  const handleGestureOverlayTrigger = useCallback((event?: React.SyntheticEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
     unlockAudioAndStart();
   }, [unlockAudioAndStart]);
 
@@ -1151,6 +1159,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
       if (data.event === "onReady") {
         playerReadyRef.current = true;
+        setIsPlayerReady(true);
         const currentId = videoId;
         if (!currentId) return;
         if (lastTrackLoadKeyRef.current === trackLoadKey) return;
@@ -1804,12 +1813,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 type="button"
                 onClick={handleGestureOverlayTrigger}
                 onTouchStart={handleGestureOverlayTrigger}
+                disabled={!isPlayerReady}
                 className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100"
               >
-                點擊後開始播放
+                {isPlayerReady ? "點擊後開始播放" : "播放器載入中..."}
               </button>
               <p className="mt-3 text-xs text-slate-300">
-                手機瀏覽器需要先手勢觸發，音樂才能播放
+                {isPlayerReady
+                  ? "手機瀏覽器需要先手勢觸發，音樂才能播放"
+                  : "請稍候播放器初始化完成後再點擊"}
               </p>
             </div>
           </div>,
@@ -2053,7 +2065,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         </aside>
 
         {/* 右側：播放區 + 答題區 */}
-        <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+        <section className="flex min-h-0 flex-col gap-2 lg:h-full lg:overflow-hidden">
           {/* 播放區 */}
           <div className="game-room-panel game-room-panel--accent p-3 text-slate-50 flex-none">
             <div className="mb-3 flex items-center justify-between">
@@ -2182,7 +2194,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           </div>
 
           {/* 答題區 */}
-          <div className="game-room-panel game-room-panel--warm p-3 text-slate-50 flex-1 min-h-0 flex flex-col">
+          <div className="game-room-panel game-room-panel--warm p-3 text-slate-50 flex min-h-0 flex-col lg:flex-1">
             {isInitialCountdown ? (
               <div className="flex flex-col items-center py-6 text-center">
                 <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-slate-300">
