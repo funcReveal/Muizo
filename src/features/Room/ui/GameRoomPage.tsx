@@ -109,7 +109,6 @@ const buildScoreBaselineMap = (rows: RoomParticipant[]) =>
 
 const MAX_DANMU_TEXT_LENGTH = 56;
 const DANMU_LANE_COUNT = 6;
-const ANSWER_INPUT_UNLOCK_DELAY_MS = 900;
 const MOBILE_UA_PATTERN = /Android|iPhone|iPad|iPod|Mobile/i;
 
 const isMobileDevice = () => {
@@ -161,6 +160,8 @@ type DanmuItem = {
 
 type FrozenSettlementSnapshot = {
   roundKey: string;
+  startedAt: number;
+  endedAt: number;
   room: RoomState["room"];
   participants: RoomParticipant[];
   messages: ChatMessage[];
@@ -211,7 +212,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const stored = localStorage.getItem("mq_danmu_enabled");
     if (stored === "1") return true;
     if (stored === "0") return false;
-    return isMobileDevice();
+    return true;
   });
   const [danmuItems, setDanmuItems] = useState<DanmuItem[]>([]);
   const danmuSeenMessageIdsRef = useRef<Set<string>>(new Set());
@@ -554,11 +555,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase === "guess"
       ? gameState.startedAt + effectiveGuessDurationMs
       : gameState.revealEndsAt;
-  const answerInputUnlockAtMs = gameState.startedAt + ANSWER_INPUT_UNLOCK_DELAY_MS;
-  const answerLeadInLocked =
-    gameState.status === "playing" &&
-    gameState.phase === "guess" &&
-    nowMs < answerInputUnlockAtMs;
   const phaseRemainingMs = Math.max(0, phaseEndsAt - nowMs);
   const revealCountdownMs = Math.max(0, gameState.revealEndsAt - nowMs);
   const isEnded = gameState.status === "ended";
@@ -594,8 +590,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !waitingToStart &&
     !isReveal &&
     !isEnded &&
-    !shouldShowGestureOverlay &&
-    !answerLeadInLocked;
+    !shouldShowGestureOverlay;
   const showGuessMask = gameState.phase === "guess" && !isEnded && !waitingToStart;
   const showPreStartMask =
     waitingToStart &&
@@ -1626,6 +1621,52 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       selectedChoiceState.trackIndex === currentTrackIndex
         ? selectedChoiceState.choiceIndex
         : null;
+    const liveQuestionStats = gameState.questionStats;
+    const participantCount =
+      typeof liveQuestionStats?.participantCount === "number" &&
+      Number.isFinite(liveQuestionStats.participantCount)
+        ? Math.max(0, Math.floor(liveQuestionStats.participantCount))
+        : participants.length;
+    const answeredClientIds = answeredOrderForCurrentParticipants;
+    const answeredCount =
+      typeof liveQuestionStats?.answeredCount === "number" &&
+      Number.isFinite(liveQuestionStats.answeredCount)
+        ? Math.max(0, Math.floor(liveQuestionStats.answeredCount))
+        : answeredClientIds.length;
+    const correctClientIds = participants
+      .filter((participant) => {
+        const parts = scorePartsByClientId.get(participant.clientId);
+        return (parts?.gain ?? 0) > 0;
+      })
+      .map((participant) => participant.clientId);
+    const correctClientIdSet = new Set(correctClientIds);
+    const correctCount =
+      typeof liveQuestionStats?.correctCount === "number" &&
+      Number.isFinite(liveQuestionStats.correctCount)
+        ? Math.max(0, Math.floor(liveQuestionStats.correctCount))
+        : correctClientIds.length;
+    const wrongCount =
+      typeof liveQuestionStats?.wrongCount === "number" &&
+      Number.isFinite(liveQuestionStats.wrongCount)
+        ? Math.max(0, Math.floor(liveQuestionStats.wrongCount))
+        : Math.max(0, answeredCount - correctCount);
+    const unansweredCount =
+      typeof liveQuestionStats?.unansweredCount === "number" &&
+      Number.isFinite(liveQuestionStats.unansweredCount)
+        ? Math.max(0, Math.floor(liveQuestionStats.unansweredCount))
+        : Math.max(0, participantCount - answeredCount);
+    const fastestCorrectRank =
+      answeredClientIds.findIndex((clientId) => correctClientIdSet.has(clientId));
+    const fastestCorrectMs =
+      typeof liveQuestionStats?.fastestCorrectMs === "number" &&
+      Number.isFinite(liveQuestionStats.fastestCorrectMs)
+        ? Math.max(0, Math.floor(liveQuestionStats.fastestCorrectMs))
+        : null;
+    const medianCorrectMs =
+      typeof liveQuestionStats?.medianCorrectMs === "number" &&
+      Number.isFinite(liveQuestionStats.medianCorrectMs)
+        ? Math.max(0, Math.floor(liveQuestionStats.medianCorrectMs))
+        : null;
     const myAnswered =
       myChoiceIndex !== null ||
       Boolean(meClientId && answeredClientIdSet.has(meClientId));
@@ -1656,6 +1697,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         isCorrect: choice.index === correctChoiceIndex,
         isSelectedByMe: choice.index === myChoiceIndex,
       })),
+      participantCount,
+      answeredCount,
+      correctCount,
+      wrongCount,
+      unansweredCount,
+      fastestCorrectRank: fastestCorrectRank >= 0 ? fastestCorrectRank + 1 : null,
+      fastestCorrectMs,
+      medianCorrectMs,
     };
 
     deferStateUpdate(() => {
@@ -1667,9 +1716,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     });
   }, [
     answeredClientIdSet,
+    answeredOrderForCurrentParticipants,
     correctChoiceIndex,
     currentTrackIndex,
     gameState.choices,
+    gameState.questionStats,
     isReveal,
     item?.duration,
     item?.thumbnail,
@@ -1677,10 +1728,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     meClientId,
     playlist,
     resolvedAnswerTitle,
+    scorePartsByClientId,
     selectedChoiceState.choiceIndex,
     selectedChoiceState.trackIndex,
     trackCursor,
     trackSessionKey,
+    participants,
   ]);
 
   useEffect(() => {
@@ -1732,6 +1785,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         if (!prev || prev.roundKey !== endedRoundKey) {
           return {
             roundKey: endedRoundKey,
+            startedAt: gameState.startedAt,
+            endedAt: Date.now() + serverOffsetMs,
             room: cloneRoomForSettlement(room),
             participants: participants.map((participant) => ({ ...participant })),
             messages: messages.map((message) => ({ ...message })),
@@ -1755,6 +1810,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     };
   }, [
     endedRoundKey,
+    gameState.startedAt,
     gameState.trackOrder,
     isEnded,
     messages,
@@ -1763,6 +1819,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playlist,
     questionRecaps,
     room,
+    serverOffsetMs,
   ]);
 
   const settlementSnapshot =
@@ -1841,6 +1898,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           playedQuestionCount={
             settlementSnapshot?.playedQuestionCount ?? playedQuestionCount
           }
+          startedAt={settlementSnapshot?.startedAt ?? gameState.startedAt}
+          endedAt={settlementSnapshot?.endedAt}
           meClientId={meClientId}
           questionRecaps={settlementSnapshot?.questionRecaps ?? questionRecaps}
           onBackToLobby={onBackToLobby}
@@ -2321,14 +2380,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                             aria-disabled={
                               isLocked ||
                               waitingToStart ||
-                              shouldShowGestureOverlay ||
-                              answerLeadInLocked
+                              shouldShowGestureOverlay
                             }
                             tabIndex={
                               isLocked ||
                               waitingToStart ||
-                              shouldShowGestureOverlay ||
-                              answerLeadInLocked
+                              shouldShowGestureOverlay
                                 ? -1
                                 : 0
                             }
@@ -2360,8 +2417,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                   : ""
                               : isSelected
                                 ? "bg-sky-700/30"
-                                : ""
-                              } ${isLocked || waitingToStart || shouldShowGestureOverlay || answerLeadInLocked ? "pointer-events-none" : ""}`}
+                              : ""
+                              } ${isLocked || waitingToStart || shouldShowGestureOverlay ? "pointer-events-none" : ""}`}
                             disabled={false}
                             onClick={() => {
                               if (isLocked || !canAnswerNow) return;

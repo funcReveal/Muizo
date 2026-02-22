@@ -80,8 +80,6 @@ import { useRoomAuth } from "./useRoomAuth";
 import { useRoomPlaylist } from "./useRoomPlaylist";
 import { useRoomCollections } from "./useRoomCollections";
 
-const ANSWER_SUBMIT_GUARD_MS = 120;
-
 const mapCollectionItemsToPlaylist = (
   collectionId: string,
   items: WorkerCollectionItem[],
@@ -380,8 +378,6 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     trackKey: string;
     choiceIndex: number;
   } | null>(null);
-  const answerSubmitTimerRef = useRef<number | null>(null);
-  const lastAnswerSubmitAtRef = useRef(0);
   const currentRoomIdRef = useRef<string | null>(
     currentRoomId ?? getStoredRoomId(),
   );
@@ -632,8 +628,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     ownerId: authUser?.id ?? null,
     refreshAuthToken,
     setStatusText,
-    onPlaylistLoaded: (items, sourceId) => {
-      applyPlaylistSource(items, sourceId);
+    onPlaylistLoaded: (items, sourceId, title) => {
+      applyPlaylistSource(items, sourceId, title ?? null);
       setPlaylistUrl("");
     },
     onPlaylistReset: () => {
@@ -1369,6 +1365,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       playlist: {
         uploadId,
         id: lastFetchedPlaylistId,
+        title: lastFetchedPlaylistTitle ?? undefined,
         totalCount: uploadItems.length,
         items: firstChunk,
         isLast,
@@ -1533,6 +1530,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     fetchPlaylistPage,
     getSocket,
     lastFetchedPlaylistId,
+    lastFetchedPlaylistTitle,
     lockSessionClientId,
     playlistItems,
     playDurationSec,
@@ -1707,6 +1705,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     if (gameState.phase !== "guess") return;
     const serverNow = Date.now() + serverOffsetRef.current;
     if (gameState.startedAt > serverNow) return;
+    const socket = getSocket();
+    if (!socket) return;
     const trackKey = `${gameState.startedAt}:${gameState.currentIndex}`;
     const previousPending = pendingAnswerSubmitRef.current;
     if (
@@ -1714,10 +1714,6 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       (previousPending.roomId !== currentRoom.id ||
         previousPending.trackKey !== trackKey)
     ) {
-      if (answerSubmitTimerRef.current !== null) {
-        window.clearTimeout(answerSubmitTimerRef.current);
-        answerSubmitTimerRef.current = null;
-      }
       pendingAnswerSubmitRef.current = null;
     }
     if (
@@ -1733,46 +1729,27 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       choiceIndex,
     };
 
-    const flushSubmit = () => {
-      const pending = pendingAnswerSubmitRef.current;
-      if (!pending) return;
-      pendingAnswerSubmitRef.current = null;
-      const socket = getSocket();
-      if (!socket) return;
-      lastAnswerSubmitAtRef.current = Date.now();
-      socket.emit(
-        "submitAnswer",
-        { roomId: pending.roomId, choiceIndex: pending.choiceIndex },
-        (ack) => {
-          if (!ack || ack.ok) return;
-          if (ack.error === "Not in guess phase") return;
-          setStatusText(formatAckError("提交答案失敗", ack.error));
-        },
-      );
-    };
-
-    const elapsed = Date.now() - lastAnswerSubmitAtRef.current;
-    if (elapsed >= ANSWER_SUBMIT_GUARD_MS && answerSubmitTimerRef.current === null) {
-      flushSubmit();
-      return;
-    }
-    if (answerSubmitTimerRef.current !== null) {
-      window.clearTimeout(answerSubmitTimerRef.current);
-      answerSubmitTimerRef.current = null;
-    }
-    const delay = Math.max(40, ANSWER_SUBMIT_GUARD_MS - elapsed);
-    answerSubmitTimerRef.current = window.setTimeout(() => {
-      answerSubmitTimerRef.current = null;
-      flushSubmit();
-    }, delay);
+    socket.emit(
+      "submitAnswer",
+      { roomId: currentRoom.id, choiceIndex },
+      (ack) => {
+        const pending = pendingAnswerSubmitRef.current;
+        if (
+          pending?.roomId === currentRoom.id &&
+          pending.trackKey === trackKey &&
+          pending.choiceIndex === choiceIndex
+        ) {
+          pendingAnswerSubmitRef.current = null;
+        }
+        if (!ack || ack.ok) return;
+        if (ack.error === "Not in guess phase") return;
+        setStatusText(formatAckError("提交答案失敗", ack.error));
+      },
+    );
   }, [currentRoom, gameState, getSocket]);
 
   useEffect(() => {
     if (!gameState || gameState.phase !== "guess" || !currentRoom) {
-      if (answerSubmitTimerRef.current !== null) {
-        window.clearTimeout(answerSubmitTimerRef.current);
-        answerSubmitTimerRef.current = null;
-      }
       pendingAnswerSubmitRef.current = null;
       return;
     }
@@ -1780,19 +1757,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const pending = pendingAnswerSubmitRef.current;
     if (!pending) return;
     if (pending.roomId === currentRoom.id && pending.trackKey === trackKey) return;
-    if (answerSubmitTimerRef.current !== null) {
-      window.clearTimeout(answerSubmitTimerRef.current);
-      answerSubmitTimerRef.current = null;
-    }
     pendingAnswerSubmitRef.current = null;
   }, [currentRoom, gameState]);
 
   useEffect(
     () => () => {
-      if (answerSubmitTimerRef.current !== null) {
-        window.clearTimeout(answerSubmitTimerRef.current);
-        answerSubmitTimerRef.current = null;
-      }
       pendingAnswerSubmitRef.current = null;
     },
     [],

@@ -1,13 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import GameRoomPage from "./GameRoomPage";
-import GameSettlementPanel from "./components/GameSettlementPanel";
+import GameSettlementPanel, {
+  type SettlementQuestionRecap,
+} from "./components/GameSettlementPanel";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import type { ChatMessage, RoomSettlementSnapshot } from "../model/types";
 import { useRoom } from "../model/useRoom";
 
 const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
+
+const cloneSettlementRecaps = (recaps: SettlementQuestionRecap[]) =>
+  recaps.map((item) => ({
+    ...item,
+    choices: item.choices.map((choice) => ({ ...choice })),
+  }));
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
@@ -70,8 +78,14 @@ const RoomLobbyPage: React.FC = () => {
   } = useRoom();
 
   const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<string | null>(null);
+  const [settlementRecapsByRoundKey, setSettlementRecapsByRoundKey] = useState<
+    Record<string, SettlementQuestionRecap[]>
+  >({});
   const autoOpenedEndedRoundRef = useRef<string | null>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
+  const latestLiveRecapsRef = useRef<SettlementQuestionRecap[]>([]);
+  const liveRoundStartedAtRef = useRef<number | null>(null);
+  const lastTopSettlementRoundKeyRef = useRef<string | null>(null);
   const pendingAutoOpenSettlementRef = useRef<{
     previousTopRoundKey: string | null;
   } | null>(null);
@@ -79,8 +93,86 @@ const RoomLobbyPage: React.FC = () => {
   useEffect(() => {
     autoOpenedEndedRoundRef.current = null;
     prevGameStatusRef.current = null;
+    latestLiveRecapsRef.current = [];
+    liveRoundStartedAtRef.current = null;
+    lastTopSettlementRoundKeyRef.current = null;
     pendingAutoOpenSettlementRef.current = null;
   }, [currentRoom?.id]);
+
+  useEffect(() => {
+    if (gameState?.status !== "playing") return;
+    if (liveRoundStartedAtRef.current === gameState.startedAt) return;
+    liveRoundStartedAtRef.current = gameState.startedAt;
+    latestLiveRecapsRef.current = [];
+  }, [gameState?.startedAt, gameState?.status]);
+
+  const liveRoundKey = useMemo(() => {
+    if (!currentRoom?.id || !gameState?.startedAt) return null;
+    return `${currentRoom.id}:${gameState.startedAt}`;
+  }, [currentRoom?.id, gameState?.startedAt]);
+
+  const handleSettlementRecapChange = useCallback(
+    (recaps: SettlementQuestionRecap[]) => {
+      if (!liveRoundKey) return;
+      setSettlementRecapsByRoundKey((prev) => {
+        if (recaps.length === 0) {
+          latestLiveRecapsRef.current = [];
+          if (!(liveRoundKey in prev)) return prev;
+          const next = { ...prev };
+          delete next[liveRoundKey];
+          return next;
+        }
+        const nextRecaps = cloneSettlementRecaps(recaps);
+        latestLiveRecapsRef.current = nextRecaps;
+        const current = prev[liveRoundKey];
+        if (
+          current &&
+          current.length === nextRecaps.length &&
+          current.every(
+            (item, idx) =>
+              item.key === nextRecaps[idx]?.key &&
+              item.myResult === nextRecaps[idx]?.myResult &&
+              item.myChoiceIndex === nextRecaps[idx]?.myChoiceIndex,
+          )
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [liveRoundKey]: nextRecaps,
+        };
+      });
+    },
+    [liveRoundKey],
+  );
+
+  useEffect(() => {
+    const topSnapshot = settlementHistory[0];
+    if (!topSnapshot) return;
+    if (topSnapshot.roundKey === lastTopSettlementRoundKeyRef.current) return;
+    lastTopSettlementRoundKeyRef.current = topSnapshot.roundKey;
+    const liveRecaps = latestLiveRecapsRef.current;
+    if (liveRecaps.length === 0) return;
+    setSettlementRecapsByRoundKey((prev) => {
+      const current = prev[topSnapshot.roundKey];
+      if (
+        current &&
+        current.length === liveRecaps.length &&
+        current.every(
+          (item, idx) =>
+            item.key === liveRecaps[idx]?.key &&
+            item.myResult === liveRecaps[idx]?.myResult &&
+            item.myChoiceIndex === liveRecaps[idx]?.myChoiceIndex,
+        )
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [topSnapshot.roundKey]: cloneSettlementRecaps(liveRecaps),
+      };
+    });
+  }, [settlementHistory]);
 
   useEffect(() => {
     const nextStatus = gameState?.status ?? null;
@@ -139,6 +231,19 @@ const RoomLobbyPage: React.FC = () => {
     );
   }, [resolvedActiveSettlementRoundKey, settlementHistory]);
 
+  const activeSettlementQuestionRecaps = useMemo(() => {
+    if (!activeSettlementSnapshot) return undefined;
+    const snapshotRecaps = (
+      activeSettlementSnapshot as RoomSettlementSnapshot & {
+        questionRecaps?: SettlementQuestionRecap[];
+      }
+    ).questionRecaps;
+    if (Array.isArray(snapshotRecaps) && snapshotRecaps.length > 0) {
+      return snapshotRecaps;
+    }
+    return settlementRecapsByRoundKey[activeSettlementSnapshot.roundKey];
+  }, [activeSettlementSnapshot, settlementRecapsByRoundKey]);
+
   const latestSettlementSnapshot = settlementHistory[0] ?? null;
 
   const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
@@ -174,6 +279,25 @@ const RoomLobbyPage: React.FC = () => {
     }
   }, [currentRoom?.id, roomId, navigate]);
 
+  useEffect(() => {
+    if (!activeSettlementRoundKey) return;
+    if (gameState?.status !== "playing") return;
+    const timer = window.setTimeout(() => {
+      setActiveSettlementRoundKey(null);
+      if (!isGameView) {
+        setIsGameView(true);
+      }
+      setStatusText("新對戰即將開始，已關閉回顧畫面");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    activeSettlementRoundKey,
+    gameState?.status,
+    isGameView,
+    setIsGameView,
+    setStatusText,
+  ]);
+
   if (roomId && username && !currentRoom && !routeRoomResolved) {
     return (
       <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
@@ -201,29 +325,9 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (activeSettlementSnapshot) {
-    return (
-      <div className="flex w-full justify-center">
-        <GameSettlementPanel
-          room={activeSettlementSnapshot.room}
-          participants={activeSettlementSnapshot.participants}
-          messages={activeSettlementSnapshot.messages}
-          playlistItems={activeSettlementSnapshot.playlistItems}
-          trackOrder={activeSettlementSnapshot.trackOrder}
-          playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
-          meClientId={clientId}
-          onBackToLobby={() => setActiveSettlementRoundKey(null)}
-          onRequestExit={() =>
-            handleLeaveRoom(() => navigate("/rooms", { replace: true }))
-          }
-        />
-      </div>
-    );
-  }
-
   if (currentRoom && gameState && isGameView && gameState.status === "playing") {
     return (
-      <div className="flex w-full justify-center">
+      <div className="flex w-full min-w-0 justify-center">
         <GameRoomPage
           room={currentRoom}
           gameState={gameState}
@@ -241,6 +345,30 @@ const RoomLobbyPage: React.FC = () => {
           onSendMessage={handleSendMessage}
           username={username}
           serverOffsetMs={serverOffsetMs}
+          onSettlementRecapChange={handleSettlementRecapChange}
+        />
+      </div>
+    );
+  }
+
+  if (activeSettlementSnapshot) {
+    return (
+      <div className="flex w-full min-w-0 justify-center">
+        <GameSettlementPanel
+          room={activeSettlementSnapshot.room}
+          participants={activeSettlementSnapshot.participants}
+          messages={activeSettlementSnapshot.messages}
+          playlistItems={activeSettlementSnapshot.playlistItems}
+          trackOrder={activeSettlementSnapshot.trackOrder}
+          playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
+          startedAt={activeSettlementSnapshot.startedAt}
+          endedAt={activeSettlementSnapshot.endedAt}
+          meClientId={clientId}
+          questionRecaps={activeSettlementQuestionRecaps}
+          onBackToLobby={() => setActiveSettlementRoundKey(null)}
+          onRequestExit={() =>
+            handleLeaveRoom(() => navigate("/rooms", { replace: true }))
+          }
         />
       </div>
     );
