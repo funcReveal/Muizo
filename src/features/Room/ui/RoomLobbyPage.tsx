@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import GameRoomPage from "./GameRoomPage";
@@ -68,14 +68,60 @@ const RoomLobbyPage: React.FC = () => {
     selectCollection,
     loadCollectionItems,
   } = useRoom();
+
   const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<string | null>(null);
+  const autoOpenedEndedRoundRef = useRef<string | null>(null);
+  const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
+  const pendingAutoOpenSettlementRef = useRef<{
+    previousTopRoundKey: string | null;
+  } | null>(null);
 
   useEffect(() => {
-    if (gameState?.status !== "ended") return;
-    if (!isGameView) return;
-    setIsGameView(false);
-    setStatusText("遊戲已結束，返回聊天室");
-  }, [gameState?.status, isGameView, setIsGameView, setStatusText]);
+    autoOpenedEndedRoundRef.current = null;
+    prevGameStatusRef.current = null;
+    pendingAutoOpenSettlementRef.current = null;
+  }, [currentRoom?.id]);
+
+  useEffect(() => {
+    const nextStatus = gameState?.status ?? null;
+    if (prevGameStatusRef.current === "playing" && nextStatus === "ended") {
+      pendingAutoOpenSettlementRef.current = {
+        previousTopRoundKey: settlementHistory[0]?.roundKey ?? null,
+      };
+    }
+    prevGameStatusRef.current = nextStatus;
+  }, [gameState?.status, settlementHistory]);
+
+  useEffect(() => {
+    if (!currentRoom || gameState?.status !== "ended") return;
+    const pending = pendingAutoOpenSettlementRef.current;
+    if (!pending) return;
+    const snapshot = settlementHistory[0] ?? null;
+    if (!snapshot) return;
+    if (snapshot.roundKey === pending.previousTopRoundKey) return;
+    if (autoOpenedEndedRoundRef.current === snapshot.roundKey) {
+      pendingAutoOpenSettlementRef.current = null;
+      return;
+    }
+
+    autoOpenedEndedRoundRef.current = snapshot.roundKey;
+    pendingAutoOpenSettlementRef.current = null;
+    if (isGameView) {
+      setIsGameView(false);
+    }
+    setStatusText("遊戲已結束，顯示結算畫面");
+    const timer = window.setTimeout(() => {
+      setActiveSettlementRoundKey(snapshot.roundKey);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    currentRoom,
+    gameState?.status,
+    isGameView,
+    settlementHistory,
+    setIsGameView,
+    setStatusText,
+  ]);
 
   const resolvedActiveSettlementRoundKey = useMemo(() => {
     if (!activeSettlementRoundKey) return null;
