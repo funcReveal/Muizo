@@ -140,7 +140,7 @@ const RoomsLayoutShell: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start p-4">
-      <div className="flex flex-col w-95/100 space-y-4">
+      <div className="flex w-full min-w-0 max-w-[1600px] flex-col space-y-4">
         <HeaderSection
           displayUsername={displayUsername}
           authUser={authUser}

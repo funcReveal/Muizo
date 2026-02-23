@@ -39,6 +39,16 @@ export interface GameChoice {
   index: number;
 }
 
+export interface GameQuestionStats {
+  participantCount: number;
+  answeredCount: number;
+  correctCount: number;
+  wrongCount: number;
+  unansweredCount: number;
+  fastestCorrectMs?: number | null;
+  medianCorrectMs?: number | null;
+}
+
 export interface GameState {
   status: "playing" | "ended";
   phase: "guess" | "reveal";
@@ -57,6 +67,7 @@ export interface GameState {
   trackCursor: number;
   lockedClientIds?: string[];
   lockedOrder?: string[];
+  questionStats?: GameQuestionStats;
 }
 
 export interface PlaylistSuggestion {
@@ -83,6 +94,8 @@ export interface RoomParticipant {
   combo: number;
   maxCombo?: number;
   correctCount?: number;
+  fastestCorrectMs?: number | null;
+  avgCorrectMs?: number | null;
 }
 
 export interface ChatMessage {

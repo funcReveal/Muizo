@@ -23,7 +23,11 @@ type UseRoomCollectionsOptions = {
   ownerId?: string | null;
   refreshAuthToken: () => Promise<string | null>;
   setStatusText: (value: string | null) => void;
-  onPlaylistLoaded: (items: PlaylistItem[], sourceId: string) => void;
+  onPlaylistLoaded: (
+    items: PlaylistItem[],
+    sourceId: string,
+    title?: string | null,
+  ) => void;
   onPlaylistReset: () => void;
 };
 
@@ -214,13 +218,15 @@ export const useRoomCollections = ({
       if (inFlightCollectionIdRef.current === collectionId) {
         return;
       }
+      const collectionTitle =
+        collections.find((item) => item.id === collectionId)?.title ?? null;
       if (!options?.force) {
         const cachedItems = collectionCacheRef.current[collectionId];
         if (cachedItems && cachedItems.length > 0) {
           onPlaylistReset();
           setCollectionItemsError(null);
           setSelectedCollectionId(collectionId);
-          onPlaylistLoaded(cachedItems, collectionId);
+          onPlaylistLoaded(cachedItems, collectionId, collectionTitle);
           setStatusText(`已套用收藏庫，共 ${cachedItems.length} 首`);
           return;
         }
@@ -301,7 +307,7 @@ export const useRoomCollections = ({
           delete emptyCollectionRetryCountRef.current[collectionId];
           delete pausedEmptyCollectionRef.current[collectionId];
           collectionCacheRef.current[collectionId] = normalizedItems;
-          onPlaylistLoaded(normalizedItems, collectionId);
+          onPlaylistLoaded(normalizedItems, collectionId, collectionTitle);
           setStatusText(`已載入收藏庫，共 ${normalizedItems.length} 首`);
         };
 
@@ -371,6 +377,7 @@ export const useRoomCollections = ({
       refreshAuthToken,
       setStatusText,
       workerUrl,
+      collections,
     ],
   );
 

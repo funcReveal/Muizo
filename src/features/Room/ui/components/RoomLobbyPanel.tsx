@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -28,7 +28,6 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import { List as VirtualList, type RowComponentProps } from "react-window";
 import type {
@@ -708,10 +707,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const [selectedYoutubePlaylistId, setSelectedYoutubePlaylistId] = useState<
     string | null
   >(null);
-  const [hostPanelExpanded, setHostPanelExpanded] = useState(true);
   const isCompactLobbyLayout = useMediaQuery("(max-width:1180px)");
-  const isHostPanelCollapsible = isCompactLobbyLayout;
-  const isHostPanelExpanded = isHostPanelCollapsible ? hostPanelExpanded : true;
+  const isMobileLobbyLayout = useMediaQuery("(max-width:640px)");
+  const isHostPanelCollapsible = false;
+  const isHostPanelExpanded = true;
   const [lastSuggestionSeenAt, setLastSuggestionSeenAt] = useState(0);
   const [actionAnchorEl, setActionAnchorEl] = useState<HTMLElement | null>(
     null,
@@ -745,12 +744,56 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     ? "*".repeat(roomPassword.length)
     : "";
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const playlistListContainerRef = useRef<HTMLDivElement | null>(null);
+  const [playlistListHeight, setPlaylistListHeight] = useState(280);
 
   useEffect(() => {
     const container = chatScrollRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [messages.length]);
+
+  useLayoutEffect(() => {
+    const container = playlistListContainerRef.current;
+    if (!container) return;
+
+    const measure = () => {
+      const next = Math.max(180, Math.floor(container.clientHeight));
+      setPlaylistListHeight((prev) => (Math.abs(prev - next) <= 1 ? prev : next));
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => {
+        window.removeEventListener("resize", measure);
+      };
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+    };
+  }, [playlistItems.length, isCompactLobbyLayout, isMobileLobbyLayout]);
+
+  const playlistListHeightCap = isMobileLobbyLayout
+    ? 220
+    : isCompactLobbyLayout
+      ? 320
+      : null;
+  const playlistListViewportHeight =
+    playlistListHeightCap === null
+      ? playlistListHeight
+      : Math.min(playlistListHeight, playlistListHeightCap);
+  const playlistListShellClassName = isCompactLobbyLayout
+    ? "min-h-0"
+    : "min-h-0 flex-1";
+  const playlistListShellStyle =
+    playlistListHeightCap === null
+      ? undefined
+      : ({ maxHeight: playlistListHeightCap } as React.CSSProperties);
   const playlistLoadNotice = (() => {
     if (playlistLoading || collectionItemsLoading) {
       return "載入中...";
@@ -1232,6 +1275,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       variant="outlined"
       className="w-full lg:w-4/5 bg-slate-900/70 border-slate-700 text-slate-50 room-lobby-card"
       sx={{
+        height: isCompactLobbyLayout ? "auto" : "min(820px, calc(100dvh - 132px))",
         maxHeight: isCompactLobbyLayout ? "none" : 820,
         display: "flex",
         flexDirection: "column",
@@ -1585,22 +1629,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           {isHost && (
             <Accordion
               disableGutters
-              className={`border border-slate-800/80 bg-slate-950/40 room-lobby-host-accordion ${isHostPanelCollapsible ? "" : "room-lobby-host-accordion-fixed"}`}
+              className="border border-slate-800/80 bg-slate-950/40 room-lobby-host-accordion room-lobby-host-accordion-fixed"
               expanded={isHostPanelExpanded}
-              onChange={
-                isHostPanelCollapsible
-                  ? (_event, expanded) => {
-                    setHostPanelExpanded(expanded);
-                    if (expanded && hostSourceType === "suggestions") {
-                      markSuggestionsSeen();
-                    }
-                  }
-                  : undefined
-              }
             >
-              <AccordionSummary
-                expandIcon={isHostPanelCollapsible ? <ExpandMoreIcon /> : undefined}
-              >
+              <AccordionSummary>
                 <div className="flex items-center gap-2">
                   <Typography variant="subtitle2" className="text-slate-200">
                     房主控制
@@ -1624,10 +1656,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   <Box className="room-lobby-host-controls">
                     <Stack
                       spacing={1}
-                      className={`room-lobby-source-panel ${hostSourceType === "suggestions"
-                        ? "room-lobby-source-panel-suggestions"
-                        : "room-lobby-source-panel-fixed"
-                        }`}
+                      className={`room-lobby-source-panel room-lobby-source-panel--host ${
+                        hostSourceType === "suggestions"
+                          ? "room-lobby-source-panel-suggestions"
+                          : "room-lobby-source-panel-fixed"
+                      }`}
                     >
                       <Stack
                         direction="row"
@@ -2189,23 +2222,36 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             </Stack>
           </Stack>
           {playlistItems.length === 0 ? (
-            <Typography
-              variant="body2"
-              className="text-slate-500"
-              align="center"
-              py={2}
+            <div
+              ref={playlistListContainerRef}
+              className={playlistListShellClassName}
+              style={playlistListShellStyle}
             >
-              尚無歌曲，等主持人載入吧。
-            </Typography>
+              <div className="flex h-full min-h-[140px] items-center justify-center rounded border border-slate-800 bg-slate-900/60 px-3">
+                <Typography
+                  variant="body2"
+                  className="text-slate-500"
+                  align="center"
+                >
+                  尚未有播放清單，等待房主載入歌曲。
+                </Typography>
+              </div>
+            </div>
           ) : (
-            <div className="rounded border border-slate-800 bg-slate-900/60">
-              <VirtualList
-                style={{ height: 280, width: "100%" }}
-                rowCount={rowCount}
-                rowHeight={75}
-                rowProps={{}}
-                rowComponent={PlaylistRow}
-              />
+            <div
+              ref={playlistListContainerRef}
+              className={playlistListShellClassName}
+              style={playlistListShellStyle}
+            >
+              <div className="h-full min-h-0 w-full overflow-hidden rounded border border-slate-800 bg-slate-900/60">
+                <VirtualList
+                  style={{ height: playlistListViewportHeight, width: "100%" }}
+                  rowCount={rowCount}
+                  rowHeight={75}
+                  rowProps={{}}
+                  rowComponent={PlaylistRow}
+                />
+              </div>
             </div>
           )}
         </Box>
