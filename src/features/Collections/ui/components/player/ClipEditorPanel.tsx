@@ -211,17 +211,13 @@ const ClipEditorPanel = ({
           anchorOrigin={{ vertical: "top", horizontal: "left" }}
           PaperProps={{
             className:
-              "rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/95 px-3 py-2 text-[11px] text-[var(--mc-text)] shadow-[0_18px_44px_-30px_rgba(0,0,0,0.9)] backdrop-blur",
+              "rounded-2xl border border-[var(--mc-border)]  px-3 py-2 text-[11px] text-[var(--mc-text)] shadow-[0_18px_44px_-30px_rgba(0,0,0,0.9)] backdrop-blur",
           }}
         >
           <div className="relative overflow-hidden">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 opacity-70"
-              style={{
-                backgroundImage:
-                  "radial-gradient(320px 190px at 15% 15%, rgba(245,158,11,0.14), transparent 72%), radial-gradient(300px 180px at 90% 10%, rgba(234,179,8,0.10), transparent 75%), repeating-linear-gradient(0deg, rgba(248,242,232,0.03), rgba(248,242,232,0.03) 1px, transparent 1px, transparent 3px)",
-              }}
             />
             <div className="relative">
               <div className="text-[10px] uppercase tracking-[0.32em] text-[var(--mc-text-muted)]">

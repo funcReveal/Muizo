@@ -21,7 +21,6 @@ import EditHeader from "./components/header/EditHeader";
 import PlaylistListPanel from "./components/playlist/PlaylistListPanel";
 import PlaylistPopover from "./components/playlist/PlaylistPopover";
 import PlayerPanel from "./components/player/PlayerPanel";
-import StatusRow from "./components/header/StatusRow";
 import {
   DEFAULT_DURATION_SEC,
   createLocalId,
@@ -79,7 +78,6 @@ const CLIP_DURATION_LABEL = "播放時長";
 const SAVING_LABEL = "儲存中";
 const SAVE_ERROR_LABEL = "儲存失敗";
 const SAVED_LABEL = "已儲存";
-const LOADING_LABEL = "載入中";
 const UNSAVED_PROMPT = "尚未儲存，確定要離開嗎？";
 const COLLECTION_SELECT_LABEL = "收藏庫清單";
 const NEW_COLLECTION_LABEL = "建立新收藏庫";
@@ -999,14 +997,17 @@ const EditPage = () => {
     }
   }, [selectedItem?.startSec, selectedItem?.endSec, maxSec, startSec, endSec]);
 
-  const updateSelectedItem = useCallback((updates: Partial<EditableItem>) => {
-    setPlaylistItems((prev) =>
-      prev.map((item, idx) =>
-        idx === selectedIndex ? { ...item, ...updates } : item,
-      ),
-    );
-    markDirty();
-  }, [markDirty, selectedIndex]);
+  const updateSelectedItem = useCallback(
+    (updates: Partial<EditableItem>) => {
+      setPlaylistItems((prev) =>
+        prev.map((item, idx) =>
+          idx === selectedIndex ? { ...item, ...updates } : item,
+        ),
+      );
+      markDirty();
+    },
+    [markDirty, selectedIndex],
+  );
 
   const handleSelectIndex = useCallback(
     (nextIndex: number) => {
@@ -1294,47 +1295,53 @@ const EditPage = () => {
     playerRef.current.playVideo?.();
   };
 
-  const moveItem = useCallback((fromIndex: number, toIndex: number) => {
-    reorderRef.current = true;
-    reorderSelectedIdRef.current = lastSelectedIdRef.current;
-    if (
-      fromIndex < 0 ||
-      toIndex < 0 ||
-      fromIndex >= playlistItems.length ||
-      toIndex >= playlistItems.length ||
-      fromIndex === toIndex
-    ) {
-      return;
-    }
-    setPlaylistItems((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
-    markDirty();
-  }, [markDirty, playlistItems.length]);
-
-  const removeItem = useCallback((index: number) => {
-    markDirty();
-    const removedId = playlistItems[index]?.localId ?? null;
-    setPlaylistItems((prev) => {
-      const target = prev[index];
-      if (target?.dbId) {
-        setPendingDeleteIds((ids) =>
-          ids.includes(target.dbId!) ? ids : [...ids, target.dbId!],
-        );
+  const moveItem = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      reorderRef.current = true;
+      reorderSelectedIdRef.current = lastSelectedIdRef.current;
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= playlistItems.length ||
+        toIndex >= playlistItems.length ||
+        fromIndex === toIndex
+      ) {
+        return;
       }
-      return prev.filter((_item, idx) => idx !== index);
-    });
-    if (removedId && removedId === selectedItemId) {
-      const next =
-        playlistItems[index + 1]?.localId ??
-        playlistItems[index - 1]?.localId ??
-        null;
-      setSelectedItemId(next);
-    }
-  }, [markDirty, playlistItems, selectedItemId]);
+      setPlaylistItems((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        return next;
+      });
+      markDirty();
+    },
+    [markDirty, playlistItems.length],
+  );
+
+  const removeItem = useCallback(
+    (index: number) => {
+      markDirty();
+      const removedId = playlistItems[index]?.localId ?? null;
+      setPlaylistItems((prev) => {
+        const target = prev[index];
+        if (target?.dbId) {
+          setPendingDeleteIds((ids) =>
+            ids.includes(target.dbId!) ? ids : [...ids, target.dbId!],
+          );
+        }
+        return prev.filter((_item, idx) => idx !== index);
+      });
+      if (removedId && removedId === selectedItemId) {
+        const next =
+          playlistItems[index + 1]?.localId ??
+          playlistItems[index - 1]?.localId ??
+          null;
+        setSelectedItemId(next);
+      }
+    },
+    [markDirty, playlistItems, selectedItemId],
+  );
 
   const handleAddSingleToggle = useCallback(() => {
     setSingleTrackOpen(true);
@@ -1622,13 +1629,11 @@ const EditPage = () => {
           isReadOnly ? "pointer-events-none opacity-60" : ""
         }`}
       >
-        <StatusRow
-          collectionsLoading={collectionsLoading}
-          itemsLoading={itemsLoading}
-          collectionsError={collectionsError}
-          itemsError={itemsError}
-          loadingLabel={LOADING_LABEL}
-        />
+        {(collectionsError || itemsError) && (
+          <div className="m-2 rounded-xl border border-rose-500/40 bg-rose-950/35 px-3 py-2 text-xs text-rose-200">
+            {collectionsError || itemsError}
+          </div>
+        )}
         <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="order-2 lg:order-2 min-w-0">
             {playlistItems.length > 0 && (
@@ -1637,7 +1642,6 @@ const EditPage = () => {
                 selectedIndex={selectedIndex}
                 onSelect={handleSelectIndex}
                 onRemove={removeItem}
-                onMove={moveItem}
                 onReorder={moveItem}
                 listRef={listContainerRef}
                 highlightIndex={highlightIndex}

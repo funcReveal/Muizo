@@ -491,7 +491,7 @@ const PlayerPanel = ({
         >
           <Repeat fontSize="small" />
         </button>
-        <div className="ml-auto flex items-center gap-2 rounded-2xl bg-slate-950/60 px-2.5 py-1.5 text-[11px] text-slate-300 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.25)]">
+        <div className="ml-auto flex items-center gap-2 rounded-2xl bg-slate-950/60 py-1.5 text-[11px] text-slate-300 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.25)]">
           <button
             type="button"
             onClick={onToggleMute}
@@ -569,9 +569,6 @@ const PlayerPanel = ({
               }}
             />
           </div>
-          <span className="min-w-[28px] rounded-full bg-slate-900/70 px-2 py-0.5 text-right text-[10px] text-slate-400">
-            {isMuted ? 0 : volume}
-          </span>
         </div>
       </div>
     </div>
