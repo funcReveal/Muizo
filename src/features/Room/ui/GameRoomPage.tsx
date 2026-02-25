@@ -325,6 +325,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const WATCHDOG_DRIFT_TOLERANCE_SEC = 1.2;
   const WATCHDOG_REQUEST_INTERVAL_MS = 1000;
   const UI_CLOCK_TICK_MS = 100;
+  const MEDIA_SESSION_REFRESH_MS = 250;
   const getServerNowMs = useCallback(
     () => Date.now() + serverOffsetMs,
     [serverOffsetMs],
@@ -799,17 +800,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       return;
     if (typeof MediaMetadata === "undefined") return;
     try {
+      const silentAudio = silentAudioRef.current;
+      const hasSilentAudioSession =
+        requiresAudioGesture &&
+        audioUnlockedRef.current &&
+        !!silentAudio &&
+        !silentAudio.paused;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: "Muizo",
         artist: "Music Quiz",
         album: "Competitive Audio Mode",
       });
       navigator.mediaSession.playbackState =
-        isEnded ? "paused" : "playing";
+        hasSilentAudioSession ? "playing" : isEnded ? "paused" : "playing";
     } catch (err) {
       console.error("mediaSession setup failed", err);
     }
-  }, [isEnded]);
+  }, [isEnded, requiresAudioGesture]);
 
   const startSilentAudio = useCallback(() => {
     const audio = silentAudioRef.current;
@@ -1108,10 +1115,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [applyVolume, volume]);
 
   useEffect(() => {
-    if (isEnded) {
-      stopSilentAudio();
-    }
-  }, [isEnded, stopSilentAudio]);
+    // Keep silent audio active through the settlement transition on iOS/Safari,
+    // otherwise the system media panel may fall back to the iframe title.
+    if (!isEnded) return;
+    updateMediaSession();
+  }, [isEnded, updateMediaSession]);
+
+  useEffect(() => {
+    if (!requiresAudioGesture || !audioUnlocked) return;
+    const timer = window.setInterval(() => {
+      updateMediaSession();
+    }, MEDIA_SESSION_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [
+    MEDIA_SESSION_REFRESH_MS,
+    audioUnlocked,
+    requiresAudioGesture,
+    updateMediaSession,
+  ]);
 
   useEffect(() => {
     if (isEnded) return;
