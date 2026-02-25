@@ -1437,18 +1437,22 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 label={`題數 ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
                 className="text-slate-200 border-slate-600"
               />
-              <Chip
-                size="small"
-                variant="outlined"
-                label={`作答時間 ${roomPlayDurationSec} 秒`}
-                className="text-slate-200 border-slate-600"
-              />
-              <Chip
-                size="small"
-                variant="outlined"
-                label={`起始 ${roomStartOffsetSec} 秒`}
-                className="text-slate-200 border-slate-600"
-              />
+              {!roomAllowCollectionClipTiming && (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`作答時間 ${roomPlayDurationSec} 秒`}
+                  className="text-slate-200 border-slate-600"
+                />
+              )}
+              {!roomAllowCollectionClipTiming && (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`起始 ${roomStartOffsetSec} 秒`}
+                  className="text-slate-200 border-slate-600"
+                />
+              )}
               <Chip
                 size="small"
                 variant="outlined"

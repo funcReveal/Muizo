@@ -14,7 +14,7 @@ interface GameSettlementPanelProps {
   room: RoomState["room"];
   participants: RoomParticipant[];
   messages: ChatMessage[];
-  playlistItems: PlaylistItem[];
+  playlistItems?: PlaylistItem[];
   trackOrder?: number[];
   playedQuestionCount: number;
   startedAt?: number;
@@ -213,7 +213,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
   room,
   participants,
   messages,
-  playlistItems,
+  playlistItems = [],
   trackOrder,
   playedQuestionCount,
   startedAt,
@@ -470,13 +470,30 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
     if (questionRecaps.length === 0) return fallbackRecaps;
     return questionRecaps
       .slice()
-      .map((recap, index) => ({
-        ...recap,
-        key: recap.key || `recap-${recap.trackIndex}-${recap.order}-${index}`,
-        choices: (recap.choices ?? [])
-          .slice()
-          .sort((a, b) => a.index - b.index),
-      }))
+      .map((recap, index) => {
+        const myChoiceIndex =
+          typeof recap.myChoiceIndex === "number" ? recap.myChoiceIndex : null;
+        return {
+          ...recap,
+          myResult: recap.myResult ?? "unanswered",
+          myChoiceIndex,
+          key: recap.key || `recap-${recap.trackIndex}-${recap.order}-${index}`,
+          choices: (recap.choices ?? [])
+            .slice()
+            .sort((a, b) => a.index - b.index)
+            .map((choice) => ({
+              ...choice,
+              isCorrect:
+                typeof choice.isCorrect === "boolean"
+                  ? choice.isCorrect
+                  : choice.index === recap.correctChoiceIndex,
+              isSelectedByMe:
+                typeof choice.isSelectedByMe === "boolean"
+                  ? choice.isSelectedByMe
+                  : myChoiceIndex !== null && choice.index === myChoiceIndex,
+            })),
+        };
+      })
       .sort((a, b) => a.order - b.order || a.trackIndex - b.trackIndex);
   }, [fallbackRecaps, questionRecaps]);
 

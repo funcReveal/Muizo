@@ -15,6 +15,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
   RoomParticipant,
   RoomState,
@@ -809,6 +810,70 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       return null;
     }
   }, []);
+
+  const fetchSettlementHistorySummaries = useCallback(
+    async (options?: { limit?: number; beforeEndedAt?: number | null }) => {
+      const s = getSocket();
+      if (!s || !currentRoom) {
+        throw new Error("尚未加入任何房間");
+      }
+      return await new Promise<{
+        items: RoomSettlementHistorySummary[];
+        nextCursor: number | null;
+      }>((resolve, reject) => {
+        s.emit(
+          "listSettlementHistorySummaries",
+          {
+            roomId: currentRoom.id,
+            limit: options?.limit,
+            beforeEndedAt: options?.beforeEndedAt ?? null,
+          },
+          (ack) => {
+            if (!ack) {
+              reject(new Error("載入對戰歷史失敗"));
+              return;
+            }
+            if (!ack.ok) {
+              reject(new Error(ack.error || "載入對戰歷史失敗"));
+              return;
+            }
+            resolve(ack.data);
+          },
+        );
+      });
+    },
+    [currentRoom, getSocket],
+  );
+
+  const fetchSettlementReplay = useCallback(
+    async (matchId: string) => {
+      const s = getSocket();
+      if (!s || !currentRoom) {
+        throw new Error("尚未加入任何房間");
+      }
+      return await new Promise<RoomSettlementSnapshot>((resolve, reject) => {
+        s.emit(
+          "getSettlementReplay",
+          {
+            roomId: currentRoom.id,
+            matchId,
+          },
+          (ack) => {
+            if (!ack) {
+              reject(new Error("載入對戰回顧失敗"));
+              return;
+            }
+            if (!ack.ok) {
+              reject(new Error(ack.error || "載入對戰回顧失敗"));
+              return;
+            }
+            resolve(ack.data);
+          },
+        );
+      });
+    },
+    [currentRoom, getSocket],
+  );
 
   useEffect(() => {
     if (!inviteRoomId) {
@@ -2436,6 +2501,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       syncServerOffset,
       fetchRooms,
       fetchRoomById,
+      fetchSettlementHistorySummaries,
+      fetchSettlementReplay,
       resetCreateState,
     }),
     [
@@ -2548,6 +2615,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       handleUpdateAllowCollectionClipTiming,
       fetchRooms,
       fetchRoomById,
+      fetchSettlementHistorySummaries,
+      fetchSettlementReplay,
       resetCreateState,
     ],
   );

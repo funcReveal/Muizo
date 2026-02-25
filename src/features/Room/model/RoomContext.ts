@@ -5,6 +5,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
   RoomParticipant,
   RoomState,
@@ -182,6 +183,11 @@ export interface RoomContextValue {
   syncServerOffset: (serverNow: number) => void;
   fetchRooms: () => Promise<void>;
   fetchRoomById: (roomId: string) => Promise<RoomSummary | null>;
+  fetchSettlementHistorySummaries: (options?: {
+    limit?: number;
+    beforeEndedAt?: number | null;
+  }) => Promise<{ items: RoomSettlementHistorySummary[]; nextCursor: number | null }>;
+  fetchSettlementReplay: (matchId: string) => Promise<RoomSettlementSnapshot>;
   resetCreateState: () => void;
 }
 
