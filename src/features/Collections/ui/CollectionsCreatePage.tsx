@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { List, type RowComponentProps } from "react-window";
 
 import { Box, Button } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
@@ -61,6 +62,55 @@ const buildJsonHeaders = (token: string) => ({
   Authorization: `Bearer ${token}`,
 });
 
+type PreviewVirtualRowProps = {
+  items: Array<{
+    title: string;
+    answerText?: string;
+    uploader?: string;
+    duration?: string;
+    thumbnail?: string;
+  }>;
+};
+
+const PREVIEW_ROW_HEIGHT = 60;
+
+const PreviewVirtualRow = ({
+  index,
+  style,
+  items,
+}: RowComponentProps<PreviewVirtualRowProps>) => {
+  const item = items[index];
+  if (!item) return <div style={style} />;
+
+  return (
+    <div style={style} className="px-2">
+      <div className="flex items-center gap-3 px-1">
+        {item.thumbnail ? (
+          <img
+            src={item.thumbnail}
+            alt={item.title || item.answerText || "歌曲縮圖"}
+            loading="lazy"
+            className="h-9 w-16 shrink-0 rounded-md border border-[var(--mc-border)] object-cover"
+          />
+        ) : (
+          <div className="flex h-9 w-16 shrink-0 items-center justify-center rounded-md border border-[var(--mc-border)] bg-[linear-gradient(145deg,rgba(56,189,248,0.18),rgba(15,23,42,0.25))] text-[10px] text-[var(--mc-text-muted)]">
+            No Cover
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-medium text-[var(--mc-text)]">
+            {item.title || item.answerText || "未命名歌曲"}
+          </div>
+          <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
+            {item.uploader || "未知頻道"}
+            {item.duration ? ` · ${item.duration}` : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CollectionsCreatePage = () => {
   const navigate = useNavigate();
   const {
@@ -91,17 +141,16 @@ const CollectionsCreatePage = () => {
     "url",
   );
   const youtubeFetchedRef = useRef(false);
-  const [youtubeQuery, setYoutubeQuery] = useState("");
-  const [youtubeMenuOpen, setYoutubeMenuOpen] = useState(false);
+  const [selectedYoutubePlaylistId, setSelectedYoutubePlaylistId] =
+    useState("");
+  const [isImportingYoutubePlaylist, setIsImportingYoutubePlaylist] =
+    useState(false);
+  const [youtubeActionError, setYoutubeActionError] = useState<string | null>(
+    null,
+  );
 
   const ownerId = authUser?.id ?? null;
   const hasPlaylistItems = playlistItems.length > 0;
-  const playlistCountLabel = `共 ${playlistItems.length} 首`;
-  const filteredPlaylists = youtubeQuery.trim()
-    ? youtubePlaylists.filter((item) =>
-        item.title.toLowerCase().includes(youtubeQuery.trim().toLowerCase()),
-      )
-    : youtubePlaylists;
 
   useEffect(() => {
     if (!lastFetchedPlaylistTitle) return;
@@ -122,6 +171,21 @@ const CollectionsCreatePage = () => {
     lastFetchedPlaylistTitle,
     playlistItems,
   ]);
+  const previewListHeight = useMemo(
+    () =>
+      Math.min(
+        320,
+        Math.max(
+          PREVIEW_ROW_HEIGHT * 3,
+          playlistItems.length * PREVIEW_ROW_HEIGHT,
+        ),
+      ),
+    [playlistItems.length],
+  );
+  const previewRowProps = useMemo<PreviewVirtualRowProps>(
+    () => ({ items: playlistItems }),
+    [playlistItems],
+  );
 
   useEffect(() => {
     if (playlistSource !== "youtube") return;
@@ -136,6 +200,22 @@ const CollectionsCreatePage = () => {
     if (youtubeFetchedRef.current) return;
     youtubeFetchedRef.current = true;
     void fetchYoutubePlaylists();
+  };
+
+  const handleImportSelectedYoutubePlaylist = async (playlistId: string) => {
+    if (!playlistId) {
+      setYoutubeActionError("請先選擇要匯入的播放清單");
+      return;
+    }
+    setYoutubeActionError(null);
+    setIsImportingYoutubePlaylist(true);
+    try {
+      await importYoutubePlaylist(playlistId);
+    } catch {
+      setYoutubeActionError("匯入失敗，請稍後重試");
+    } finally {
+      setIsImportingYoutubePlaylist(false);
+    }
   };
 
   const handleCreateCollection = async () => {
@@ -254,7 +334,7 @@ const CollectionsCreatePage = () => {
 
   return (
     <Box className="mx-auto w-full max-w-6xl px-4 pb-6 pt-4">
-      <Box className="relative overflow-hidden rounded-3xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 p-5 text-[var(--mc-text)] shadow-[0_30px_70px_-50px_rgba(15,23,42,0.8)]">
+      <Box className="relative overflow-hidden p-5 text-[var(--mc-text)] shadow-[0_30px_70px_-50px_rgba(15,23,42,0.8)]">
         <div className="absolute inset-0 opacity-30">
           <div className="h-full w-full bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_60%)]" />
         </div>
@@ -265,9 +345,6 @@ const CollectionsCreatePage = () => {
           </div>
           <div className="mt-1.5 text-2xl font-semibold text-[var(--mc-text)]">
             建立收藏庫
-          </div>
-          <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-            在同一頁完成播放清單匯入、收藏庫命名與可見度設定。
           </div>
 
           {!authToken && !authLoading && (
@@ -319,7 +396,7 @@ const CollectionsCreatePage = () => {
                     hidden={playlistSource !== "url"}
                   >
                     <div className="text-[11px] text-[var(--mc-text-muted)]">
-                      直接貼上公開或未列出播放清單連結
+                      直接貼上播放清單連結
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <input
@@ -339,11 +416,6 @@ const CollectionsCreatePage = () => {
                     {playlistError && (
                       <div className="text-xs text-rose-300">
                         {playlistError}
-                      </div>
-                    )}
-                    {hasPlaylistItems && (
-                      <div className="text-[11px] text-[var(--mc-text-muted)]">
-                        {playlistCountLabel}
                       </div>
                     )}
                   </div>
@@ -374,67 +446,46 @@ const CollectionsCreatePage = () => {
                       )}
                     </div>
 
-                    {filteredPlaylists.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <input
-                            value={youtubeQuery}
-                            onChange={(e) => setYoutubeQuery(e.target.value)}
-                            onFocus={() => {
-                              ensureYoutubePlaylists();
-                              setYoutubeMenuOpen(true);
-                            }}
-                            onBlur={() => {
-                              window.setTimeout(
-                                () => setYoutubeMenuOpen(false),
-                                120,
-                              );
-                            }}
-                            placeholder={`${youtubePlaylistsLoading ? "讀取播放清單中..." : "搜尋你的播放清單"}`}
-                            className="w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-2 text-sm text-[var(--mc-text)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              ensureYoutubePlaylists();
-                              setYoutubeMenuOpen((prev) => !prev);
-                            }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--mc-text-muted)]"
-                          >
-                            {youtubeMenuOpen ? "收合" : "展開"}
-                          </button>
-                          {youtubeMenuOpen && (
-                            <div className="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/95 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.8)]">
-                              <div className="max-h-56 overflow-y-auto py-2">
-                                {filteredPlaylists.length === 0 && (
-                                  <div className="px-3 py-2 text-xs text-[var(--mc-text-muted)]">
-                                    找不到符合的播放清單
-                                  </div>
-                                )}
-                                {filteredPlaylists.map((playlist) => (
-                                  <button
-                                    key={playlist.id}
-                                    type="button"
-                                    onClick={() => {
-                                      importYoutubePlaylist(playlist.id);
-                                      setYoutubeMenuOpen(false);
-                                    }}
-                                    className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-[var(--mc-text)] hover:bg-[var(--mc-surface)]/70"
-                                  >
-                                    <span className="truncate">
-                                      {playlist.title}
-                                    </span>
-                                    <span className="ml-2 text-[10px] text-[var(--mc-text-muted)]">
-                                      {playlist.itemCount} 首
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                    <div className="space-y-2">
+                      <select
+                        value={selectedYoutubePlaylistId}
+                        onFocus={ensureYoutubePlaylists}
+                        onChange={async (e) => {
+                          const nextId = e.target.value;
+                          setSelectedYoutubePlaylistId(nextId);
+                          setYoutubeActionError(null);
+                          if (!nextId) return;
+                          await handleImportSelectedYoutubePlaylist(nextId);
+                        }}
+                        disabled={
+                          youtubePlaylistsLoading || isImportingYoutubePlaylist
+                        }
+                        className="w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/75 px-3 py-2 text-sm text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-65"
+                      >
+                        <option value="">
+                          {youtubePlaylistsLoading
+                            ? "讀取播放清單中..."
+                            : "請選擇播放清單"}
+                        </option>
+                        {youtubePlaylists.map((playlist) => (
+                          <option key={playlist.id} value={playlist.id}>
+                            {playlist.title}（{playlist.itemCount} 首）
+                          </option>
+                        ))}
+                      </select>
+
+                      {youtubePlaylistsLoading && (
+                        <div className="rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)]/55 px-3 py-2 text-xs text-[var(--mc-text-muted)] animate-pulse">
+                          正在載入你的播放清單...
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      {youtubeActionError && (
+                        <div className="rounded-lg border border-rose-500/35 bg-rose-900/20 px-3 py-2 text-xs text-rose-200">
+                          {youtubeActionError}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -496,25 +547,28 @@ const CollectionsCreatePage = () => {
               )}
             </div>
 
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3 h-full">
-              <div className="text-xs text-[var(--mc-text-muted)]">
+            <div className="p-3 h-full">
+              {/* <div className="text-xs text-[var(--mc-text-muted)]">
                 收藏庫預覽
-              </div>
+              </div> */}
               {collectionPreview ? (
-                <div className="mt-3 space-y-3">
-                  <div className="rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-3">
+                <div className="mt-3">
+                  <div className="mt-1 flex items-center justify-between text-xs text-[var(--mc-text-muted)]">
                     <div className="text-base font-semibold text-[var(--mc-text)]">
                       {collectionPreview.title}
                     </div>
-                    <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                      第一首：{collectionPreview.subtitle || "未命名"}
-                    </div>
-                    <div className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
-                      {collectionPreview.count} 首歌曲
-                    </div>
+                    <span>{collectionPreview.count} 首歌曲</span>
                   </div>
-                  <div className="rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-3 text-[11px] text-[var(--mc-text-muted)]">
-                    建立後可進入編輯頁調整答題文字與剪輯區間。
+                  <div className="mt-3 border-t border-[var(--mc-border)]/70 pt-3">
+                    <div className="h-full w-full overflow-hidden rounded-lg">
+                      <List<PreviewVirtualRowProps>
+                        style={{ height: previewListHeight, width: "100%" }}
+                        rowCount={playlistItems.length}
+                        rowHeight={PREVIEW_ROW_HEIGHT}
+                        rowProps={previewRowProps}
+                        rowComponent={PreviewVirtualRow}
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (

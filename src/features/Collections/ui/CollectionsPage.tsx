@@ -96,10 +96,12 @@ const CollectionsPage = () => {
     string | null
   >(null);
   const [confirmPublicOpen, setConfirmPublicOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingVisibility, setPendingVisibility] = useState<{
     id: string;
     visibility: "private" | "public";
   } | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authResolved, setAuthResolved] = useState(() => !authLoading);
@@ -247,7 +249,6 @@ const CollectionsPage = () => {
 
   const handleDeleteCollection = async (id: string) => {
     if (!WORKER_API_URL || !authToken) return;
-    if (!window.confirm(TEXT.deleteConfirm)) return;
     setDeletingId(id);
     try {
       const token = await ensureFreshAuthToken({
@@ -466,7 +467,8 @@ const CollectionsPage = () => {
                             disabled={deletingId === collection.id}
                             onClick={(event) => {
                               event.stopPropagation();
-                              handleDeleteCollection(collection.id);
+                              setPendingDeleteId(collection.id);
+                              setConfirmDeleteOpen(true);
                             }}
                             className="text-white/70 hover:text-white"
                             aria-label="delete"
@@ -512,6 +514,24 @@ const CollectionsPage = () => {
             onCancel={() => {
               setPendingVisibility(null);
               setConfirmPublicOpen(false);
+            }}
+          />
+          <ConfirmDialog
+            open={confirmDeleteOpen}
+            title="確認刪除？"
+            description={TEXT.deleteConfirm}
+            confirmLabel="確定"
+            onConfirm={() => {
+              const targetId = pendingDeleteId;
+              setPendingDeleteId(null);
+              setConfirmDeleteOpen(false);
+              if (targetId) {
+                void handleDeleteCollection(targetId);
+              }
+            }}
+            onCancel={() => {
+              setPendingDeleteId(null);
+              setConfirmDeleteOpen(false);
             }}
           />
         </>

@@ -90,7 +90,9 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
       <TextField
         size={passwordFieldSize}
         variant={passwordFieldVariant}
-        slotProps={inputLabelSlotProps ? { inputLabel: inputLabelSlotProps } : undefined}
+        slotProps={
+          inputLabelSlotProps ? { inputLabel: inputLabelSlotProps } : undefined
+        }
         label="房間密碼（選填）"
         value={password}
         onChange={(e) => onPasswordChange(e.target.value)}

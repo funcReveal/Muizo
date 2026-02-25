@@ -25,7 +25,7 @@ import {
   Typography,
 } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import BrandLogo from "../../../../shared/ui/BrandLogo";
 
@@ -116,9 +116,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   onNavigateCollections,
 }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const isHomeRoute =
-    location.pathname === "/" || location.pathname === "/rooms";
+
   const authLabel =
     authUser?.display_name || authUser?.id || displayUsername || "Guest";
   const authSubLabel = authUser?.email ?? null;
@@ -254,23 +252,20 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
       ];
 
   return (
-    <header className="flex items-center justify-between gap-4 text-[var(--mc-text)]">
-      {isHomeRoute ? (
-        <Link
-          to="/rooms"
-          className="inline-flex items-cente px-3 py-2 transition "
-        >
-          <BrandLogo compact />
-        </Link>
-      ) : (
-        <div />
-      )}
-      <div className="relative inline-flex items-center">
+    <header className="flex w-full min-w-0 items-center justify-between gap-3 text-[var(--mc-text)] sm:gap-4">
+      <Link
+        to="/rooms"
+        className="inline-flex shrink-0 items-center px-3 py-2 transition"
+      >
+        <BrandLogo compact />
+      </Link>
+
+      <div className="relative inline-flex min-w-0 shrink-0 items-center">
         {authUser ? (
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="group inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 px-3 py-1.5 text-sm font-medium text-[var(--mc-text)] shadow-[0_10px_30px_-24px_rgba(15,23,42,0.8)] transition hover:border-slate-500/80 hover:bg-[var(--mc-surface-strong)]/80"
+            className="group inline-flex min-w-0 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 px-3 py-1.5 text-sm font-medium text-[var(--mc-text)] shadow-[0_10px_30px_-24px_rgba(15,23,42,0.8)] transition hover:border-slate-500/80 hover:bg-[var(--mc-surface-strong)]/80"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
@@ -291,7 +286,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
                 {authLabel?.[0]?.toUpperCase() ?? "?"}
               </span>
             )}
-            <span className="max-w-[140px] truncate text-sm text-[var(--mc-text)]">
+            <span className="max-w-[120px] truncate text-sm text-[var(--mc-text)] sm:max-w-[180px]">
               {authLabel}
             </span>
             <span

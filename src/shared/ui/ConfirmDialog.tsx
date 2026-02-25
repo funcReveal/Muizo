@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   Button,
   Dialog,
@@ -13,6 +14,7 @@ type ConfirmDialogProps = {
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  extraContent?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -23,6 +25,7 @@ const ConfirmDialog = ({
   description,
   confirmLabel = "確認",
   cancelLabel = "取消",
+  extraContent,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => (
@@ -47,6 +50,7 @@ const ConfirmDialog = ({
       <DialogContentText className="text-[var(--mc-text-muted)]">
         {description}
       </DialogContentText>
+      {extraContent}
     </DialogContent>
     <DialogActions className="px-6 pb-5">
       <Button

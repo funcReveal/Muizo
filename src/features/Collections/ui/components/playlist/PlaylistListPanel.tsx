@@ -1,6 +1,7 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
+import { Checkbox, FormControlLabel } from "@mui/material";
 
 import {
   DndContext,
@@ -14,6 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import Close from "@mui/icons-material/Close";
 import {
   SortableContext,
   arrayMove,
@@ -22,6 +24,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { List, useListCallbackRef } from "react-window";
+import ConfirmDialog from "../../../../../shared/ui/ConfirmDialog";
 
 type PlaylistItemView = {
   localId: string;
@@ -38,7 +41,6 @@ type PlaylistListPanelProps = {
   selectedIndex: number;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
-  onMove: (from: number, to: number) => void;
   onReorder: (from: number, to: number) => void;
   listRef: RefObject<HTMLDivElement | null>;
   highlightIndex: number | null;
@@ -68,44 +70,35 @@ type SortableRowProps = {
   };
   item: PlaylistItemView;
   index: number;
-  isFirst: boolean;
-  isLast: boolean;
   isActive: boolean;
   isHighlighted: boolean;
   clipDurationLabel: string;
   formatSeconds: (value: number) => string;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
-  onMove: (from: number, to: number) => void;
   outerStyle?: CSSProperties;
 };
 
 const RowCard = ({
   item,
   index,
-  isFirst,
-  isLast,
   isActive,
   isHighlighted,
   clipDurationLabel,
   formatSeconds,
   onSelect,
   onRemove,
-  onMove,
   dndHandle,
   dimmed,
 }: {
   item: PlaylistItemView;
   index: number;
-  isFirst: boolean;
-  isLast: boolean;
   isActive: boolean;
   isHighlighted: boolean;
   clipDurationLabel: string;
   formatSeconds: (value: number) => string;
   onSelect?: (index: number) => void;
   onRemove?: (index: number) => void;
-  onMove?: (from: number, to: number) => void;
   dndHandle?: ReactNode;
   dimmed?: boolean;
 }) => {
@@ -136,19 +129,6 @@ const RowCard = ({
         <span className="absolute left-1 top-1 rounded bg-[var(--mc-surface)]/80 px-1 py-0.5 text-[9px] text-[var(--mc-text)]">
           {index + 1}
         </span>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove(index);
-            }}
-            className="absolute right-1 top-1 rounded bg-[var(--mc-surface)]/80 px-1 text-[9px] text-[var(--mc-text)] hover:bg-rose-500/80"
-            aria-label="Delete"
-          >
-            X
-          </button>
-        )}
         {item.thumbnail ? (
           <img
             src={item.thumbnail}
@@ -172,35 +152,19 @@ const RowCard = ({
           {formatSeconds(Math.max(0, item.endSec - item.startSec))}
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1 text-[10px] text-[var(--mc-text-muted)]">
-        <span className="rounded bg-[var(--mc-surface)]/80 px-1.5 py-0.5">
-          -
-        </span>
-        {onMove && (
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onMove(index, index - 1);
-              }}
-              disabled={isFirst}
-              className="rounded px-1.5 py-0.5 hover:bg-[var(--mc-surface-strong)] disabled:opacity-40"
-            >
-              ??
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onMove(index, index + 1);
-              }}
-              disabled={isLast}
-              className="rounded px-1.5 py-0.5 hover:bg-slate-800 disabled:opacity-40"
-            >
-              ??
-            </button>
-          </div>
+      <div className="flex pb-5">
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemove(index);
+            }}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-rose-400/45 bg-rose-500/12 text-rose-200 transition-colors hover:bg-rose-500/22"
+            aria-label="Delete"
+          >
+            <Close sx={{ fontSize: 14 }} />
+          </button>
         )}
       </div>
     </div>
@@ -211,15 +175,12 @@ const SortableRow = ({
   ariaAttributes,
   item,
   index,
-  isFirst,
-  isLast,
   isActive,
   isHighlighted,
   clipDurationLabel,
   formatSeconds,
   onSelect,
   onRemove,
-  onMove,
   outerStyle,
 }: SortableRowProps) => {
   const {
@@ -248,20 +209,21 @@ const SortableRow = ({
   };
 
   return (
-    <div style={outerStyle} {...(ariaAttributes ?? {})} className="box-border px-0 pb-2">
+    <div
+      style={outerStyle}
+      {...(ariaAttributes ?? {})}
+      className="box-border px-0 pb-2"
+    >
       <div ref={setNodeRef} style={innerStyle}>
         <RowCard
           item={item}
           index={index}
-          isFirst={isFirst}
-          isLast={isLast}
           isActive={isActive}
           isHighlighted={isHighlighted}
           clipDurationLabel={clipDurationLabel}
           formatSeconds={formatSeconds}
           onSelect={onSelect}
           onRemove={onRemove}
-          onMove={onMove}
           dimmed={isDragging}
           dndHandle={
             <span
@@ -298,8 +260,6 @@ const OverlayCard = ({
       <RowCard
         item={item}
         index={index}
-        isFirst={false}
-        isLast={false}
         isActive={true}
         isHighlighted={false}
         clipDurationLabel={clipDurationLabel}
@@ -319,7 +279,6 @@ const PlaylistListPanel = ({
   selectedIndex,
   onSelect,
   onRemove,
-  onMove,
   onReorder,
   listRef,
   highlightIndex,
@@ -347,6 +306,10 @@ const PlaylistListPanel = ({
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [skipRemoveConfirm, setSkipRemoveConfirm] = useState(false);
+  const [pendingSkipRemoveConfirm, setPendingSkipRemoveConfirm] =
+    useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       // Prevent accidental drags from minor pointer movements.
@@ -356,6 +319,9 @@ const PlaylistListPanel = ({
 
   const activeIndex = activeId ? itemIds.indexOf(activeId) : -1;
   const activeItem = activeIndex >= 0 ? safeItems[activeIndex] : null;
+  const pendingRemoveItem = pendingRemoveId
+    ? (safeItems.find((item) => item.localId === pendingRemoveId) ?? null)
+    : null;
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -381,6 +347,32 @@ const PlaylistListPanel = ({
     setActiveId(null);
   };
 
+  const handleRequestRemove = useCallback(
+    (index: number) => {
+      const target = safeItems[index];
+      if (!target) return;
+      if (skipRemoveConfirm) {
+        onRemove(index);
+        return;
+      }
+      setPendingSkipRemoveConfirm(skipRemoveConfirm);
+      setPendingRemoveId(target.localId);
+    },
+    [onRemove, safeItems, skipRemoveConfirm],
+  );
+
+  const handleConfirmRemove = useCallback(() => {
+    if (!pendingRemoveId) return;
+    const targetIndex = safeItems.findIndex(
+      (item) => item.localId === pendingRemoveId,
+    );
+    setSkipRemoveConfirm(pendingSkipRemoveConfirm);
+    setPendingRemoveId(null);
+    if (targetIndex >= 0) {
+      onRemove(targetIndex);
+    }
+  }, [onRemove, pendingRemoveId, pendingSkipRemoveConfirm, safeItems]);
+
   const [listApi, setListApi] = useListCallbackRef(null);
 
   useEffect(() => {
@@ -405,59 +397,57 @@ const PlaylistListPanel = ({
     formatSeconds: (value: number) => string;
     onSelect: (index: number) => void;
     onRemove: (index: number) => void;
-    onMove: (from: number, to: number) => void;
   };
 
   // Row height is (card ~64px) + (pb-2 = 8px).
   const ROW_HEIGHT = 72;
 
-  const Row = useCallback(({
-    ariaAttributes,
-    index,
-    style,
-    items,
-    selectedIndex,
-    highlightIndex,
-    clipDurationLabel,
-    formatSeconds,
-    onSelect,
-    onRemove,
-    onMove,
-  }: {
-    ariaAttributes: {
-      "aria-posinset": number;
-      "aria-setsize": number;
-      role: "listitem";
-    };
-    index: number;
-    style: CSSProperties;
-  } & VirtualRowProps) => {
-    const item = items[index];
-    if (!item) return <div style={style} />;
-    return (
-      <SortableRow
-        ariaAttributes={ariaAttributes}
-        item={item}
-        index={index}
-        isFirst={index === 0}
-        isLast={index === items.length - 1}
-        isActive={index === selectedIndex}
-        isHighlighted={highlightIndex === index}
-        clipDurationLabel={clipDurationLabel}
-        formatSeconds={formatSeconds}
-        onSelect={onSelect}
-        onRemove={onRemove}
-        onMove={onMove}
-        outerStyle={style}
-      />
-    );
-  }, []);
+  const Row = useCallback(
+    ({
+      ariaAttributes,
+      index,
+      style,
+      items,
+      selectedIndex,
+      highlightIndex,
+      clipDurationLabel,
+      formatSeconds,
+      onSelect,
+      onRemove,
+    }: {
+      ariaAttributes: {
+        "aria-posinset": number;
+        "aria-setsize": number;
+        role: "listitem";
+      };
+      index: number;
+      style: CSSProperties;
+    } & VirtualRowProps) => {
+      const item = items[index];
+      if (!item) return <div style={style} />;
+      return (
+        <SortableRow
+          ariaAttributes={ariaAttributes}
+          item={item}
+          index={index}
+          isActive={index === selectedIndex}
+          isHighlighted={highlightIndex === index}
+          clipDurationLabel={clipDurationLabel}
+          formatSeconds={formatSeconds}
+          onSelect={onSelect}
+          onRemove={onRemove}
+          outerStyle={style}
+        />
+      );
+    },
+    [],
+  );
 
   return (
     <div className="space-y-2 lg:sticky self-start">
-      <div className="flex items-center justify-between text-[11px] text-[var(--mc-text-muted)]">
-        <span className="uppercase tracking-[0.22em]">Playlist</span>
-        <span>{items.length} items</span>
+      <div className="flex items-center justify-between text-[11px] text-[var(--mc-text-muted)] px-2">
+        <span className="uppercase tracking-[0.22em]">播放清單</span>
+        <span>{items.length} 題</span>
       </div>
 
       <div className="relative">
@@ -524,7 +514,9 @@ const PlaylistListPanel = ({
             />
             <input
               value={singleTrackAnswer}
-              onChange={(event) => onSingleTrackAnswerChange(event.target.value)}
+              onChange={(event) =>
+                onSingleTrackAnswerChange(event.target.value)
+              }
               placeholder="Answer"
               disabled={!canEditSingleMeta}
               className="w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)] px-2 py-1.5 text-xs text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -591,8 +583,7 @@ const PlaylistListPanel = ({
                 clipDurationLabel,
                 formatSeconds,
                 onSelect,
-                onRemove,
-                onMove,
+                onRemove: handleRequestRemove,
               }}
               style={{ height: "100%" }}
             />
@@ -615,6 +606,38 @@ const PlaylistListPanel = ({
             )
           : null}
       </DndContext>
+      <ConfirmDialog
+        open={Boolean(pendingRemoveId)}
+        title="確認刪除題目"
+        description={
+          pendingRemoveItem
+            ? `確定要刪除「${pendingRemoveItem.title || "未命名"}」嗎？`
+            : "確定要刪除這個題目嗎？"
+        }
+        confirmLabel="刪除"
+        extraContent={
+          <div className="mt-3">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={pendingSkipRemoveConfirm}
+                  onChange={(event) =>
+                    setPendingSkipRemoveConfirm(event.target.checked)
+                  }
+                  size="small"
+                />
+              }
+              label="本次編輯期間不再提示"
+              className="text-[var(--mc-text-muted)]"
+            />
+          </div>
+        }
+        onConfirm={handleConfirmRemove}
+        onCancel={() => {
+          setPendingRemoveId(null);
+          setPendingSkipRemoveConfirm(skipRemoveConfirm);
+        }}
+      />
     </div>
   );
 };
