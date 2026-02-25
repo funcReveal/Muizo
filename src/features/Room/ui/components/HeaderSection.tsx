@@ -1,5 +1,6 @@
 ﻿import {
   ExpandMore,
+  HistoryEdu,
   LibraryMusic,
   Login,
   Logout,
@@ -43,6 +44,7 @@ interface HeaderSectionProps {
   onEditProfile?: () => void;
   onNavigateRooms?: () => void;
   onNavigateCollections?: () => void;
+  onNavigateHistory?: () => void;
 }
 
 type SystemStatusPayload = {
@@ -114,6 +116,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   onEditProfile,
   onNavigateRooms,
   onNavigateCollections,
+  onNavigateHistory,
 }) => {
   const navigate = useNavigate();
 
@@ -420,6 +423,48 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
               <ListItemText
                 primary="系統狀態"
                 secondary="檢視後端 OS 與執行狀態"
+              />
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                handleMenuClose();
+                if (onNavigateHistory) {
+                  onNavigateHistory();
+                  return;
+                }
+                navigate("/history");
+              }}
+              sx={{
+                ...menuItemSx,
+                "&:hover": {
+                  background:
+                    "linear-gradient(90deg, rgba(16, 185, 129, 0.12), rgba(34, 211, 238, 0.1))",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 30, color: "inherit" }}>
+                <Box
+                  sx={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "7px",
+                    display: "grid",
+                    placeItems: "center",
+                    border: "1px solid rgba(34, 211, 238, 0.34)",
+                    background:
+                      "linear-gradient(180deg, rgba(16, 185, 129, 0.14), rgba(14, 116, 144, 0.18))",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 16px -14px rgba(34, 211, 238, 0.5)",
+                    color: "#67e8f9",
+                  }}
+                >
+                  <HistoryEdu sx={{ fontSize: 14 }} />
+                </Box>
+              </ListItemIcon>
+              <ListItemText
+                primary="歷史紀錄"
+                secondary="查看對戰歷程與回顧入口"
               />
             </MenuItem>
 

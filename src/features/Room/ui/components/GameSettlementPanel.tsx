@@ -22,7 +22,9 @@ interface GameSettlementPanelProps {
   meClientId?: string;
   questionRecaps?: SettlementQuestionRecap[];
   onBackToLobby?: () => void;
-  onRequestExit: () => void;
+  onRequestExit?: () => void;
+  hideActions?: boolean;
+  mode?: "live" | "history";
 }
 
 export type SettlementQuestionResult = "correct" | "wrong" | "unanswered";
@@ -222,7 +224,10 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
   questionRecaps = [],
   onBackToLobby,
   onRequestExit,
+  hideActions = false,
+  mode = "live",
 }) => {
+  const isHistoryMode = mode === "history";
   const sortedParticipants = useMemo(
     () => participants.slice().sort((a, b) => b.score - a.score),
     [participants],
@@ -872,10 +877,26 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
   ] as const;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl px-2 pb-4 sm:px-4">
-      <section className="game-settlement-stage relative min-w-0 overflow-hidden rounded-[30px] border border-amber-400/35 bg-slate-950/95 px-4 py-6 shadow-[0_30px_120px_-60px_rgba(245,158,11,0.6)] sm:px-6 sm:py-7">
-        <div className="pointer-events-none absolute -left-20 -top-20 h-52 w-52 rounded-full bg-amber-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-24 bottom-0 h-64 w-64 rounded-full bg-sky-500/15 blur-3xl" />
+    <div
+      className={`mx-auto w-full min-w-0 ${
+        isHistoryMode ? "max-w-none px-0 pb-0" : "max-w-6xl px-2 pb-4 sm:px-4"
+      }`}
+    >
+      <section
+        className={`game-settlement-stage ${
+          isHistoryMode ? "game-settlement-stage--history" : ""
+        } relative min-w-0 overflow-hidden ${
+          isHistoryMode
+            ? "rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(8,11,18,0.78),rgba(6,8,13,0.86))] px-3 py-4 shadow-none sm:px-4 sm:py-5"
+            : "rounded-[30px] border border-amber-400/35 bg-slate-950/95 px-4 py-6 shadow-[0_30px_120px_-60px_rgba(245,158,11,0.6)] sm:px-6 sm:py-7"
+        }`}
+      >
+        {!isHistoryMode && (
+          <>
+            <div className="pointer-events-none absolute -left-20 -top-20 h-52 w-52 rounded-full bg-amber-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute -right-24 bottom-0 h-64 w-64 rounded-full bg-sky-500/15 blur-3xl" />
+          </>
+        )}
 
         <div className="relative grid gap-4">
           <header
@@ -926,28 +947,33 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
             >
               <p className="text-xs uppercase tracking-[0.24em] text-slate-400">冠軍</p>
               {winner ? (
-                <div className="relative mt-3 overflow-hidden rounded-xl border border-amber-300/45 bg-amber-500/10 px-4 py-3 shadow-[0_16px_36px_-18px_rgba(251,191,36,0.65)]">
-                  <div className="pointer-events-none absolute inset-0">
-                    {WINNER_SPARKS.map((piece, idx) => (
-                      <span
-                        key={`${winner.clientId}-spark-${idx}`}
-                        className={`absolute rounded-full ${piece.color} ${piece.size} game-settlement-confetti`}
-                        style={{
-                          left: piece.left,
-                          top: piece.top,
-                          animationDelay: `${piece.delayMs}ms`,
-                          animationDuration: `${piece.durationMs}ms`,
-                          "--mq-confetti-drift": idx % 2 === 0 ? "22px" : "-18px",
-                          "--mq-confetti-spin": idx % 2 === 0 ? "220deg" : "-220deg",
-                        } as React.CSSProperties & Record<string, string>}
-                      />
-                    ))}
-                  </div>
+                <div className="game-settlement-winner-panel relative mt-3 overflow-hidden rounded-xl border border-amber-300/45 bg-amber-500/10 px-4 py-3 shadow-[0_16px_36px_-18px_rgba(251,191,36,0.65)]">
+                  {!isHistoryMode && (
+                    <div className="pointer-events-none absolute inset-0">
+                      {WINNER_SPARKS.map((piece, idx) => (
+                        <span
+                          key={`${winner.clientId}-spark-${idx}`}
+                          className={`absolute rounded-full ${piece.color} ${piece.size} game-settlement-confetti`}
+                          style={{
+                            left: piece.left,
+                            top: piece.top,
+                            animationDelay: `${piece.delayMs}ms`,
+                            animationDuration: `${piece.durationMs}ms`,
+                            "--mq-confetti-drift": idx % 2 === 0 ? "22px" : "-18px",
+                            "--mq-confetti-spin": idx % 2 === 0 ? "220deg" : "-220deg",
+                          } as React.CSSProperties & Record<string, string>}
+                        />
+                      ))}
+                    </div>
+                  )}
                   <div className="relative z-10 inline-flex items-center rounded-full border border-amber-300/45 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.16em] text-amber-100">
                     本局冠軍
                   </div>
-                  <p className="relative z-10 text-lg font-bold text-amber-100">
-                    #1 {winner.username}
+                  <p className="relative z-10 flex items-center gap-2 text-lg font-bold text-amber-100">
+                    <span className="game-settlement-crown" aria-hidden="true">
+                      👑
+                    </span>
+                    <span className="truncate">#1 {winner.username}</span>
                   </p>
                   <p className="relative z-10 mt-1 text-sm text-slate-100">
                     分數 {winner.score}
@@ -971,7 +997,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
               )}
 
               <div className="mt-3 grid gap-2 [grid-auto-rows:1fr]">
-                <div className="rounded-xl border border-emerald-300/35 bg-emerald-400/10 px-3 py-3 min-h-[104px]">
+                <div className="game-settlement-award-card rounded-xl border border-emerald-300/35 bg-emerald-400/10 px-3 py-3 min-h-[104px]">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-semibold tracking-[0.18em] text-emerald-100">
                       準度王
@@ -991,7 +1017,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                 </div>
 
                 <div
-                  className={`rounded-xl border px-3 py-3 min-h-[104px] ${
+                    className={`game-settlement-award-card rounded-xl border px-3 py-3 min-h-[104px] ${
                     speedKingDisplay.muted
                       ? "border-slate-500/30 bg-slate-700/20 opacity-70"
                       : "border-sky-300/35 bg-sky-400/10"
@@ -1030,7 +1056,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-sky-400/35 bg-sky-500/10 px-4 py-3">
+              <div className="game-settlement-self-panel mt-4 rounded-xl border border-sky-400/35 bg-sky-500/10 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-sky-200">你的成績</p>
                 {selfParticipant && selfRank > 0 ? (
                   <>
@@ -1052,7 +1078,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
             </article>
 
             <article
-              className="game-settlement-reveal min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4"
+              className="game-settlement-reveal game-settlement-surface-card min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4"
               style={revealStyle(110)}
             >
               <div className="mb-3 flex items-center justify-between">
@@ -1203,7 +1229,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
           </div>
 
           <section
-            className="game-settlement-reveal min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4"
+            className="game-settlement-reveal game-settlement-surface-card min-w-0 rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4"
             style={revealStyle(190)}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1226,7 +1252,7 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
                 return (
                   <div
                     key={card.key}
-                    className={`rounded-xl border px-3 py-3 transition ${card.accentClass} ${
+                    className={`game-settlement-highlight-card rounded-xl border px-3 py-3 transition ${card.accentClass} ${
                       isMuted ? "opacity-70 saturate-75" : ""
                     }`}
                   >
@@ -1488,29 +1514,33 @@ const GameSettlementPanel: React.FC<GameSettlementPanelProps> = ({
             )}
           </section>
 
-          <footer
-            className="game-settlement-reveal flex flex-wrap items-center justify-stretch gap-2 sm:justify-end"
-            style={revealStyle(300)}
-          >
-            {onBackToLobby && (
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={onBackToLobby}
-                className="w-full border-slate-500/60 text-slate-200 sm:w-auto"
-              >
-                返回大廳
-              </Button>
-            )}
-            <Button
-              variant="contained"
-              color="error"
-              onClick={onRequestExit}
-              className="w-full sm:w-auto"
+          {!hideActions && (onBackToLobby || onRequestExit) && (
+            <footer
+              className="game-settlement-reveal flex flex-wrap items-center justify-stretch gap-2 sm:justify-end"
+              style={revealStyle(300)}
             >
-              離開房間
-            </Button>
-          </footer>
+              {onBackToLobby && (
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={onBackToLobby}
+                  className="w-full border-slate-500/60 text-slate-200 sm:w-auto"
+                >
+                  返回大廳
+                </Button>
+              )}
+              {onRequestExit && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={onRequestExit}
+                  className="w-full sm:w-auto"
+                >
+                  離開房間
+                </Button>
+              )}
+            </footer>
+          )}
         </div>
       </section>
     </div>

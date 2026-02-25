@@ -83,8 +83,52 @@ const extractYouTubeId = (
   }
 };
 
-const SILENT_AUDIO_SRC =
-  "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const createSilentWavDataUri = (durationSec: number) => {
+  if (typeof window === "undefined" || typeof btoa !== "function") {
+    return "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  }
+  const safeDurationSec = Math.max(0.25, Math.min(10, durationSec));
+  const sampleRate = 8000;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const frameCount = Math.max(1, Math.floor(sampleRate * safeDurationSec));
+  const dataSize = frameCount * numChannels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeAscii = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i += 1) {
+      view.setUint8(offset + i, text.charCodeAt(i));
+    }
+  };
+
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
+  view.setUint16(32, numChannels * bytesPerSample, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeAscii(36, "data");
+  view.setUint32(40, dataSize, true);
+  // PCM silence is already zero-filled by ArrayBuffer.
+
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return `data:audio/wav;base64,${btoa(binary)}`;
+};
+
+const SILENT_AUDIO_SRC = createSilentWavDataUri(2);
 
 const collectAnsweredClientIds = (
   lockedOrder?: string[],
@@ -280,6 +324,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const RESUME_DRIFT_TOLERANCE_SEC = 1.2;
   const WATCHDOG_DRIFT_TOLERANCE_SEC = 1.2;
   const WATCHDOG_REQUEST_INTERVAL_MS = 1000;
+  const UI_CLOCK_TICK_MS = 100;
   const getServerNowMs = useCallback(
     () => Date.now() + serverOffsetMs,
     [serverOffsetMs],
@@ -1010,9 +1055,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [stopSilentAudio]);
 
   useEffect(() => {
+    const uiClock = window.setInterval(() => {
+      setNowMs(getServerNowMs());
+    }, UI_CLOCK_TICK_MS);
+    return () => window.clearInterval(uiClock);
+  }, [UI_CLOCK_TICK_MS, getServerNowMs]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       const now = getServerNowMs();
-      setNowMs(now);
       updateMediaSession();
       if (
         resumeNeedsSyncRef.current &&
@@ -2044,7 +2095,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           <div className="h-px bg-slate-800/80" />
 
           <div className="game-room-chat flex min-h-[240px] flex-1 flex-col p-3 gap-2 overflow-hidden">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-200">
+            <div className="game-room-chat-header flex items-center justify-between text-sm font-semibold text-slate-200">
               <div className="flex items-center gap-2">
                 <span>聊天室</span>
               </div>
@@ -2064,10 +2115,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </span>
               </div>
             </div>
-            <div className="h-px bg-slate-800/70" />
+            <div className="game-room-chat-divider h-px" />
             <div
               ref={chatScrollRef}
-              className="flex-1 md:max-h-80 overflow-y-auto overflow-x-hidden space-y-3 pr-1"
+              className="game-room-chat-list flex-1 md:max-h-80 overflow-y-auto overflow-x-hidden space-y-3 pr-1"
             >
               {recentMessages.length === 0 ? (
                 <div className="text-xs text-slate-500 text-center py-4">
@@ -2078,7 +2129,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   // const isSelf = msg.username === username;
                   return (
                     <div key={msg.id} className={`flex`}>
-                      <div className="game-room-chat-bubble max-w-[80%] px-3 py-2 text-xs">
+                      <div className="game-room-chat-bubble game-room-chat-message max-w-full px-2.5 py-1.5 text-xs">
                         <div className="flex items-center gap-4 text-[11px] text-slate-300">
                           <span className="font-semibold">
                             {msg.username}
@@ -2100,7 +2151,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <input
-                className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
+                className="game-room-chat-input-field flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none"
                 placeholder="輸入訊息..."
                 value={messageInput}
                 onChange={(e) => onMessageChange?.(e.target.value)}
@@ -2115,6 +2166,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 variant="contained"
                 color="info"
                 size="small"
+                className="game-room-chat-send"
                 onClick={() => onSendMessage?.()}
               >
                 送出

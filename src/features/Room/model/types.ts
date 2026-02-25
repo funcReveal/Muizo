@@ -155,6 +155,12 @@ export interface RoomSettlementHistorySummary {
   playerCount: number;
   questionCount: number;
   summaryJson?: Record<string, unknown> | null;
+  selfPlayer?: {
+    usernameSnapshot: string | null;
+    finalScore: number;
+    maxCombo: number;
+    correctCount: number;
+  } | null;
 }
 
 export interface RoomSettlementSnapshot {

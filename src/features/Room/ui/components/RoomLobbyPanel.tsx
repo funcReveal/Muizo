@@ -1234,12 +1234,20 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     const item = playlistItems[index];
     return (
       <div style={style}>
-        <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-800/60">
+        <div className="room-lobby-playlist-row px-3 py-2 flex items-center gap-2 border-b border-slate-800/60">
           <div className="flex flex-1 min-w-0 items-center gap-2 overflow-x-hidden">
             <Avatar
               variant="rounded"
               src={item.thumbnail}
-              sx={{ bgcolor: "#334155", width: 56, height: 56, fontSize: 14 }}
+              sx={{
+                bgcolor: "#1f2937",
+                width: 56,
+                height: 56,
+                fontSize: 14,
+                border: "1px solid rgba(148,163,184,0.18)",
+                boxShadow:
+                  "0 10px 22px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.03)",
+              }}
             >
               {index + 1}
             </Avatar>
@@ -1249,7 +1257,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 className="max-w-99/100 truncate text-slate-400 "
               >
                 <a
-                  className="text-slate-100 hover:text-sky-400 transition-colors duration-300"
+                  className="room-lobby-playlist-row-link text-slate-100 hover:text-sky-300 transition-colors duration-300"
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
@@ -2085,9 +2093,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           ref={chatScrollRef}
           sx={{
             flex: 1,
-            border: "1px solid #1f2937",
+            border: "1px solid rgba(245,158,11,0.14)",
             borderRadius: 2,
-            backgroundColor: "rgba(15,23,42,0.6)",
+            background:
+              "radial-gradient(260px 160px at 8% 0%, rgba(245,158,11,0.05), transparent 70%), linear-gradient(180deg, rgba(8,12,19,0.92), rgba(6,10,16,0.9))",
             p: 1.5,
             maxHeight: "150px",
             overflowY: "auto",
@@ -2125,12 +2134,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                     }
                   >
                     <Box
+                      className="room-lobby-chat-message"
                       sx={{
-                        maxWidth: "75%",
-                        borderRadius: 3,
-                        px: 1.5,
-                        py: 1,
-                        // bgcolor: isSelf ? "primary.dark" : "#334155",
+                        maxWidth: "100%",
+                        borderRadius: 1,
+                        px: 1,
+                        py: 0.75,
+                        border: "none",
+                        borderLeft: "2px solid rgba(148,163,184,0.16)",
+                        background: "transparent",
+                        boxShadow: "none",
                         color: "white",
                         // whiteSpace: "wrap",
                       }}

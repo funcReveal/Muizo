@@ -680,9 +680,80 @@ const RoomLobbyPage: React.FC = () => {
 
   if (roomId && username && !currentRoom && !routeRoomResolved) {
     return (
-      <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
-        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          正在進入房間，請稍候...
+      <div className="mx-auto mt-6 w-full max-w-[1080px] min-w-0">
+        <div className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[radial-gradient(circle_at_16%_18%,rgba(245,158,11,0.14),transparent_42%),radial-gradient(circle_at_84%_14%,rgba(234,179,8,0.08),transparent_46%),linear-gradient(180deg,rgba(12,10,8,0.96),rgba(7,6,4,0.98))] p-6 text-[var(--mc-text)] shadow-[0_30px_90px_-62px_rgba(245,158,11,0.65)] sm:p-8">
+          <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:18px_18px]" />
+          <div className="relative grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="min-w-0 rounded-2xl border border-amber-200/12 bg-[color-mix(in_srgb,var(--mc-surface-strong)_80%,black_20%)] p-5">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-amber-300/35 bg-amber-300/10 shadow-[0_0_24px_-10px_rgba(245,158,11,0.9)]">
+                  <span className="absolute inset-1 rounded-[10px] border border-amber-200/20" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-200/85 border-t-transparent" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
+                    Room Connect
+                  </div>
+                  <div className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-lg">
+                    正在進入房間，請稍後
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-[var(--mc-text-muted)]">
+                正在同步房間狀態、播放清單與目前對戰資訊。完成後會自動切換到房間畫面。
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+                  房號：<span className="ml-1 truncate text-[var(--mc-text)]">{roomId}</span>
+                </span>
+                <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+                  玩家：<span className="ml-1 truncate text-amber-50">{username}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="min-w-0 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs tracking-[0.2em] text-[var(--mc-text-muted)]">
+                  連線進度
+                </div>
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] text-emerald-100/90">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
+                  處理中
+                </div>
+              </div>
+
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-[linear-gradient(90deg,rgba(245,158,11,0.75),rgba(250,204,21,0.95),rgba(251,191,36,0.7))]" />
+              </div>
+
+              <div className="mt-5 space-y-3 text-sm text-[var(--mc-text-muted)]">
+                {[
+                  "建立連線並驗證身份",
+                  "讀取房間資料與玩家名單",
+                  "同步最近狀態與顯示畫面",
+                ].map((step, index) => (
+                  <div
+                    key={step}
+                    className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2"
+                  >
+                    <span
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-200/20 bg-amber-300/10 text-[11px] font-semibold text-amber-100"
+                      style={{
+                        animation: "pulse 1.6s ease-in-out infinite",
+                        animationDelay: `${index * 0.18}s`,
+                      }}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="truncate">{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -690,16 +761,81 @@ const RoomLobbyPage: React.FC = () => {
 
   if (roomId && routeRoomResolved && !currentRoom) {
     return (
-      <div className="w-full md:w-4/5 lg:w-3/5 mx-auto mt-6">
-        <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-          <div className="mb-2">房間不存在或已關閉，請返回房間列表。</div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/30"
-            onClick={() => navigate("/rooms", { replace: true })}
-          >
-            返回房間列表
-          </button>
+      <div className="mx-auto mt-6 w-full max-w-[1080px] min-w-0">
+        <div className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[radial-gradient(circle_at_14%_16%,rgba(245,158,11,0.14),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(234,179,8,0.08),transparent_46%),linear-gradient(180deg,rgba(20,17,13,0.96),rgba(9,8,6,0.98))] p-6 text-[var(--mc-text)] shadow-[0_35px_80px_-60px_rgba(245,158,11,0.55)] sm:p-8">
+          <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:20px_20px]" />
+          <div className="relative grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_88%,black_12%)] px-4 py-3">
+                <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/28 bg-amber-300/10">
+                  <span className="absolute h-5 w-5 rounded-full border border-amber-200/55" />
+                  <span className="absolute h-[2px] w-4 rotate-45 rounded-full bg-amber-200/70" />
+                  <span className="absolute h-1.5 w-1.5 rounded-full bg-amber-200" />
+                </span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
+                    Room Check
+                  </div>
+                  <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
+                    房間連線失敗
+                  </div>
+                </div>
+              </div>
+
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
+                找不到這個房間
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
+                這個房間可能已關閉、房號錯誤，或邀請連結已失效。你可以返回大廳重新加入房間，或建立一個新的房間開始對戰。
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+                  房號：<span className="ml-1 truncate text-[var(--mc-text)]">{roomId}</span>
+                </span>
+                <span className="inline-flex items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+                  狀態：未找到或已關閉
+                </span>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/65 bg-[var(--mc-accent)]/18 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/28"
+                  onClick={() => navigate("/rooms", { replace: true })}
+                >
+                  返回大廳
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-amber-200/25 hover:bg-[var(--mc-surface-strong)]/85"
+                  onClick={() => navigate("/rooms/create")}
+                >
+                  建立房間
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_86%,black_14%)] p-4 sm:p-5">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
+                可能原因
+              </div>
+              <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  房主已離開並關閉房間
+                </li>
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  邀請連結對應的房號已過期
+                </li>
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  複製連結時房號被截斷或修改
+                </li>
+              </ul>
+              <div className="mt-4 rounded-xl border border-amber-300/18 bg-amber-300/8 px-3 py-2 text-xs leading-5 text-amber-100/85">
+                建議從「房間大廳」重新整理列表後再加入，避免使用已失效的舊連結。
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
