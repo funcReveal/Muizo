@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { type RoomCreateSourceMode } from "../model/RoomContext";
-import { PLAYER_MAX, PLAYER_MIN } from "../model/roomConstants";
+import { PLAYER_MIN } from "../model/roomConstants";
 import { useRoom } from "../model/useRoom";
 import RoomCreationSection from "./components/RoomCreationSection";
 
@@ -100,32 +100,26 @@ const RoomCreatePage: React.FC = () => {
     parsedMaxPlayers !== null &&
     (!Number.isInteger(parsedMaxPlayers) ||
       parsedMaxPlayers < PLAYER_MIN ||
-      parsedMaxPlayers > PLAYER_MAX);
+      parsedMaxPlayers > 16);
   const canCreateRoom = Boolean(
     username &&
-      roomNameInput.trim() &&
-      playlistItems.length > 0 &&
-      !maxPlayersInvalid &&
-      !playlistLoading,
+    roomNameInput.trim() &&
+    playlistItems.length > 0 &&
+    !maxPlayersInvalid &&
+    !playlistLoading,
   );
-  const headerCreateDisabled = activeCreateStep !== 2 || !canCreateRoom || isCreatingRoom;
+  const headerCreateDisabled =
+    activeCreateStep !== 2 || !canCreateRoom || isCreatingRoom;
 
   return (
     <div className="room-create-v3-page mx-auto w-full max-w-[1560px] px-3 pb-4 pt-4 text-[var(--mc-text)] sm:px-4">
       {!currentRoom?.id && username && (
-        <section className="room-create-studio room-create-v3-studio relative overflow-hidden rounded-[32px] border border-[var(--mc-border)] bg-[var(--mc-surface)]/88 p-4 shadow-[0_40px_90px_-46px_rgba(2,6,23,0.95)] sm:p-5 xl:p-6">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute -left-20 top-4 h-64 w-64 rounded-full bg-[var(--mc-accent)]/16 blur-[126px]" />
-            <div className="absolute right-4 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-[var(--mc-accent-2)]/14 blur-[140px]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(14,165,233,0.12),transparent_40%),radial-gradient(circle_at_84%_2%,rgba(34,197,94,0.12),transparent_36%)]" />
-          </div>
-
+        <section className="room-create-studio room-create-v3-studio relative overflow-hidden p-4 shadow-[0_26px_58px_-42px_rgba(2,6,23,0.78)] sm:p-5 xl:p-6">
           <div className="room-create-v3-content relative">
             <header className="room-create-v3-hero">
               <div>
-                <p className="room-create-v3-kicker">Create Room</p>
                 <h1 className="room-create-display room-create-v3-title">
-                  兩步驟快速建立對戰房
+                  建立房間
                 </h1>
                 <p className="room-create-v3-subtitle">
                   先選歌單，再設定規則。完成題數與時間後可直接建立房間。
@@ -211,7 +205,7 @@ const RoomCreatePage: React.FC = () => {
                   onStepChange={setActiveCreateStep}
                   showRoomList={false}
                   playerMin={PLAYER_MIN}
-                  playerMax={PLAYER_MAX}
+                  playerMax={16}
                 />
               </div>
 
@@ -232,10 +226,11 @@ const RoomCreatePage: React.FC = () => {
                   </div>
                   <div className="room-create-v3-aside-row">
                     <span>房間權限</span>
-                    <strong>{roomVisibilityInput === "private" ? "私人" : "公開"}</strong>
+                    <strong>
+                      {roomVisibilityInput === "private" ? "私人" : "公開"}
+                    </strong>
                   </div>
                 </div>
-
               </aside>
             </div>
           </div>

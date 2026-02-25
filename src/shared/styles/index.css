@@ -1,4 +1,4 @@
-@font-face {
+﻿@font-face {
   font-family: "OpenHuninn";
   src: url("/fonts/jf-openhuninn-2.1.ttf") format("truetype");
   font-weight: 400;
@@ -396,9 +396,6 @@ body {
 }
 
 .room-create-playlist-panel {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.32);
   padding: 12px;
   min-height: 0;
 }
@@ -494,9 +491,6 @@ body {
 
 .room-create-step-card {
   min-height: 560px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(2, 6, 23, 0.35);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1628,7 +1622,8 @@ body {
   background: rgba(16, 185, 129, 0.2);
   border-color: rgba(16, 185, 129, 0.52);
   color: #ecfdf5;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.22),
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.22),
     0 0 18px rgba(16, 185, 129, 0.16);
 }
 
@@ -1636,7 +1631,8 @@ body {
   background: rgba(244, 63, 94, 0.2);
   border-color: rgba(244, 63, 94, 0.52);
   color: #ffe4e6;
-  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.22),
+  box-shadow:
+    0 0 0 1px rgba(244, 63, 94, 0.22),
     0 0 18px rgba(244, 63, 94, 0.16);
 }
 
@@ -2038,8 +2034,16 @@ body {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 18% 8%, rgba(250, 204, 21, 0.11), transparent 38%),
-    radial-gradient(circle at 84% 86%, rgba(56, 189, 248, 0.1), transparent 42%),
+    radial-gradient(
+      circle at 18% 8%,
+      rgba(250, 204, 21, 0.11),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 84% 86%,
+      rgba(56, 189, 248, 0.1),
+      transparent 42%
+    ),
     repeating-linear-gradient(
       118deg,
       rgba(148, 163, 184, 0.028) 0,
@@ -2480,7 +2484,11 @@ body {
 
   72% {
     opacity: 0.95;
-    transform: translate3d(calc(var(--mq-confetti-drift, 18px) * -0.55), 40px, 0)
+    transform: translate3d(
+        calc(var(--mq-confetti-drift, 18px) * -0.55),
+        40px,
+        0
+      )
       rotate(calc(var(--mq-confetti-spin, 160deg) * 0.8)) scale(0.95);
   }
 
@@ -2702,11 +2710,6 @@ body {
 }
 
 .room-create-step-card {
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background:
-    linear-gradient(180deg, rgba(5, 12, 24, 0.78), rgba(3, 7, 18, 0.72)),
-    rgba(3, 7, 18, 0.72);
   box-shadow:
     inset 0 1px 0 rgba(250, 204, 21, 0.08),
     0 26px 48px -42px rgba(15, 23, 42, 0.95);
@@ -2882,6 +2885,26 @@ body {
   color: var(--rc-ink);
 }
 
+.room-create-source-pill .label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-create-source-pill .icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 14px;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.room-create-source-pill.is-active .icon-wrap {
+  color: rgba(251, 191, 36, 0.95);
+}
+
 .room-create-source-pill .hint {
   color: color-mix(in srgb, var(--rc-ink-soft) 88%, #dbeafe 12%);
 }
@@ -2889,19 +2912,6 @@ body {
 .room-create-playlist-layout {
   grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
   gap: 14px;
-}
-
-.room-create-playlist-panel {
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background:
-    radial-gradient(
-      circle at 100% 0%,
-      rgba(14, 165, 233, 0.08),
-      transparent 48%
-    ),
-    rgba(2, 6, 23, 0.58);
-  padding: 14px;
 }
 
 .room-create-preview-list {
@@ -3039,7 +3049,7 @@ body {
 }
 
 .room-create-v3-studio {
-  --rc-v3-border: rgba(148, 163, 184, 0.22);
+  --rc-v3-border: rgba(148, 163, 184, 0.12);
   height: 100%;
   min-height: 0;
   display: flex;
@@ -3131,14 +3141,14 @@ body {
 
 .room-create-v3-header-create.is-ready {
   border-color: rgba(245, 158, 11, 0.7);
-  background: linear-gradient(120deg, rgba(245, 158, 11, 0.92), rgba(250, 204, 21, 0.82));
+  background: rgba(245, 158, 11, 0.9);
   color: #111827;
   box-shadow: 0 12px 24px -16px rgba(245, 158, 11, 0.8);
 }
 
 .room-create-v3-header-create.is-ready:hover {
   border-color: rgba(251, 191, 36, 0.9);
-  background: linear-gradient(120deg, rgba(251, 191, 36, 0.95), rgba(253, 224, 71, 0.9));
+  background: rgba(251, 191, 36, 0.92);
 }
 
 .room-create-v3-header-create.is-disabled {
@@ -3164,10 +3174,8 @@ body {
 }
 
 .room-create-v3-step-chip.is-done {
-  border-color: rgba(74, 222, 128, 0.52);
-  background:
-    linear-gradient(120deg, rgba(22, 163, 74, 0.2), rgba(74, 222, 128, 0.08)),
-    rgba(2, 6, 23, 0.56);
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(2, 6, 23, 0.56);
 }
 
 .room-create-v3-step-chip.is-pending {
@@ -3197,8 +3205,6 @@ body {
 
 .room-create-v3-main-panel {
   border-radius: 22px;
-  border: 1px solid var(--rc-v3-border);
-  background: linear-gradient(180deg, rgba(7, 13, 25, 0.72), rgba(3, 7, 18, 0.62));
   padding: 12px;
   min-height: 0;
   height: 100%;
@@ -3216,8 +3222,7 @@ body {
 
 .room-create-v3-aside-card {
   border-radius: 16px;
-  border: 1px solid var(--rc-v3-border);
-  background: rgba(3, 7, 18, 0.62);
+  background: rgba(3, 7, 18, 0.56);
   padding: 12px;
 }
 
@@ -3282,12 +3287,13 @@ body {
     linear-gradient(120deg, rgba(245, 158, 11, 0.22), rgba(234, 179, 8, 0.12)),
     rgba(2, 6, 23, 0.7);
   transform: translateY(-2px) scale(1.018);
-  box-shadow: 0 18px 34px rgba(245, 158, 11, 0.3);
-  animation: room-create-v3-guide-tab-pop 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-shadow: 0 5px 10px rgba(245, 158, 11, 0.3);
+  animation: room-create-v3-guide-tab-pop 620ms cubic-bezier(0.16, 1, 0.3, 1)
+    both;
 }
 
 .room-create-v3-guide-tab.is-done {
-  border-color: rgba(74, 222, 128, 0.55);
+  /* border-color: rgba(74, 222, 128, 0.55); */
 }
 
 .room-create-v3-guide-label {
@@ -3348,8 +3354,8 @@ body {
 .room-create-v3-pane--enter > .room-create-v3-pane-body,
 .room-create-v3-pane--enter > .room-create-v3-pane-helper,
 .room-create-v3-pane--enter > .room-create-v3-step-tip {
-  animation: room-create-v3-pane-content-enter 740ms cubic-bezier(0.2, 0.84, 0.28, 1)
-    90ms both;
+  animation: room-create-v3-pane-content-enter 740ms
+    cubic-bezier(0.2, 0.84, 0.28, 1) 90ms both;
 }
 
 .room-create-v3-pane--enter::before {
@@ -3386,12 +3392,17 @@ body {
 @keyframes room-create-v3-pane-enter {
   0% {
     opacity: 0;
-    transform: translate3d(var(--room-create-pane-enter-x, 0), 30px, 0) scale(0.9);
+    transform: translate3d(var(--room-create-pane-enter-x, 0), 30px, 0)
+      scale(0.9);
     filter: blur(4px);
   }
   58% {
     opacity: 1;
-    transform: translate3d(calc(var(--room-create-pane-enter-x, 0) * -0.1), 0, 0)
+    transform: translate3d(
+        calc(var(--room-create-pane-enter-x, 0) * -0.1),
+        0,
+        0
+      )
       scale(1.016);
     filter: blur(0);
   }
@@ -3665,7 +3676,9 @@ body {
   height: 100%;
 }
 
-.room-create-v3-stage-panel--side .room-create-preview-headline .room-create-step-title {
+.room-create-v3-stage-panel--side
+  .room-create-preview-headline
+  .room-create-step-title {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3828,5 +3841,133 @@ body {
 }
 
 
+/* ===== Room Create V3 Visual Simplify ===== */
+.room-create-v3-page .room-create-step-card {
+  box-shadow:
+    inset 0 0 0 1px var(--mc-border),
+    0 22px 46px -40px rgba(2, 6, 23, 0.72);
+}
 
+.room-create-v3-page .room-create-access-block {
+  border: 0;
+  background: color-mix(in srgb, var(--mc-surface-strong) 68%, #020304 32%);
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
 
+.room-create-v3-page .room-create-field .MuiOutlinedInput-root {
+  background: rgba(2, 6, 23, 0.5);
+}
+
+.room-create-v3-page .room-create-field .MuiOutlinedInput-notchedOutline {
+  border-color: color-mix(in srgb, var(--mc-border) 70%, transparent 30%);
+}
+
+.room-create-v3-page
+  .room-create-field
+  .MuiOutlinedInput-root:hover
+  .MuiOutlinedInput-notchedOutline {
+  border-color: color-mix(in srgb, var(--mc-border) 95%, transparent 5%);
+}
+
+.room-create-v3-page
+  .room-create-field
+  .MuiOutlinedInput-root.Mui-focused
+  .MuiOutlinedInput-notchedOutline {
+  border-color: color-mix(in srgb, var(--mc-accent) 82%, transparent 18%);
+  box-shadow: 0 0 0 1px var(--mc-glow);
+}
+
+.room-create-v3-page .room-create-visibility-button.MuiButton-root {
+  border-color: color-mix(in srgb, var(--mc-border) 85%, transparent 15%);
+}
+
+.room-create-v3-page .room-create-question-card {
+  border: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mc-surface-strong) 76%, #050607 24%),
+    color-mix(in srgb, var(--mc-surface) 80%, #020304 20%)
+  );
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-source-pill {
+  border: 0;
+  background: color-mix(in srgb, var(--mc-surface-strong) 64%, #030405 36%);
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-source-pill:hover {
+  background: color-mix(in srgb, var(--mc-surface-strong) 82%, #060708 18%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 55%, transparent 45%);
+}
+
+.room-create-v3-page .room-create-source-pill.is-active {
+  background: color-mix(in srgb, var(--mc-surface-strong) 90%, #080a0d 10%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 72%, transparent 28%),
+    0 0 0 1px color-mix(in srgb, var(--mc-accent) 22%, transparent 78%);
+}
+
+.room-create-v3-page .room-create-preview-list {
+  border: 0;
+  background: color-mix(in srgb, var(--mc-surface) 72%, #050607 28%);
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-back {
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-back:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
+}
+
+.room-create-v3-page .room-create-v3-header-create {
+  border: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
+}
+
+.room-create-v3-page .room-create-v3-step-chip {
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-guide-tab {
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-guide-tab.is-active {
+  background: color-mix(in srgb, var(--mc-surface-strong) 90%, #060708 10%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 72%, transparent 28%),
+    0 5px 10px color-mix(in srgb, var(--mc-accent) 28%, transparent 72%);
+}
+
+.room-create-v3-page .room-create-v3-source-status,
+.room-create-v3-page .room-create-v3-summary-item,
+.room-create-v3-page .room-create-v3-step-ready-tip {
+  border: 0;
+}
+
+.room-create-v3-page .room-create-v3-source-status {
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-source-status--success {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
+}
+
+.room-create-v3-page .room-create-v3-source-status--error {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 62%, transparent 38%);
+}
+
+.room-create-v3-page .room-create-v3-summary-item {
+  box-shadow: inset 0 0 0 1px var(--mc-border);
+}
+
+.room-create-v3-page .room-create-v3-step-ready-tip {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
+}

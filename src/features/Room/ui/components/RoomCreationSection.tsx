@@ -18,6 +18,10 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import LinkRounded from "@mui/icons-material/LinkRounded";
+import LockRounded from "@mui/icons-material/LockRounded";
+import PlaylistPlayRounded from "@mui/icons-material/PlaylistPlayRounded";
+import PublicRounded from "@mui/icons-material/PublicRounded";
 import { List as VirtualList, type RowComponentProps } from "react-window";
 
 import type { RoomCreateSourceMode } from "../../model/RoomContext";
@@ -112,26 +116,31 @@ const sourceModeOptions: Array<{
   mode: RoomCreateSourceMode;
   label: string;
   hint: string;
+  icon: React.ElementType;
 }> = [
   {
     mode: "link",
     label: "YouTube 連結",
     hint: "貼上播放清單網址，快速匯入",
+    icon: LinkRounded,
   },
   {
     mode: "youtube",
     label: "我的播放清單",
     hint: "登入 Google 後直接選取",
+    icon: PlaylistPlayRounded,
   },
   {
     mode: "publicCollection",
     label: "公開收藏庫",
     hint: "從社群收藏快速套用",
+    icon: PublicRounded,
   },
   {
     mode: "privateCollection",
     label: "私人收藏庫",
     hint: "使用自己的收藏內容",
+    icon: LockRounded,
   },
 ];
 
@@ -141,6 +150,8 @@ const sourceModeLabelMap: Record<RoomCreateSourceMode, string> = {
   publicCollection: "公開收藏庫",
   privateCollection: "私人收藏庫",
 };
+
+const maxPlayerQuickOptions = [4, 8, 12, 16];
 
 const extractYoutubePlaylistId = (value: string) => {
   const trimmed = value.trim();
@@ -285,12 +296,18 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     (!Number.isInteger(parsedMaxPlayers) ||
       parsedMaxPlayers < playerMin ||
       parsedMaxPlayers > playerMax);
+  const selectedMaxPlayers = parsedMaxPlayers ?? 12;
+
+  React.useEffect(() => {
+    if (normalizedMaxPlayersInput) return;
+    onRoomMaxPlayersChange("12");
+  }, [normalizedMaxPlayersInput, onRoomMaxPlayersChange]);
 
   const canCreateRoom = Boolean(
     username &&
-      roomName.trim() &&
-      playlistItems.length > 0 &&
-      !maxPlayersInvalid,
+    roomName.trim() &&
+    playlistItems.length > 0 &&
+    !maxPlayersInvalid,
   );
 
   const previewItems = React.useMemo(() => playlistItems, [playlistItems]);
@@ -333,21 +350,33 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   const youtubeStatus = React.useMemo(() => {
     if (sourceMode !== "youtube") return null;
     if (!isGoogleAuthed) {
-      return { tone: "info" as const, text: "需要先登入 Google 才能使用我的播放清單。" };
+      return {
+        tone: "info" as const,
+        text: "需要先登入 Google 才能使用我的播放清單。",
+      };
     }
     if (youtubePlaylistsLoading) {
-      return { tone: "info" as const, text: "正在讀取你的 YouTube 播放清單..." };
+      return {
+        tone: "info" as const,
+        text: "正在讀取你的 YouTube 播放清單...",
+      };
     }
     if (youtubePlaylistsError) {
       return { tone: "error" as const, text: youtubePlaylistsError };
     }
     if (youtubePlaylists.length === 0) {
-      return { tone: "info" as const, text: "尚未找到播放清單，請先在 YouTube 建立清單。" };
+      return {
+        tone: "info" as const,
+        text: "尚未找到播放清單，請先在 YouTube 建立清單。",
+      };
     }
     if (!selectedYoutubeId) {
       return { tone: "info" as const, text: "請先選擇播放清單。" };
     }
-    return { tone: "success" as const, text: "已選擇播放清單，會自動載入歌曲。" };
+    return {
+      tone: "success" as const,
+      text: "已選擇播放清單，會自動載入歌曲。",
+    };
   }, [
     isGoogleAuthed,
     selectedYoutubeId,
@@ -363,13 +392,17 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     if (!isCollectionMode) return null;
     const scopeLabel = sourceMode === "privateCollection" ? "私人" : "公開";
     const isEmptyCollectionError =
-      collectionsError === "尚未建立收藏庫" || collectionsError === "尚未建立公開收藏庫";
+      collectionsError === "尚未建立收藏庫" ||
+      collectionsError === "尚未建立公開收藏庫";
     const scopeKnownEmpty =
       sourceMode === "privateCollection"
         ? emptyCollectionScope.owner
         : emptyCollectionScope.public;
     if (sourceMode === "privateCollection" && !isGoogleAuthed) {
-      return { tone: "info" as const, text: "需要先登入 Google 才能使用私人收藏庫。" };
+      return {
+        tone: "info" as const,
+        text: "需要先登入 Google 才能使用私人收藏庫。",
+      };
     }
     if (collectionsLoading) {
       return { tone: "info" as const, text: `正在讀取${scopeLabel}收藏庫...` };
@@ -392,7 +425,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     if (collectionsError && !isEmptyCollectionError) {
       return { tone: "error" as const, text: collectionsError };
     }
-    if (collectionOptions.length === 0 || isEmptyCollectionError || scopeKnownEmpty) {
+    if (
+      collectionOptions.length === 0 ||
+      isEmptyCollectionError ||
+      scopeKnownEmpty
+    ) {
       return {
         tone: "error" as const,
         text: `目前沒有${scopeLabel}收藏庫，請先建立內容後再回來選擇。`,
@@ -564,7 +601,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     [onFetchPlaylist, playlistUrl],
   );
 
-  const handlePlaylistPaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePlaylistPaste = (
+    event: React.ClipboardEvent<HTMLInputElement>,
+  ) => {
     const pasted = event.clipboardData.getData("text").trim();
     if (!pasted) return;
     if (!extractYoutubePlaylistId(pasted)) return;
@@ -624,11 +663,15 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   };
 
   const isSourceImporting = playlistLoading || collectionItemsLoading;
-  const collectionSelectionDisabled = collectionsLoading || collectionItemsLoading;
+  const collectionSelectionDisabled =
+    collectionsLoading || collectionItemsLoading;
   const importStatusText = React.useMemo(() => {
     if (sourceMode === "link") return "正在匯入 YouTube 播放清單...";
     if (sourceMode === "youtube") return "正在載入你的播放清單歌曲...";
-    if (sourceMode === "publicCollection" || sourceMode === "privateCollection") {
+    if (
+      sourceMode === "publicCollection" ||
+      sourceMode === "privateCollection"
+    ) {
       return "正在套用收藏庫歌曲...";
     }
     return "正在載入歌曲...";
@@ -677,7 +720,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
   React.useEffect(() => {
     const previousStep = prevActiveStepRef.current;
     if (previousStep === activeStep) return;
-    setStepTransitionDirection(activeStep > previousStep ? "forward" : "backward");
+    setStepTransitionDirection(
+      activeStep > previousStep ? "forward" : "backward",
+    );
     prevActiveStepRef.current = activeStep;
   }, [activeStep]);
 
@@ -699,7 +744,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
         label: "步驟 2",
         title: "基本設定",
         hint: "房名、權限、題數",
-        ready: sourceStepReady && baseStepReady && canCreateRoom && !isSourceImporting,
+        ready:
+          sourceStepReady &&
+          baseStepReady &&
+          canCreateRoom &&
+          !isSourceImporting,
       },
     ],
     [baseStepReady, canCreateRoom, isSourceImporting, sourceStepReady],
@@ -742,9 +791,13 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
           <Typography variant="subtitle1" className="room-create-step-title">
             歌曲預覽
           </Typography>
-          <span className="room-create-question-badge">共 {playlistItems.length} 首</span>
+          <span className="room-create-question-badge">
+            共 {playlistItems.length} 首
+          </span>
         </div>
-        <div className={`room-create-preview-stage${isSourceImporting ? " is-loading" : ""}`}>
+        <div
+          className={`room-create-preview-stage${isSourceImporting ? " is-loading" : ""}`}
+        >
           {playlistItems.length === 0 ? (
             <div className="room-create-preview-empty">尚未載入歌曲</div>
           ) : (
@@ -763,7 +816,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
           )}
 
           {isSourceImporting && (
-            <div className="room-create-preview-loading-mask" role="status" aria-live="polite">
+            <div
+              className="room-create-preview-loading-mask"
+              role="status"
+              aria-live="polite"
+            >
               <div className="room-create-preview-loading-content">
                 <CircularProgress size={16} />
                 <span>{importStatusText}</span>
@@ -784,7 +841,11 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 
   return (
     <Stack spacing={2.5} className="room-create-v3-flow">
-      <div className="room-create-v3-guide-tabs" role="tablist" aria-label="建立房間步驟">
+      <div
+        className="room-create-v3-guide-tabs"
+        role="tablist"
+        aria-label="建立房間步驟"
+      >
         {stepItems.map((step) => {
           const isActive = activeStep === step.id;
           const locked = !canOpenStep(step.id);
@@ -801,7 +862,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
               onClick={() => setActiveStep(step.id)}
             >
               <span className="room-create-v3-guide-label">{step.label}</span>
-              <strong className="room-create-v3-guide-title">{step.title}</strong>
+              <strong className="room-create-v3-guide-title">
+                {step.title}
+              </strong>
               <span className="room-create-v3-guide-hint">{step.hint}</span>
             </button>
           );
@@ -861,38 +924,46 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                   }}
                 />
 
-                <TextField
-                  size="small"
-                  type="number"
-                  label="人數限制（選填）"
-                  value={roomMaxPlayers}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    if (!/^\d*$/.test(nextValue)) return;
-                    onRoomMaxPlayersChange(nextValue);
-                  }}
-                  placeholder="留空代表不限制"
-                  fullWidth
-                  className="room-create-field"
-                  error={maxPlayersInvalid}
-                  helperText={maxPlayersInvalid ? `請輸入 ${playerMin}-${playerMax} 的整數` : undefined}
-                  slotProps={{
-                    htmlInput: {
-                      min: playerMin,
-                      max: playerMax,
-                      inputMode: "numeric",
-                    },
-                  }}
-                />
+                <div className="room-create-field rounded-xl bg-[var(--mc-surface)]/38 p-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.08)]">
+                  <div className="mb-1.5 text-[11px] text-[var(--mc-text-muted)]">
+                    最大人數（最多 16 人）
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {maxPlayerQuickOptions.map((count) => {
+                      const isActive = selectedMaxPlayers === count;
+                      return (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => onRoomMaxPlayersChange(String(count))}
+                          className={`rounded-full border px-3 py-1 text-xs transition ${
+                            isActive
+                              ? "border-amber-300/70 bg-amber-400/15 text-amber-100"
+                              : "border-[var(--mc-border)] bg-[var(--mc-surface)]/65 text-[var(--mc-text)] hover:border-amber-300/45"
+                          }`}
+                        >
+                          {count}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="room-create-question-card">
                   <div className="room-create-question-head">
-                    <Typography variant="subtitle1" className="room-create-step-title">
+                    <Typography
+                      variant="subtitle1"
+                      className="room-create-step-title"
+                    >
                       題數設定
                     </Typography>
                     <div className="room-create-question-head-meta">
-                      <span className="room-create-question-badge">目前 {questionCount} 題</span>
-                      <span className="room-create-question-range">{questionRangeText}</span>
+                      <span className="room-create-question-badge">
+                        目前 {questionCount} 題
+                      </span>
+                      <span className="room-create-question-range">
+                        {questionRangeText}
+                      </span>
                     </div>
                   </div>
                   <QuestionCountControls
@@ -909,7 +980,10 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 
                 <Stack spacing={1} className="room-create-question-card">
                   <div className="room-create-question-head">
-                    <Typography variant="subtitle1" className="room-create-step-title">
+                    <Typography
+                      variant="subtitle1"
+                      className="room-create-step-title"
+                    >
                       作答時間設定
                     </Typography>
                     <span className="room-create-question-badge">
@@ -932,7 +1006,10 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                     className="room-create-muted"
                   />
                   {!useCollectionTimingForSource && (
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1.25}
+                    >
                       <TextField
                         size="small"
                         type="number"
@@ -1038,6 +1115,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                 <div className="room-create-source-grid">
                   {sourceModeOptions.map((option) => {
                     const isActive = sourceMode === option.mode;
+                    const Icon = option.icon;
                     return (
                       <button
                         key={option.mode}
@@ -1045,7 +1123,12 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                         className={`room-create-source-pill${isActive ? " is-active" : ""}`}
                         onClick={() => handleSourceModeChange(option.mode)}
                       >
-                        <span className="label">{option.label}</span>
+                        <span className="label-row">
+                          <span className="icon-wrap" aria-hidden="true">
+                            <Icon fontSize="inherit" />
+                          </span>
+                          <span className="label">{option.label}</span>
+                        </span>
                         <span className="hint">{option.hint}</span>
                       </button>
                     );
@@ -1054,13 +1137,18 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 
                 {sourceMode === "link" && (
                   <Stack spacing={1.25}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1.25}
+                    >
                       <TextField
                         size="small"
                         fullWidth
                         label="YouTube 播放清單網址"
                         value={playlistUrl}
-                        onChange={(event) => onPlaylistUrlChange(event.target.value)}
+                        onChange={(event) =>
+                          onPlaylistUrlChange(event.target.value)
+                        }
                         onPaste={handlePlaylistPaste}
                         onKeyDown={(event) => {
                           if (event.key !== "Enter") return;
@@ -1085,19 +1173,31 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                 {sourceMode === "youtube" && (
                   <Stack spacing={1.25}>
                     {!isGoogleAuthed ? (
-                      <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
+                      <Button
+                        variant="outlined"
+                        onClick={onGoogleLogin}
+                        fullWidth
+                      >
                         登入 Google
                       </Button>
                     ) : (
                       <>
-                        <FormControl size="small" fullWidth className="room-create-field">
-                          <InputLabel id="room-create-youtube-playlist">選擇清單</InputLabel>
+                        <FormControl
+                          size="small"
+                          fullWidth
+                          className="room-create-field"
+                        >
+                          <InputLabel id="room-create-youtube-playlist">
+                            選擇清單
+                          </InputLabel>
                           <Select
                             labelId="room-create-youtube-playlist"
                             label="選擇清單"
                             value={selectedYoutubeId}
                             onChange={(event) =>
-                              handleYoutubeSelectionChange(String(event.target.value))
+                              handleYoutubeSelectionChange(
+                                String(event.target.value),
+                              )
                             }
                           >
                             <MenuItem value="">請選擇清單</MenuItem>
@@ -1117,21 +1217,35 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                   sourceMode === "privateCollection") && (
                   <Stack spacing={1.25}>
                     {sourceMode === "privateCollection" && !isGoogleAuthed ? (
-                      <Button variant="outlined" onClick={onGoogleLogin} fullWidth>
+                      <Button
+                        variant="outlined"
+                        onClick={onGoogleLogin}
+                        fullWidth
+                      >
                         登入 Google
                       </Button>
                     ) : (
                       <>
-                        <FormControl size="small" fullWidth className="room-create-field">
+                        <FormControl
+                          size="small"
+                          fullWidth
+                          className="room-create-field"
+                        >
                           <InputLabel id="room-create-collection-select">
                             選擇收藏庫
                           </InputLabel>
                           <Select
                             labelId="room-create-collection-select"
                             label="選擇收藏庫"
-                            value={hasCollectionScopeMatch ? selectedCollectionId ?? "" : ""}
+                            value={
+                              hasCollectionScopeMatch
+                                ? (selectedCollectionId ?? "")
+                                : ""
+                            }
                             onChange={(event) =>
-                              handleCollectionSelectionChange(String(event.target.value))
+                              handleCollectionSelectionChange(
+                                String(event.target.value),
+                              )
                             }
                             disabled={collectionSelectionDisabled}
                           >
@@ -1169,7 +1283,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                           ? Math.min(
                               100,
                               Math.round(
-                                (playlistProgress.received / playlistProgress.total) * 100,
+                                (playlistProgress.received /
+                                  playlistProgress.total) *
+                                  100,
                               ),
                             )
                           : undefined
@@ -1197,7 +1313,10 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
               題庫已準備完成，可點上方「步驟 2：基本設定」完成建房設定。
             </div>
           ) : (
-            <Typography variant="caption" className="room-create-muted room-create-v3-step-tip">
+            <Typography
+              variant="caption"
+              className="room-create-muted room-create-v3-step-tip"
+            >
               請先載入至少一首歌曲，再切換至步驟 2。
             </Typography>
           )}
@@ -1225,4 +1344,3 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
 };
 
 export default RoomCreationSection;
-

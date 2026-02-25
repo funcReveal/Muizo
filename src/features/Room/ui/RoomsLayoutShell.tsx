@@ -141,16 +141,18 @@ const RoomsLayoutShell: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start p-4">
       <div className="flex w-full min-w-0 max-w-[1600px] flex-col space-y-4">
-        <HeaderSection
-          displayUsername={displayUsername}
-          authUser={authUser}
-          authLoading={authLoading}
-          onLogin={handleLoginRequest}
-          onLogout={logout}
-          onEditProfile={openProfileEditor}
-          onNavigateRooms={() => handleNavigateRequest("rooms")}
-          onNavigateCollections={() => handleNavigateRequest("collections")}
-        />
+        <div className="-mx-2 sm:mx-0">
+          <HeaderSection
+            displayUsername={displayUsername}
+            authUser={authUser}
+            authLoading={authLoading}
+            onLogin={handleLoginRequest}
+            onLogout={logout}
+            onEditProfile={openProfileEditor}
+            onNavigateRooms={() => handleNavigateRequest("rooms")}
+            onNavigateCollections={() => handleNavigateRequest("collections")}
+          />
+        </div>
 
         {!authLoading && !username && !authUser && (
           <LoginPage
