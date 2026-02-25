@@ -3840,13 +3840,12 @@ body {
   }
 }
 
-
 /* ===== Room Create V3 Visual Simplify ===== */
-.room-create-v3-page .room-create-step-card {
+/* .room-create-v3-page .room-create-step-card {
   box-shadow:
     inset 0 0 0 1px var(--mc-border),
     0 22px 46px -40px rgba(2, 6, 23, 0.72);
-}
+} */
 
 .room-create-v3-page .room-create-access-block {
   border: 0;
@@ -3899,7 +3898,8 @@ body {
 
 .room-create-v3-page .room-create-source-pill:hover {
   background: color-mix(in srgb, var(--mc-surface-strong) 82%, #060708 18%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 55%, transparent 45%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent) 55%, transparent 45%);
 }
 
 .room-create-v3-page .room-create-source-pill.is-active {
@@ -3921,12 +3921,14 @@ body {
 }
 
 .room-create-v3-page .room-create-v3-back:hover {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
 }
 
 .room-create-v3-page .room-create-v3-header-create {
   border: 0;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent) 60%, transparent 40%);
 }
 
 .room-create-v3-page .room-create-v3-step-chip {
@@ -3957,11 +3959,13 @@ body {
 }
 
 .room-create-v3-page .room-create-v3-source-status--success {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
 }
 
 .room-create-v3-page .room-create-v3-source-status--error {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent) 62%, transparent 38%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent) 62%, transparent 38%);
 }
 
 .room-create-v3-page .room-create-v3-summary-item {
@@ -3969,5 +3973,6 @@ body {
 }
 
 .room-create-v3-page .room-create-v3-step-ready-tip {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--mc-accent-2) 56%, transparent 44%);
 }

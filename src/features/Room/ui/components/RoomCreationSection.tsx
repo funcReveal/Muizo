@@ -3,10 +3,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -23,6 +19,7 @@ import LockRounded from "@mui/icons-material/LockRounded";
 import PlaylistPlayRounded from "@mui/icons-material/PlaylistPlayRounded";
 import PublicRounded from "@mui/icons-material/PublicRounded";
 import { List as VirtualList, type RowComponentProps } from "react-window";
+import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
 
 import type { RoomCreateSourceMode } from "../../model/RoomContext";
 import type { PlaylistItem, RoomSummary } from "../../model/types";
@@ -789,17 +786,17 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
       >
         <div className="room-create-preview-headline">
           <Typography variant="subtitle1" className="room-create-step-title">
-            歌曲預覽
+            題庫預覽
           </Typography>
           <span className="room-create-question-badge">
-            共 {playlistItems.length} 首
+            共 {playlistItems.length} 題
           </span>
         </div>
         <div
           className={`room-create-preview-stage${isSourceImporting ? " is-loading" : ""}`}
         >
           {playlistItems.length === 0 ? (
-            <div className="room-create-preview-empty">尚未載入歌曲</div>
+            <div className="room-create-preview-empty">尚未載入題庫</div>
           ) : (
             <div
               key={panelKey}
@@ -1323,22 +1320,15 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
         </div>
       )}
 
-      <Dialog open={Boolean(confirmModal)} onClose={closeConfirmModal}>
-        <DialogTitle>{confirmModal?.title ?? "切換播放來源"}</DialogTitle>
-        <DialogContent>
-          {confirmModal?.detail && (
-            <Typography variant="body2" className="room-create-muted">
-              {confirmModal.detail}
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeConfirmModal}>取消</Button>
-          <Button variant="contained" onClick={handleConfirmSwitch}>
-            確認切換
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={Boolean(confirmModal)}
+        title={confirmModal?.title ?? "切換播放來源"}
+        description={confirmModal?.detail ?? "確定要切換嗎？"}
+        confirmLabel="確認切換"
+        cancelLabel="取消"
+        onConfirm={handleConfirmSwitch}
+        onCancel={closeConfirmModal}
+      />
     </Stack>
   );
 };
