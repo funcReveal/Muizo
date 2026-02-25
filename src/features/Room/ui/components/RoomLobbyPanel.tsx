@@ -2115,6 +2115,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             <MUIList dense disablePadding>
               {messages.map((msg) => {
                 // const isSelf = msg.username === username;
+                const isPresenceSystemMessage = msg.userId === "system:presence";
                 const settlementRoundKey =
                   msg.userId === "system:settlement-review" &&
                   msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
@@ -2123,6 +2124,33 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 const canOpenSettlementReview = Boolean(
                   settlementRoundKey && onOpenSettlementByRoundKey,
                 );
+                if (isPresenceSystemMessage) {
+                  return (
+                    <ListItem key={msg.id} sx={{ justifyContent: "center" }}>
+                      <Box
+                        sx={{
+                          mx: "auto",
+                          maxWidth: "100%",
+                          borderRadius: 999,
+                          px: 1.25,
+                          py: 0.5,
+                          border: "1px solid rgba(148,163,184,0.18)",
+                          background: "rgba(15,23,42,0.58)",
+                          color: "rgba(226,232,240,0.9)",
+                          fontSize: 11,
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        <Box component="span" sx={{ color: "rgba(248,250,252,0.95)", fontWeight: 600 }}>
+                          {msg.content}
+                        </Box>
+                        <Box component="span" sx={{ ml: 1, color: "rgba(148,163,184,0.85)" }}>
+                          {formatTime(msg.timestamp)}
+                        </Box>
+                      </Box>
+                    </ListItem>
+                  );
+                }
                 return (
                   <ListItem
                     key={msg.id}

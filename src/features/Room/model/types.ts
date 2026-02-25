@@ -39,6 +39,15 @@ export interface GameChoice {
   index: number;
 }
 
+export interface QuestionScoreBreakdown {
+  basePoints: number;
+  speedBonusPoints: number;
+  decisionBonusPoints: number;
+  difficultyBonusPoints: number;
+  comboBonusPoints: number;
+  totalGainPoints: number;
+}
+
 export interface GameQuestionStats {
   participantCount: number;
   answeredCount: number;
@@ -47,6 +56,7 @@ export interface GameQuestionStats {
   unansweredCount: number;
   fastestCorrectMs?: number | null;
   medianCorrectMs?: number | null;
+  scoreBreakdownsByClientId?: Record<string, QuestionScoreBreakdown>;
 }
 
 export interface GameState {
@@ -111,6 +121,9 @@ export interface RoomSettlementQuestionAnswer {
   choiceIndex: number | null;
   result: "correct" | "wrong" | "unanswered";
   answeredAtMs?: number | null;
+  firstAnsweredAtMs?: number | null;
+  changedAnswerCount?: number;
+  scoreBreakdown?: QuestionScoreBreakdown | null;
 }
 
 export interface RoomSettlementQuestionChoice {
@@ -195,6 +208,12 @@ export interface RoomSummary {
   };
   visibility?: "public" | "private";
   maxPlayers?: number | null;
+  isPlaying?: boolean;
+  gameStatus?: "playing" | "ended" | "idle";
+  gamePhase?: "guess" | "reveal" | null;
+  currentQuestionNo?: number | null;
+  completedQuestionCount?: number;
+  totalQuestionCount?: number;
 }
 
 export interface RoomState {

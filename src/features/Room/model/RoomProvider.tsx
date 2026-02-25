@@ -374,6 +374,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   const socketRef = useRef<ClientSocket | null>(null);
   const createRoomInFlightRef = useRef(false);
+  const releaseCreateRoomLockRef = useRef<(() => void) | null>(null);
   const pendingAnswerSubmitRef = useRef<{
     roomId: string;
     trackKey: string;
@@ -383,6 +384,67 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     currentRoomId ?? getStoredRoomId(),
   );
   const serverOffsetRef = useRef(0);
+  const presenceParticipantNamesRef = useRef<Map<string, string>>(new Map());
+  const presenceSeededRoomIdRef = useRef<string | null>(null);
+
+  const resetPresenceParticipants = useCallback(() => {
+    presenceParticipantNamesRef.current = new Map();
+    presenceSeededRoomIdRef.current = null;
+  }, []);
+
+  const seedPresenceParticipants = useCallback(
+    (roomId: string | null | undefined, nextParticipants: RoomParticipant[]) => {
+      if (!roomId) {
+        resetPresenceParticipants();
+        return;
+      }
+      presenceParticipantNamesRef.current = new Map(
+        nextParticipants.map((participant) => [
+          participant.clientId,
+          participant.username?.trim() || "玩家",
+        ]),
+      );
+      presenceSeededRoomIdRef.current = roomId;
+    },
+    [resetPresenceParticipants],
+  );
+
+  const appendPresenceSystemMessage = useCallback(
+    (roomId: string, playerName: string, action: "joined" | "left") => {
+      const safeName = playerName.trim();
+      if (!safeName) return;
+      const timestamp = Date.now() + serverOffsetRef.current;
+      const content =
+        action === "joined" ? `${safeName} 已加入遊戲` : `${safeName} 已離開遊戲`;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (
+          last &&
+          last.userId === "system:presence" &&
+          last.content === content &&
+          Math.abs((last.timestamp ?? 0) - timestamp) <= 1500
+        ) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id:
+              crypto.randomUUID?.() ??
+              `presence-${action}-${roomId}-${timestamp}-${Math.random()
+                .toString(16)
+                .slice(2, 8)}`,
+            roomId,
+            userId: "system:presence",
+            username: "聊天室",
+            content,
+            timestamp,
+          },
+        ];
+      });
+    },
+    [],
+  );
 
   const displayUsername = useMemo(() => username ?? "(未設定)", [username]);
 
@@ -1114,6 +1176,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 syncServerOffset(state.serverNow);
                 setCurrentRoom(applyGameSettingsPatch(state.room, {}));
                 setParticipants(state.participants);
+                seedPresenceParticipants(state.room.id, state.participants);
                 setMessages(state.messages);
                 setSettlementHistory(state.settlementHistory ?? []);
                 setPlaylistProgress({
@@ -1156,6 +1219,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         }
       },
       onDisconnect: () => {
+        if (createRoomInFlightRef.current) {
+          releaseCreateRoomLockRef.current?.();
+          setStatusText("建立房間期間連線中斷，請重試或稍候自動恢復");
+        }
         if (socketSuspendedRef.current) {
           setIsConnected(false);
           setRouteRoomResolved(true);
@@ -1166,6 +1233,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setRouteRoomResolved(false);
         setCurrentRoom(null);
         setParticipants([]);
+        resetPresenceParticipants();
         setMessages([]);
         setSettlementHistory([]);
         setGameState(null);
@@ -1189,9 +1257,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         }
       },
       onJoinedRoom: (state) => {
+        releaseCreateRoomLockRef.current?.();
         syncServerOffset(state.serverNow);
         setCurrentRoom(applyGameSettingsPatch(state.room, {}));
         setParticipants(state.participants);
+        seedPresenceParticipants(state.room.id, state.participants);
         setMessages(state.messages);
         setSettlementHistory(state.settlementHistory ?? []);
         setPlaylistSuggestions([]);
@@ -1218,11 +1288,33 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       },
       onParticipantsUpdated: ({ roomId, participants, hostClientId }) => {
         if (roomId !== currentRoomIdRef.current) return;
+        if (
+          presenceSeededRoomIdRef.current !== roomId ||
+          presenceParticipantNamesRef.current.size === 0
+        ) {
+          seedPresenceParticipants(roomId, participants);
+        } else {
+          const prevNames = presenceParticipantNamesRef.current;
+          for (const participant of participants) {
+            if (!prevNames.has(participant.clientId)) {
+              appendPresenceSystemMessage(roomId, participant.username, "joined");
+            }
+          }
+          seedPresenceParticipants(roomId, participants);
+        }
         setParticipants(participants);
         setCurrentRoom((prev) => (prev ? { ...prev, hostClientId } : prev));
       },
       onUserLeft: ({ roomId, clientId: leftId }) => {
         if (roomId !== currentRoomIdRef.current) return;
+        const leftName = presenceParticipantNamesRef.current.get(leftId);
+        if (leftName) {
+          appendPresenceSystemMessage(roomId, leftName, "left");
+        }
+        const nextPresenceMap = new Map(presenceParticipantNamesRef.current);
+        nextPresenceMap.delete(leftId);
+        presenceParticipantNamesRef.current = nextPresenceMap;
+        presenceSeededRoomIdRef.current = roomId;
         setParticipants((prev) => prev.filter((p) => p.clientId !== leftId));
       },
       onPlaylistProgress: ({ roomId, receivedCount, totalCount, ready }) => {
@@ -1279,6 +1371,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setStatusText(`${reason}${suffix}`);
         setCurrentRoom(null);
         setParticipants([]);
+        resetPresenceParticipants();
         setMessages([]);
         setSettlementHistory([]);
         setGameState(null);
@@ -1327,6 +1420,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     lockSessionClientId,
     persistRoomId,
     resetSessionClientId,
+    resetPresenceParticipants,
+    seedPresenceParticipants,
+    appendPresenceSystemMessage,
     syncServerOffset,
   ]);
 
@@ -1345,7 +1441,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const releaseCreateRoomLock = () => {
       createRoomInFlightRef.current = false;
       setIsCreatingRoom(false);
+      releaseCreateRoomLockRef.current = null;
     };
+    releaseCreateRoomLockRef.current = releaseCreateRoomLock;
     if (authToken) {
       const token = await ensureFreshAuthToken({
         token: authToken,
@@ -1437,6 +1535,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         pageSize: DEFAULT_PAGE_SIZE,
       },
     };
+    const createStartedAt = Date.now();
 
     let createResolved = false;
     let createFinalized = false;
@@ -1446,17 +1545,199 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       releaseCreateRoomLock();
     };
 
+    const applyJoinedStateForCreatedRoom = (state: RoomState) => {
+      syncServerOffset(state.serverNow);
+      setCurrentRoom(
+        applyGameSettingsPatch(state.room, {
+          questionCount: nextQuestionCount,
+          playDurationSec: nextPlayDurationSec,
+          startOffsetSec: nextStartOffsetSec,
+          allowCollectionClipTiming: nextAllowCollectionClipTiming,
+        }),
+      );
+      setParticipants(state.participants);
+      seedPresenceParticipants(state.room.id, state.participants);
+      setMessages(state.messages);
+      setSettlementHistory(state.settlementHistory ?? []);
+      persistRoomId(state.room.id);
+      lockSessionClientId(clientId);
+      setPlaylistProgress({
+        received: state.room.playlist.receivedCount,
+        total: state.room.playlist.totalCount,
+        ready: state.room.playlist.ready,
+      });
+      setGameState(state.gameState ?? null);
+      setIsGameView(false);
+      setGamePlaylist([]);
+      fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
+        reset: true,
+      });
+    };
+
+    const uploadRemainingPlaylistChunks = async (roomId: string) => {
+      if (remaining.length === 0) return;
+      for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
+        const chunk = remaining.slice(i, i + CHUNK_SIZE);
+        const isLastChunk = i + CHUNK_SIZE >= remaining.length;
+        await new Promise<void>((resolve) => {
+          let settled = false;
+          const ackTimeout = window.setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          }, 4_000);
+          s.emit(
+            "uploadPlaylistChunk",
+            {
+              roomId,
+              uploadId,
+              items: chunk,
+              isLast: isLastChunk,
+            },
+            () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(ackTimeout);
+              resolve();
+            },
+          );
+        });
+      }
+    };
+
+    const continueUploadRemainingPlaylistChunks = (roomId: string) => {
+      if (remaining.length === 0) return;
+      void uploadRemainingPlaylistChunks(roomId).catch((error) => {
+        console.error(error);
+        if (currentRoomIdRef.current === roomId) {
+          setStatusText("已進入房間，但剩餘歌單同步延遲中");
+        }
+      });
+    };
+
+    const tryRecoverCreatedRoomFromList = async () => {
+      if (createResolved || !createRoomInFlightRef.current) return false;
+      if (currentRoomIdRef.current) {
+        createResolved = true;
+        finalizeCreate();
+        return true;
+      }
+      if (!API_URL) return false;
+      try {
+        const { ok, payload } = await apiFetchRooms(API_URL);
+        if (!ok) return false;
+        const nextRooms = ((payload?.rooms ?? payload) as RoomSummary[]) ?? [];
+        if (Array.isArray(nextRooms)) {
+          setRooms(nextRooms);
+        }
+        if (currentRoomIdRef.current) {
+          createResolved = true;
+          finalizeCreate();
+          return true;
+        }
+        const createdWindowStart = createStartedAt - 30_000;
+        const createdWindowEnd = Date.now() + 5_000;
+        const candidate = nextRooms
+          .filter((room) => {
+            if ((room.name ?? "").trim() !== trimmed) return false;
+            if (room.hasPassword !== Boolean(desiredPassword)) return false;
+            if (
+              typeof room.playlistCount === "number" &&
+              room.playlistCount > 0 &&
+              room.playlistCount !== uploadItems.length
+            ) {
+              return false;
+            }
+            if (
+              typeof room.gameSettings?.questionCount === "number" &&
+              room.gameSettings.questionCount !== nextQuestionCount
+            ) {
+              return false;
+            }
+            if (
+              room.visibility &&
+              (room.visibility === "public" || room.visibility === "private") &&
+              room.visibility !== desiredVisibility
+            ) {
+              return false;
+            }
+            if (
+              room.maxPlayers !== undefined &&
+              (room.maxPlayers ?? null) !== desiredMaxPlayers
+            ) {
+              return false;
+            }
+            if (
+              typeof room.createdAt === "number" &&
+              (room.createdAt < createdWindowStart ||
+                room.createdAt > createdWindowEnd)
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .sort((a, b) => b.createdAt - a.createdAt)[0];
+
+        if (!candidate) return false;
+
+        const recovered = await new Promise<boolean>((resolve) => {
+          s.emit(
+            "joinRoom",
+            {
+              roomId: candidate.id,
+              username,
+              password: desiredPassword ?? undefined,
+            },
+            async (joinAck: Ack<RoomState>) => {
+              if (!joinAck?.ok) {
+                resolve(false);
+                return;
+              }
+              createResolved = true;
+              const state = joinAck.data;
+              applyJoinedStateForCreatedRoom(state);
+              saveRoomPassword(state.room.id, desiredPassword);
+              setHostRoomPassword(desiredPassword);
+              setRoomNameInput("");
+              setRoomMaxPlayersInput("");
+              setStatusText(`建立回應延遲，已自動進入：${state.room.name}`);
+              finalizeCreate();
+              continueUploadRemainingPlaylistChunks(state.room.id);
+              resolve(true);
+            },
+          );
+        });
+
+        return recovered;
+      } catch (error) {
+        console.error(error);
+        return false;
+      }
+    };
+
     const submitCreateRoom = (attempt: 0 | 1) => {
-      const timeoutMs = attempt === 0 ? 4_000 : 12_000;
+      const timeoutMs = attempt === 0 ? 4_000 : 6_000;
       const ackTimeout = window.setTimeout(() => {
         if (createResolved || !createRoomInFlightRef.current) return;
         if (attempt === 0) {
-          setStatusText("建立房間逾時，正在同步既有房間…");
-          submitCreateRoom(1);
+          setStatusText("建立房間回應延遲，正在嘗試自動進入…");
+          void tryRecoverCreatedRoomFromList().then((recovered) => {
+            if (recovered || createResolved || !createRoomInFlightRef.current) {
+              return;
+            }
+            setStatusText("建立房間逾時，正在同步既有房間…");
+            submitCreateRoom(1);
+          });
           return;
         }
-        setStatusText("建立房間逾時，請稍後重試");
-        finalizeCreate();
+        setStatusText("建立房間仍未回應，最後再嘗試自動進入…");
+        void tryRecoverCreatedRoomFromList().then((recovered) => {
+          if (recovered || createResolved || !createRoomInFlightRef.current) {
+            return;
+          }
+          setStatusText("建立房間逾時，請稍後重試");
+          finalizeCreate();
+        });
       }, timeoutMs);
 
       s.emit("createRoom", payload, async (ack: Ack<RoomState>) => {
@@ -1480,23 +1761,17 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
         createResolved = true;
         const state = ack.data;
-        syncServerOffset(state.serverNow);
-        setCurrentRoom(
-          applyGameSettingsPatch(state.room, {
-            questionCount: nextQuestionCount,
-            playDurationSec: nextPlayDurationSec,
-            startOffsetSec: nextStartOffsetSec,
-            allowCollectionClipTiming: nextAllowCollectionClipTiming,
-          }),
-        );
-        setParticipants(state.participants);
-        setMessages(state.messages);
-        setSettlementHistory(state.settlementHistory ?? []);
-        persistRoomId(state.room.id);
-        lockSessionClientId(clientId);
+        applyJoinedStateForCreatedRoom(state);
         let accessSettingsWarning: string | null = null;
         if (shouldSyncRoomSettings) {
           await new Promise<void>((resolve) => {
+            let settled = false;
+            const settingsAckTimeout = window.setTimeout(() => {
+              if (settled) return;
+              settled = true;
+              accessSettingsWarning = "房間權限同步逾時";
+              resolve();
+            }, 4_000);
             s.emit(
               "updateRoomSettings",
               {
@@ -1510,6 +1785,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 maxPlayers: desiredMaxPlayers,
               },
               (settingsAck: Ack<{ room: RoomSummary }>) => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(settingsAckTimeout);
                 if (!settingsAck) {
                   accessSettingsWarning = "房間權限同步逾時";
                   resolve();
@@ -1553,37 +1831,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
             ? `${accessSettingsWarning}（房間已建立：${state.room.name}）`
             : `已建立房間：${state.room.name}`,
         );
-        setPlaylistProgress({
-          received: state.room.playlist.receivedCount,
-          total: state.room.playlist.totalCount,
-          ready: state.room.playlist.ready,
-        });
-        setGameState(state.gameState ?? null);
-        setIsGameView(false);
-        setGamePlaylist([]);
-        fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
-          reset: true,
-        });
-
-        if (remaining.length > 0) {
-          for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
-            const chunk = remaining.slice(i, i + CHUNK_SIZE);
-            const isLastChunk = i + CHUNK_SIZE >= remaining.length;
-            await new Promise<void>((resolve) => {
-              s.emit(
-                "uploadPlaylistChunk",
-                {
-                  roomId: state.room.id,
-                  uploadId,
-                  items: chunk,
-                  isLast: isLastChunk,
-                },
-                () => resolve(),
-              );
-            });
-          }
-        }
         finalizeCreate();
+        continueUploadRemainingPlaylistChunks(state.room.id);
       });
     };
 
@@ -1610,6 +1859,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     syncServerOffset,
     username,
     persistRoomId,
+    seedPresenceParticipants,
   ]);
 
   const handleJoinRoom = useCallback((roomId: string, hasPassword: boolean) => {
@@ -1633,6 +1883,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           syncServerOffset(state.serverNow);
           setCurrentRoom(applyGameSettingsPatch(state.room, {}));
           setParticipants(state.participants);
+          seedPresenceParticipants(state.room.id, state.participants);
           setMessages(state.messages);
           setSettlementHistory(state.settlementHistory ?? []);
           setPlaylistProgress({
@@ -1670,6 +1921,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     persistRoomId,
     syncServerOffset,
     username,
+    seedPresenceParticipants,
   ]);
 
   const handleLeaveRoom = useCallback((onLeft?: () => void) => {
@@ -1681,6 +1933,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       if (ack.ok) {
         setCurrentRoom(null);
         setParticipants([]);
+        resetPresenceParticipants();
         setMessages([]);
         setSettlementHistory([]);
         setGameState(null);
@@ -1698,7 +1951,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setStatusText(formatAckError("離開房間失敗", ack.error));
       }
     });
-  }, [currentRoom, getSocket, persistRoomId, resetSessionClientId]);
+  }, [currentRoom, getSocket, persistRoomId, resetPresenceParticipants, resetSessionClientId]);
 
   const handleSendMessage = useCallback(() => {
     const s = getSocket();

@@ -21,6 +21,7 @@ import type {
   ChatMessage,
   GameState,
   PlaylistItem,
+  QuestionScoreBreakdown,
   RoomParticipant,
   RoomState,
 } from "../model/types";
@@ -29,7 +30,14 @@ import {
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
+import {
+  parseStoredSfxPreset,
+  resolveCountdownSfxEvent,
+  resolveGuessDeadlineSfxEvent,
+  type SfxPresetId,
+} from "../model/sfx/gameSfxEngine";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
+import { useGameSfx } from "./hooks/useGameSfx";
 import GameSettlementPanel, {
   type SettlementQuestionRecap,
   type SettlementQuestionResult,
@@ -215,6 +223,59 @@ type FrozenSettlementSnapshot = {
   questionRecaps: SettlementQuestionRecap[];
 };
 
+type ChoiceCommitFxKind = "lock" | "reselect";
+
+type AnswerDecisionMeta = {
+  trackSessionKey: string;
+  firstChoiceIndex: number | null;
+  firstSubmittedAtMs: number | null;
+  hasChangedChoice: boolean;
+};
+
+const DECISION_BONUS_TIERS = [
+  { maxElapsedMs: 2000, points: 20 },
+  { maxElapsedMs: 5000, points: 10 },
+] as const;
+
+const resolveDecisionBonusPreviewPoints = (firstAnswerElapsedMs: number | null) => {
+  if (firstAnswerElapsedMs === null || firstAnswerElapsedMs < 0) return 0;
+  for (const tier of DECISION_BONUS_TIERS) {
+    if (firstAnswerElapsedMs <= tier.maxElapsedMs) {
+      return tier.points;
+    }
+  }
+  return 0;
+};
+
+type FeedbackTone = "neutral" | "locked" | "correct" | "wrong";
+
+type MyFeedbackModel = {
+  tone: FeedbackTone;
+  title: string;
+  detail: string;
+  badges: string[];
+  pillText?: string;
+  lines?: string[];
+  inlineMeta?: string;
+};
+
+const buildScoreBreakdownLines = (breakdown: QuestionScoreBreakdown): string[] => {
+  const parts: string[] = [
+    `基${breakdown.basePoints}`,
+    `速${breakdown.speedBonusPoints}`,
+  ];
+  if (breakdown.decisionBonusPoints > 0) {
+    parts.push(`決${breakdown.decisionBonusPoints}`);
+  }
+  if (breakdown.difficultyBonusPoints > 0) {
+    parts.push(`難${breakdown.difficultyBonusPoints}`);
+  }
+  if (breakdown.comboBonusPoints > 0) {
+    parts.push(`連${breakdown.comboBonusPoints}`);
+  }
+  return [`${parts.join("+")}=${breakdown.totalGainPoints}`];
+};
+
 const cloneSettlementQuestionRecaps = (recaps: SettlementQuestionRecap[]) =>
   recaps.map((recap) => ({
     ...recap,
@@ -258,6 +319,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (stored === "0") return false;
     return true;
   });
+  const [sfxEnabled] = useState(() => {
+    const stored = localStorage.getItem("mq_sfx_enabled");
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+    return true;
+  });
+  const [sfxVolume] = useState(() => {
+    const stored = localStorage.getItem("mq_sfx_volume");
+    if (stored === null) return 68;
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 68;
+  });
+  const [sfxPreset] = useState<SfxPresetId>(() =>
+    parseStoredSfxPreset(localStorage.getItem("mq_sfx_preset")),
+  );
   const [danmuItems, setDanmuItems] = useState<DanmuItem[]>([]);
   const danmuSeenMessageIdsRef = useRef<Set<string>>(new Set());
   const danmuLaneCursorRef = useRef(0);
@@ -285,6 +361,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     trackIndex: number;
     choiceIndex: number | null;
   }>({ trackIndex: -1, choiceIndex: null });
+  const [answerDecisionMeta, setAnswerDecisionMeta] = useState<AnswerDecisionMeta>({
+    trackSessionKey: "",
+    firstChoiceIndex: null,
+    firstSubmittedAtMs: null,
+    hasChangedChoice: false,
+  });
+  const [choiceCommitFxState, setChoiceCommitFxState] = useState<{
+    trackSessionKey: string;
+    choiceIndex: number;
+    kind: ChoiceCommitFxKind;
+    key: number;
+  } | null>(null);
   const [loadedTrackKey, setLoadedTrackKey] = useState<string | null>(null);
   const [playerVideoId, setPlayerVideoId] = useState<string | null>(null);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -310,6 +398,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastTimeRequestReasonRef = useRef("init");
   const guessLoopSpanRef = useRef<number | null>(null);
   const legacyClipWarningShownRef = useRef(false);
+  const lastPreStartCountdownSfxKeyRef = useRef<string | null>(null);
+  const lastGuessUrgencySfxKeyRef = useRef<string | null>(null);
+  const lastCountdownGoSfxKeyRef = useRef<string | null>(null);
+  const lastTopTwoOrderRef = useRef<[string | null, string | null]>([null, null]);
+  const topTwoSwapTimerRef = useRef<number | null>(null);
+  const choiceCommitFxTimerRef = useRef<number | null>(null);
+  const [topTwoSwapState, setTopTwoSwapState] = useState<{
+    firstClientId: string;
+    secondClientId: string;
+    key: number;
+  } | null>(null);
+  const { primeSfxAudio, playGameSfx } = useGameSfx({
+    enabled: sfxEnabled,
+    volume: sfxVolume,
+    preset: sfxPreset,
+  });
 
   const openExitConfirm = () => setExitConfirmOpen(true);
   const closeExitConfirm = () => setExitConfirmOpen(false);
@@ -402,6 +506,17 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     audioUnlockedRef.current = true;
     setAudioUnlocked(true);
   }, []);
+  useEffect(
+    () => () => {
+      if (choiceCommitFxTimerRef.current !== null) {
+        window.clearTimeout(choiceCommitFxTimerRef.current);
+      }
+      if (topTwoSwapTimerRef.current !== null) {
+        window.clearTimeout(topTwoSwapTimerRef.current);
+      }
+    },
+    [],
+  );
   useEffect(() => {
     lastSyncMsRef.current = Date.now() + serverOffsetMs;
   }, [serverOffsetMs]);
@@ -651,6 +766,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   useEffect(() => {
     recapCapturedTrackSessionKeysRef.current.clear();
+    lastTopTwoOrderRef.current = [null, null];
+    if (topTwoSwapTimerRef.current !== null) {
+      window.clearTimeout(topTwoSwapTimerRef.current);
+      topTwoSwapTimerRef.current = null;
+    }
+    deferStateUpdate(() => {
+      setTopTwoSwapState(null);
+    });
     deferStateUpdate(() => {
       setQuestionRecaps([]);
     });
@@ -661,6 +784,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (gameState.phase !== "guess") return;
     if (!waitingToStart || trackCursor !== 0) return;
     recapCapturedTrackSessionKeysRef.current.clear();
+    lastTopTwoOrderRef.current = [null, null];
+    if (topTwoSwapTimerRef.current !== null) {
+      window.clearTimeout(topTwoSwapTimerRef.current);
+      topTwoSwapTimerRef.current = null;
+    }
+    deferStateUpdate(() => {
+      setTopTwoSwapState(null);
+    });
     deferStateUpdate(() => {
       setQuestionRecaps([]);
     });
@@ -765,6 +896,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   useEffect(() => {
     guessLoopSpanRef.current = null;
   }, [trackLoadKey, trackSessionKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    deferStateUpdate(() => {
+      if (cancelled) return;
+      setAnswerDecisionMeta({
+        trackSessionKey,
+        firstChoiceIndex: null,
+        firstSubmittedAtMs: null,
+        hasChangedChoice: false,
+      });
+    });
+    if (choiceCommitFxTimerRef.current !== null) {
+      window.clearTimeout(choiceCommitFxTimerRef.current);
+      choiceCommitFxTimerRef.current = null;
+    }
+    deferStateUpdate(() => {
+      if (cancelled) return;
+      setChoiceCommitFxState(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackSessionKey]);
 
   const postCommand = useCallback(
     (func: string, args: unknown[] = []) => {
@@ -917,6 +1072,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!playerReadyRef.current) {
       return false;
     }
+    primeSfxAudio();
     if (!audioUnlockedRef.current) {
       markAudioUnlocked();
     }
@@ -940,14 +1096,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     getServerNowMs,
     markAudioUnlocked,
     postCommand,
+    primeSfxAudio,
     startPlayback,
     startSilentAudio,
   ]);
   const handleGestureOverlayTrigger = useCallback((event?: React.SyntheticEvent) => {
     event?.preventDefault();
     event?.stopPropagation();
+    primeSfxAudio();
     unlockAudioAndStart();
-  }, [unlockAudioAndStart]);
+  }, [primeSfxAudio, unlockAudioAndStart]);
 
   const syncToServerPosition = useCallback(
     (
@@ -1489,6 +1647,77 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     volume,
   ]);
 
+  const submitChoiceWithFeedback = useCallback(
+    (choiceIndex: number) => {
+      if (!canAnswerNow) return;
+      const currentSelectedChoice =
+        selectedChoiceState.trackIndex === currentTrackIndex
+          ? selectedChoiceState.choiceIndex
+          : null;
+      const changedChoice =
+        currentSelectedChoice !== null && currentSelectedChoice !== choiceIndex;
+      const fxKind: ChoiceCommitFxKind = changedChoice ? "reselect" : "lock";
+      const submittedAtMs = getServerNowMs();
+
+      primeSfxAudio();
+      playGameSfx("lock");
+      setSelectedChoiceState({
+        trackIndex: currentTrackIndex,
+        choiceIndex,
+      });
+      setAnswerDecisionMeta((prev) => {
+        if (prev.trackSessionKey !== trackSessionKey) {
+          return {
+            trackSessionKey,
+            firstChoiceIndex: choiceIndex,
+            firstSubmittedAtMs: submittedAtMs,
+            hasChangedChoice: false,
+          };
+        }
+        return {
+          trackSessionKey,
+          firstChoiceIndex: prev.firstChoiceIndex ?? choiceIndex,
+          firstSubmittedAtMs: prev.firstSubmittedAtMs ?? submittedAtMs,
+          hasChangedChoice: prev.hasChangedChoice || changedChoice,
+        };
+      });
+      setChoiceCommitFxState((prev) => ({
+        trackSessionKey,
+        choiceIndex,
+        kind: fxKind,
+        key: (prev?.key ?? 0) + 1,
+      }));
+      if (choiceCommitFxTimerRef.current !== null) {
+        window.clearTimeout(choiceCommitFxTimerRef.current);
+      }
+      choiceCommitFxTimerRef.current = window.setTimeout(() => {
+        setChoiceCommitFxState((current) => {
+          if (
+            current &&
+            current.trackSessionKey === trackSessionKey &&
+            current.choiceIndex === choiceIndex
+          ) {
+            return null;
+          }
+          return current;
+        });
+        choiceCommitFxTimerRef.current = null;
+      }, 340);
+      onSubmitChoice(choiceIndex);
+    },
+    [
+      canAnswerNow,
+      currentTrackIndex,
+      getServerNowMs,
+      onSubmitChoice,
+      playGameSfx,
+      primeSfxAudio,
+      selectedChoiceState.choiceIndex,
+      selectedChoiceState.trackIndex,
+      trackSessionKey,
+    ],
+  );
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
@@ -1518,11 +1747,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       const choice = gameState.choices[idx];
       if (!choice) return;
       e.preventDefault();
-      setSelectedChoiceState({
-        trackIndex: currentTrackIndex,
-        choiceIndex: choice.index,
-      });
-      onSubmitChoice(choice.index);
+      submitChoiceWithFeedback(choice.index);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -1537,6 +1762,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     onSubmitChoice,
     shouldShowGestureOverlay,
     getServerNowMs,
+    submitChoiceWithFeedback,
     waitingToStart,
     canAnswerNow,
   ]);
@@ -1568,6 +1794,73 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !isEnded &&
     phaseRemainingMs > 0 &&
     phaseRemainingMs <= 3000;
+  const phaseCountdownSec =
+    !isInterTrackWait &&
+    !isEnded &&
+    phaseRemainingMs > 0 &&
+    phaseRemainingMs <= 3999
+      ? Math.min(3, Math.ceil(phaseRemainingMs / 1000))
+      : null;
+  const preStartCountdownSfxSec = startCountdownSec;
+  const phaseElapsedMs = Math.max(0, activePhaseDurationMs - phaseRemainingMs);
+
+  useEffect(() => {
+    // Inter-track prep is usually very short; keep only the guess-start "go" sound
+    // to avoid stacked cues between reveal end and next track start.
+    if (isEnded || !waitingToStart || isInterTrackWait) return;
+    const sfxKey = `${trackSessionKey}:prestart:${preStartCountdownSfxSec}`;
+    if (lastPreStartCountdownSfxKeyRef.current === sfxKey) return;
+    lastPreStartCountdownSfxKeyRef.current = sfxKey;
+    playGameSfx(resolveCountdownSfxEvent(preStartCountdownSfxSec));
+  }, [
+    isEnded,
+    isInterTrackWait,
+    playGameSfx,
+    preStartCountdownSfxSec,
+    trackSessionKey,
+    waitingToStart,
+  ]);
+
+  useEffect(() => {
+    if (
+      gameState.phase !== "guess" ||
+      isEnded ||
+      waitingToStart ||
+      phaseCountdownSec === null ||
+      phaseCountdownSec > 3
+    ) {
+      return;
+    }
+    const sfxKey = `${trackSessionKey}:${gameState.phase}:countdown:${phaseCountdownSec}`;
+    if (lastGuessUrgencySfxKeyRef.current === sfxKey) return;
+    lastGuessUrgencySfxKeyRef.current = sfxKey;
+    playGameSfx(resolveGuessDeadlineSfxEvent(phaseCountdownSec));
+  }, [
+    gameState.phase,
+    isEnded,
+    playGameSfx,
+    phaseCountdownSec,
+    trackSessionKey,
+    waitingToStart,
+  ]);
+
+  useEffect(() => {
+    if (isEnded || waitingToStart) return;
+    if (gameState.phase !== "guess") return;
+    if (phaseElapsedMs > 220) return;
+    const sfxKey = `${trackSessionKey}:guess:go:${gameState.startedAt}`;
+    if (lastCountdownGoSfxKeyRef.current === sfxKey) return;
+    lastCountdownGoSfxKeyRef.current = sfxKey;
+    playGameSfx("go");
+  }, [
+    gameState.phase,
+    gameState.startedAt,
+    isEnded,
+    phaseElapsedMs,
+    playGameSfx,
+    trackSessionKey,
+    waitingToStart,
+  ]);
 
   const participantIdSet = useMemo(
     () => new Set(participants.map((participant) => participant.clientId)),
@@ -1620,69 +1913,238 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
       : null;
   const myGain = myScoreParts?.gain ?? 0;
+  const myAnswerRank =
+    meClientId != null ? answeredRankByClientId.get(meClientId) ?? null : null;
+  const currentQuestionStats = gameState.questionStats;
+  const liveParticipantCount =
+    typeof currentQuestionStats?.participantCount === "number" &&
+    Number.isFinite(currentQuestionStats.participantCount)
+      ? Math.max(0, Math.floor(currentQuestionStats.participantCount))
+      : participants.length;
+  const liveAnsweredCount =
+    typeof currentQuestionStats?.answeredCount === "number" &&
+    Number.isFinite(currentQuestionStats.answeredCount)
+      ? Math.max(0, Math.floor(currentQuestionStats.answeredCount))
+      : answeredCount;
+  const liveCorrectCount =
+    typeof currentQuestionStats?.correctCount === "number" &&
+    Number.isFinite(currentQuestionStats.correctCount)
+      ? Math.max(0, Math.floor(currentQuestionStats.correctCount))
+      : null;
+  const liveAccuracyPct =
+    liveCorrectCount !== null && liveParticipantCount > 0
+      ? Math.round((liveCorrectCount / Math.max(1, liveParticipantCount)) * 100)
+      : null;
+  const scoreBreakdownsByClientId = currentQuestionStats?.scoreBreakdownsByClientId;
+  const myBackendScoreBreakdown =
+    meClientId && scoreBreakdownsByClientId
+      ? scoreBreakdownsByClientId[meClientId] ?? null
+      : null;
+  const answerDecisionMetaForCurrentTrack =
+    answerDecisionMeta.trackSessionKey === trackSessionKey ? answerDecisionMeta : null;
+  const myHasChangedAnswer = Boolean(answerDecisionMetaForCurrentTrack?.hasChangedChoice);
+  const myFirstSubmittedAtMs = answerDecisionMetaForCurrentTrack?.firstSubmittedAtMs ?? null;
+  const myFirstChoiceIndex = answerDecisionMetaForCurrentTrack?.firstChoiceIndex ?? null;
+  const myFirstAnswerElapsedMs =
+    myFirstSubmittedAtMs !== null ? myFirstSubmittedAtMs - gameState.startedAt : null;
   const myHasAnswered =
     selectedChoice !== null ||
     Boolean(meClientId && answeredClientIdSet.has(meClientId));
   const myIsCorrect = selectedChoice !== null && selectedChoice === correctChoiceIndex;
-  const myFeedback = useMemo(() => {
+  const myDecisionBonusPreviewPoints =
+    gameState.phase === "guess" || isReveal
+      ? (
+          myHasAnswered &&
+            selectedChoice !== null &&
+            myFirstSubmittedAtMs !== null &&
+            myFirstChoiceIndex === selectedChoice &&
+            !myHasChangedAnswer
+        )
+        ? resolveDecisionBonusPreviewPoints(myFirstAnswerElapsedMs)
+        : 0
+      : 0;
+  const myDecisionBonusEligible = myDecisionBonusPreviewPoints > 0;
+  const myResolvedScoreBreakdown = myBackendScoreBreakdown;
+  const myResolvedGain = myResolvedScoreBreakdown?.totalGainPoints ?? myGain;
+  const myFeedback = useMemo<MyFeedbackModel>(() => {
+    const guessBadges: string[] = [];
+    if (myDecisionBonusEligible) {
+      guessBadges.push(`決斷+${myDecisionBonusPreviewPoints}`);
+    }
+    if (myAnswerRank !== null) {
+      guessBadges.push(`第${myAnswerRank}答`);
+    }
+    if (liveParticipantCount > 0) {
+      guessBadges.push(`已答 ${liveAnsweredCount}/${liveParticipantCount}`);
+    }
+    const revealBadges: string[] = [];
+    if (myAnswerRank !== null) {
+      revealBadges.push(`第${myAnswerRank}答`);
+    }
+    if (liveAccuracyPct !== null) {
+      revealBadges.push(`全場答對率 ${liveAccuracyPct}%`);
+    }
+    const badges = (isReveal ? revealBadges : guessBadges).slice(0, 2);
+
     if (isInterTrackWait) {
       return {
-        tone: "neutral" as const,
+        tone: "neutral",
         title: "下一首準備中",
         detail: `${startCountdownSec} 秒後開始`,
+        badges,
+        pillText: `${startCountdownSec}s`,
+        lines: ["等待下一題載入完成", "倒數結束後可立即作答"],
       };
     }
     if (gameState.phase === "guess") {
       if (!myHasAnswered) {
         return {
-          tone: "neutral" as const,
+          tone: "neutral",
           title: "尚未作答",
-          detail: "請在倒數結束前選擇答案。",
+          detail: isGuessUrgency ? "最後幾秒了，快決定答案。" : "請在倒數結束前選擇答案。",
+          badges,
+          pillText: isGuessUrgency ? "快作答" : "待命中",
+          lines: [
+            isGuessUrgency ? "最後幾秒，請立即作答" : "本題尚未作答",
+            liveParticipantCount > 0
+              ? `已答 ${liveAnsweredCount}/${liveParticipantCount} 人`
+              : "等待你的答案",
+          ],
         };
       }
       return {
-        tone: "locked" as const,
-        title: "已作答，仍可修改",
-        detail: "你已作答，倒數結束前仍可修改答案。",
+        tone: "locked",
+        title: myHasChangedAnswer ? "已改答，可再改" : "已鎖定，可修改",
+        detail:
+          myAnswerRank !== null
+            ? myHasChangedAnswer
+              ? `目前答案已更新，倒數前仍可再改。`
+              : `已提交答案，倒數前仍可修改。`
+            : myHasChangedAnswer
+              ? "目前答案已更新，倒數結束前仍可再修改。"
+              : "你已提交答案，倒數結束前仍可修改。",
+        badges,
+        pillText: myHasChangedAnswer ? "已改答" : "已鎖定",
+        lines: [
+          myHasChangedAnswer
+            ? "答案已更新，系統以最後提交為準"
+            : "答案已送出，倒數前仍可修改",
+          [
+            liveParticipantCount > 0
+              ? `已答 ${liveAnsweredCount}/${liveParticipantCount}`
+              : "已答統計載入中",
+            myDecisionBonusEligible
+              ? `決斷+${myDecisionBonusPreviewPoints} 候選`
+              : "5 秒內不改答可拿決斷",
+          ].join(" · "),
+        ],
       };
     }
     if (!meClientId) {
       return {
-        tone: "neutral" as const,
+        tone: "neutral",
         title: "本題結果已公布",
         detail: "",
+        badges,
+        pillText: "觀戰中",
+        lines: [],
       };
     }
     if (!myHasAnswered || selectedChoice === null) {
+      const lines = [
+        [
+          "+0",
+          liveParticipantCount > 0
+            ? `已答 ${liveAnsweredCount}/${liveParticipantCount}`
+            : "已答統計載入中",
+          liveAccuracyPct !== null
+            ? `全場答對率 ${liveAccuracyPct}%`
+            : "全場答對率載入中",
+        ].join(" · "),
+      ];
       return {
-        tone: "neutral" as const,
-        title: "本題未作答",
-        detail: "",
+        tone: "neutral",
+        title: "未作答 +0",
+        detail: lines.join(" · "),
+        badges,
+        pillText: "+0",
+        lines: [],
+        inlineMeta: lines[0],
       };
     }
     if (myIsCorrect) {
+      const lines: string[] = [];
+      if (myResolvedScoreBreakdown) {
+        lines.push(...buildScoreBreakdownLines(myResolvedScoreBreakdown));
+      } else {
+        const fallbackParts: string[] = [];
+        if (myAnswerRank !== null) {
+          fallbackParts.push(myAnswerRank === 1 ? "首答" : `第${myAnswerRank}答`);
+        }
+        if (liveAccuracyPct !== null) {
+          fallbackParts.push(`全場答對率 ${liveAccuracyPct}%`);
+        }
+        lines.push(
+          fallbackParts.length > 0
+            ? fallbackParts.join(" · ")
+            : "後端分數拆解載入中",
+        );
+      }
+      const revealInlineMeta = lines[0] ?? "";
       return {
-        tone: "correct" as const,
-        title: `答對！本題 +${myGain}`,
-        detail: "",
+        tone: "correct",
+        title: `答對 +${myResolvedGain}`,
+        detail: revealInlineMeta,
+        badges: [],
+        pillText: myResolvedScoreBreakdown
+          ? `+${myResolvedScoreBreakdown.totalGainPoints}`
+          : `+${myResolvedGain}`,
+        lines: [],
+        inlineMeta: revealInlineMeta,
       };
     }
+    const revealResultDetailParts: string[] = [
+      [
+        "+0",
+        myAnswerRank !== null ? `第${myAnswerRank}答` : "順位載入中",
+        liveAccuracyPct !== null
+          ? `全場答對率 ${liveAccuracyPct}%`
+          : "全場答對率載入中",
+      ].join(" · "),
+    ];
     return {
-      tone: "wrong" as const,
-      title: "答錯！",
-      detail: "",
+      tone: "wrong",
+      title: "答錯 +0",
+      detail: revealResultDetailParts.join(" · "),
+      badges: isReveal ? [] : badges,
+      pillText: "+0",
+      lines: [],
+      inlineMeta: revealResultDetailParts[0],
     };
   }, [
     gameState.phase,
+    isGuessUrgency,
     isInterTrackWait,
+    isReveal,
+    liveAccuracyPct,
+    liveAnsweredCount,
+    liveParticipantCount,
     meClientId,
+    myAnswerRank,
+    myDecisionBonusEligible,
+    myDecisionBonusPreviewPoints,
+    myHasChangedAnswer,
     myHasAnswered,
-    myGain,
+    myResolvedScoreBreakdown,
+    myResolvedGain,
     myIsCorrect,
     startCountdownSec,
     selectedChoice,
   ]);
   const revealTone = myFeedback?.tone ?? "neutral";
+  const isPendingFeedbackCard =
+    !isInterTrackWait && gameState.phase === "guess" && !myHasAnswered;
+
   useEffect(() => {
     if (!isReveal) return;
     if (!gameState.choices.length) return;
@@ -1815,6 +2277,49 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const sortedParticipants = participants
     .slice()
     .sort((a, b) => b.score - a.score);
+  useEffect(() => {
+    const nextTopTwo: [string | null, string | null] = [
+      sortedParticipants[0]?.clientId ?? null,
+      sortedParticipants[1]?.clientId ?? null,
+    ];
+    const [prevFirst, prevSecond] = lastTopTwoOrderRef.current;
+    const [nextFirst, nextSecond] = nextTopTwo;
+    const didSwapTopTwo =
+      !!prevFirst &&
+      !!prevSecond &&
+      !!nextFirst &&
+      !!nextSecond &&
+      prevFirst === nextSecond &&
+      prevSecond === nextFirst;
+
+    if (didSwapTopTwo) {
+      if (topTwoSwapTimerRef.current !== null) {
+        window.clearTimeout(topTwoSwapTimerRef.current);
+      }
+      deferStateUpdate(() => {
+        setTopTwoSwapState((prev) => ({
+          firstClientId: nextFirst,
+          secondClientId: nextSecond,
+          key: (prev?.key ?? 0) + 1,
+        }));
+      });
+      topTwoSwapTimerRef.current = window.setTimeout(() => {
+        setTopTwoSwapState((current) => {
+          if (
+            current &&
+            current.firstClientId === nextFirst &&
+            current.secondClientId === nextSecond
+          ) {
+            return null;
+          }
+          return current;
+        });
+        topTwoSwapTimerRef.current = null;
+      }, 720);
+    }
+
+    lastTopTwoOrderRef.current = nextTopTwo;
+  }, [sortedParticipants]);
   const playedQuestionCount = trackOrderLength || room.gameSettings?.questionCount || 0;
   const endedRoundKey = `${room.id}:${gameState.startedAt}`;
   const topFive = sortedParticipants.slice(0, 5);
@@ -2061,6 +2566,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       : rowAnswerState === "answered"
                         ? "warning"
                         : "default";
+                const topSwapRole =
+                  topTwoSwapState &&
+                  idx === 0 &&
+                  p.clientId === topTwoSwapState.firstClientId
+                    ? "first"
+                    : topTwoSwapState &&
+                        idx === 1 &&
+                        p.clientId === topTwoSwapState.secondClientId
+                      ? "second"
+                      : null;
                 return (
                   <div
                     key={p.clientId}
@@ -2074,7 +2589,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                           : rowAnswerState === "answered"
                             ? "game-room-score-row--answered"
                             : ""
-                    } ${p.clientId === meClientId ? "game-room-score-row--me" : ""}`}
+                    } ${p.clientId === meClientId ? "game-room-score-row--me" : ""} ${
+                      topSwapRole === "first"
+                        ? "game-room-score-row--top-swap-first"
+                        : topSwapRole === "second"
+                          ? "game-room-score-row--top-swap-second"
+                          : ""
+                    }`}
                   >
                     <span className="truncate flex items-center gap-2">
                       {hasAnswered && (
@@ -2089,6 +2610,17 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         : p.username}
                     </span>
                     <div className="flex items-center gap-2">
+                      {topSwapRole && (
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                            topSwapRole === "first"
+                              ? "border-amber-300/40 bg-amber-300/10 text-amber-100"
+                              : "border-slate-400/35 bg-slate-700/45 text-slate-200"
+                          }`}
+                        >
+                          {topSwapRole === "first" ? "奪冠" : "交棒"}
+                        </span>
+                      )}
                       {typeof answerRank === "number" ? (
                         <Chip
                           label={`第${answerRank}答`}
@@ -2100,7 +2632,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         <Chip label="未答" size="small" variant="outlined" />
                       )}
                       <span className="font-semibold text-emerald-300 tabular-nums">
-                        {`${scoreParts.base}+ ${scoreParts.gain}`}
+                        {p.score.toLocaleString()}
                         {p.combo > 0 && (
                           <span className="ml-1 text-amber-300">
                             x{p.combo}
@@ -2147,6 +2679,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
               ) : (
                 recentMessages.map((msg) => {
+                  const isPresenceSystemMessage = msg.userId === "system:presence";
+                  if (isPresenceSystemMessage) {
+                    return (
+                      <div key={msg.id} className="flex justify-center">
+                        <div className="max-w-full rounded-full border border-slate-700/70 bg-slate-900/80 px-3 py-1 text-[11px] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                          <span className="font-medium text-slate-200">{msg.content}</span>
+                          <span className="ml-2 text-slate-500">
+                            {new Date(msg.timestamp).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
                   // const isSelf = msg.username === username;
                   return (
                     <div key={msg.id} className={`flex`}>
@@ -2443,6 +2991,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         const showCorrectTag = isReveal && isCorrect;
                         const showMyChoiceTag = isReveal && isMyChoice;
                         const showMyCorrectTag = isReveal && isMyChoice && isCorrect;
+                        const choiceCommitFxKind =
+                          choiceCommitFxState &&
+                          choiceCommitFxState.trackSessionKey === trackSessionKey &&
+                          choiceCommitFxState.choiceIndex === choice.index
+                            ? choiceCommitFxState.kind
+                            : null;
+                        const showGuessLockTag = !isReveal && isMyChoice;
+                        const showGuessDecisionTag =
+                          !isReveal && isMyChoice && myDecisionBonusPreviewPoints > 0;
 
                         return (
                           <Button
@@ -2483,23 +3040,29 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                   : "info"
                             }
                             className={`game-room-choice-button justify-start ${isReveal
-                              ? isCorrect
-                                ? "bg-emerald-700/40"
-                                : isSelected
-                                  ? "bg-rose-700/40"
-                                  : ""
+                              ? ""
                               : isSelected
                                 ? "bg-sky-700/30"
-                              : ""
-                              } ${isLocked || waitingToStart || shouldShowGestureOverlay ? "pointer-events-none" : ""}`}
+                                : ""
+                              } ${
+                                choiceCommitFxKind === "lock"
+                                  ? "game-room-choice-button--commit-lock"
+                                  : choiceCommitFxKind === "reselect"
+                                    ? "game-room-choice-button--commit-reselect"
+                                    : ""
+                              } ${
+                                !isReveal && isSelected
+                                  ? "game-room-choice-button--selected-live"
+                                  : ""
+                              } ${
+                                isLocked || waitingToStart || shouldShowGestureOverlay
+                                  ? "pointer-events-none"
+                                  : ""
+                              }`}
                             disabled={false}
                             onClick={() => {
                               if (isLocked || !canAnswerNow) return;
-                              setSelectedChoiceState({
-                                trackIndex: currentTrackIndex,
-                                choiceIndex: choice.index,
-                              });
-                              onSubmitChoice(choice.index);
+                              submitChoiceWithFeedback(choice.index);
                             }}
                           >
                             <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
@@ -2510,6 +3073,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                 {choiceDisplayTitle}
                               </span>
                               <span className="game-room-choice-meta ml-3 inline-flex items-center gap-1">
+                                {showGuessLockTag && (
+                                  <span
+                                    className={`game-room-choice-tag ${
+                                      myHasChangedAnswer
+                                        ? "game-room-choice-tag--reselect"
+                                        : "game-room-choice-tag--lock"
+                                    }`}
+                                  >
+                                    {myHasChangedAnswer ? "已改答" : "已鎖定"}
+                                  </span>
+                                )}
+                                {showGuessDecisionTag && (
+                                  <span className="game-room-choice-tag game-room-choice-tag--decision">
+                                    {`決斷+${myDecisionBonusPreviewPoints}`}
+                                  </span>
+                                )}
                                 {showCorrectTag && (
                                   <span className="game-room-choice-tag game-room-choice-tag--correct">
                                     正解
@@ -2526,7 +3105,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                   </span>
                                 )}
                                 <span className="game-room-choice-key inline-flex h-6 w-6 flex-none items-center justify-center rounded bg-slate-800 text-[11px] font-semibold text-slate-200 border border-slate-700">
-                                {(keyBindings[idx] ?? "").toUpperCase()}
+                                  {(keyBindings[idx] ?? "").toUpperCase()}
                                 </span>
                               </span>
                             </div>
@@ -2538,24 +3117,78 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
                 <div className="game-room-reveal">
                   <div
-                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result" : ""}`}
+                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result" : ""} ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""}`}
                   >
-                    <p className="game-room-feedback-title">{myFeedback.title}</p>
-                    {myFeedback.detail && (
-                      <p className="game-room-feedback-detail">{myFeedback.detail}</p>
+                    <div
+                      className={`game-room-feedback-head ${
+                        isReveal ? "game-room-feedback-head--reveal" : ""
+                      }`}
+                    >
+                      <p className="game-room-feedback-title">{myFeedback.title}</p>
+                      {isReveal && myFeedback.inlineMeta && (
+                        <span
+                          className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
+                          title={myFeedback.inlineMeta}
+                        >
+                          {myFeedback.inlineMeta}
+                        </span>
+                      )}
+                      {isReveal && (
+                        <span
+                          className={`game-room-feedback-pill game-room-feedback-pill--${revealTone} ${
+                            (myFeedback.pillText ?? myFeedback.detail) ? "" : "game-room-feedback-pill--placeholder"
+                          }`}
+                          title={(myFeedback.pillText ?? myFeedback.detail) || ""}
+                        >
+                          {(myFeedback.pillText ?? myFeedback.detail) || "—"}
+                        </span>
+                      )}
+                    </div>
+                    {!isReveal && (!Array.isArray(myFeedback.lines) || myFeedback.lines.length === 0) ? (
+                      myFeedback.detail && (
+                        <p className="game-room-feedback-detail">{myFeedback.detail}</p>
+                      )
+                    ) : !isReveal && (
+                      <div className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"}`}>
+                        {myFeedback.lines.slice(0, 2).map((line, idx) => (
+                          <p
+                            key={`${trackSessionKey}-feedback-line-${idx}`}
+                            className="game-room-feedback-line"
+                            title={line}
+                          >
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {!isReveal &&
+                      (!Array.isArray(myFeedback.lines) || myFeedback.lines.length === 0) &&
+                      myFeedback.badges.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {myFeedback.badges.map((badge) => (
+                          <span
+                            key={`${trackSessionKey}-${badge}`}
+                            className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/35 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
+                          >
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
                     )}
                     {isReveal && (
                       <>
-                        <p className="mt-2 text-sm font-semibold text-emerald-100">
-                          正確答案
-                        </p>
-                        <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
+                        <p
+                          className="game-room-reveal-answer mt-1 text-sm text-emerald-50"
+                          title={resolvedAnswerTitle}
+                        >
+                          <span className="mr-1 text-[11px] font-semibold text-emerald-200">
+                            正解
+                          </span>
                           {resolvedAnswerTitle}
                         </p>
                         {gameState.status === "playing" ? (
                           <p className="mt-1 text-xs text-emerald-200">
-                            下一首將在 {Math.ceil(revealCountdownMs / 1000)}{" "}
-                            秒後開始
+                            {Math.ceil(revealCountdownMs / 1000)} 秒後下一首
                           </p>
                         ) : (
                           <div className="mt-1 flex items-center justify-between">

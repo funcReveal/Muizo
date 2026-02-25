@@ -43,6 +43,21 @@ const buildSettlementSummaryFromSnapshot = (
   summaryJson: null,
 });
 
+const getSnapshotRecapCount = (
+  snapshot: Pick<RoomSettlementSnapshot, "questionRecaps"> | null | undefined,
+) => (Array.isArray(snapshot?.questionRecaps) ? snapshot.questionRecaps.length : 0);
+
+const hasCompleteSettlementRecaps = (
+  snapshot: Pick<RoomSettlementSnapshot, "questionRecaps" | "playedQuestionCount"> | null | undefined,
+) => {
+  if (!snapshot) return false;
+  const recapCount = getSnapshotRecapCount(snapshot);
+  if (recapCount <= 0) return false;
+  const expectedCount = Math.max(0, snapshot.playedQuestionCount);
+  if (expectedCount <= 0) return recapCount > 0;
+  return recapCount >= expectedCount;
+};
+
 const getSettlementSessionCacheKey = (
   roomId: string,
   clientId: string,
@@ -375,10 +390,12 @@ const RoomLobbyPage: React.FC = () => {
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
       setActiveSettlementRoundKey(roundKey);
-      if (
-        roomScopedSettlementReplayByRoundKey[roundKey] ||
-        roomScopedSettlementHistory.some((item) => item.roundKey === roundKey)
-      ) {
+      const cachedReplaySnapshot = roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
+      const cachedLiveSnapshot =
+        roomScopedSettlementHistory.find((item) => item.roundKey === roundKey) ?? null;
+      const hasReplayRecaps = hasCompleteSettlementRecaps(cachedReplaySnapshot);
+      const hasLiveRecaps = hasCompleteSettlementRecaps(cachedLiveSnapshot);
+      if (hasReplayRecaps || hasLiveRecaps) {
         return;
       }
 
@@ -520,14 +537,13 @@ const RoomLobbyPage: React.FC = () => {
 
     autoOpenedEndedRoundRef.current = snapshot.roundKey;
     pendingAutoOpenSettlementRef.current = null;
+    // Apply both updates in the same effect tick to avoid a setTimeout(0)
+    // race with this effect's cleanup when isGameView changes.
+    setActiveSettlementRoundKey(snapshot.roundKey);
     if (isGameView) {
       setIsGameView(false);
     }
     setStatusText("遊戲已結束，正在開啟結算頁面");
-    const timer = window.setTimeout(() => {
-      setActiveSettlementRoundKey(snapshot.roundKey);
-    }, 0);
-    return () => window.clearTimeout(timer);
   }, [
     currentRoom,
     gameState?.status,
@@ -547,11 +563,16 @@ const RoomLobbyPage: React.FC = () => {
 
   const activeSettlementSnapshot = useMemo<RoomSettlementSnapshot | null>(() => {
     if (!resolvedActiveSettlementRoundKey) return null;
-    return (
+    const liveSnapshot =
       roomScopedSettlementHistory.find((item) => item.roundKey === resolvedActiveSettlementRoundKey) ??
-      roomScopedSettlementReplayByRoundKey[resolvedActiveSettlementRoundKey] ??
-      null
-    );
+      null;
+    const replaySnapshot =
+      roomScopedSettlementReplayByRoundKey[resolvedActiveSettlementRoundKey] ?? null;
+    if (!liveSnapshot) return replaySnapshot;
+    if (!replaySnapshot) return liveSnapshot;
+    const liveRecapCount = getSnapshotRecapCount(liveSnapshot);
+    const replayRecapCount = getSnapshotRecapCount(replaySnapshot);
+    return replayRecapCount > liveRecapCount ? replaySnapshot : liveSnapshot;
   }, [
     resolvedActiveSettlementRoundKey,
     roomScopedSettlementHistory,
@@ -570,6 +591,32 @@ const RoomLobbyPage: React.FC = () => {
     }
     return settlementRecapsByRoundKey[activeSettlementSnapshot.roundKey];
   }, [activeSettlementSnapshot, settlementRecapsByRoundKey]);
+
+  useEffect(() => {
+    if (!resolvedActiveSettlementRoundKey) return;
+    if (loadingSettlementRoundKey === resolvedActiveSettlementRoundKey) return;
+    const snapshot =
+      roomScopedSettlementReplayByRoundKey[resolvedActiveSettlementRoundKey] ??
+      roomScopedSettlementHistory.find(
+        (item) => item.roundKey === resolvedActiveSettlementRoundKey,
+      ) ??
+      null;
+    const localRecaps = settlementRecapsByRoundKey[resolvedActiveSettlementRoundKey];
+    const localRecapCount = Array.isArray(localRecaps) ? localRecaps.length : 0;
+    const expectedCount = Math.max(0, snapshot?.playedQuestionCount ?? 0);
+    const snapshotHasCompleteRecaps = hasCompleteSettlementRecaps(snapshot);
+    const localHasCompleteRecaps =
+      localRecapCount > 0 && (expectedCount <= 0 || localRecapCount >= expectedCount);
+    if (snapshotHasCompleteRecaps || localHasCompleteRecaps) return;
+    void openSettlementReviewByRoundKey(resolvedActiveSettlementRoundKey);
+  }, [
+    loadingSettlementRoundKey,
+    openSettlementReviewByRoundKey,
+    resolvedActiveSettlementRoundKey,
+    roomScopedSettlementHistory,
+    roomScopedSettlementReplayByRoundKey,
+    settlementRecapsByRoundKey,
+  ]);
 
   const latestSettlementSnapshot = roomScopedSettlementHistory[0] ?? null;
 
@@ -841,7 +888,7 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (currentRoom && gameState && isGameView && gameState.status === "playing") {
+  if (currentRoom && gameState && isGameView) {
     return (
       <div className="flex w-full min-w-0 justify-center">
         <GameRoomPage
