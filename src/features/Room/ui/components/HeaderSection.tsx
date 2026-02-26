@@ -8,6 +8,7 @@
   Memory,
   MeetingRoom,
   Refresh,
+  Settings,
 } from "@mui/icons-material";
 import {
   Box,
@@ -45,6 +46,7 @@ interface HeaderSectionProps {
   onNavigateRooms?: () => void;
   onNavigateCollections?: () => void;
   onNavigateHistory?: () => void;
+  onNavigateSettings?: () => void;
 }
 
 type SystemStatusPayload = {
@@ -117,6 +119,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   onNavigateRooms,
   onNavigateCollections,
   onNavigateHistory,
+  onNavigateSettings,
 }) => {
   const navigate = useNavigate();
 
@@ -423,6 +426,32 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
               <ListItemText
                 primary="系統狀態"
                 secondary="檢視後端 OS 與執行狀態"
+              />
+            </MenuItem>
+
+            <MenuItem
+              onClick={() => {
+                handleMenuClose();
+                if (onNavigateSettings) {
+                  onNavigateSettings();
+                  return;
+                }
+                navigate("/settings");
+              }}
+              sx={{
+                ...menuItemSx,
+                "&:hover": {
+                  background:
+                    "linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(34, 211, 238, 0.08))",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 30, color: "#c4b5fd" }}>
+                <Settings fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="設定"
+                secondary="調整快捷鍵與遊戲偏好（即將擴充）"
               />
             </MenuItem>
 

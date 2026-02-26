@@ -14,7 +14,7 @@ import LoginPage from "./components/LoginPage";
 import { useRoom } from "../model/useRoom";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 
-type NavigationTarget = "rooms" | "collections" | "history";
+type NavigationTarget = "rooms" | "collections" | "history" | "settings";
 
 const RoomsLayoutShell: React.FC = () => {
   const navigate = useNavigate();
@@ -44,6 +44,20 @@ const RoomsLayoutShell: React.FC = () => {
   const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
   const [navigationConfirmTarget, setNavigationConfirmTarget] =
     useState<NavigationTarget | null>(null);
+  const getNavigationPath = useCallback((target: NavigationTarget) => {
+    switch (target) {
+      case "rooms":
+        return "/rooms";
+      case "collections":
+        return "/collections";
+      case "history":
+        return "/history";
+      case "settings":
+        return "/settings";
+      default:
+        return "/rooms";
+    }
+  }, []);
 
   const loginConfirmText = useMemo(() => {
     if (gameState?.status === "playing") {
@@ -87,23 +101,31 @@ const RoomsLayoutShell: React.FC = () => {
 
   const handleNavigateRequest = useCallback(
     (target: NavigationTarget) => {
-      const path =
-        target === "rooms"
-          ? "/rooms"
-          : target === "collections"
-            ? "/collections"
-            : "/history";
+      const path = getNavigationPath(target);
       if (!currentRoom) {
         navigate(path);
         return;
       }
       setNavigationConfirmTarget(target);
     },
-    [currentRoom, navigate],
+    [currentRoom, getNavigationPath, navigate],
   );
 
   const navigationConfirmText = useMemo(() => {
     if (!navigationConfirmTarget) return null;
+    if (navigationConfirmTarget === "settings") {
+      if (gameState?.status === "playing") {
+        return {
+          title: "離開目前對戰並前往設定？",
+          description:
+            "目前房間正在遊玩中。前往設定頁前會先離開房間，之後可再重新加入。",
+        };
+      }
+      return {
+        title: "離開房間並前往設定？",
+        description: "前往設定頁前會先離開目前房間，避免保留舊的房間連線狀態。",
+      };
+    }
     const targetLabel =
       navigationConfirmTarget === "rooms"
         ? "房間列表"
@@ -126,18 +148,17 @@ const RoomsLayoutShell: React.FC = () => {
     const target = navigationConfirmTarget;
     setNavigationConfirmTarget(null);
     if (!target) return;
-    const path =
-      target === "rooms"
-        ? "/rooms"
-        : target === "collections"
-          ? "/collections"
-          : "/history";
+    const path = getNavigationPath(target);
     if (!currentRoom) {
       navigate(path);
       return;
     }
     handleLeaveRoom(() => {
       navigate(path, { replace: target === "rooms" });
+      if (target === "settings") {
+        setStatusText("已離開房間，前往設定頁");
+        return;
+      }
       setStatusText(
         target === "rooms"
           ? "已退出房間，返回房間列表"
@@ -148,6 +169,7 @@ const RoomsLayoutShell: React.FC = () => {
     });
   }, [
     currentRoom,
+    getNavigationPath,
     handleLeaveRoom,
     navigate,
     navigationConfirmTarget,
@@ -168,6 +190,7 @@ const RoomsLayoutShell: React.FC = () => {
             onNavigateRooms={() => handleNavigateRequest("rooms")}
             onNavigateCollections={() => handleNavigateRequest("collections")}
             onNavigateHistory={() => handleNavigateRequest("history")}
+            onNavigateSettings={() => handleNavigateRequest("settings")}
           />
         </div>
 

@@ -12,6 +12,7 @@ import InvitedPage from "../features/Invited/ui/InvitedPage";
 import LegalLayout from "../features/Legal/ui/LegalLayout";
 import PrivacyPage from "../features/Legal/ui/PrivacyPage";
 import TermsPage from "../features/Legal/ui/TermsPage";
+import SettingsPage from "../features/Setting/ui/SettingsPage";
 
 export function AppRouter() {
   return (
@@ -22,6 +23,7 @@ export function AppRouter() {
         <Route path="/rooms/create" element={<RoomCreatePage />} />
         <Route path="/rooms/:roomId" element={<RoomLobbyPage />} />
         <Route path="/history" element={<RoomHistoryPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/invited/:roomId" element={<InvitedPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/new" element={<CollectionsCreatePage />} />
