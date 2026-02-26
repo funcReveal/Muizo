@@ -39,6 +39,15 @@ export interface GameChoice {
   index: number;
 }
 
+export interface QuestionScoreBreakdown {
+  basePoints: number;
+  speedBonusPoints: number;
+  decisionBonusPoints: number;
+  difficultyBonusPoints: number;
+  comboBonusPoints: number;
+  totalGainPoints: number;
+}
+
 export interface GameQuestionStats {
   participantCount: number;
   answeredCount: number;
@@ -47,6 +56,7 @@ export interface GameQuestionStats {
   unansweredCount: number;
   fastestCorrectMs?: number | null;
   medianCorrectMs?: number | null;
+  scoreBreakdownsByClientId?: Record<string, QuestionScoreBreakdown>;
 }
 
 export interface GameState {
@@ -107,6 +117,65 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface RoomSettlementQuestionAnswer {
+  choiceIndex: number | null;
+  result: "correct" | "wrong" | "unanswered";
+  answeredAtMs?: number | null;
+  firstAnsweredAtMs?: number | null;
+  changedAnswerCount?: number;
+  scoreBreakdown?: QuestionScoreBreakdown | null;
+}
+
+export interface RoomSettlementQuestionChoice {
+  index: number;
+  title: string;
+  isCorrect?: boolean;
+  isSelectedByMe?: boolean;
+}
+
+export interface RoomSettlementQuestionRecap {
+  key: string;
+  order: number;
+  trackIndex: number;
+  title: string;
+  uploader: string;
+  duration: string | null;
+  thumbnail: string | null;
+  myResult?: "correct" | "wrong" | "unanswered";
+  myChoiceIndex?: number | null;
+  correctChoiceIndex: number;
+  choices: RoomSettlementQuestionChoice[];
+  participantCount?: number;
+  answeredCount?: number;
+  correctCount?: number;
+  wrongCount?: number;
+  unansweredCount?: number;
+  fastestCorrectRank?: number | null;
+  fastestCorrectMs?: number | null;
+  medianCorrectMs?: number | null;
+  answersByClientId?: Record<string, RoomSettlementQuestionAnswer>;
+}
+
+export interface RoomSettlementHistorySummary {
+  matchId: string;
+  roundKey: string;
+  roundNo: number;
+  roomId: string;
+  roomName: string;
+  startedAt: number;
+  endedAt: number;
+  status: "ended" | "aborted";
+  playerCount: number;
+  questionCount: number;
+  summaryJson?: Record<string, unknown> | null;
+  selfPlayer?: {
+    usernameSnapshot: string | null;
+    finalScore: number;
+    maxCombo: number;
+    correctCount: number;
+  } | null;
+}
+
 export interface RoomSettlementSnapshot {
   roundKey: string;
   roundNo: number;
@@ -118,9 +187,10 @@ export interface RoomSettlementSnapshot {
   };
   participants: RoomParticipant[];
   messages: ChatMessage[];
-  playlistItems: PlaylistItem[];
+  playlistItems?: PlaylistItem[];
   trackOrder: number[];
   playedQuestionCount: number;
+  questionRecaps?: RoomSettlementQuestionRecap[];
 }
 
 export interface RoomSummary {
@@ -138,6 +208,12 @@ export interface RoomSummary {
   };
   visibility?: "public" | "private";
   maxPlayers?: number | null;
+  isPlaying?: boolean;
+  gameStatus?: "playing" | "ended" | "idle";
+  gamePhase?: "guess" | "reveal" | null;
+  currentQuestionNo?: number | null;
+  completedQuestionCount?: number;
+  totalQuestionCount?: number;
 }
 
 export interface RoomState {
@@ -277,6 +353,14 @@ export interface ClientToServerEvents {
       };
     },
     callback?: (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => void
+  ) => void;
+  listSettlementHistorySummaries: (
+    payload: { roomId: string; limit?: number; beforeEndedAt?: number | null },
+    callback?: (ack: Ack<{ items: RoomSettlementHistorySummary[]; nextCursor: number | null }>) => void
+  ) => void;
+  getSettlementReplay: (
+    payload: { roomId: string; matchId: string; roundKey?: string | null },
+    callback?: (ack: Ack<RoomSettlementSnapshot>) => void
   ) => void;
 }
 

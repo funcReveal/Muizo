@@ -10,7 +10,49 @@ import {
   Typography,
 } from "@mui/material";
 
+import type { RoomSummary } from "../model/types";
 import { useRoom } from "../model/useRoom";
+import { apiFetchRoomById } from "../model/roomApi";
+import { API_URL } from "../model/roomConstants";
+
+const isRoomCurrentlyPlaying = (room: RoomSummary) => {
+  const source = room as RoomSummary &
+    Record<string, unknown> & {
+      gameState?: { status?: unknown } | null;
+    };
+
+  const boolCandidates = [
+    source.isPlaying,
+    source.playing,
+    source.inGame,
+    source.hasActiveGame,
+  ];
+  if (boolCandidates.some((value) => value === true)) return true;
+
+  const stringCandidates = [
+    source.gameStatus,
+    source.game_status,
+    source.status,
+    source.liveStatus,
+    source.roomStatus,
+    source.gameState?.status,
+  ];
+  for (const value of stringCandidates) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim().toLowerCase();
+    if (
+      normalized === "playing" ||
+      normalized === "in_progress" ||
+      normalized === "active" ||
+      normalized === "started" ||
+      normalized === "running"
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
 
 const RoomListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +73,19 @@ const RoomListPage: React.FC = () => {
     roomId: string;
     roomName: string;
   } | null>(null);
+  const [joinConfirmDialog, setJoinConfirmDialog] = useState<{
+    roomId: string;
+    roomName: string;
+    hasPassword: boolean;
+    playerCount: number;
+    maxPlayers?: number | null;
+    questionCount?: number;
+    currentQuestionNo?: number | null;
+    completedQuestionCount?: number;
+    totalQuestionCount?: number;
+  } | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
+  const [joinProbeRoomId, setJoinProbeRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentRoom?.id) {
@@ -56,10 +110,75 @@ const RoomListPage: React.FC = () => {
     setPasswordDialog(null);
     setPasswordDraft("");
   };
+  const closeJoinConfirmDialog = () => {
+    setJoinConfirmDialog(null);
+  };
   const openPasswordDialog = (roomId: string, roomName: string) => {
     setJoinPasswordInput("");
     setPasswordDraft("");
     setPasswordDialog({ roomId, roomName });
+  };
+  const proceedJoinRoom = (roomId: string, roomName: string, hasPassword: boolean) => {
+    if (hasPassword) {
+      openPasswordDialog(roomId, roomName);
+      return;
+    }
+    setJoinPasswordInput("");
+    handleJoinRoom(roomId, false);
+  };
+  const openInProgressJoinDialog = (room: RoomSummary) => {
+    setJoinConfirmDialog({
+      roomId: room.id,
+      roomName: room.name,
+      hasPassword: room.hasPassword,
+      playerCount: room.playerCount,
+      maxPlayers: room.maxPlayers,
+      questionCount: room.gameSettings?.questionCount,
+      currentQuestionNo:
+        typeof room.currentQuestionNo === "number" ? room.currentQuestionNo : null,
+      completedQuestionCount:
+        typeof room.completedQuestionCount === "number"
+          ? room.completedQuestionCount
+          : undefined,
+      totalQuestionCount:
+        typeof room.totalQuestionCount === "number"
+          ? room.totalQuestionCount
+          : room.gameSettings?.questionCount,
+    });
+  };
+  const handleJoinRoomClick = async (room: RoomSummary, isPlayingRoom: boolean) => {
+    if (joinProbeRoomId === room.id) return;
+    if (isPlayingRoom) {
+      openInProgressJoinDialog(room);
+      return;
+    }
+    if (!API_URL) {
+      proceedJoinRoom(room.id, room.name, room.hasPassword);
+      return;
+    }
+    setJoinProbeRoomId(room.id);
+    try {
+      const result = await apiFetchRoomById(API_URL, room.id);
+      const fetchedRoom = (result.payload as { room?: RoomSummary } | null)?.room;
+      if (result.ok && fetchedRoom && isRoomCurrentlyPlaying(fetchedRoom)) {
+        openInProgressJoinDialog({ ...room, ...fetchedRoom });
+        return;
+      }
+      proceedJoinRoom(room.id, room.name, room.hasPassword);
+    } catch {
+      proceedJoinRoom(room.id, room.name, room.hasPassword);
+    } finally {
+      setJoinProbeRoomId((prev) => (prev === room.id ? null : prev));
+    }
+  };
+  const handleConfirmJoinInProgress = () => {
+    if (!joinConfirmDialog) return;
+    proceedJoinRoom(
+      joinConfirmDialog.roomId,
+      joinConfirmDialog.roomName,
+      joinConfirmDialog.hasPassword,
+    );
+    closeJoinConfirmDialog();
   };
   const handleConfirmJoinWithPassword = () => {
     if (!passwordDialog) return;
@@ -175,6 +294,7 @@ const RoomListPage: React.FC = () => {
                   const isFull = Boolean(
                     room.maxPlayers && room.playerCount >= room.maxPlayers,
                   );
+                  const isPlayingRoom = isRoomCurrentlyPlaying(room);
                   return (
                     <div
                       key={room.id}
@@ -202,6 +322,12 @@ const RoomListPage: React.FC = () => {
                                 目前房間
                               </span>
                             )}
+                            {isPlayingRoom && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/45 bg-amber-300/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.9)] animate-pulse" />
+                                遊玩中
+                              </span>
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--mc-text-muted)]">
                             <span>
@@ -224,17 +350,12 @@ const RoomListPage: React.FC = () => {
                           )}
                           <button
                             onClick={() => {
-                              if (room.hasPassword) {
-                                openPasswordDialog(room.id, room.name);
-                                return;
-                              }
-                              setJoinPasswordInput("");
-                              handleJoinRoom(room.id, false);
+                              void handleJoinRoomClick(room, isPlayingRoom);
                             }}
-                            disabled={!username || isFull}
+                            disabled={!username || isFull || joinProbeRoomId === room.id}
                             className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/40 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            進入
+                            {joinProbeRoomId === room.id ? "確認中..." : "進入"}
                           </button>
                         </div>
                       </div>
@@ -253,6 +374,56 @@ const RoomListPage: React.FC = () => {
               }
             `}
           </style>
+
+          <Dialog
+            open={Boolean(joinConfirmDialog)}
+            onClose={closeJoinConfirmDialog}
+            fullWidth
+            maxWidth="xs"
+          >
+            <DialogTitle>此對戰已進行中</DialogTitle>
+            <DialogContent>
+              <Typography variant="body2" sx={{ mb: 1.5, color: "text.secondary" }}>
+                {joinConfirmDialog
+                  ? `房間「${joinConfirmDialog.roomName}」目前已開始遊戲。加入後會從目前進度開始參與。`
+                  : ""}
+              </Typography>
+              {joinConfirmDialog && (
+                <div className="space-y-1">
+                  <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+                    玩家 {joinConfirmDialog.playerCount}
+                    {joinConfirmDialog.maxPlayers
+                      ? `/${joinConfirmDialog.maxPlayers}`
+                      : ""}
+                    {typeof joinConfirmDialog.questionCount === "number"
+                      ? ` · 本局題數 ${joinConfirmDialog.questionCount}`
+                      : ""}
+                  </Typography>
+                  {(typeof joinConfirmDialog.currentQuestionNo === "number" ||
+                    typeof joinConfirmDialog.completedQuestionCount === "number") && (
+                    <Typography variant="caption" sx={{ display: "block", color: "warning.main" }}>
+                      {typeof joinConfirmDialog.currentQuestionNo === "number"
+                        ? `目前第 ${joinConfirmDialog.currentQuestionNo} 題`
+                        : "對戰進行中"}
+                      {typeof joinConfirmDialog.completedQuestionCount === "number"
+                        ? `（已完成 ${joinConfirmDialog.completedQuestionCount} 題${
+                          typeof joinConfirmDialog.totalQuestionCount === "number"
+                            ? ` / 共 ${joinConfirmDialog.totalQuestionCount} 題`
+                            : ""
+                        }）`
+                        : ""}
+                    </Typography>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={closeJoinConfirmDialog}>取消</Button>
+              <Button variant="contained" color="warning" onClick={handleConfirmJoinInProgress}>
+                仍要加入
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           <Dialog
             open={Boolean(passwordDialog)}

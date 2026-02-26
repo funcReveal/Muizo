@@ -4,6 +4,7 @@ import RoomsLayoutShell from "../features/Room/ui/RoomsLayoutShell";
 import RoomListPage from "../features/Room/ui/RoomListPage";
 import RoomCreatePage from "../features/Room/ui/RoomCreatePage";
 import RoomLobbyPage from "../features/Room/ui/RoomLobbyPage";
+import RoomHistoryPage from "../features/Room/ui/RoomHistoryPage";
 import CollectionsPage from "../features/Collections/ui/CollectionsPage";
 import CollectionsCreatePage from "../features/Collections/ui/CollectionsCreatePage";
 import EditPage from "../features/Collections/ui/EditPage";
@@ -20,6 +21,7 @@ export function AppRouter() {
         <Route path="/rooms" element={<RoomListPage />} />
         <Route path="/rooms/create" element={<RoomCreatePage />} />
         <Route path="/rooms/:roomId" element={<RoomLobbyPage />} />
+        <Route path="/history" element={<RoomHistoryPage />} />
         <Route path="/invited/:roomId" element={<InvitedPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/collections/new" element={<CollectionsCreatePage />} />

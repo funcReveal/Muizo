@@ -14,7 +14,7 @@ import LoginPage from "./components/LoginPage";
 import { useRoom } from "../model/useRoom";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 
-type NavigationTarget = "rooms" | "collections";
+type NavigationTarget = "rooms" | "collections" | "history";
 
 const RoomsLayoutShell: React.FC = () => {
   const navigate = useNavigate();
@@ -87,7 +87,12 @@ const RoomsLayoutShell: React.FC = () => {
 
   const handleNavigateRequest = useCallback(
     (target: NavigationTarget) => {
-      const path = target === "rooms" ? "/rooms" : "/collections";
+      const path =
+        target === "rooms"
+          ? "/rooms"
+          : target === "collections"
+            ? "/collections"
+            : "/history";
       if (!currentRoom) {
         navigate(path);
         return;
@@ -100,7 +105,11 @@ const RoomsLayoutShell: React.FC = () => {
   const navigationConfirmText = useMemo(() => {
     if (!navigationConfirmTarget) return null;
     const targetLabel =
-      navigationConfirmTarget === "rooms" ? "房間列表" : "收藏庫";
+      navigationConfirmTarget === "rooms"
+        ? "房間列表"
+        : navigationConfirmTarget === "collections"
+          ? "收藏庫"
+          : "歷史紀錄";
     if (gameState?.status === "playing") {
       return {
         title: `放棄本局並前往${targetLabel}？`,
@@ -117,7 +126,12 @@ const RoomsLayoutShell: React.FC = () => {
     const target = navigationConfirmTarget;
     setNavigationConfirmTarget(null);
     if (!target) return;
-    const path = target === "rooms" ? "/rooms" : "/collections";
+    const path =
+      target === "rooms"
+        ? "/rooms"
+        : target === "collections"
+          ? "/collections"
+          : "/history";
     if (!currentRoom) {
       navigate(path);
       return;
@@ -127,7 +141,9 @@ const RoomsLayoutShell: React.FC = () => {
       setStatusText(
         target === "rooms"
           ? "已退出房間，返回房間列表"
-          : "已退出房間，前往收藏庫",
+          : target === "collections"
+            ? "已退出房間，前往收藏庫"
+            : "已退出房間，前往歷史紀錄",
       );
     });
   }, [
@@ -151,6 +167,7 @@ const RoomsLayoutShell: React.FC = () => {
             onEditProfile={openProfileEditor}
             onNavigateRooms={() => handleNavigateRequest("rooms")}
             onNavigateCollections={() => handleNavigateRequest("collections")}
+            onNavigateHistory={() => handleNavigateRequest("history")}
           />
         </div>
 
