@@ -45,6 +45,9 @@ const RoomCreatePage: React.FC = () => {
     collectionsLoading,
     collectionsError,
     collectionScope,
+    publicCollectionsSort,
+    setPublicCollectionsSort,
+    collectionFavoriteUpdatingId,
     selectedCollectionId,
     collectionItemsLoading,
     collectionItemsError,
@@ -66,6 +69,7 @@ const RoomCreatePage: React.FC = () => {
     fetchYoutubePlaylists,
     importYoutubePlaylist,
     fetchCollections,
+    toggleCollectionFavorite,
     selectCollection,
     loadCollectionItems,
     handleCreateRoom,
@@ -183,6 +187,9 @@ const RoomCreatePage: React.FC = () => {
                   collectionsLoading={collectionsLoading}
                   collectionsError={collectionsError}
                   collectionScope={collectionScope}
+                  publicCollectionsSort={publicCollectionsSort}
+                  onPublicCollectionsSortChange={setPublicCollectionsSort}
+                  collectionFavoriteUpdatingId={collectionFavoriteUpdatingId}
                   selectedCollectionId={selectedCollectionId}
                   collectionItemsLoading={collectionItemsLoading}
                   collectionItemsError={collectionItemsError}
@@ -199,6 +206,7 @@ const RoomCreatePage: React.FC = () => {
                   onFetchYoutubePlaylists={fetchYoutubePlaylists}
                   onImportYoutubePlaylist={importYoutubePlaylist}
                   onFetchCollections={fetchCollections}
+                  onToggleCollectionFavorite={toggleCollectionFavorite}
                   onSelectCollection={selectCollection}
                   onLoadCollectionItems={loadCollectionItems}
                   onJoinRoom={handleJoinRoom}

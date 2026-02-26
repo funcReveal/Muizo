@@ -10,6 +10,7 @@ import type {
   RoomParticipant,
   RoomState,
   RoomSummary,
+  SessionProgressPayload,
 } from "./types";
 
 type RoomSocketHandlers = {
@@ -17,6 +18,7 @@ type RoomSocketHandlers = {
   onDisconnect?: () => void;
   onRoomsUpdated?: (rooms: RoomSummary[]) => void;
   onJoinedRoom?: (state: RoomState) => void;
+  onSessionProgress?: (payload: SessionProgressPayload) => void;
   onParticipantsUpdated?: (payload: {
     roomId: string;
     participants: RoomParticipant[];
@@ -75,6 +77,9 @@ export const connectRoomSocket = (
   socket.on("disconnect", () => handlers.onDisconnect?.());
   socket.on("roomsUpdated", (rooms) => handlers.onRoomsUpdated?.(rooms));
   socket.on("joinedRoom", (state) => handlers.onJoinedRoom?.(state));
+  socket.on("sessionProgress", (payload) =>
+    handlers.onSessionProgress?.(payload),
+  );
   socket.on("participantsUpdated", (payload) =>
     handlers.onParticipantsUpdated?.(payload),
   );

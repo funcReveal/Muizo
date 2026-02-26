@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React from "react";
+
 import type { KeyBindings } from "./useKeyBindings";
 
 interface KeyBindingSettingsProps {
@@ -7,11 +8,49 @@ interface KeyBindingSettingsProps {
   disabled?: boolean;
 }
 
-const SLOT_LABELS = ["左上選項", "右上選項", "左下選項", "右下選項"] as const;
+const SLOT_LABELS = [
+  "左上選項",
+  "右上選項",
+  "左下選項",
+  "右下選項",
+] as const;
 
 const normalizeKeyInput = (raw: string) => {
   const chars = raw.trim().toUpperCase().replace(/\s+/g, "");
   return chars.slice(0, 1);
+};
+
+const applyBindingSwap = (
+  currentBindings: KeyBindings,
+  targetIndex: number,
+  rawValue: string,
+) => {
+  const nextValue = normalizeKeyInput(rawValue);
+  if (!nextValue) {
+    return {
+      ...currentBindings,
+      [targetIndex]: "",
+    };
+  }
+
+  const nextBindings: KeyBindings = {
+    ...currentBindings,
+  };
+
+  const previousTargetValue = normalizeKeyInput(currentBindings[targetIndex] ?? "");
+  const occupiedIndex = Object.entries(currentBindings).find(([index, value]) => {
+    if (Number(index) === targetIndex) return false;
+    return normalizeKeyInput(value ?? "") === nextValue;
+  });
+
+  nextBindings[targetIndex] = nextValue;
+
+  if (occupiedIndex) {
+    const swapIndex = Number(occupiedIndex[0]);
+    nextBindings[swapIndex] = previousTargetValue;
+  }
+
+  return nextBindings;
 };
 
 const KeyBindingSettings: React.FC<KeyBindingSettingsProps> = ({
@@ -19,81 +58,56 @@ const KeyBindingSettings: React.FC<KeyBindingSettingsProps> = ({
   onChange,
   disabled = false,
 }) => {
-  const duplicateKeys = useMemo(() => {
-    const counter = new Map<string, number>();
-    Object.values(keyBindings).forEach((value) => {
-      const normalized = normalizeKeyInput(value ?? "");
-      if (!normalized) return;
-      counter.set(normalized, (counter.get(normalized) ?? 0) + 1);
-    });
-    return new Set(
-      Array.from(counter.entries())
-        .filter(([, count]) => count > 1)
-        .map(([key]) => key),
-    );
-  }, [keyBindings]);
-
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 text-xs text-slate-200 sm:grid-cols-2">
         {SLOT_LABELS.map((label, idx) => {
           const current = normalizeKeyInput(keyBindings[idx] ?? "");
-          const isDuplicate = Boolean(current && duplicateKeys.has(current));
           return (
             <label
               key={`${label}-${idx}`}
-              className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition ${
-                isDuplicate
-                  ? "border-rose-400/45 bg-rose-900/15"
-                  : "border-slate-700/60 bg-slate-950/45"
-              }`}
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/45 px-3 py-2.5 transition hover:border-slate-500/70"
             >
               <span className="min-w-0">
                 <span className="block text-[11px] text-slate-400">{label}</span>
                 <span className="block text-[12px] text-slate-300">
-                  選項 {idx + 1}
+                  作答槽位 {idx + 1}
                 </span>
               </span>
+
               <input
-                aria-label={`${label} 快捷鍵`}
+                aria-label={`${label} 按鍵設定`}
                 value={current}
                 maxLength={1}
                 disabled={disabled}
                 onChange={(e) => {
-                  const nextValue = normalizeKeyInput(e.target.value);
-                  onChange({
-                    ...keyBindings,
-                    [idx]: nextValue || (keyBindings[idx] ?? ""),
-                  });
+                  onChange(applyBindingSwap(keyBindings, idx, e.target.value));
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Tab") return;
                   if (e.key === "Backspace" || e.key === "Delete") {
                     e.preventDefault();
-                    onChange({ ...keyBindings, [idx]: "" });
+                    onChange({
+                      ...keyBindings,
+                      [idx]: "",
+                    });
                     return;
                   }
                   if (e.key.length !== 1) return;
                   e.preventDefault();
-                  const nextValue = normalizeKeyInput(e.key);
-                  if (!nextValue) return;
-                  onChange({ ...keyBindings, [idx]: nextValue });
+                  onChange(applyBindingSwap(keyBindings, idx, e.key));
                 }}
-                className={`h-10 w-14 rounded-lg border bg-slate-900/80 px-2 text-center text-lg font-black tracking-[0.08em] outline-none transition ${
-                  isDuplicate
-                    ? "border-rose-400/60 text-rose-100 shadow-[0_0_0_1px_rgba(251,113,133,0.12)]"
-                    : "border-slate-600 text-cyan-100 focus:border-cyan-400/70 focus:shadow-[0_0_0_1px_rgba(34,211,238,0.18)]"
-                } disabled:opacity-60`}
+                className="h-10 w-14 rounded-lg border border-slate-600 bg-slate-900/80 px-2 text-center text-lg font-black tracking-[0.08em] text-cyan-100 outline-none transition focus:border-cyan-400/70 focus:shadow-[0_0_0_1px_rgba(34,211,238,0.18)] disabled:opacity-60"
               />
             </label>
           );
         })}
       </div>
-      {duplicateKeys.size > 0 && (
-        <p className="text-xs text-rose-200">
-          快捷鍵有重複：{Array.from(duplicateKeys).join("、")}。建議每個選項使用不同按鍵。
-        </p>
-      )}
+
+      <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-xs leading-5 text-slate-400">
+        輸入重複按鍵時會自動與原本槽位交換，保持四個作答按鍵不重複。
+        使用 `Backspace` 或 `Delete` 可以清空目前欄位。
+      </div>
     </div>
   );
 };

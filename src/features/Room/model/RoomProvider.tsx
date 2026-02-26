@@ -15,6 +15,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  SessionProgressPayload,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
   RoomParticipant,
@@ -344,6 +345,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   >([]);
   const [messageInput, setMessageInput] = useState("");
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [sessionProgress, setSessionProgress] = useState<SessionProgressPayload | null>(
+    null,
+  );
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [playlistViewItems, setPlaylistViewItems] = useState<PlaylistItem[]>(
     [],
@@ -675,12 +679,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     collectionsLoading,
     collectionsError,
     collectionScope,
+    publicCollectionsSort,
+    setPublicCollectionsSort,
+    collectionFavoriteUpdatingId,
     collectionsLastFetchedAt,
     selectedCollectionId,
     collectionItemsLoading,
     collectionItemsError,
     selectCollection,
     fetchCollections,
+    toggleCollectionFavorite,
     loadCollectionItems,
     resetCollectionsState,
     resetCollectionSelection,
@@ -1162,6 +1170,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       const s = connectRoomSocket(SOCKET_URL, authPayload, {
       onConnect: (socket) => {
         setIsConnected(true);
+        setSessionProgress(null);
         setStatusText("已連線伺服器");
         void fetchRooms();
 
@@ -1219,6 +1228,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         }
       },
       onDisconnect: () => {
+        setSessionProgress(null);
         if (createRoomInFlightRef.current) {
           releaseCreateRoomLockRef.current?.();
           setStatusText("建立房間期間連線中斷，請重試或稍候自動恢復");
@@ -1256,7 +1266,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           }
         }
       },
+      onSessionProgress: (payload) => {
+        setSessionProgress(payload);
+      },
       onJoinedRoom: (state) => {
+        setSessionProgress(null);
         releaseCreateRoomLockRef.current?.();
         syncServerOffset(state.serverNow);
         setCurrentRoom(applyGameSettingsPatch(state.room, {}));
@@ -1438,6 +1452,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
     createRoomInFlightRef.current = true;
     setIsCreatingRoom(true);
+    setStatusText("建立房間中…");
     const releaseCreateRoomLock = () => {
       createRoomInFlightRef.current = false;
       setIsCreatingRoom(false);
@@ -1680,35 +1695,55 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
         if (!candidate) return false;
 
-        const recovered = await new Promise<boolean>((resolve) => {
-          s.emit(
-            "joinRoom",
-            {
-              roomId: candidate.id,
-              username,
-              password: desiredPassword ?? undefined,
-            },
-            async (joinAck: Ack<RoomState>) => {
-              if (!joinAck?.ok) {
-                resolve(false);
-                return;
-              }
-              createResolved = true;
-              const state = joinAck.data;
-              applyJoinedStateForCreatedRoom(state);
-              saveRoomPassword(state.room.id, desiredPassword);
-              setHostRoomPassword(desiredPassword);
-              setRoomNameInput("");
-              setRoomMaxPlayersInput("");
-              setStatusText(`建立回應延遲，已自動進入：${state.room.name}`);
-              finalizeCreate();
-              continueUploadRemainingPlaylistChunks(state.room.id);
-              resolve(true);
-            },
-          );
-        });
+        const tryJoinCandidate = async () =>
+          await new Promise<boolean>((resolve) => {
+            s.emit(
+              "joinRoom",
+              {
+                roomId: candidate.id,
+                username,
+                password: desiredPassword ?? undefined,
+              },
+              async (joinAck: Ack<RoomState>) => {
+                if (!joinAck?.ok) {
+                  resolve(false);
+                  return;
+                }
+                createResolved = true;
+                const state = joinAck.data;
+                applyJoinedStateForCreatedRoom(state);
+                saveRoomPassword(state.room.id, desiredPassword);
+                setHostRoomPassword(desiredPassword);
+                setRoomNameInput("");
+                setRoomMaxPlayersInput("");
+                setStatusText(`建立回應延遲，已自動進入：${state.room.name}`);
+                finalizeCreate();
+                continueUploadRemainingPlaylistChunks(state.room.id);
+                resolve(true);
+              },
+            );
+          });
 
-        return recovered;
+        const retryIntervalsMs = [0, 350, 800];
+        for (let joinAttempt = 0; joinAttempt < retryIntervalsMs.length; joinAttempt += 1) {
+          if (createResolved || !createRoomInFlightRef.current) return false;
+          if (joinAttempt === 0) {
+            setStatusText("建立成功，正在進入房間…");
+          } else {
+            setStatusText(
+              `房間已建立，正在重新嘗試進入（${joinAttempt + 1}/${retryIntervalsMs.length}）…`,
+            );
+            await new Promise<void>((resolve) =>
+              window.setTimeout(resolve, retryIntervalsMs[joinAttempt]),
+            );
+            if (createResolved || !createRoomInFlightRef.current) return false;
+          }
+
+          const recovered = await tryJoinCandidate();
+          if (recovered) return true;
+        }
+
+        return false;
       } catch (error) {
         console.error(error);
         return false;
@@ -2658,11 +2693,15 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       collectionsLoading,
       collectionsError,
       collectionScope,
+      publicCollectionsSort,
+      setPublicCollectionsSort,
+      collectionFavoriteUpdatingId,
       collectionsLastFetchedAt,
       selectedCollectionId,
       collectionItemsLoading,
       collectionItemsError,
       fetchCollections,
+      toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
       usernameInput,
@@ -2693,6 +2732,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setMessageInput,
       statusText,
       setStatusText,
+      sessionProgress,
       playlistUrl,
       setPlaylistUrl,
       playlistItems,
@@ -2782,11 +2822,15 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       collectionsLoading,
       collectionsError,
       collectionScope,
+      publicCollectionsSort,
+      setPublicCollectionsSort,
+      collectionFavoriteUpdatingId,
       collectionsLastFetchedAt,
       selectedCollectionId,
       collectionItemsLoading,
       collectionItemsError,
       fetchCollections,
+      toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
       usernameInput,
@@ -2809,6 +2853,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       messageInput,
       statusText,
       setStatusText,
+      sessionProgress,
       playlistUrl,
       playlistItems,
       playlistError,

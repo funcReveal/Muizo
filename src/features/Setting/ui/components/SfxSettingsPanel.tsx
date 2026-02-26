@@ -3,6 +3,7 @@ import {
   CampaignRounded,
   GraphicEqRounded,
   NotificationsActiveRounded,
+  RestartAltRounded,
   TuneRounded,
 } from "@mui/icons-material";
 import { Button, Slider, Switch } from "@mui/material";
@@ -13,7 +14,15 @@ import {
 } from "../../../Room/model/sfx/gameSfxEngine";
 import { useGameSfx } from "../../../Room/ui/hooks/useGameSfx";
 import SettingsSectionCard from "./SettingsSectionCard";
-import { SFX_PRESET_OPTIONS, useSfxSettings } from "./useSfxSettings";
+import {
+  DEFAULT_SFX_VOLUME,
+  SFX_PRESET_OPTIONS,
+  useSfxSettings,
+} from "./useSfxSettings";
+
+type SfxSettingsPanelProps = {
+  sectionId?: string;
+};
 
 const SAMPLE_BUTTONS: Array<{
   label: string;
@@ -21,9 +30,9 @@ const SAMPLE_BUTTONS: Array<{
   tone: "neutral" | "good" | "warn" | "hot";
 }> = [
   { label: "鎖定作答", event: "lock", tone: "neutral" },
-  { label: "答對（一般）", event: "correct", tone: "good" },
+  { label: "答對", event: "correct", tone: "good" },
   { label: "答錯", event: "wrong", tone: "warn" },
-  { label: "尾端倒數", event: "deadlineFinal", tone: "hot" },
+  { label: "尾秒警示", event: "deadlineFinal", tone: "hot" },
 ];
 
 const sampleButtonClassByTone: Record<
@@ -45,7 +54,7 @@ const comboTierEvents = [4, 8, 12, 16, 20].map((comboBonusPoints) => ({
   event: resolveCorrectResultSfxEvent(comboBonusPoints),
 }));
 
-const SfxSettingsPanel: React.FC = () => {
+const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
   const {
     sfxEnabled,
     setSfxEnabled,
@@ -53,6 +62,7 @@ const SfxSettingsPanel: React.FC = () => {
     setSfxVolume,
     sfxPreset,
     setSfxPreset,
+    resetSfxSettings,
   } = useSfxSettings();
 
   const { playGameSfx, primeSfxAudio } = useGameSfx({
@@ -62,7 +72,9 @@ const SfxSettingsPanel: React.FC = () => {
   });
 
   const selectedPresetMeta = useMemo(
-    () => SFX_PRESET_OPTIONS.find((item) => item.id === sfxPreset) ?? SFX_PRESET_OPTIONS[0],
+    () =>
+      SFX_PRESET_OPTIONS.find((item) => item.id === sfxPreset) ??
+      SFX_PRESET_OPTIONS[0],
     [sfxPreset],
   );
 
@@ -73,18 +85,34 @@ const SfxSettingsPanel: React.FC = () => {
 
   return (
     <SettingsSectionCard
+      id={sectionId}
       icon={<CampaignRounded fontSize="small" />}
       title="音效設定"
-      description="調整遊戲提示音（倒數、作答、對錯、連對）開關與音量。設定完成後會套用到之後的對戰。"
+      description="調整遊戲提示音的開關、音量與風格。設定會儲存在此裝置，進入房間與對戰時自動套用。"
       actions={
-        <div className="flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/70 px-2 py-1">
-          <span className="text-xs text-slate-300">啟用</span>
-          <Switch
+        <div className="flex items-center gap-2">
+          <Button
             size="small"
-            color="info"
-            checked={sfxEnabled}
-            onChange={(e) => setSfxEnabled(e.target.checked)}
-          />
+            variant="outlined"
+            color="inherit"
+            startIcon={<RestartAltRounded />}
+            onClick={resetSfxSettings}
+            sx={{
+              borderColor: "rgba(148,163,184,0.35)",
+              color: "#e2e8f0",
+            }}
+          >
+            重設
+          </Button>
+          <div className="flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/70 px-2 py-1">
+            <span className="text-xs text-slate-300">啟用</span>
+            <Switch
+              size="small"
+              color="info"
+              checked={sfxEnabled}
+              onChange={(e) => setSfxEnabled(e.target.checked)}
+            />
+          </div>
         </div>
       }
     >
@@ -105,7 +133,9 @@ const SfxSettingsPanel: React.FC = () => {
             max={100}
             step={1}
             disabled={!sfxEnabled}
-            onChange={(_, value) => setSfxVolume(Array.isArray(value) ? value[0] : value)}
+            onChange={(_, value) =>
+              setSfxVolume(Array.isArray(value) ? value[0] : value)
+            }
             sx={{
               color: "#22d3ee",
               "& .MuiSlider-thumb": {
@@ -113,9 +143,19 @@ const SfxSettingsPanel: React.FC = () => {
               },
             }}
           />
-          <p className="mt-1 text-xs text-slate-400">
-            建議先從 35%~60% 開始，避免影響作答專注。
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs text-slate-400">
+              建議 35%~60%，避免蓋過背景音樂與語音提示。
+            </p>
+            <button
+              type="button"
+              disabled={!sfxEnabled}
+              onClick={() => setSfxVolume(DEFAULT_SFX_VOLUME)}
+              className="rounded-full border border-cyan-300/25 bg-cyan-400/5 px-2 py-0.5 text-[11px] font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/10 disabled:opacity-50"
+            >
+              套用建議音量 {DEFAULT_SFX_VOLUME}%
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 p-3">
@@ -156,8 +196,10 @@ const SfxSettingsPanel: React.FC = () => {
             })}
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            目前風格：<span className="text-slate-200">{selectedPresetMeta.label}</span>（
-            {selectedPresetMeta.hint}）
+            目前風格：
+            <span className="text-slate-200">{selectedPresetMeta.label}</span>
+            {" · "}
+            {selectedPresetMeta.hint}
           </p>
         </div>
 
@@ -168,6 +210,7 @@ const SfxSettingsPanel: React.FC = () => {
             />
             <p className="text-sm font-semibold text-slate-100">試聽</p>
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             {SAMPLE_BUTTONS.map((sample) => (
               <button
@@ -181,10 +224,11 @@ const SfxSettingsPanel: React.FC = () => {
               </button>
             ))}
           </div>
+
           <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/45 p-2.5">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="text-xs font-semibold text-slate-200">
-                連對升階音（5 段）
+                Combo 答對音（5 段）
               </p>
               <Button
                 size="small"
@@ -204,7 +248,7 @@ const SfxSettingsPanel: React.FC = () => {
                   px: 1.2,
                 }}
               >
-                連續試聽
+                連播試聽
               </Button>
             </div>
             <div className="grid grid-cols-5 gap-1.5">
@@ -215,14 +259,14 @@ const SfxSettingsPanel: React.FC = () => {
                   disabled={!sfxEnabled}
                   onClick={() => playSample(item.event)}
                   className="rounded-lg border border-amber-300/20 bg-amber-400/5 px-2 py-1.5 text-center text-[11px] font-bold text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/10 disabled:opacity-50"
-                  title={`Combo加成 +${item.comboBonusPoints}`}
+                  title={`Combo 加成 +${item.comboBonusPoints}`}
                 >
                   T{idx + 1}
                 </button>
               ))}
             </div>
             <p className="mt-2 text-[11px] leading-4 text-slate-400">
-              T1~T5 對應後端 Combo 加成 `+4 / +8 / +12 / +16 / +20`。
+              T1~T5 對應 Combo 加成 +4 / +8 / +12 / +16 / +20。
             </p>
           </div>
         </div>

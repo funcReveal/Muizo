@@ -5,6 +5,7 @@ import {
   CircularProgress,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   LinearProgress,
   MenuItem,
@@ -18,6 +19,8 @@ import LinkRounded from "@mui/icons-material/LinkRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
 import PlaylistPlayRounded from "@mui/icons-material/PlaylistPlayRounded";
 import PublicRounded from "@mui/icons-material/PublicRounded";
+import StarBorderRounded from "@mui/icons-material/StarBorderRounded";
+import StarRounded from "@mui/icons-material/StarRounded";
 import { List as VirtualList, type RowComponentProps } from "react-window";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
 
@@ -74,10 +77,16 @@ interface RoomCreationSectionProps {
     title: string;
     description?: string | null;
     visibility?: "private" | "public";
+    use_count?: number;
+    favorite_count?: number;
+    is_favorited?: boolean;
   }>;
   collectionsLoading?: boolean;
   collectionsError?: string | null;
   collectionScope?: "owner" | "public" | null;
+  publicCollectionsSort?: "popular" | "favorites_first";
+  onPublicCollectionsSortChange?: (next: "popular" | "favorites_first") => void;
+  collectionFavoriteUpdatingId?: string | null;
   selectedCollectionId?: string | null;
   collectionItemsLoading?: boolean;
   collectionItemsError?: string | null;
@@ -98,6 +107,7 @@ interface RoomCreationSectionProps {
   onFetchYoutubePlaylists?: () => void;
   onImportYoutubePlaylist?: (playlistId: string) => void;
   onFetchCollections?: (scope?: "owner" | "public") => void;
+  onToggleCollectionFavorite?: (collectionId: string) => void | Promise<boolean>;
   onSelectCollection?: (collectionId: string | null) => void;
   onLoadCollectionItems?: (
     collectionId: string,
@@ -245,6 +255,9 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     collectionsLoading = false,
     collectionsError = null,
     collectionScope = null,
+    publicCollectionsSort = "popular",
+    onPublicCollectionsSortChange,
+    collectionFavoriteUpdatingId = null,
     selectedCollectionId = null,
     collectionItemsLoading = false,
     collectionItemsError = null,
@@ -260,6 +273,7 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
     onFetchYoutubePlaylists,
     onImportYoutubePlaylist,
     onFetchCollections,
+    onToggleCollectionFavorite,
     onSelectCollection,
     onLoadCollectionItems,
     onStepChange,
@@ -1179,6 +1193,45 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                       </Button>
                     ) : (
                       <>
+                        {sourceMode === "publicCollection" && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="small"
+                              variant={
+                                publicCollectionsSort === "popular"
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                              onClick={() =>
+                                onPublicCollectionsSortChange?.("popular")
+                              }
+                            >
+                              熱門
+                            </Button>
+                            <Button
+                              size="small"
+                              variant={
+                                publicCollectionsSort === "favorites_first"
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                              disabled={!isGoogleAuthed}
+                              onClick={() =>
+                                onPublicCollectionsSortChange?.("favorites_first")
+                              }
+                            >
+                              收藏優先
+                            </Button>
+                            {!isGoogleAuthed && (
+                              <Typography
+                                variant="caption"
+                                className="room-create-muted"
+                              >
+                                登入後可使用收藏優先排序
+                              </Typography>
+                            )}
+                          </div>
+                        )}
                         <FormControl
                           size="small"
                           fullWidth
@@ -1249,7 +1302,63 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                             <MenuItem value="">請選擇收藏庫</MenuItem>
                             {collectionOptions.map((item) => (
                               <MenuItem key={item.id} value={item.id}>
-                                {item.title}
+                                <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <span className="block truncate">{item.title}</span>
+                                    <span className="block text-[11px] text-slate-400">
+                                      熱門 · 遊玩次數 {Math.max(0, Number(item.use_count ?? 0))}
+                                    </span>
+                                  </div>
+                                  {sourceMode === "publicCollection" && (
+                                    <span className="inline-flex shrink-0 items-center gap-1">
+                                      <Typography
+                                        component="span"
+                                        variant="caption"
+                                        sx={{ color: "rgba(226,232,240,0.78)" }}
+                                      >
+                                        {Math.max(
+                                          0,
+                                          Number(item.favorite_count ?? 0),
+                                        )}
+                                      </Typography>
+                                      <IconButton
+                                        size="small"
+                                        disabled={
+                                          !isGoogleAuthed ||
+                                          collectionFavoriteUpdatingId === item.id
+                                        }
+                                        onMouseDown={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                        }}
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          void onToggleCollectionFavorite?.(item.id);
+                                        }}
+                                        sx={{
+                                          p: 0.35,
+                                          color: item.is_favorited
+                                            ? "#facc15"
+                                            : "rgba(226,232,240,0.65)",
+                                        }}
+                                        title={
+                                          isGoogleAuthed
+                                            ? item.is_favorited
+                                              ? "取消收藏"
+                                              : "收藏收藏庫"
+                                            : "登入後可收藏"
+                                        }
+                                      >
+                                        {item.is_favorited ? (
+                                          <StarRounded fontSize="inherit" />
+                                        ) : (
+                                          <StarBorderRounded fontSize="inherit" />
+                                        )}
+                                      </IconButton>
+                                    </span>
+                                  )}
+                                </div>
                               </MenuItem>
                             ))}
                           </Select>

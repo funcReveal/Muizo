@@ -1,4 +1,4 @@
-import {
+﻿import {
   AccessTime,
   ArrowBackRounded,
   ChevronRightRounded,
@@ -82,7 +82,7 @@ const parseSummaryPlaylistLabel = (summary: RoomSettlementHistorySummary) => {
   }
   const playlistTitle = (json as Record<string, unknown>).playlistTitle;
   if (typeof playlistTitle === "string" && playlistTitle.trim()) {
-    return `YouTube 清單：${playlistTitle.trim()}`;
+    return `YouTube 歌單：${playlistTitle.trim()}`;
   }
   return null;
 };
@@ -102,6 +102,9 @@ const RoomHistoryPage: React.FC = () => {
   const [replayByMatchId, setReplayByMatchId] = useState<
     Record<string, RoomSettlementSnapshot>
   >({});
+  const [collapsedRoomGroups, setCollapsedRoomGroups] = useState<
+    Record<string, boolean>
+  >({});
 
   const selectedSummary = useMemo(
     () => items.find((item) => item.matchId === selectedMatchId) ?? null,
@@ -118,7 +121,7 @@ const RoomHistoryPage: React.FC = () => {
 
   const fetchHistoryList = useCallback(async () => {
     if (!API_URL) {
-      throw new Error("尚未設定 API_URL");
+      throw new Error("找不到 API_URL 設定");
     }
 
     const token = await getBearerToken();
@@ -148,7 +151,7 @@ const RoomHistoryPage: React.FC = () => {
         | null;
 
       if (!res.ok || !payload?.ok || !payload.data) {
-        throw new Error(payload?.error ?? "讀取歷史紀錄失敗，請稍後再試");
+        throw new Error(payload?.error ?? "讀取歷史列表失敗");
       }
 
       for (const item of payload.data.items ?? []) {
@@ -167,7 +170,7 @@ const RoomHistoryPage: React.FC = () => {
   const fetchReplay = useCallback(
     async (matchId: string) => {
       if (!API_URL) {
-        throw new Error("尚未設定 API_URL");
+        throw new Error("找不到 API_URL 設定");
       }
 
       const token = await getBearerToken();
@@ -188,7 +191,7 @@ const RoomHistoryPage: React.FC = () => {
         | null;
 
       if (!res.ok || !payload?.ok || !payload.data?.snapshot) {
-        throw new Error(payload?.error ?? "讀取對戰回放失敗，請稍後再試");
+        throw new Error(payload?.error ?? "讀取對戰回顧失敗");
       }
 
       return payload.data.snapshot;
@@ -209,7 +212,7 @@ const RoomHistoryPage: React.FC = () => {
       .catch((error) => {
         if (cancelled) return;
         const message =
-          error instanceof Error ? error.message : "讀取歷史紀錄失敗，請稍後再試";
+          error instanceof Error ? error.message : "讀取歷史列表失敗";
         setListError(message);
         setStatusText(message);
       })
@@ -234,7 +237,7 @@ const RoomHistoryPage: React.FC = () => {
         setReplayByMatchId((prev) => ({ ...prev, [matchId]: snapshot }));
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "讀取對戰回放失敗，請稍後再試";
+          error instanceof Error ? error.message : "讀取對戰回顧失敗";
         setStatusText(message);
       } finally {
         setLoadingReplayMatchId((prev) => (prev === matchId ? null : prev));
@@ -257,10 +260,58 @@ const RoomHistoryPage: React.FC = () => {
     [items],
   );
 
+  const groupedHistoryItems = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        roomId: string;
+        roomName: string;
+        items: RoomSettlementHistorySummary[];
+      }
+    >();
+    for (const item of items) {
+      const key = item.roomId || item.roomName || item.matchId;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groups.set(key, {
+          roomId: item.roomId,
+          roomName: item.roomName || item.roomId,
+          items: [item],
+        });
+      }
+    }
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        items: group.items.sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo),
+      }))
+      .sort(
+        (a, b) =>
+          (b.items[0]?.endedAt ?? 0) - (a.items[0]?.endedAt ?? 0) ||
+          (b.items[0]?.roundNo ?? 0) - (a.items[0]?.roundNo ?? 0),
+      );
+  }, [items]);
+
+  useEffect(() => {
+    setCollapsedRoomGroups((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const group of groupedHistoryItems) {
+        if (!(group.roomId in next)) {
+          next[group.roomId] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [groupedHistoryItems]);
+
   const archiveHeader = (
     <section className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.94),rgba(8,7,5,0.98))] p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.72)] sm:p-7">
 
-      <div className="relative grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="relative grid gap-5 lg:grid-cols-1">
         <div className="min-w-0">
           <div className="mb-4 inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_86%,black_14%)] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.08)]">
             <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200">
@@ -272,13 +323,13 @@ const RoomHistoryPage: React.FC = () => {
                 Match Archive
               </div>
               <h1 className="truncate text-lg font-semibold text-[var(--mc-text)] sm:text-xl">
-                歷史紀錄
+                對戰歷史
               </h1>
             </div>
           </div>
 
           <p className="max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-            查看你參與過的對戰紀錄。列表會顯示每局摘要，點擊卡片後進入詳細回放頁，可查看排行榜、每題選項與作答結果。
+            依房間分組查看你參與過的對戰紀錄。展開後可快速比較同一房間的多場成績，並進一步查看完整結算回顧。
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -295,7 +346,7 @@ const RoomHistoryPage: React.FC = () => {
             <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4">
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
                 <Quiz fontSize="inherit" />
-                累計題數
+                作答題數
               </div>
               <div className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
                 {loadingList ? "-" : totalQuestions}
@@ -305,7 +356,7 @@ const RoomHistoryPage: React.FC = () => {
             <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4">
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
                 <SportsScore fontSize="inherit" />
-                個人最高分
+                最高分數
               </div>
               <div className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
                 {loadingList ? "-" : bestScore}
@@ -314,14 +365,14 @@ const RoomHistoryPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-amber-300/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(245,158,11,0.02))] p-4 sm:p-5">
+        <div className="hidden rounded-2xl border border-amber-300/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(245,158,11,0.02))] p-4 sm:p-5">
           <div className="text-xs uppercase tracking-[0.22em] text-amber-200/80">
-            檢視方式
+            使用提示
           </div>
           <ol className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
-            <li>1. 先查看每一局的摘要資料與個人成績。</li>
-            <li>2. 點擊任一場次卡片，切換到詳細回放畫面。</li>
-            <li>3. 詳細畫面可查看排行榜、題目與每題作答選項。</li>
+            <li>1. 點擊房間群組可展開同一房間的多場對戰紀錄。</li>
+            <li>2. 每場紀錄會顯示分數、答對數、最大 Combo 與歌單來源。</li>
+            <li>3. 點進詳情後可查看完整結算回顧與題目紀錄。</li>
           </ol>
           <div className="mt-5 flex flex-wrap gap-2">
             <button
@@ -329,7 +380,7 @@ const RoomHistoryPage: React.FC = () => {
               className="inline-flex items-center rounded-full border border-[var(--mc-accent)]/55 bg-[var(--mc-accent)]/16 px-4 py-2 text-xs font-semibold tracking-[0.18em] text-[var(--mc-text)] transition hover:bg-[var(--mc-accent)]/22"
               onClick={() => navigate("/rooms", { replace: true })}
             >
-              返回房間大廳
+              返回房間列表
             </button>
           </div>
         </div>
@@ -343,7 +394,7 @@ const RoomHistoryPage: React.FC = () => {
         <div className="flex items-center justify-center rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.86),rgba(8,7,5,0.96))] px-6 py-10 text-[var(--mc-text-muted)]">
           <div className="inline-flex items-center gap-3">
             <CircularProgress size={18} thickness={5} sx={{ color: "#f59e0b" }} />
-            載入歷史紀錄中...
+            載入對戰歷史中...
           </div>
         </div>
       ) : listError ? (
@@ -356,115 +407,218 @@ const RoomHistoryPage: React.FC = () => {
             <HistoryEdu />
           </div>
           <h2 className="text-lg font-semibold text-[var(--mc-text)]">
-            尚無歷史紀錄
+            尚無對戰紀錄
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)]">
-            目前找不到可用的對戰紀錄。完成一場對戰後，回到此頁即可查看回放與個人成績摘要。
+            完成一場遊戲後，系統會將結算摘要與回顧資料存到歷史頁。之後可以回來查看分數、答對數與 Combo 表現。
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((item, index) => {
-            const replayStatus = parseSummaryReplayStatus(item);
-            const replayUnavailable =
-              replayStatus === "too_large" || replayStatus === "omitted";
-            const playlistLabel = parseSummaryPlaylistLabel(item);
+          {groupedHistoryItems.map((group, groupIndex) => {
+            const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
+            if (!groupKey) return null;
+            const collapsed = collapsedRoomGroups[groupKey] ?? true;
+            const latestItem = group.items[0] ?? null;
+            const latestPlaylistLabel = latestItem
+              ? parseSummaryPlaylistLabel(latestItem)
+              : null;
+            const groupBestScore = group.items.reduce(
+              (max, entry) => Math.max(max, entry.selfPlayer?.finalScore ?? 0),
+              0,
+            );
 
             return (
-              <button
-                key={item.matchId}
-                type="button"
-                className="group relative block w-full min-w-0 overflow-hidden rounded-[22px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.90),rgba(8,7,5,0.98))] px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
-                onClick={() => void openReplayDetail(item)}
+              <div
+                key={groupKey}
+                className="rounded-[22px] border border-[var(--mc-border)]/85 bg-[linear-gradient(180deg,rgba(14,13,10,0.82),rgba(9,8,6,0.92))] p-2 sm:p-3"
               >
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/35 opacity-60 transition group-hover:opacity-90" />
-
-                <div className="flex min-w-0 items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <Chip
-                        size="small"
-                        label={`第 ${item.roundNo} 局`}
-                        className="border-amber-300/30 bg-amber-300/10 text-amber-100"
-                        variant="outlined"
-                      />
-                      <Chip
-                        size="small"
-                        label={item.roomName || item.roomId}
-                        className="border-[var(--mc-border)] text-[var(--mc-text)]"
-                        variant="outlined"
-                      />
-                      {item.selfPlayer && (
-                        <>
+                <button
+                  type="button"
+                  className="group relative block w-full min-w-0 overflow-hidden rounded-[18px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-4 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5"
+                  onClick={() =>
+                    setCollapsedRoomGroups((prev) => ({
+                      ...prev,
+                      [groupKey]: !(prev[groupKey] ?? true),
+                    }))
+                  }
+                >
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/35 opacity-65 transition group-hover:opacity-95" />
+                  <div className="flex min-w-0 items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <Chip
+                          size="small"
+                          label={group.roomName || group.roomId}
+                          className="border-amber-300/22 bg-amber-300/8 text-amber-100"
+                          variant="outlined"
+                        />
+                        <Chip
+                          size="small"
+                          label={`${group.items.length} 場`}
+                          className="border-[var(--mc-border)] text-[var(--mc-text)]"
+                          variant="outlined"
+                        />
+                        {groupBestScore > 0 && (
                           <Chip
                             size="small"
-                            label={`分數 ${item.selfPlayer.finalScore}`}
+                            label={`最佳 ${groupBestScore}`}
                             className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
                             variant="outlined"
                           />
+                        )}
+                        {latestItem && (
                           <Chip
                             size="small"
-                            label={`答對 ${item.selfPlayer.correctCount}/${item.questionCount}`}
-                            className="border-sky-300/30 bg-sky-300/10 text-sky-100"
+                            label={`最近 ${formatRelative(latestItem.endedAt) || formatDateTime(latestItem.endedAt)}`}
+                            className="border-sky-300/25 bg-sky-300/10 text-sky-100"
                             variant="outlined"
                           />
-                          <Chip
-                            size="small"
-                            label={`連擊 x${item.selfPlayer.maxCombo}`}
-                            className="border-fuchsia-300/30 bg-fuchsia-300/10 text-fuchsia-100"
-                            variant="outlined"
-                          />
-                        </>
+                        )}
+                      </div>
+
+                      <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
+                        <div className="inline-flex min-w-0 items-center gap-1.5">
+                          <AccessTime sx={{ fontSize: 16 }} />
+                          <span className="truncate">
+                            {latestItem ? formatDateTime(latestItem.endedAt) : "-"}
+                          </span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5">
+                          <Quiz sx={{ fontSize: 16 }} />
+                          <span>{latestItem ? `最近 ${latestItem.questionCount} 題` : "-"}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5">
+                          <MeetingRoom sx={{ fontSize: 16 }} />
+                          <span>{collapsed ? "點擊展開場次" : "點擊收合"}</span>
+                        </div>
+                      </div>
+
+                      {latestPlaylistLabel && (
+                        <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
+                          {latestPlaylistLabel}
+                        </div>
                       )}
                     </div>
 
-                    <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
-                      <div className="inline-flex min-w-0 items-center gap-1.5">
-                        <AccessTime sx={{ fontSize: 16 }} />
-                        <span className="truncate">{formatDateTime(item.endedAt)}</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5">
-                        <Quiz sx={{ fontSize: 16 }} />
-                        <span>{item.questionCount} 題</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1.5">
-                        <MeetingRoom sx={{ fontSize: 16 }} />
-                        <span>
-                          {item.playerCount} 人 · {formatRelative(item.endedAt)}
-                        </span>
-                      </div>
+                    <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
+                      <span className="hidden text-xs tracking-[0.14em] sm:inline">
+                        {collapsed ? "展開" : "收合"}
+                      </span>
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
+                        <ChevronRightRounded
+                          sx={{
+                            fontSize: 18,
+                            transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
+                            transition: "transform 180ms ease",
+                          }}
+                        />
+                      </span>
                     </div>
-
-                    {playlistLabel && (
-                      <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
-                        {playlistLabel}
-                      </div>
-                    )}
-
-                    {replayUnavailable && (
-                      <div className="mt-2 text-xs text-amber-100/85">
-                        此場次僅保留摘要，完整回放未保存。
-                      </div>
-                    )}
                   </div>
+                </button>
 
-                  <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
-                    <span className="hidden text-xs tracking-[0.14em] sm:inline">
-                      查看詳情
-                    </span>
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
-                      <ChevronRightRounded sx={{ fontSize: 18 }} />
-                    </span>
+                {!collapsed && (
+                  <div className="mt-3 space-y-3">
+                    {group.items.map((item, itemIndex) => {
+                      const replayStatus = parseSummaryReplayStatus(item);
+                      const replayUnavailable =
+                        replayStatus === "too_large" || replayStatus === "omitted";
+                      const playlistLabel = parseSummaryPlaylistLabel(item);
+
+                      return (
+                        <button
+                          key={item.matchId}
+                          type="button"
+                          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
+                          onClick={() => void openReplayDetail(item)}
+                        >
+                          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/25 opacity-60 transition group-hover:opacity-90" />
+                          <div className="flex min-w-0 items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <Chip
+                                  size="small"
+                                  label={`第 ${item.roundNo} 場`}
+                                  className="border-amber-300/30 bg-amber-300/10 text-amber-100"
+                                  variant="outlined"
+                                />
+                                {item.selfPlayer && (
+                                  <>
+                                    <Chip
+                                      size="small"
+                                      label={`分數 ${item.selfPlayer.finalScore}`}
+                                      className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
+                                      variant="outlined"
+                                    />
+                                    <Chip
+                                      size="small"
+                                      label={`答對 ${item.selfPlayer.correctCount}/${item.questionCount}`}
+                                      className="border-sky-300/30 bg-sky-300/10 text-sky-100"
+                                      variant="outlined"
+                                    />
+                                    <Chip
+                                      size="small"
+                                      label={`Combo x${item.selfPlayer.maxCombo}`}
+                                      className="border-fuchsia-300/30 bg-fuchsia-300/10 text-fuchsia-100"
+                                      variant="outlined"
+                                    />
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
+                                <div className="inline-flex min-w-0 items-center gap-1.5">
+                                  <AccessTime sx={{ fontSize: 16 }} />
+                                  <span className="truncate">{formatDateTime(item.endedAt)}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <Quiz sx={{ fontSize: 16 }} />
+                                  <span>{item.questionCount} 題</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <MeetingRoom sx={{ fontSize: 16 }} />
+                                  <span>
+                                    {item.playerCount} 人 · {formatRelative(item.endedAt)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {playlistLabel && (
+                                <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
+                                  {playlistLabel}
+                                </div>
+                              )}
+
+                              {replayUnavailable && (
+                                <div className="mt-2 text-xs text-amber-100/85">
+                                  回放內容已精簡，仍可查看本場摘要與分數資訊。
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
+                              <span className="hidden text-xs tracking-[0.14em] sm:inline">
+                                檢視詳情
+                              </span>
+                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
+                                <ChevronRightRounded sx={{ fontSize: 18 }} />
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className="pointer-events-none absolute right-4 top-3 text-[10px] tracking-[0.3em] text-[var(--mc-text-muted)]/60"
+                            style={{ animationDelay: `${groupIndex * 80 + itemIndex * 60}ms` }}
+                          >
+                            ARCHIVE
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                </div>
-
-                <div
-                  className="pointer-events-none absolute right-4 top-3 text-[10px] tracking-[0.3em] text-[var(--mc-text-muted)]/60"
-                  style={{ animationDelay: `${index * 80}ms` }}
-                >
-                  ARCHIVE
-                </div>
-              </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -483,13 +637,13 @@ const RoomHistoryPage: React.FC = () => {
               onClick={() => setSelectedMatchId(null)}
             >
               <ArrowBackRounded sx={{ fontSize: 16 }} />
-              返回歷史紀錄
+              返回對戰歷史
             </button>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Chip
                 size="small"
-                label={`第 ${selectedSummary.roundNo} 局詳細回放`}
+                label={`第 ${selectedSummary.roundNo} 場`}
                 className="border-amber-300/30 bg-amber-300/10 text-amber-100"
                 variant="outlined"
               />
@@ -502,11 +656,11 @@ const RoomHistoryPage: React.FC = () => {
             </div>
 
             <h2 className="mt-3 text-lg font-semibold text-[var(--mc-text)] sm:text-xl">
-              對戰回放詳情
+              對戰詳情
             </h2>
             <p className="mt-1 text-sm text-[var(--mc-text-muted)]">
-              {formatDateTime(selectedSummary.endedAt)} · {selectedSummary.playerCount} 人
-              對戰 · {selectedSummary.questionCount} 題
+              {formatDateTime(selectedSummary.endedAt)} · {selectedSummary.playerCount} 人 ·{" "}
+              {selectedSummary.questionCount} 題
             </p>
           </div>
 
@@ -519,16 +673,16 @@ const RoomHistoryPage: React.FC = () => {
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[var(--mc-text)]">
                   <span>分數 {selectedSummary.selfPlayer.finalScore}</span>
                   <span>答對 {selectedSummary.selfPlayer.correctCount}</span>
-                  <span>連擊 x{selectedSummary.selfPlayer.maxCombo}</span>
+                  <span>Combo x{selectedSummary.selfPlayer.maxCombo}</span>
                 </div>
               ) : (
-                <div className="mt-1 text-[var(--mc-text-muted)]">此場次沒有個人成績摘要</div>
+                <div className="mt-1 text-[var(--mc-text-muted)]">此場沒有你的玩家紀錄</div>
               )}
             </div>
             {parseSummaryPlaylistLabel(selectedSummary) && (
               <div className="rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-3 py-2 text-sm text-[var(--mc-text-muted)]">
                 <span className="mr-2 text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                  來源
+                  歌單
                 </span>
                 <span className="text-[var(--mc-text)]">
                   {parseSummaryPlaylistLabel(selectedSummary)}
@@ -544,7 +698,7 @@ const RoomHistoryPage: React.FC = () => {
           <div className="flex items-center justify-center rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 px-4 py-12 text-[var(--mc-text-muted)]">
             <div className="inline-flex items-center gap-3">
               <CircularProgress size={18} thickness={5} sx={{ color: "#f59e0b" }} />
-              正在載入對戰回放...
+              載入對戰回顧中...
             </div>
           </div>
         </div>
@@ -568,7 +722,7 @@ const RoomHistoryPage: React.FC = () => {
         </div>
       ) : (
         <div className="rounded-[24px] border border-amber-300/16 bg-amber-300/5 px-4 py-5 text-sm text-amber-100/90">
-          找不到完整回放資料。此場次可能只保留摘要，或回放內容未寫入資料庫。
+          這場對戰尚未取得完整回放內容，可能已被精簡或仍在同步中，請稍後再試。
         </div>
       )}
     </section>

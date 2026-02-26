@@ -4,6 +4,8 @@ import type { PlaylistItem } from "./types";
 import {
   apiFetchCollectionItems,
   apiFetchCollections,
+  apiFavoriteCollection,
+  apiUnfavoriteCollection,
   type WorkerCollectionItem,
 } from "./roomApi";
 import {
@@ -37,16 +39,23 @@ export type UseRoomCollectionsResult = {
     title: string;
     description?: string | null;
     visibility?: "private" | "public";
+    use_count?: number;
+    favorite_count?: number;
+    is_favorited?: boolean;
   }>;
   collectionsLoading: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
+  publicCollectionsSort: "popular" | "favorites_first";
+  setPublicCollectionsSort: (next: "popular" | "favorites_first") => void;
+  collectionFavoriteUpdatingId: string | null;
   collectionsLastFetchedAt: number | null;
   selectedCollectionId: string | null;
   collectionItemsLoading: boolean;
   collectionItemsError: string | null;
   selectCollection: (collectionId: string | null) => void;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   loadCollectionItems: (
     collectionId: string,
     options?: { readToken?: string | null; force?: boolean },
@@ -71,6 +80,9 @@ export const useRoomCollections = ({
       title: string;
       description?: string | null;
       visibility?: "private" | "public";
+      use_count?: number;
+      favorite_count?: number;
+      is_favorited?: boolean;
     }>
   >([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
@@ -84,6 +96,12 @@ export const useRoomCollections = ({
   >(null);
   const [collectionScope, setCollectionScope] = useState<
     "owner" | "public" | null
+  >(null);
+  const [publicCollectionsSort, setPublicCollectionsSort] = useState<
+    "popular" | "favorites_first"
+  >("popular");
+  const [collectionFavoriteUpdatingId, setCollectionFavoriteUpdatingId] = useState<
+    string | null
   >(null);
   const [collectionsLastFetchedAt, setCollectionsLastFetchedAt] = useState<
     number | null
@@ -127,10 +145,20 @@ export const useRoomCollections = ({
             title: string;
             description?: string | null;
             visibility?: "private" | "public";
+            use_count?: number;
+            favorite_count?: number;
+            is_favorited?: boolean | number;
           }>,
           emptyMessage: string,
         ) => {
-          setCollections(items);
+          setCollections(
+            items.map((item) => ({
+              ...item,
+              use_count: Math.max(0, Number(item.use_count ?? 0)),
+              favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
+              is_favorited: Boolean(item.is_favorited),
+            })),
+          );
           setCollectionsLastFetchedAt(Date.now());
           setSelectedCollectionId((currentSelection) =>
             currentSelection &&
@@ -146,6 +174,7 @@ export const useRoomCollections = ({
         if (resolvedScope === "public") {
           const { ok, payload } = await apiFetchCollections(workerUrl, {
             visibility: "public",
+            sort: publicCollectionsSort,
             pageSize: DEFAULT_PAGE_SIZE,
           });
           if (!ok) {
@@ -193,7 +222,121 @@ export const useRoomCollections = ({
         setCollectionsLoading(false);
       }
     },
-    [authToken, ownerId, refreshAuthToken, workerUrl],
+    [authToken, ownerId, publicCollectionsSort, refreshAuthToken, workerUrl],
+  );
+
+  const toggleCollectionFavorite = useCallback(
+    async (collectionId: string) => {
+      if (!workerUrl) {
+        setStatusText("尚未設定收藏庫 API 位置 (WORKER_API_URL)");
+        return false;
+      }
+      if (!authToken) {
+        setStatusText("登入後可收藏公開收藏庫");
+        return false;
+      }
+      const target = collections.find((item) => item.id === collectionId);
+      if (!target) return false;
+      if (target.visibility && target.visibility !== "public") {
+        setStatusText("目前僅支援收藏公開收藏庫");
+        return false;
+      }
+      if (collectionFavoriteUpdatingId === collectionId) {
+        return false;
+      }
+
+      const wasFavorited = Boolean(target.is_favorited);
+      const previousCount = Math.max(0, Number(target.favorite_count ?? 0));
+      const optimisticFavorited = !wasFavorited;
+      const optimisticCount = Math.max(
+        0,
+        previousCount + (optimisticFavorited ? 1 : -1),
+      );
+
+      setCollectionFavoriteUpdatingId(collectionId);
+      setCollections((prev) =>
+        prev.map((item) =>
+          item.id === collectionId
+            ? {
+                ...item,
+                is_favorited: optimisticFavorited,
+                favorite_count: optimisticCount,
+              }
+            : item,
+        ),
+      );
+
+      try {
+        const freshToken = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!freshToken) {
+          throw new Error("登入已過期，請重新登入");
+        }
+
+        const run = async (token: string, allowRetry: boolean): Promise<void> => {
+          const result = wasFavorited
+            ? await apiUnfavoriteCollection(workerUrl, token, collectionId)
+            : await apiFavoriteCollection(workerUrl, token, collectionId);
+          if (result.ok && result.payload?.data) {
+            setCollections((prev) =>
+              prev.map((item) =>
+                item.id === collectionId
+                  ? {
+                      ...item,
+                      is_favorited: Boolean(result.payload?.data?.is_favorited),
+                      favorite_count: Math.max(
+                        0,
+                        Number(result.payload?.data?.favorite_count ?? 0),
+                      ),
+                    }
+                  : item,
+              ),
+            );
+            return;
+          }
+          if (result.status === 401 && allowRetry) {
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+              await run(refreshed, false);
+              return;
+            }
+          }
+          throw new Error(result.payload?.error ?? "收藏更新失敗");
+        };
+
+        await run(freshToken, true);
+        setStatusText(optimisticFavorited ? "已收藏收藏庫" : "已取消收藏");
+        return true;
+      } catch (error) {
+        setCollections((prev) =>
+          prev.map((item) =>
+            item.id === collectionId
+              ? {
+                  ...item,
+                  is_favorited: wasFavorited,
+                  favorite_count: previousCount,
+                }
+              : item,
+          ),
+        );
+        setStatusText(error instanceof Error ? error.message : "收藏更新失敗");
+        return false;
+      } finally {
+        setCollectionFavoriteUpdatingId((prev) =>
+          prev === collectionId ? null : prev,
+        );
+      }
+    },
+    [
+      authToken,
+      collectionFavoriteUpdatingId,
+      collections,
+      refreshAuthToken,
+      setStatusText,
+      workerUrl,
+    ],
   );
 
   const loadCollectionItems = useCallback(
@@ -386,6 +529,8 @@ export const useRoomCollections = ({
     setCollectionsLoading(false);
     setCollectionsError(null);
     setCollectionScope(null);
+    setPublicCollectionsSort("popular");
+    setCollectionFavoriteUpdatingId(null);
     setCollectionsLastFetchedAt(null);
     setSelectedCollectionId(null);
     setCollectionItemsLoading(false);
@@ -412,12 +557,16 @@ export const useRoomCollections = ({
     collectionsLoading,
     collectionsError,
     collectionScope,
+    publicCollectionsSort,
+    setPublicCollectionsSort,
+    collectionFavoriteUpdatingId,
     collectionsLastFetchedAt,
     selectedCollectionId,
     collectionItemsLoading,
     collectionItemsError,
     selectCollection,
     fetchCollections,
+    toggleCollectionFavorite,
     loadCollectionItems,
     resetCollectionsState,
     resetCollectionSelection,

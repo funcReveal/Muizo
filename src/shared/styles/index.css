@@ -20,15 +20,13 @@
 }
 
 html {
-  /* Reserve viewport scrollbar space to prevent subtle width jumps when page overflow toggles. */
-  scrollbar-gutter: stable;
+  /* Keep viewport scrollbar behavior default so pages without overflow do not show an empty gutter. */
 }
 
 body {
   background: #000000;
   color: var(--mc-text);
   font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
-  scrollbar-gutter: stable;
 }
 
 * {

@@ -5,6 +5,7 @@ import type {
   GameState,
   PlaylistItem,
   PlaylistSuggestion,
+  SessionProgressPayload,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
   RoomParticipant,
@@ -59,15 +60,22 @@ export interface RoomContextValue {
     title: string;
     description?: string | null;
     visibility?: "private" | "public";
+    use_count?: number;
+    favorite_count?: number;
+    is_favorited?: boolean;
   }>;
   collectionsLoading: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
+  publicCollectionsSort: "popular" | "favorites_first";
+  setPublicCollectionsSort: (next: "popular" | "favorites_first") => void;
+  collectionFavoriteUpdatingId: string | null;
   collectionsLastFetchedAt: number | null;
   selectedCollectionId: string | null;
   collectionItemsLoading: boolean;
   collectionItemsError: string | null;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   selectCollection: (collectionId: string | null) => void;
   loadCollectionItems: (
     collectionId: string,
@@ -101,6 +109,7 @@ export interface RoomContextValue {
   setMessageInput: (value: string) => void;
   statusText: string | null;
   setStatusText: (value: string | null) => void;
+  sessionProgress: SessionProgressPayload | null;
   playlistUrl: string;
   setPlaylistUrl: (value: string) => void;
   playlistItems: PlaylistItem[];

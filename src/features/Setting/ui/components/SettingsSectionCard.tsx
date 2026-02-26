@@ -1,22 +1,29 @@
 import React from "react";
 
 interface SettingsSectionCardProps {
+  id?: string;
   icon?: React.ReactNode;
   title: string;
   description?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }
 
 const SettingsSectionCard: React.FC<SettingsSectionCardProps> = ({
+  id,
   icon,
   title,
   description,
   actions,
   children,
+  className,
 }) => {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-slate-700/70 bg-[linear-gradient(180deg,rgba(9,14,24,0.95),rgba(6,10,18,0.92))] p-4 shadow-[0_24px_60px_-44px_rgba(2,6,23,0.95)]">
+    <section
+      id={id}
+      className={`relative overflow-hidden rounded-2xl border border-slate-700/70 bg-[linear-gradient(180deg,rgba(9,14,24,0.95),rgba(6,10,18,0.92))] p-4 shadow-[0_24px_60px_-44px_rgba(2,6,23,0.95)] ${className ?? ""}`}
+    >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/25 to-transparent" />
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
@@ -40,4 +47,3 @@ const SettingsSectionCard: React.FC<SettingsSectionCardProps> = ({
 };
 
 export default SettingsSectionCard;
-

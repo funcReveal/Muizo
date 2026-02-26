@@ -75,6 +75,8 @@ export type WorkerCollection = {
   visibility: "private" | "public";
   version: number;
   use_count: number;
+  favorite_count?: number;
+  is_favorited?: number | boolean;
   counts_last_use_id: number;
   use_count_updated: number;
   created_at: number;
@@ -219,6 +221,7 @@ export const apiFetchCollections = (
     token?: string | null;
     ownerId?: string;
     visibility?: "public" | "private";
+    sort?: "updated" | "popular" | "favorites_first";
     pageSize?: number;
   },
 ) => {
@@ -228,6 +231,9 @@ export const apiFetchCollections = (
   }
   if (options.visibility) {
     url.searchParams.set("visibility", options.visibility);
+  }
+  if (options.sort) {
+    url.searchParams.set("sort", options.sort);
   }
   if (options.pageSize !== undefined) {
     url.searchParams.set("pageSize", String(options.pageSize));
@@ -239,6 +245,46 @@ export const apiFetchCollections = (
     headers,
   });
 };
+
+export const apiFavoriteCollection = (
+  workerUrl: string,
+  token: string,
+  collectionId: string,
+) =>
+  fetchJson<{
+    ok?: boolean;
+    data?: {
+      collection_id: string;
+      is_favorited: boolean;
+      favorite_count: number;
+    };
+    error?: string;
+  }>(`${workerUrl}/collections/${encodeURIComponent(collectionId)}/favorite`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const apiUnfavoriteCollection = (
+  workerUrl: string,
+  token: string,
+  collectionId: string,
+) =>
+  fetchJson<{
+    ok?: boolean;
+    data?: {
+      collection_id: string;
+      is_favorited: boolean;
+      favorite_count: number;
+    };
+    error?: string;
+  }>(`${workerUrl}/collections/${encodeURIComponent(collectionId)}/favorite`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
 export const apiFetchCollectionItems = (
   workerUrl: string,

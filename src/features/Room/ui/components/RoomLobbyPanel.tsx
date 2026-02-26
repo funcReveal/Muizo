@@ -72,6 +72,7 @@ type CollectionOption = {
   title: string;
   description?: string | null;
   visibility?: "private" | "public";
+  use_count?: number;
 };
 
 interface SuggestionPanelProps {
@@ -385,7 +386,12 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
                 <MenuItem value="">選擇收藏庫</MenuItem>
                 {collections.map((collection) => (
                   <MenuItem key={collection.id} value={collection.id}>
-                    {collection.title}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate">{collection.title}</span>
+                      <span className="text-xs text-slate-400">
+                        熱門 · 遊玩次數 {Math.max(0, Number(collection.use_count ?? 0))}
+                      </span>
+                    </div>
                   </MenuItem>
                 ))}
               </TextField>
@@ -1952,7 +1958,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                               <MenuItem value="">選擇收藏庫</MenuItem>
                               {collections.map((collection) => (
                                 <MenuItem key={collection.id} value={collection.id}>
-                                  {collection.title}
+                                  <div className="flex min-w-0 flex-col">
+                                    <span className="truncate">{collection.title}</span>
+                                    <span className="text-xs text-slate-400">
+                                      熱門 · 遊玩次數{" "}
+                                      {Math.max(0, Number(collection.use_count ?? 0))}
+                                    </span>
+                                  </div>
                                 </MenuItem>
                               ))}
                             </TextField>

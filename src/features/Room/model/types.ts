@@ -117,6 +117,20 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+export interface SessionProgressPayload {
+  roomId?: string | null;
+  flow: "join" | "resume";
+  stage:
+    | "server_validating"
+    | "room_lookup"
+    | "membership_restore"
+    | "state_build"
+    | "ready_to_send";
+  status: "active" | "done" | "error";
+  message?: string;
+  timestamp: number;
+}
+
 export interface RoomSettlementQuestionAnswer {
   choiceIndex: number | null;
   result: "correct" | "wrong" | "unanswered";
@@ -368,6 +382,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   roomsUpdated: (rooms: RoomSummary[]) => void;
   joinedRoom: (state: RoomState) => void;
+  sessionProgress: (payload: SessionProgressPayload) => void;
   participantsUpdated: (payload: {
     roomId: string;
     participants: RoomParticipant[];

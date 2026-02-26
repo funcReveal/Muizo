@@ -151,7 +151,9 @@ const RoomLobbyPage: React.FC = () => {
     setIsGameView,
     gamePlaylist,
     clientId,
+    isConnected,
     routeRoomResolved,
+    sessionProgress,
     setStatusText,
     hostRoomPassword,
     serverOffsetMs,
@@ -206,6 +208,71 @@ const RoomLobbyPage: React.FC = () => {
     () => participants.find((participant) => participant.clientId === clientId)?.joinedAt ?? null,
     [clientId, participants],
   );
+
+  const waitingChecklist = useMemo(() => {
+    const backendOrder = [
+      "server_validating",
+      "room_lookup",
+      "membership_restore",
+      "state_build",
+      "ready_to_send",
+    ] as const;
+    const backendStageIndex = sessionProgress
+      ? backendOrder.indexOf(sessionProgress.stage)
+      : -1;
+    const backendRows = backendOrder.map((stage, index) => {
+      let state: "done" | "active" | "pending" | "error" = "pending";
+      if (sessionProgress?.stage === stage) {
+        state =
+          sessionProgress.status === "error"
+            ? "error"
+            : sessionProgress.status === "done"
+              ? "done"
+              : "active";
+      } else if (
+        sessionProgress &&
+        backendStageIndex > index &&
+        sessionProgress.status !== "error"
+      ) {
+        state = "done";
+      }
+      const labels: Record<(typeof backendOrder)[number], string> = {
+        server_validating: "驗證連線與身份",
+        room_lookup: "查找目標房間",
+        membership_restore: "恢復房間成員狀態",
+        state_build: "建立房間畫面資料",
+        ready_to_send: "準備切換到房間畫面",
+      };
+      return { key: stage, label: labels[stage], state };
+    });
+
+    const rows = [
+      {
+        key: "socket_connected",
+        label: "建立 Socket 連線",
+        state: (isConnected ? "done" : "active") as "done" | "active",
+      },
+      ...backendRows,
+    ];
+
+    const doneCount = rows.filter((row) => row.state === "done").length;
+    const activeRow =
+      rows.find((row) => row.state === "error") ??
+      rows.find((row) => row.state === "active") ??
+      null;
+
+    return {
+      rows,
+      doneCount,
+      ratio: rows.length > 0 ? doneCount / rows.length : 0,
+      activeLabel: activeRow?.label ?? "等待切換畫面",
+      isError: Boolean(sessionProgress && sessionProgress.status === "error"),
+      errorMessage:
+        sessionProgress?.status === "error"
+          ? sessionProgress.message ?? "連線流程發生錯誤"
+          : null,
+    };
+  }, [isConnected, sessionProgress]);
 
   const settlementSessionCacheKey =
     currentRoom?.id && clientId && typeof selfParticipantJoinedAt === "number"
@@ -766,36 +833,83 @@ const RoomLobbyPage: React.FC = () => {
                 <div className="text-xs tracking-[0.2em] text-[var(--mc-text-muted)]">
                   連線進度
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[11px] text-emerald-100/90">
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
-                  處理中
+                <div
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${
+                    waitingChecklist.isError
+                      ? "border border-rose-300/30 bg-rose-300/10 text-rose-100"
+                      : "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100/90"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      waitingChecklist.isError
+                        ? "bg-rose-300"
+                        : "animate-pulse bg-emerald-300"
+                    }`}
+                  />
+                  {waitingChecklist.isError ? "需要重試" : "同步中"}
                 </div>
               </div>
 
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-[linear-gradient(90deg,rgba(245,158,11,0.75),rgba(250,204,21,0.95),rgba(251,191,36,0.7))]" />
+                <div
+                  className={`h-full rounded-full ${
+                    waitingChecklist.isError
+                      ? "bg-[linear-gradient(90deg,rgba(251,113,133,0.7),rgba(244,63,94,0.9))]"
+                      : "animate-pulse bg-[linear-gradient(90deg,rgba(245,158,11,0.75),rgba(250,204,21,0.95),rgba(251,191,36,0.7))]"
+                  }`}
+                  style={{
+                    width: `${Math.max(8, Math.round(waitingChecklist.ratio * 100))}%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-[var(--mc-text-muted)]">
+                {waitingChecklist.isError
+                  ? waitingChecklist.errorMessage
+                  : `目前階段：${waitingChecklist.activeLabel}`}
               </div>
 
               <div className="mt-5 space-y-3 text-sm text-[var(--mc-text-muted)]">
-                {[
-                  "建立連線並驗證身份",
-                  "讀取房間資料與玩家名單",
-                  "同步最近狀態與顯示畫面",
-                ].map((step, index) => (
+                {waitingChecklist.rows.map((step, index) => (
                   <div
-                    key={step}
-                    className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2"
+                    key={step.key}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${
+                      step.state === "done"
+                        ? "border-emerald-300/15 bg-emerald-300/[0.03]"
+                        : step.state === "active"
+                          ? "border-amber-300/15 bg-amber-300/[0.03]"
+                          : step.state === "error"
+                            ? "border-rose-300/15 bg-rose-300/[0.03]"
+                            : "border-white/5 bg-white/[0.02]"
+                    }`}
                   >
                     <span
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-200/20 bg-amber-300/10 text-[11px] font-semibold text-amber-100"
-                      style={{
-                        animation: "pulse 1.6s ease-in-out infinite",
-                        animationDelay: `${index * 0.18}s`,
-                      }}
+                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                        step.state === "done"
+                          ? "border border-emerald-200/25 bg-emerald-300/12 text-emerald-100"
+                          : step.state === "active"
+                            ? "border border-amber-200/20 bg-amber-300/10 text-amber-100"
+                            : step.state === "error"
+                              ? "border border-rose-200/20 bg-rose-300/10 text-rose-100"
+                              : "border border-slate-300/15 bg-slate-300/5 text-slate-300/80"
+                      }`}
+                      style={
+                        step.state === "active"
+                          ? {
+                              animation: "pulse 1.6s ease-in-out infinite",
+                              animationDelay: `${index * 0.18}s`,
+                            }
+                          : undefined
+                      }
                     >
-                      {index + 1}
+                      {step.state === "done"
+                        ? "✓"
+                        : step.state === "error"
+                          ? "!"
+                          : index + 1}
                     </span>
-                    <span className="truncate">{step}</span>
+                    <span className="truncate">{step.label}</span>
                   </div>
                 ))}
               </div>
