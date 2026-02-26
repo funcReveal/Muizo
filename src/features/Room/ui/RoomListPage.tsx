@@ -58,7 +58,7 @@ const RoomListPage: React.FC = () => {
   const navigate = useNavigate();
   const [sortMode, setSortMode] = useState<"latest" | "popular">("latest");
   const [filterMode, setFilterMode] = useState<"all" | "open" | "locked">(
-    "all"
+    "all",
   );
   const [statusMode, setStatusMode] = useState<"online" | "quiet">("online");
   const {
@@ -95,7 +95,7 @@ const RoomListPage: React.FC = () => {
 
   const sortLabel = useMemo(
     () => (sortMode === "latest" ? "最新建立" : "最熱房間"),
-    [sortMode]
+    [sortMode],
   );
   const filterLabel = useMemo(() => {
     if (filterMode === "open") return "公開房間";
@@ -104,7 +104,7 @@ const RoomListPage: React.FC = () => {
   }, [filterMode]);
   const statusLabel = useMemo(
     () => (statusMode === "online" ? "目前在線" : "安靜時段"),
-    [statusMode]
+    [statusMode],
   );
   const closePasswordDialog = () => {
     setPasswordDialog(null);
@@ -196,9 +196,6 @@ const RoomListPage: React.FC = () => {
         <section className="w-full">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--mc-text-muted)]">
-                Muizo
-              </div>
               <h2 className="text-xl font-semibold text-[var(--mc-text)]">
                 房間列表
               </h2>
@@ -213,16 +210,13 @@ const RoomListPage: React.FC = () => {
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--mc-text-muted)] shadow-[0_10px_30px_-24px_rgba(15,23,42,0.7)]">
-              控制台
-            </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 className="rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-4 py-2 text-xs text-[var(--mc-text)] transition hover:border-slate-700 hover:bg-[var(--mc-surface-strong)]/90"
                 onClick={() =>
                   setSortMode((prev) =>
-                    prev === "latest" ? "popular" : "latest"
+                    prev === "latest" ? "popular" : "latest",
                   )
                 }
               >
@@ -256,7 +250,7 @@ const RoomListPage: React.FC = () => {
                 className="rounded-full border border-[var(--mc-accent-2)]/40 bg-[var(--mc-accent-2)]/10 px-4 py-2 text-xs text-emerald-200 transition hover:border-emerald-400/70 hover:bg-emerald-500/20"
                 onClick={() =>
                   setStatusMode((prev) =>
-                    prev === "online" ? "quiet" : "online"
+                    prev === "online" ? "quiet" : "online",
                   )
                 }
               >
@@ -342,7 +336,8 @@ const RoomListPage: React.FC = () => {
                             </span>
                             <span>播放清單 {room.playlistCount}</span>
                             <span>
-                              建立 {new Date(room.createdAt).toLocaleTimeString()}
+                              建立{" "}
+                              {new Date(room.createdAt).toLocaleTimeString()}
                             </span>
                           </div>
                         </div>
@@ -438,7 +433,10 @@ const RoomListPage: React.FC = () => {
           >
             <DialogTitle>輸入房間密碼</DialogTitle>
             <DialogContent>
-              <Typography variant="body2" sx={{ mb: 1.5, color: "text.secondary" }}>
+              <Typography
+                variant="body2"
+                sx={{ mb: 1.5, color: "text.secondary" }}
+              >
                 {passwordDialog
                   ? `房間「${passwordDialog.roomName}」需要密碼才能加入。`
                   : ""}
