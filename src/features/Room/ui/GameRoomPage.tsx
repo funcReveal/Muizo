@@ -32,6 +32,7 @@ import {
 } from "../model/roomConstants";
 import {
   parseStoredSfxPreset,
+  resolveCorrectResultSfxEvent,
   resolveCountdownSfxEvent,
   resolveGuessDeadlineSfxEvent,
   type SfxPresetId,
@@ -401,6 +402,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastPreStartCountdownSfxKeyRef = useRef<string | null>(null);
   const lastGuessUrgencySfxKeyRef = useRef<string | null>(null);
   const lastCountdownGoSfxKeyRef = useRef<string | null>(null);
+  const lastRevealResultSfxKeyRef = useRef<string | null>(null);
   const lastTopTwoOrderRef = useRef<[string | null, string | null]>([null, null]);
   const topTwoSwapTimerRef = useRef<number | null>(null);
   const choiceCommitFxTimerRef = useRef<number | null>(null);
@@ -2146,6 +2148,58 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !isInterTrackWait && gameState.phase === "guess" && !myHasAnswered;
 
   useEffect(() => {
+    if (!isReveal || isInterTrackWait || waitingToStart || isEnded) return;
+    if (!meClientId) return;
+
+    let resultSfxEvent:
+      | "correct"
+      | "correctCombo1"
+      | "correctCombo2"
+      | "correctCombo3"
+      | "correctCombo4"
+      | "correctCombo5"
+      | "wrong"
+      | "unanswered";
+    let comboBonusKey = 0;
+
+    if (!myHasAnswered || selectedChoice === null) {
+      resultSfxEvent = "unanswered";
+    } else if (myIsCorrect) {
+      if (!myResolvedScoreBreakdown) return;
+      comboBonusKey = Math.max(
+        0,
+        Math.floor(myResolvedScoreBreakdown.comboBonusPoints ?? 0),
+      );
+      resultSfxEvent = resolveCorrectResultSfxEvent(comboBonusKey) as
+        | "correct"
+        | "correctCombo1"
+        | "correctCombo2"
+        | "correctCombo3"
+        | "correctCombo4"
+        | "correctCombo5";
+    } else {
+      resultSfxEvent = "wrong";
+    }
+
+    const sfxKey = `${trackSessionKey}:reveal:result:${resultSfxEvent}:${comboBonusKey}`;
+    if (lastRevealResultSfxKeyRef.current === sfxKey) return;
+    lastRevealResultSfxKeyRef.current = sfxKey;
+    playGameSfx(resultSfxEvent);
+  }, [
+    isEnded,
+    isInterTrackWait,
+    isReveal,
+    meClientId,
+    myHasAnswered,
+    myIsCorrect,
+    myResolvedScoreBreakdown,
+    playGameSfx,
+    selectedChoice,
+    trackSessionKey,
+    waitingToStart,
+  ]);
+
+  useEffect(() => {
     if (!isReveal) return;
     if (!gameState.choices.length) return;
     if (recapCapturedTrackSessionKeysRef.current.has(trackSessionKey)) return;
@@ -2632,7 +2686,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         <Chip label="未答" size="small" variant="outlined" />
                       )}
                       <span className="font-semibold text-emerald-300 tabular-nums">
-                        {p.score.toLocaleString()}
+                        {`${scoreParts.base.toLocaleString()} + ${scoreParts.gain.toLocaleString()}`}
                         {p.combo > 0 && (
                           <span className="ml-1 text-amber-300">
                             x{p.combo}

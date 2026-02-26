@@ -12,6 +12,11 @@ export type GameSfxEvent =
   | "combo"
   | "comboBreak"
   | "correct"
+  | "correctCombo1"
+  | "correctCombo2"
+  | "correctCombo3"
+  | "correctCombo4"
+  | "correctCombo5"
   | "wrong"
   | "unanswered";
 
@@ -88,6 +93,89 @@ export const resolveGuessDeadlineSfxEvent = (
 ): GameSfxEvent => {
   if (countdownSec <= 1) return "deadlineFinal";
   return "deadlineTick";
+};
+
+export const resolveCorrectResultSfxEvent = (
+  comboBonusPoints: number | null | undefined,
+): GameSfxEvent => {
+  const comboBonus = Number.isFinite(comboBonusPoints)
+    ? Math.max(0, Math.floor(comboBonusPoints ?? 0))
+    : 0;
+  if (comboBonus <= 0) return "correct";
+  const tier = Math.max(1, Math.min(5, Math.ceil(comboBonus / 4)));
+  return `correctCombo${tier}` as GameSfxEvent;
+};
+
+const buildCorrectComboTierSteps = (
+  preset: SfxPresetProfile,
+  tier: number,
+): SfxStep[] => {
+  const clampedTier = Math.max(1, Math.min(5, Math.floor(tier)));
+  const p = (freq: number) => Math.max(40, freq * preset.pitchMul);
+  const g = (gain: number) => Math.max(0.0001, gain * preset.gainMul);
+  const lift = (clampedTier - 1) * 34;
+  const sparkleGain = 0.065 + clampedTier * 0.006;
+  const steps: SfxStep[] = [
+    {
+      atSec: 0,
+      durationSec: 0.06,
+      freq: p(820 + lift * 0.45),
+      endFreq: p(940 + lift * 0.55),
+      gain: g(0.095),
+      type: preset.accentWave,
+    },
+    {
+      atSec: 0.045,
+      durationSec: 0.075,
+      freq: p(1040 + lift * 0.65),
+      endFreq: p(1260 + lift * 0.75),
+      gain: g(0.09),
+      type: preset.primaryWave,
+    },
+    {
+      atSec: 0.105,
+      durationSec: 0.07,
+      freq: p(1320 + lift * 0.85),
+      endFreq: p(1500 + lift),
+      gain: g(0.082),
+      type: preset.softWave,
+    },
+  ];
+
+  if (clampedTier >= 2) {
+    steps.push({
+      atSec: 0.155,
+      durationSec: 0.06,
+      freq: p(1520 + lift),
+      endFreq: p(1700 + lift * 1.1),
+      gain: g(sparkleGain),
+      type: preset.accentWave,
+    });
+  }
+
+  if (clampedTier >= 4) {
+    steps.push({
+      atSec: 0.205,
+      durationSec: 0.055,
+      freq: p(1760 + lift * 1.05),
+      endFreq: p(1940 + lift * 1.15),
+      gain: g(sparkleGain - 0.008),
+      type: preset.softWave,
+    });
+  }
+
+  if (clampedTier >= 5) {
+    steps.push({
+      atSec: 0.252,
+      durationSec: 0.07,
+      freq: p(1880 + lift * 1.1),
+      endFreq: p(2240 + lift * 1.25),
+      gain: g(0.06),
+      type: preset.primaryWave,
+    });
+  }
+
+  return steps;
 };
 
 const getSfxSteps = (preset: SfxPresetProfile, event: GameSfxEvent): SfxStep[] => {
@@ -303,6 +391,16 @@ const getSfxSteps = (preset: SfxPresetProfile, event: GameSfxEvent): SfxStep[] =
           type: preset.softWave,
         },
       ];
+    case "correctCombo1":
+      return buildCorrectComboTierSteps(preset, 1);
+    case "correctCombo2":
+      return buildCorrectComboTierSteps(preset, 2);
+    case "correctCombo3":
+      return buildCorrectComboTierSteps(preset, 3);
+    case "correctCombo4":
+      return buildCorrectComboTierSteps(preset, 4);
+    case "correctCombo5":
+      return buildCorrectComboTierSteps(preset, 5);
     case "wrong":
       return [
         {
