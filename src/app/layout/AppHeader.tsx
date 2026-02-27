@@ -29,9 +29,9 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import BrandLogo from "../../../../shared/ui/BrandLogo";
+import BrandLogo from "../../shared/ui/BrandLogo";
 
-interface HeaderSectionProps {
+interface AppHeaderProps {
   displayUsername: string;
   authUser?: {
     id: string;
@@ -109,7 +109,7 @@ const formatDuration = (sec: number) => {
   return `${min}m`;
 };
 
-const HeaderSection: React.FC<HeaderSectionProps> = ({
+const AppHeader: React.FC<AppHeaderProps> = ({
   displayUsername,
   authUser,
   authLoading = false,
@@ -239,6 +239,22 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
       ]
     : [
         <MenuItem
+          key="edit-guest-name"
+          onClick={() => {
+            handleMenuClose();
+            onEditProfile?.();
+          }}
+          sx={menuItemSx}
+        >
+          <ListItemIcon sx={{ minWidth: 30, color: "#fcd34d" }}>
+            <ManageAccounts fontSize="small" />
+          </ListItemIcon>
+          <ListItemText
+            primary="編輯訪客暱稱"
+            secondary="更新你目前的訪客名稱"
+          />
+        </MenuItem>,
+        <MenuItem
           key="login"
           onClick={() => {
             handleMenuClose();
@@ -307,13 +323,15 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="group inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent-2)]/40 bg-[var(--mc-accent-2)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-100 shadow-[0_10px_30px_-24px_rgba(16,185,129,0.5)] transition hover:border-[var(--mc-accent-2)]/60 hover:bg-[var(--mc-accent-2)]/20"
+            className="group inline-flex min-w-[156px] items-center justify-between gap-2 rounded-full border border-[var(--mc-accent-2)]/40 bg-[var(--mc-accent-2)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-100 shadow-[0_10px_30px_-24px_rgba(16,185,129,0.5)] transition hover:border-[var(--mc-accent-2)]/60 hover:bg-[var(--mc-accent-2)]/20"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
           >
-            <span className="h-2 w-2 rounded-full bg-[var(--mc-accent-2)] shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-            Sign in
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[var(--mc-accent-2)] shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+              Sign in
+            </span>
             <span
               className={`text-[10px] transition-transform ${
                 isMenuOpen ? "rotate-180" : ""
@@ -756,4 +774,4 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   );
 };
 
-export default HeaderSection;
+export default AppHeader;

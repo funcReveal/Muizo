@@ -38,6 +38,7 @@ import {
   PLAYER_MIN,
   QUESTION_MAX,
   QUESTION_MIN,
+  USERNAME_MAX,
   SOCKET_URL,
   WORKER_API_URL,
 } from "./roomConstants";
@@ -299,8 +300,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     pathname.startsWith("/rooms") || pathname.startsWith("/invited");
   const socketSuspendedRef = useRef(false);
 
-  const [usernameInput, setUsernameInput] = useState(
-    () => getStoredUsername() ?? "",
+  const [usernameInput, setUsernameInputState] = useState(
+    () => (getStoredUsername() ?? "").slice(0, USERNAME_MAX),
   );
   const [username, setUsername] = useState<string | null>(
     () => getStoredUsername() ?? null,
@@ -461,7 +462,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const clearAuth = useCallback(() => {
     setUsername(null);
     clearStoredUsername();
-    setUsernameInput("");
+    setUsernameInputState("");
+  }, []);
+
+  const setUsernameInput = useCallback((value: string) => {
+    setUsernameInputState(value.slice(0, USERNAME_MAX));
   }, []);
 
   const onResetCollectionRef = useRef<() => void>(() => {});
@@ -746,6 +751,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const trimmed = usernameInput.trim();
     if (!trimmed) {
       setStatusText("請先輸入使用者名稱");
+      return;
+    }
+    if (trimmed.length > USERNAME_MAX) {
+      setStatusText(`使用者名稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
     persistUsername(trimmed);
@@ -2916,6 +2925,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setInviteRoomId,
       setRouteRoomId,
       setPlaylistUrl,
+      setUsernameInput,
       handleSetUsername,
       isCreatingRoom,
       handleCreateRoom,

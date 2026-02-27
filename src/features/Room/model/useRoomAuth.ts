@@ -7,6 +7,7 @@ import {
   apiRefreshAuthToken,
   apiUpsertWorkerUser,
 } from "./roomApi";
+import { USERNAME_MAX } from "./roomConstants";
 import { isProfileConfirmed, setProfileConfirmed } from "./roomStorage";
 import { clearTokenExpiry, persistTokenExpiry } from "../../../shared/auth/token";
 import { trackEvent } from "../../../shared/analytics/track";
@@ -84,10 +85,10 @@ export const useRoomAuth = ({
       persistTokenExpiry(token);
       const confirmed = isProfileConfirmed(user.id);
       if (!confirmed) {
-        setNicknameDraft(user.display_name ?? "");
+        setNicknameDraft((user.display_name ?? "").slice(0, USERNAME_MAX));
         setNeedsNicknameConfirm(true);
       } else if (!username && user.display_name) {
-        persistUsername(user.display_name);
+        persistUsername(user.display_name.slice(0, USERNAME_MAX));
       }
     },
     [persistUsername, username],
@@ -130,6 +131,10 @@ export const useRoomAuth = ({
     const trimmed = nicknameDraft.trim();
     if (!trimmed) {
       setStatusText("請先輸入暱稱");
+      return;
+    }
+    if (trimmed.length > USERNAME_MAX) {
+      setStatusText(`暱稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
 
@@ -175,7 +180,7 @@ export const useRoomAuth = ({
 
   const openProfileEditor = useCallback(() => {
     const fallbackName = authUser?.display_name ?? username ?? "";
-    setNicknameDraft(fallbackName);
+    setNicknameDraft(fallbackName.slice(0, USERNAME_MAX));
     setIsProfileEditorOpen(true);
   }, [authUser?.display_name, username]);
 
@@ -193,9 +198,6 @@ export const useRoomAuth = ({
       try {
         const { ok, payload } = await apiAuthGoogle(apiUrl, code, redirectUri);
         if (!ok || !payload?.token || !payload.user) {
-          trackEvent("login_google_failed", {
-            reason: payload?.error ?? "missing_token_or_user",
-          });
           throw new Error(payload?.error ?? "Google 登入失敗");
         }
         persistAuth(payload.token, payload.user);

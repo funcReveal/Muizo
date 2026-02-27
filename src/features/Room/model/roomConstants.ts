@@ -23,6 +23,7 @@ export const QUESTION_MAX = 100;
 export const QUESTION_STEP = 5;
 export const PLAYER_MIN = 1;
 export const PLAYER_MAX = 100;
+export const USERNAME_MAX = 16;
 
 export const STORAGE_KEYS = {
   clientId: "mq_clientId",

@@ -23,9 +23,9 @@ const AnalyticsPageTracker = () => {
   }, []);
 
   useEffect(() => {
-    const path = `${normalizePathname(location.pathname)}${location.search}`;
+    const path = normalizePathname(location.pathname);
     trackGaPageView(path, document.title);
-  }, [location.pathname, location.search]);
+  }, [location.pathname]);
 
   return null;
 };

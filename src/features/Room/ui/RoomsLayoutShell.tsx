@@ -1,5 +1,5 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Button,
   Dialog,
@@ -10,16 +10,19 @@ import {
   useMediaQuery,
 } from "@mui/material";
 
-import HeaderSection from "./components/HeaderSection";
-import LoginPage from "./components/LoginPage";
+import AppHeader from "../../../app/layout/AppHeader";
+import LoginPage from "../../Auth/ui/LoginPage";
+import { USERNAME_MAX } from "../model/roomConstants";
 import { useRoom } from "../model/useRoom";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
+import RouteRedirectNotice from "../../../shared/ui/RouteRedirectNotice";
 import SettingsPage from "../../Setting/ui/SettingsPage";
 
 type NavigationTarget = "rooms" | "collections" | "history" | "settings";
 
 const RoomsLayoutShell: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     authLoading,
     authUser,
@@ -43,7 +46,22 @@ const RoomsLayoutShell: React.FC = () => {
     handleLeaveRoom,
     setStatusText,
   } = useRoom();
+  const hasIdentity = Boolean(username || authUser);
+  const shouldShowLoginOnly = !authLoading && !hasIdentity;
+  const isInviteRoute = location.pathname.startsWith("/invited/");
+
+  const shouldRedirectToRooms =
+    shouldShowLoginOnly && location.pathname !== "/rooms" && !isInviteRoute;
+
+  useEffect(() => {
+    if (!shouldRedirectToRooms) return;
+    const timer = window.setTimeout(() => {
+      navigate("/rooms", { replace: true });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [navigate, shouldRedirectToRooms]);
   const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [inRoomSettingsOpen, setInRoomSettingsOpen] = useState(false);
   const settingsDialogFullScreen = useMediaQuery("(max-width: 900px)");
   const [navigationConfirmTarget, setNavigationConfirmTarget] =
@@ -103,6 +121,28 @@ const RoomsLayoutShell: React.FC = () => {
     });
   }, [currentRoom, handleLeaveRoom, navigate, setStatusText, startGoogleLogin]);
 
+  const logoutConfirmText = useMemo(() => {
+    if (currentRoom) {
+      return {
+        title: "確定要登出？",
+        description: "登出後會離開目前登入狀態，並返回首頁登入畫面。",
+      };
+    }
+    return {
+      title: "確定要登出？",
+      description: "你將登出目前帳號。",
+    };
+  }, [currentRoom]);
+
+  const handleLogoutRequest = useCallback(() => {
+    setLogoutConfirmOpen(true);
+  }, []);
+
+  const handleConfirmLogout = useCallback(() => {
+    setLogoutConfirmOpen(false);
+    logout();
+  }, [logout]);
+
   const handleNavigateRequest = useCallback(
     (target: NavigationTarget) => {
       const path = getNavigationPath(target);
@@ -120,15 +160,13 @@ const RoomsLayoutShell: React.FC = () => {
     [currentRoom, getNavigationPath, navigate, setStatusText],
   );
 
-
   const navigationConfirmText = useMemo(() => {
     if (!navigationConfirmTarget) return null;
     if (navigationConfirmTarget === "settings") {
       if (gameState?.status === "playing") {
         return {
           title: "離開房間並前往設定？",
-          description:
-            "前往設定時將保留目前房間連線，設定會以彈出視窗開啟。",
+          description: "前往設定時將保留目前房間連線，設定會以彈出視窗開啟。",
         };
       }
       return {
@@ -189,13 +227,13 @@ const RoomsLayoutShell: React.FC = () => {
   return (
     <div className="flex min-h-screen bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start p-4">
       <div className="flex w-full min-w-0 max-w-[1600px] flex-col space-y-4">
-        <div className="-mx-2 sm:mx-0">
-          <HeaderSection
+        <div>
+          <AppHeader
             displayUsername={displayUsername}
             authUser={authUser}
             authLoading={authLoading}
             onLogin={handleLoginRequest}
-            onLogout={logout}
+            onLogout={handleLogoutRequest}
             onEditProfile={openProfileEditor}
             onNavigateRooms={() => handleNavigateRequest("rooms")}
             onNavigateCollections={() => handleNavigateRequest("collections")}
@@ -204,23 +242,32 @@ const RoomsLayoutShell: React.FC = () => {
           />
         </div>
 
-        {!authLoading && !username && !authUser && (
+        {shouldRedirectToRooms && (
+          <RouteRedirectNotice
+            title="正在返回首頁登入"
+            subtitle="尚未設定訪客身分或登入帳號，請先完成登入。"
+            fullHeight
+          />
+        )}
+
+        {shouldShowLoginOnly && !shouldRedirectToRooms && !isInviteRoute && (
           <LoginPage
             usernameInput={usernameInput}
             onInputChange={setUsernameInput}
             onConfirm={handleSetUsername}
             onGoogleLogin={handleLoginRequest}
             googleLoading={authLoading}
+            nicknameMaxLength={USERNAME_MAX}
           />
         )}
 
-        <Outlet />
+        {(hasIdentity || isInviteRoute) && <Outlet />}
 
         <footer className="flex m-0 items-center justify-center gap-4 text-xs text-[var(--mc-text-muted)]">
           <Link to="/privacy" className="hover:text-[var(--mc-text)]">
             隱私權政策
           </Link>
-          <span className="text-[var(--mc-border)]">•</span>
+          <span className="text-[var(--mc-border)]">‧</span>
           <Link to="/terms" className="hover:text-[var(--mc-text)]">
             服務條款
           </Link>
@@ -237,6 +284,15 @@ const RoomsLayoutShell: React.FC = () => {
           cancelLabel="取消"
           onConfirm={handleConfirmLogin}
           onCancel={() => setLoginConfirmOpen(false)}
+        />
+        <ConfirmDialog
+          open={logoutConfirmOpen}
+          title={logoutConfirmText.title}
+          description={logoutConfirmText.description}
+          confirmLabel="確認登出"
+          cancelLabel="取消"
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setLogoutConfirmOpen(false)}
         />
         <ConfirmDialog
           open={Boolean(navigationConfirmTarget)}
@@ -312,7 +368,10 @@ const RoomsLayoutShell: React.FC = () => {
               className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--mc-surface-strong)] border border-[var(--mc-border)] outline-none focus:border-[var(--mc-accent)] focus:ring-1 focus:ring-[var(--mc-glow)]"
               placeholder="請輸入顯示暱稱"
               value={nicknameDraft}
-              onChange={(e) => setNicknameDraft(e.target.value)}
+              onChange={(e) =>
+                setNicknameDraft(e.target.value.slice(0, USERNAME_MAX))
+              }
+              maxLength={USERNAME_MAX}
             />
           </DialogContent>
           <DialogActions>
