@@ -27,3 +27,8 @@ export interface SettingsSectionMeta {
   status: SettingsSectionStatus;
 }
 
+export interface SettingsPageCopy {
+  badge: string;
+  title: string;
+  description: string;
+}

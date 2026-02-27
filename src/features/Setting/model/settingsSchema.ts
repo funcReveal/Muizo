@@ -1,28 +1,35 @@
-import type {
+﻿import type {
   SettingsCategoryMeta,
+  SettingsPageCopy,
   SettingsSectionMeta,
 } from "./settingsTypes";
+
+export const SETTINGS_PAGE_COPY: SettingsPageCopy = {
+  badge: "Control Deck",
+  title: "設定",
+  description: "管理按鍵、音效與顯示偏好。所有調整會即時套用到目前裝置。",
+};
 
 export const SETTINGS_CATEGORIES: SettingsCategoryMeta[] = [
   {
     id: "controls",
     title: "操作",
-    subtitle: "按鍵與作答預覽",
+    subtitle: "調整按鍵與作答手感",
   },
   {
     id: "audio",
     title: "音效",
-    subtitle: "提示音與音量",
+    subtitle: "提示音、音量與預設",
   },
   {
     id: "display",
     title: "顯示",
-    subtitle: "畫面密度與資訊呈現",
+    subtitle: "介面資訊與視覺密度",
   },
   {
     id: "accessibility",
     title: "無障礙",
-    subtitle: "視覺與動態輔助",
+    subtitle: "協助不同使用情境",
   },
 ];
 
@@ -30,37 +37,36 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
   {
     id: "keybindings",
     categoryId: "controls",
-    title: "按鍵設定",
-    description: "設定四個作答按鍵；輸入重複按鍵時會自動交換位置。",
+    title: "按鍵配置",
+    description: "設定 Q/W/A/S 對應槽位，重複按鍵會自動交換，保持唯一。",
     status: "ready",
   },
   {
     id: "control-preview",
     categoryId: "controls",
-    title: "按鍵預覽",
-    description: "快速確認目前配置與實戰使用建議。",
+    title: "操作預覽",
+    description: "快速確認四個槽位與作答流程，避免進房後才發現按鍵衝突。",
     status: "ready",
   },
   {
     id: "sfx",
     categoryId: "audio",
     title: "音效設定",
-    description: "調整提示音開關、音量、風格與試聽。",
+    description: "調整提示音啟用、音量與風格，並可直接試聽。",
     status: "ready",
   },
   {
     id: "display-presets",
     categoryId: "display",
-    title: "顯示偏好（規劃中）",
-    description: "之後會集中管理字體大小、緊湊模式、影片顯示等視覺設定。",
+    title: "顯示預設（規劃中）",
+    description: "將提供資訊密度、動畫強度與字級等快速切換。",
     status: "planned",
   },
   {
     id: "accessibility-presets",
     categoryId: "accessibility",
-    title: "無障礙偏好（規劃中）",
-    description: "之後會加入高對比、減少動畫與色弱友善配色等選項。",
+    title: "無障礙預設（規劃中）",
+    description: "將提供色弱友善、低動態與高對比等輔助配置。",
     status: "planned",
   },
 ];
-

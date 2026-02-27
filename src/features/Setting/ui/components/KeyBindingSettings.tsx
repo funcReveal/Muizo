@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 import type { KeyBindings } from "./useKeyBindings";
 
@@ -71,7 +71,7 @@ const KeyBindingSettings: React.FC<KeyBindingSettingsProps> = ({
               <span className="min-w-0">
                 <span className="block text-[11px] text-slate-400">{label}</span>
                 <span className="block text-[12px] text-slate-300">
-                  作答槽位 {idx + 1}
+                  按鍵槽 {idx + 1}
                 </span>
               </span>
 
@@ -105,12 +105,13 @@ const KeyBindingSettings: React.FC<KeyBindingSettingsProps> = ({
       </div>
 
       <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-xs leading-5 text-slate-400">
-        輸入重複按鍵時會自動與原本槽位交換，保持四個作答按鍵不重複。
-        使用 `Backspace` 或 `Delete` 可以清空目前欄位。
+        輸入新按鍵時若與其他槽位重複，系統會自動交換；按下
+        <span className="px-1 text-slate-200">Backspace</span>或
+        <span className="px-1 text-slate-200">Delete</span>
+        可清空該槽位。
       </div>
     </div>
   );
 };
 
 export default KeyBindingSettings;
-
