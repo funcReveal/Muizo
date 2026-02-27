@@ -8,7 +8,7 @@
   SportsScore,
 } from "@mui/icons-material";
 import { Chip, CircularProgress } from "@mui/material";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
@@ -22,6 +22,12 @@ import GameSettlementPanel from "./components/GameSettlementPanel";
 const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== "undefined" ? window.location.origin : "");
+
+const HISTORY_PAGE_LIMIT = 10;
+const HISTORY_LIST_CACHE_TTL_MS = 90_000;
+const HISTORY_GUARD_WINDOW_MS = 15_000;
+const HISTORY_GUARD_MAX_REQUESTS = 16;
+const HISTORY_GUARD_BLOCK_MS = 30_000;
 
 type HistoryListResponse = {
   ok: boolean;
@@ -38,6 +44,16 @@ type HistoryDetailResponse = {
     snapshot: RoomSettlementSnapshot;
   };
   error?: string;
+};
+
+type HistoryListCachePayload = {
+  savedAt: number;
+  items: RoomSettlementHistorySummary[];
+};
+
+type HistoryRequestGuardPayload = {
+  blockedUntil: number;
+  requestTimestamps: number[];
 };
 
 const formatDateTime = (timestamp: number) => {
@@ -61,6 +77,12 @@ const buildHistoryHeaders = (token: string | null) => ({
   "Content-Type": "application/json",
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 });
+
+const buildHistoryListCacheKey = (clientId: string | null) =>
+  `mq_history_list_v1:${clientId ?? "guest"}`;
+
+const buildHistoryGuardKey = (clientId: string | null) =>
+  `mq_history_guard_v1:${clientId ?? "guest"}`;
 
 const parseSummaryReplayStatus = (summary: RoomSettlementHistorySummary) => {
   const json = summary.summaryJson;
@@ -105,6 +127,19 @@ const RoomHistoryPage: React.FC = () => {
   const [collapsedRoomGroups, setCollapsedRoomGroups] = useState<
     Record<string, boolean>
   >({});
+  const inFlightReplayMatchIdsRef = useRef<Set<string>>(new Set());
+
+  const historyListCacheKey = useMemo(
+    () => buildHistoryListCacheKey(clientId),
+    [clientId],
+  );
+  const historyGuardKey = useMemo(
+    () => buildHistoryGuardKey(clientId),
+    [clientId],
+  );
+  const [historyRequestBlockedUntil, setHistoryRequestBlockedUntil] = useState(
+    0,
+  );
 
   const selectedSummary = useMemo(
     () => items.find((item) => item.matchId === selectedMatchId) ?? null,
@@ -119,52 +154,144 @@ const RoomHistoryPage: React.FC = () => {
     return await ensureFreshAuthToken({ token: authToken, refreshAuthToken });
   }, [authToken, refreshAuthToken]);
 
+  const readHistoryListCache = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.sessionStorage.getItem(historyListCacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as HistoryListCachePayload;
+      if (!parsed || !Array.isArray(parsed.items)) return null;
+      if (!Number.isFinite(parsed.savedAt)) return null;
+      if (Date.now() - parsed.savedAt > HISTORY_LIST_CACHE_TTL_MS) return null;
+      return parsed.items
+        .slice(0, HISTORY_PAGE_LIMIT)
+        .sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo);
+    } catch {
+      return null;
+    }
+  }, [historyListCacheKey]);
+
+  const writeHistoryListCache = useCallback(
+    (nextItems: RoomSettlementHistorySummary[]) => {
+      if (typeof window === "undefined") return;
+      try {
+        const payload: HistoryListCachePayload = {
+          savedAt: Date.now(),
+          items: nextItems.slice(0, HISTORY_PAGE_LIMIT),
+        };
+        window.sessionStorage.setItem(historyListCacheKey, JSON.stringify(payload));
+      } catch {
+        // ignore cache errors
+      }
+    },
+    [historyListCacheKey],
+  );
+
+  const guardBlockedMessage = useCallback(
+    (blockedUntil: number, source: "list" | "detail") => {
+      const remainingMs = Math.max(0, blockedUntil - Date.now());
+      const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
+      return source === "detail"
+        ? `操作過於頻繁，請 ${seconds} 秒後再試。`
+        : `歷史請求過於頻繁，請 ${seconds} 秒後再試。`;
+    },
+    [],
+  );
+
+  const acquireHistoryRequestPermit = useCallback(
+    (source: "list" | "detail") => {
+      if (typeof window === "undefined") return true;
+      const now = Date.now();
+      let nextGuard: HistoryRequestGuardPayload = {
+        blockedUntil: 0,
+        requestTimestamps: [],
+      };
+      try {
+        const raw = window.sessionStorage.getItem(historyGuardKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<HistoryRequestGuardPayload>;
+          nextGuard = {
+            blockedUntil: Number(parsed.blockedUntil ?? 0),
+            requestTimestamps: Array.isArray(parsed.requestTimestamps)
+              ? parsed.requestTimestamps
+                  .map((value) => Number(value))
+                  .filter((value) => Number.isFinite(value))
+              : [],
+          };
+        }
+      } catch {
+        // ignore parse errors
+      }
+
+      nextGuard.requestTimestamps = nextGuard.requestTimestamps.filter(
+        (timestamp) => now - timestamp <= HISTORY_GUARD_WINDOW_MS,
+      );
+
+      if (nextGuard.blockedUntil > now) {
+        setHistoryRequestBlockedUntil(nextGuard.blockedUntil);
+        const message = guardBlockedMessage(nextGuard.blockedUntil, source);
+        setStatusText(message);
+        return false;
+      }
+
+      nextGuard.requestTimestamps.push(now);
+      if (nextGuard.requestTimestamps.length > HISTORY_GUARD_MAX_REQUESTS) {
+        nextGuard.blockedUntil = now + HISTORY_GUARD_BLOCK_MS;
+        nextGuard.requestTimestamps = [];
+        setHistoryRequestBlockedUntil(nextGuard.blockedUntil);
+        const message = guardBlockedMessage(nextGuard.blockedUntil, source);
+        setStatusText(message);
+        try {
+          window.sessionStorage.setItem(historyGuardKey, JSON.stringify(nextGuard));
+        } catch {
+          // ignore persist errors
+        }
+        return false;
+      }
+
+      nextGuard.blockedUntil = 0;
+      setHistoryRequestBlockedUntil(0);
+      try {
+        window.sessionStorage.setItem(historyGuardKey, JSON.stringify(nextGuard));
+      } catch {
+        // ignore persist errors
+      }
+      return true;
+    },
+    [guardBlockedMessage, historyGuardKey, setStatusText],
+  );
+
   const fetchHistoryList = useCallback(async () => {
     if (!API_URL) {
       throw new Error("找不到 API_URL 設定");
     }
 
     const token = await getBearerToken();
-    const merged = new Map<string, RoomSettlementHistorySummary>();
-    let beforeEndedAt: number | null = null;
-    let safety = 0;
+    const params = new URLSearchParams();
+    if (clientId) params.set("clientId", clientId);
+    params.set("limit", String(HISTORY_PAGE_LIMIT));
 
-    while (safety < 50) {
-      safety += 1;
-      const params = new URLSearchParams();
-      if (clientId) params.set("clientId", clientId);
-      params.set("limit", "50");
-      if (typeof beforeEndedAt === "number" && beforeEndedAt > 0) {
-        params.set("beforeEndedAt", String(beforeEndedAt));
-      }
+    const res = await fetch(`${API_URL}/api/history/matches?${params.toString()}`, {
+      method: "GET",
+      headers: buildHistoryHeaders(token),
+    });
 
-      const res = await fetch(
-        `${API_URL}/api/history/matches?${params.toString()}`,
-        {
-          method: "GET",
-          headers: buildHistoryHeaders(token),
-        },
-      );
+    const payload = (await res.json().catch(() => null)) as
+      | HistoryListResponse
+      | null;
 
-      const payload = (await res.json().catch(() => null)) as
-        | HistoryListResponse
-        | null;
-
-      if (!res.ok || !payload?.ok || !payload.data) {
-        throw new Error(payload?.error ?? "讀取歷史列表失敗");
-      }
-
-      for (const item of payload.data.items ?? []) {
-        merged.set(item.matchId, item);
-      }
-
-      if (!payload.data.nextCursor) break;
-      beforeEndedAt = payload.data.nextCursor;
+    if (!res.ok || !payload?.ok || !payload.data) {
+      throw new Error(payload?.error ?? "讀取歷史列表失敗");
     }
 
-    return Array.from(merged.values()).sort(
-      (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
-    );
+    const merged = new Map<string, RoomSettlementHistorySummary>();
+    for (const item of payload.data.items ?? []) {
+      merged.set(item.matchId, item);
+    }
+
+    return Array.from(merged.values())
+      .sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo)
+      .slice(0, HISTORY_PAGE_LIMIT);
   }, [clientId, getBearerToken]);
 
   const fetchReplay = useCallback(
@@ -200,21 +327,74 @@ const RoomHistoryPage: React.FC = () => {
   );
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(historyGuardKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<HistoryRequestGuardPayload>;
+      const blockedUntil = Number(parsed.blockedUntil ?? 0);
+      if (Number.isFinite(blockedUntil) && blockedUntil > Date.now()) {
+        setHistoryRequestBlockedUntil(blockedUntil);
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [historyGuardKey]);
+
+  useEffect(() => {
+    if (historyRequestBlockedUntil <= 0 || typeof window === "undefined") return;
+    const remainingMs = Math.max(0, historyRequestBlockedUntil - Date.now());
+    const timeoutId = window.setTimeout(() => {
+      setHistoryRequestBlockedUntil((prev) => (prev <= Date.now() ? 0 : prev));
+    }, remainingMs + 50);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [historyRequestBlockedUntil]);
+
+  useEffect(() => {
     let cancelled = false;
-    setLoadingList(true);
-    setListError(null);
+    const cachedItems = readHistoryListCache();
+
+    if (cachedItems && cachedItems.length > 0) {
+      setItems(cachedItems);
+      setLoadingList(false);
+      setListError(null);
+    } else {
+      setLoadingList(true);
+      setListError(null);
+    }
+
+    if (!acquireHistoryRequestPermit("list")) {
+      if (!cachedItems || cachedItems.length === 0) {
+        setListError("歷史請求過於頻繁，請稍後再試。");
+        setLoadingList(false);
+      } else {
+        setListError(null);
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void fetchHistoryList()
       .then((nextItems) => {
         if (cancelled) return;
         setItems(nextItems);
+        writeHistoryListCache(nextItems);
+        setListError(null);
       })
       .catch((error) => {
         if (cancelled) return;
         const message =
           error instanceof Error ? error.message : "讀取歷史列表失敗";
-        setListError(message);
-        setStatusText(message);
+        if (cachedItems && cachedItems.length > 0) {
+          setListError(null);
+          setStatusText(`${message}，已顯示快取資料`);
+        } else {
+          setListError(message);
+          setStatusText(message);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingList(false);
@@ -223,14 +403,31 @@ const RoomHistoryPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [fetchHistoryList, setStatusText]);
+  }, [
+    acquireHistoryRequestPermit,
+    fetchHistoryList,
+    readHistoryListCache,
+    setStatusText,
+    writeHistoryListCache,
+  ]);
 
   const openReplayDetail = useCallback(
     async (summary: RoomSettlementHistorySummary) => {
       const matchId = summary.matchId;
-      setSelectedMatchId(matchId);
-      if (replayByMatchId[matchId]) return;
+      if (replayByMatchId[matchId]) {
+        setSelectedMatchId(matchId);
+        return;
+      }
+      if (inFlightReplayMatchIdsRef.current.has(matchId)) {
+        setSelectedMatchId(matchId);
+        return;
+      }
+      if (!acquireHistoryRequestPermit("detail")) {
+        return;
+      }
 
+      setSelectedMatchId(matchId);
+      inFlightReplayMatchIdsRef.current.add(matchId);
       setLoadingReplayMatchId(matchId);
       try {
         const snapshot = await fetchReplay(matchId);
@@ -240,25 +437,68 @@ const RoomHistoryPage: React.FC = () => {
           error instanceof Error ? error.message : "讀取對戰回顧失敗";
         setStatusText(message);
       } finally {
+        inFlightReplayMatchIdsRef.current.delete(matchId);
         setLoadingReplayMatchId((prev) => (prev === matchId ? null : prev));
       }
     },
-    [fetchReplay, replayByMatchId, setStatusText],
+    [acquireHistoryRequestPermit, fetchReplay, replayByMatchId, setStatusText],
   );
 
-  const totalMatches = items.length;
-  const totalQuestions = useMemo(
-    () => items.reduce((sum, item) => sum + item.questionCount, 0),
+  const recentItems = useMemo(
+    () => items.slice(0, HISTORY_PAGE_LIMIT),
     [items],
   );
-  const bestScore = useMemo(
-    () =>
-      items.reduce(
-        (max, item) => Math.max(max, item.selfPlayer?.finalScore ?? 0),
-        0,
-      ),
-    [items],
+  const recentScoredItems = useMemo(
+    () => recentItems.filter((item) => Boolean(item.selfPlayer)),
+    [recentItems],
   );
+  const recentTopScoreEntry = useMemo(() => {
+    let best: RoomSettlementHistorySummary | null = null;
+    for (const item of recentScoredItems) {
+      const score = item.selfPlayer?.finalScore ?? -1;
+      const bestScore = best?.selfPlayer?.finalScore ?? -1;
+      if (score > bestScore) {
+        best = item;
+        continue;
+      }
+      if (score === bestScore && best && item.endedAt > best.endedAt) {
+        best = item;
+      }
+    }
+    return best;
+  }, [recentScoredItems]);
+  const recentBestComboEntry = useMemo(() => {
+    let best: RoomSettlementHistorySummary | null = null;
+    for (const item of recentScoredItems) {
+      const combo = item.selfPlayer?.maxCombo ?? 0;
+      const bestCombo = best?.selfPlayer?.maxCombo ?? 0;
+      if (combo > bestCombo) {
+        best = item;
+        continue;
+      }
+      if (combo === bestCombo && best && item.endedAt > best.endedAt) {
+        best = item;
+      }
+    }
+    return best;
+  }, [recentScoredItems]);
+  const recentBestAccuracyEntry = useMemo(() => {
+    let best: { item: RoomSettlementHistorySummary; rate: number } | null = null;
+    for (const item of recentScoredItems) {
+      const correctCount = item.selfPlayer?.correctCount ?? 0;
+      const totalCount = item.questionCount > 0 ? item.questionCount : 1;
+      const rate = correctCount / totalCount;
+      if (!best || rate > best.rate || (rate === best.rate && item.endedAt > best.item.endedAt)) {
+        best = { item, rate };
+      }
+    }
+    return best;
+  }, [recentScoredItems]);
+  const recentRoomSpread = useMemo(
+    () => new Set(recentItems.map((item) => item.roomId)).size,
+    [recentItems],
+  );
+  const latestRecentEntry = recentItems[0] ?? null;
 
   const groupedHistoryItems = useMemo(() => {
     const groups = new Map<
@@ -315,6 +555,7 @@ const RoomHistoryPage: React.FC = () => {
       item: RoomSettlementHistorySummary,
       options?: {
         animationDelayMs?: number;
+        roomLabel?: string | null;
       },
     ) => {
       const replayStatus = parseSummaryReplayStatus(item);
@@ -326,13 +567,26 @@ const RoomHistoryPage: React.FC = () => {
         <button
           key={item.matchId}
           type="button"
-          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
+          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-3.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/24 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
           onClick={() => void openReplayDetail(item)}
+          style={
+            options?.animationDelayMs
+              ? { transitionDelay: `${Math.min(options.animationDelayMs, 220)}ms` }
+              : undefined
+          }
         >
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/25 opacity-60 transition group-hover:opacity-90" />
-          <div className="flex min-w-0 items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/30 opacity-70 transition group-hover:opacity-100" />
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="min-w-0 pr-2">
+              <div className="mb-2.5 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                {options?.roomLabel && (
+                  <Chip
+                    size="small"
+                    label={options.roomLabel}
+                    className="border-amber-300/25 bg-amber-300/8 text-amber-100"
+                    variant="outlined"
+                  />
+                )}
                 <Chip
                   size="small"
                   label={`第 ${item.roundNo} 場`}
@@ -363,16 +617,16 @@ const RoomHistoryPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
-                <div className="inline-flex min-w-0 items-center gap-1.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-[var(--mc-text-muted)]">
+                <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
                   <AccessTime sx={{ fontSize: 16 }} />
                   <span className="truncate">{formatDateTime(item.endedAt)}</span>
                 </div>
-                <div className="inline-flex items-center gap-1.5">
+                <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <Quiz sx={{ fontSize: 16 }} />
                   <span>{item.questionCount} 題</span>
                 </div>
-                <div className="inline-flex items-center gap-1.5">
+                <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <MeetingRoom sx={{ fontSize: 16 }} />
                   <span>
                     {item.playerCount} 人 · {formatRelative(item.endedAt)}
@@ -381,7 +635,7 @@ const RoomHistoryPage: React.FC = () => {
               </div>
 
               {playlistLabel && (
-                <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
+                <div className="mt-1.5 truncate text-xs text-[var(--mc-text-muted)]/90">
                   {playlistLabel}
                 </div>
               )}
@@ -393,21 +647,14 @@ const RoomHistoryPage: React.FC = () => {
               )}
             </div>
 
-            <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
-              <span className="hidden text-xs tracking-[0.14em] sm:inline">
-                檢視詳情
-              </span>
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
-                <ChevronRightRounded sx={{ fontSize: 18 }} />
+            <div className="shrink-0 self-end sm:self-auto">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-sky-300/30 bg-sky-300/10 px-2.5 py-1 text-[11px] font-semibold tracking-[0.12em] text-sky-100 transition group-hover:border-sky-300/50 group-hover:bg-sky-300/18">
+                查看回顧
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-sky-300/40 bg-sky-300/12">
+                  <ChevronRightRounded sx={{ fontSize: 15 }} />
+                </span>
               </span>
             </div>
-          </div>
-
-          <div
-            className="pointer-events-none absolute right-4 top-3 text-[10px] tracking-[0.3em] text-[var(--mc-text-muted)]/60"
-            style={{ animationDelay: `${options?.animationDelayMs ?? 0}ms` }}
-          >
-            MATCH
           </div>
         </button>
       );
@@ -421,10 +668,7 @@ const RoomHistoryPage: React.FC = () => {
       <div className="relative grid gap-5 lg:grid-cols-1">
         <div className="min-w-0">
           <div className="mb-4 inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_86%,black_14%)] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.08)]">
-            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/30 bg-amber-300/10 text-amber-200">
-              <HistoryEdu fontSize="small" />
-              <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-amber-200/10" />
-            </span>
+            <HistoryEdu className="text-amber-200" sx={{ fontSize: 24 }} />
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
                 Match Archive
@@ -435,40 +679,141 @@ const RoomHistoryPage: React.FC = () => {
             </div>
           </div>
 
-          <p className="max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-            依房間分組查看你參與過的對戰紀錄。展開後可快速比較同一房間的多場成績，並進一步查看完整結算回顧。
+          <p className="max-w-3xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
+            近 {HISTORY_PAGE_LIMIT} 場對戰快照，優先提供可直接回看的關鍵表現。
           </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                <HistoryEdu fontSize="inherit" />
-                對戰場次
-              </div>
-              <div className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
-                {loadingList ? "-" : totalMatches}
-              </div>
+          <p className="mt-1 text-xs leading-6 text-[var(--mc-text-muted)]/85 sm:text-sm">
+            採用 D1 輕量讀取模式，避免全量統計造成延遲與讀取壓力。
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+              已載入 {recentItems.length} / {HISTORY_PAGE_LIMIT} 場
             </div>
+          </div>
 
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                <Quiz fontSize="inherit" />
-                作答題數
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <button
+              type="button"
+              disabled={!recentTopScoreEntry}
+              onClick={() => {
+                if (!recentTopScoreEntry) return;
+                void openReplayDetail(recentTopScoreEntry);
+              }}
+              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+                recentTopScoreEntry
+                  ? "border-emerald-300/25 bg-[linear-gradient(180deg,rgba(16,185,129,0.14),rgba(5,30,24,0.78))] hover:-translate-y-0.5 hover:border-emerald-300/45"
+                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+              }`}
+            >
+              <div className="flex h-full flex-col">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
+                  <SportsScore fontSize="inherit" />
+                  近10把最高分
+                </div>
+                <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
+                  {loadingList
+                    ? "-"
+                    : (recentTopScoreEntry?.selfPlayer?.finalScore ?? "-")}
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 text-xs text-[var(--mc-text-muted)]">
+                  <span className="min-w-0 truncate whitespace-nowrap">
+                    {recentTopScoreEntry
+                      ? `第 ${recentTopScoreEntry.roundNo} 場`
+                      : "尚無可用分數資料"}
+                  </span>
+                  {recentTopScoreEntry && (
+                    <span className="rounded-full border border-emerald-300/35 bg-emerald-300/12 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-emerald-100">
+                      查看
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
-                {loadingList ? "-" : totalQuestions}
-              </div>
-            </div>
+            </button>
 
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                <SportsScore fontSize="inherit" />
-                最高分數
+            <button
+              type="button"
+              disabled={!recentBestComboEntry}
+              onClick={() => {
+                if (!recentBestComboEntry) return;
+                void openReplayDetail(recentBestComboEntry);
+              }}
+              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+                recentBestComboEntry
+                  ? "border-fuchsia-300/22 bg-[linear-gradient(180deg,rgba(116,58,176,0.14),rgba(22,12,32,0.78))] hover:-translate-y-0.5 hover:border-fuchsia-300/38"
+                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+              }`}
+            >
+              <div className="flex h-full flex-col">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
+                  <Quiz fontSize="inherit" />
+                  近10把最佳 COMBO
+                </div>
+                <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
+                  {loadingList
+                    ? "-"
+                    : recentBestComboEntry?.selfPlayer
+                      ? `x${recentBestComboEntry.selfPlayer.maxCombo}`
+                      : "-"}
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 text-xs text-[var(--mc-text-muted)]">
+                  <span className="min-w-0 truncate whitespace-nowrap">
+                    {recentBestComboEntry
+                      ? `第 ${recentBestComboEntry.roundNo} 場`
+                      : "尚無可用 Combo 資料"}
+                  </span>
+                  {recentBestComboEntry && (
+                    <span className="rounded-full border border-fuchsia-300/35 bg-fuchsia-300/12 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-fuchsia-100">
+                      查看
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
-                {loadingList ? "-" : bestScore}
+            </button>
+
+            <button
+              type="button"
+              disabled={!recentBestAccuracyEntry}
+              onClick={() => {
+                if (!recentBestAccuracyEntry) return;
+                void openReplayDetail(recentBestAccuracyEntry.item);
+              }}
+              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+                recentBestAccuracyEntry
+                  ? "border-sky-300/24 bg-[linear-gradient(180deg,rgba(14,116,144,0.16),rgba(7,23,38,0.8))] hover:-translate-y-0.5 hover:border-sky-300/45"
+                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+              }`}
+            >
+              <div className="flex h-full flex-col">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
+                  <AccessTime fontSize="inherit" />
+                  近10把最佳答對率
+                </div>
+                <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
+                  {loadingList
+                    ? "-"
+                    : recentBestAccuracyEntry
+                      ? `${Math.round(recentBestAccuracyEntry.rate * 100)}%`
+                      : "-"}
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 text-xs text-[var(--mc-text-muted)]">
+                  <span className="min-w-0 truncate whitespace-nowrap">
+                    {recentBestAccuracyEntry
+                      ? `第 ${recentBestAccuracyEntry.item.roundNo} 場`
+                      : "尚無可用答對率資料"}
+                  </span>
+                  {recentBestAccuracyEntry && (
+                    <span className="rounded-full border border-sky-300/35 bg-sky-300/12 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-sky-100">
+                      查看
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            </button>
+          </div>
+          <div className="mt-2 text-xs text-[var(--mc-text-muted)]/80">
+            近況：{latestRecentEntry
+              ? `分布 ${recentRoomSpread} 個房間，最近一場在 ${formatRelative(latestRecentEntry.endedAt) || formatDateTime(latestRecentEntry.endedAt)}`
+              : "尚無對戰資料"}
           </div>
         </div>
 
@@ -497,6 +842,11 @@ const RoomHistoryPage: React.FC = () => {
 
   const listView = (
     <section className="mt-5 space-y-4">
+      {historyRequestBlockedUntil > Date.now() && (
+        <div className="rounded-2xl border border-amber-300/28 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+          你的查詢頻率過高，已暫時限制歷史請求，請稍後再試。
+        </div>
+      )}
       {loadingList ? (
         <div className="flex items-center justify-center rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.86),rgba(8,7,5,0.96))] px-6 py-10 text-[var(--mc-text-muted)]">
           <div className="inline-flex items-center gap-3">
@@ -543,36 +893,56 @@ const RoomHistoryPage: React.FC = () => {
                 <div key={groupKey} className="relative">
                   {renderMatchRecordCard(latestItem, {
                     animationDelayMs: groupIndex * 60,
+                    roomLabel: group.roomName || group.roomId,
                   })}
                 </div>
               );
             }
 
             return (
-              <div key={groupKey} className="relative space-y-1.5">
+              <div
+                key={groupKey}
+                className={`relative space-y-1.5 ${collapsed ? "pb-7" : "pb-0"}`}
+              >
                 <div className="relative">
                   <span
-                    className={`pointer-events-none absolute inset-x-2 bottom-0 top-1.5 rounded-[20px] border border-amber-300/22 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(245,158,11,0.02))] shadow-[0_14px_24px_-20px_rgba(245,158,11,0.65)] transition-all duration-300 ${
-                      collapsed ? "translate-y-1.5 opacity-95" : "-translate-y-1 opacity-0"
+                    className={`pointer-events-none absolute bottom-0 left-6 right-2 top-0 rounded-[20px] border border-amber-300/22 transition-all duration-300 ${
+                      collapsed
+                        ? "translate-x-3 translate-y-3 opacity-80"
+                        : "translate-x-0 translate-y-0 opacity-0"
                     }`}
                   />
                   <span
-                    className={`pointer-events-none absolute inset-x-4 bottom-0 top-3 rounded-[20px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(245,158,11,0.015))] shadow-[0_10px_20px_-18px_rgba(245,158,11,0.55)] transition-all duration-300 ${
-                      collapsed ? "translate-y-2.5 opacity-80" : "translate-y-0 opacity-0"
+                    className={`pointer-events-none absolute bottom-0 left-10 right-3 top-0 rounded-[20px] border border-amber-300/14 transition-all duration-300 ${
+                      collapsed
+                        ? "translate-x-6 translate-y-6 opacity-62"
+                        : "translate-x-0 translate-y-0 opacity-0"
                     }`}
                   />
                 <button
                   type="button"
-                  className={`group relative z-10 block w-full min-w-0 overflow-hidden rounded-[20px] border bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-3.5 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5 ${
+                  className={`group relative z-10 block w-full min-w-0 overflow-hidden rounded-[20px] border bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-3 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5 ${
                     collapsed
-                      ? "border-amber-300/30 shadow-[0_16px_30px_-24px_rgba(245,158,11,0.55)]"
-                      : "border-[var(--mc-border)]"
+                      ? "border-amber-300/34 bg-[linear-gradient(180deg,rgba(13,11,8,0.98),rgba(4,3,2,1))] shadow-[0_16px_30px_-24px_rgba(245,158,11,0.55)]"
+                      : "border-amber-300/26 bg-[linear-gradient(180deg,rgba(18,15,11,0.96),rgba(6,5,4,0.99))]"
                   }`}
                   onClick={() =>
-                    setCollapsedRoomGroups((prev) => ({
-                      ...prev,
-                      [groupKey]: !(prev[groupKey] ?? true),
-                    }))
+                    setCollapsedRoomGroups((prev) => {
+                      const currentlyCollapsed = prev[groupKey] ?? true;
+                      if (currentlyCollapsed) {
+                        const next: Record<string, boolean> = {};
+                        for (const candidate of groupedHistoryItems) {
+                          const candidateKey =
+                            candidate.roomId ||
+                            candidate.roomName ||
+                            candidate.items[0]?.matchId;
+                          if (!candidateKey || candidate.items.length <= 1) continue;
+                          next[candidateKey] = candidateKey !== groupKey;
+                        }
+                        return next;
+                      }
+                      return { ...prev, [groupKey]: true };
+                    })
                   }
                 >
                   <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/35 opacity-65 transition group-hover:opacity-95" />
@@ -583,7 +953,7 @@ const RoomHistoryPage: React.FC = () => {
                   />
                   <div className="flex min-w-0 items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <div className="mb-1.5 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
                         <Chip
                           size="small"
                           label={group.roomName || group.roomId}
@@ -614,20 +984,20 @@ const RoomHistoryPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
-                        <div className="inline-flex min-w-0 items-center gap-1.5">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-[var(--mc-text-muted)]">
+                        <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
                           <AccessTime sx={{ fontSize: 16 }} />
                           <span className="truncate">
                             {latestItem ? formatDateTime(latestItem.endedAt) : "-"}
                           </span>
                         </div>
-                        <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <Quiz sx={{ fontSize: 16 }} />
                           <span>{latestItem ? `最近 ${latestItem.questionCount} 題` : "-"}</span>
                         </div>
-                        <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                           <MeetingRoom sx={{ fontSize: 16 }} />
-                          <span>{collapsed ? "點擊展開全部" : "點擊收合"}</span>
+                          <span>{collapsed ? "可展開場次列表" : "目前已展開"}</span>
                         </div>
                       </div>
 
@@ -638,18 +1008,24 @@ const RoomHistoryPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
-                      <span className="hidden text-xs tracking-[0.14em] sm:inline">
-                        {collapsed ? "展開" : "收合"}
-                      </span>
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
-                        <ChevronRightRounded
-                          sx={{
-                            fontSize: 18,
-                            transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
-                            transition: "transform 180ms ease",
-                          }}
-                        />
+                    <div className="mt-1 flex shrink-0 items-center">
+                      <span
+                        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.12em] transition ${
+                          collapsed
+                            ? "border-amber-300/35 bg-amber-300/10 text-amber-100"
+                            : "border-amber-300/48 bg-amber-300/16 text-amber-50"
+                        }`}
+                      >
+                        {collapsed ? "展開場次" : "收合場次"}
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/45 bg-amber-300/12">
+                          <ChevronRightRounded
+                            sx={{
+                              fontSize: 14,
+                              transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
+                              transition: "transform 180ms ease",
+                            }}
+                          />
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -664,26 +1040,38 @@ const RoomHistoryPage: React.FC = () => {
                   }`}
                 >
                   <div className={collapsed ? "pointer-events-none overflow-hidden" : "overflow-hidden"}>
-                    <div className="space-y-2.5 pb-1">
-                      {group.items.map((item, itemIndex) => (
-                        <div
-                          key={item.matchId}
-                          className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
-                            collapsed
-                              ? "translate-y-2 opacity-0"
-                              : "translate-y-0 opacity-100"
-                          }`}
-                          style={{
-                            transitionDelay: collapsed
-                              ? "0ms"
-                              : `${80 + itemIndex * 55}ms`,
-                          }}
-                        >
-                          {renderMatchRecordCard(item, {
-                            animationDelayMs: groupIndex * 80 + itemIndex * 60,
-                          })}
-                        </div>
-                      ))}
+                    <div className="relative pl-7 sm:pl-9">
+                      <span
+                        className={`pointer-events-none absolute bottom-10 left-3 top-10 w-px bg-gradient-to-b from-amber-400/50 via-amber-300/40 to-amber-300/0 transition-opacity duration-300 ${
+                          collapsed ? "opacity-0" : "opacity-100"
+                        }`}
+                      />
+                      <div className="space-y-2.5 pb-1">
+                        {group.items.map((item, itemIndex) => (
+                          <div
+                            key={item.matchId}
+                            className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${
+                              collapsed
+                                ? "translate-y-2 opacity-0"
+                                : "translate-y-0 opacity-100"
+                            }`}
+                            style={{
+                              transitionDelay: collapsed
+                                ? "0ms"
+                                : `${80 + itemIndex * 55}ms`,
+                            }}
+                          >
+                            <span
+                              className={`pointer-events-none absolute -left-5 top-1/2 h-px w-5 -translate-y-1/2 bg-amber-300/52 transition-opacity duration-300 ${
+                                collapsed ? "opacity-0" : "opacity-100"
+                              }`}
+                            />
+                            {renderMatchRecordCard(item, {
+                              animationDelayMs: groupIndex * 80 + itemIndex * 60,
+                            })}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

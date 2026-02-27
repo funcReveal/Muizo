@@ -456,13 +456,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 }
                 navigate("/settings");
               }}
-              sx={{
-                ...menuItemSx,
-                "&:hover": {
-                  background:
-                    "linear-gradient(90deg, rgba(245, 158, 11, 0.1), rgba(34, 211, 238, 0.08))",
-                },
-              }}
+              sx={menuItemSx}
             >
               <ListItemIcon sx={{ minWidth: 30, color: "#c4b5fd" }}>
                 <Settings fontSize="small" />
@@ -482,32 +476,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 }
                 navigate("/history");
               }}
-              sx={{
-                ...menuItemSx,
-                "&:hover": {
-                  background:
-                    "linear-gradient(90deg, rgba(16, 185, 129, 0.12), rgba(34, 211, 238, 0.1))",
-                },
-              }}
+              sx={menuItemSx}
             >
-              <ListItemIcon sx={{ minWidth: 30, color: "inherit" }}>
-                <Box
-                  sx={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "7px",
-                    display: "grid",
-                    placeItems: "center",
-                    border: "1px solid rgba(34, 211, 238, 0.34)",
-                    background:
-                      "linear-gradient(180deg, rgba(16, 185, 129, 0.14), rgba(14, 116, 144, 0.18))",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 16px -14px rgba(34, 211, 238, 0.5)",
-                    color: "#67e8f9",
-                  }}
-                >
-                  <HistoryEdu sx={{ fontSize: 14 }} />
-                </Box>
+              <ListItemIcon sx={{ minWidth: 30, color: "#67e8f9" }}>
+                <HistoryEdu fontSize="small" />
               </ListItemIcon>
               <ListItemText
                 primary="歷史紀錄"
