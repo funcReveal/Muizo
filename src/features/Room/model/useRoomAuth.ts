@@ -9,6 +9,7 @@ import {
 } from "./roomApi";
 import { isProfileConfirmed, setProfileConfirmed } from "./roomStorage";
 import { clearTokenExpiry, persistTokenExpiry } from "../../../shared/auth/token";
+import { trackEvent } from "../../../shared/analytics/track";
 
 type UseRoomAuthOptions = {
   apiUrl: string;
@@ -192,12 +193,22 @@ export const useRoomAuth = ({
       try {
         const { ok, payload } = await apiAuthGoogle(apiUrl, code, redirectUri);
         if (!ok || !payload?.token || !payload.user) {
+          trackEvent("login_google_failed", {
+            reason: payload?.error ?? "missing_token_or_user",
+          });
           throw new Error(payload?.error ?? "Google 登入失敗");
         }
         persistAuth(payload.token, payload.user);
+        trackEvent("login_google_success", {
+          provider: "google",
+          user_type: "google",
+        });
 
         setStatusText("Google 登入成功");
       } catch (error) {
+        trackEvent("login_google_failed", {
+          reason: error instanceof Error ? error.message : "unknown_error",
+        });
         setStatusText(
           error instanceof Error ? error.message : "Google 登入失敗",
         );
@@ -235,6 +246,9 @@ export const useRoomAuth = ({
   };
 
   const loginWithGoogle = useCallback(() => {
+    trackEvent("login_google_click", {
+      entry: "google_oauth",
+    });
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setStatusText("尚未設定 Google Client ID");

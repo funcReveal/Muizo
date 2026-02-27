@@ -5,6 +5,7 @@ import { List, type RowComponentProps } from "react-window";
 import { Box, Button } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
+import { trackEvent } from "../../../shared/analytics/track";
 
 const WORKER_API_URL = import.meta.env.VITE_WORKER_API_URL;
 
@@ -324,6 +325,12 @@ const CollectionsCreatePage = () => {
       };
 
       await insert(token, true);
+      trackEvent("collection_create_success", {
+        collection_id: created.id,
+        collection_visibility: visibility,
+        item_count: insertItems.length,
+        import_source: playlistSource,
+      });
       navigate(`/collections/${created.id}/edit`, { replace: true });
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "建立失敗");
