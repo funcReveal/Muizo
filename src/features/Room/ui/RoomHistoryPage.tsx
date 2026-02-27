@@ -299,14 +299,121 @@ const RoomHistoryPage: React.FC = () => {
       let changed = false;
       const next = { ...prev };
       for (const group of groupedHistoryItems) {
-        if (!(group.roomId in next)) {
-          next[group.roomId] = true;
+        const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
+        if (!groupKey) continue;
+        if (!(groupKey in next)) {
+          next[groupKey] = group.items.length > 1;
           changed = true;
         }
       }
       return changed ? next : prev;
     });
   }, [groupedHistoryItems]);
+
+  const renderMatchRecordCard = useCallback(
+    (
+      item: RoomSettlementHistorySummary,
+      options?: {
+        animationDelayMs?: number;
+      },
+    ) => {
+      const replayStatus = parseSummaryReplayStatus(item);
+      const replayUnavailable =
+        replayStatus === "too_large" || replayStatus === "omitted";
+      const playlistLabel = parseSummaryPlaylistLabel(item);
+
+      return (
+        <button
+          key={item.matchId}
+          type="button"
+          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
+          onClick={() => void openReplayDetail(item)}
+        >
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/25 opacity-60 transition group-hover:opacity-90" />
+          <div className="flex min-w-0 items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Chip
+                  size="small"
+                  label={`第 ${item.roundNo} 場`}
+                  className="border-amber-300/30 bg-amber-300/10 text-amber-100"
+                  variant="outlined"
+                />
+                {item.selfPlayer && (
+                  <>
+                    <Chip
+                      size="small"
+                      label={`分數 ${item.selfPlayer.finalScore}`}
+                      className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
+                      variant="outlined"
+                    />
+                    <Chip
+                      size="small"
+                      label={`答對 ${item.selfPlayer.correctCount}/${item.questionCount}`}
+                      className="border-sky-300/30 bg-sky-300/10 text-sky-100"
+                      variant="outlined"
+                    />
+                    <Chip
+                      size="small"
+                      label={`Combo x${item.selfPlayer.maxCombo}`}
+                      className="border-fuchsia-300/30 bg-fuchsia-300/10 text-fuchsia-100"
+                      variant="outlined"
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
+                <div className="inline-flex min-w-0 items-center gap-1.5">
+                  <AccessTime sx={{ fontSize: 16 }} />
+                  <span className="truncate">{formatDateTime(item.endedAt)}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5">
+                  <Quiz sx={{ fontSize: 16 }} />
+                  <span>{item.questionCount} 題</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5">
+                  <MeetingRoom sx={{ fontSize: 16 }} />
+                  <span>
+                    {item.playerCount} 人 · {formatRelative(item.endedAt)}
+                  </span>
+                </div>
+              </div>
+
+              {playlistLabel && (
+                <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
+                  {playlistLabel}
+                </div>
+              )}
+
+              {replayUnavailable && (
+                <div className="mt-2 text-xs text-amber-100/85">
+                  回放內容已精簡，仍可查看本場摘要與分數資訊。
+                </div>
+              )}
+            </div>
+
+            <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
+              <span className="hidden text-xs tracking-[0.14em] sm:inline">
+                檢視詳情
+              </span>
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
+                <ChevronRightRounded sx={{ fontSize: 18 }} />
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="pointer-events-none absolute right-4 top-3 text-[10px] tracking-[0.3em] text-[var(--mc-text-muted)]/60"
+            style={{ animationDelay: `${options?.animationDelayMs ?? 0}ms` }}
+          >
+            MATCH
+          </div>
+        </button>
+      );
+    },
+    [openReplayDetail],
+  );
 
   const archiveHeader = (
     <section className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.94),rgba(8,7,5,0.98))] p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.72)] sm:p-7">
@@ -414,11 +521,14 @@ const RoomHistoryPage: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3">
           {groupedHistoryItems.map((group, groupIndex) => {
             const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
             if (!groupKey) return null;
-            const collapsed = collapsedRoomGroups[groupKey] ?? true;
+            const isMultiGroup = group.items.length > 1;
+            const collapsed = isMultiGroup
+              ? (collapsedRoomGroups[groupKey] ?? true)
+              : false;
             const latestItem = group.items[0] ?? null;
             const latestPlaylistLabel = latestItem
               ? parseSummaryPlaylistLabel(latestItem)
@@ -428,14 +538,36 @@ const RoomHistoryPage: React.FC = () => {
               0,
             );
 
+            if (!isMultiGroup && latestItem) {
+              return (
+                <div key={groupKey} className="relative">
+                  {renderMatchRecordCard(latestItem, {
+                    animationDelayMs: groupIndex * 60,
+                  })}
+                </div>
+              );
+            }
+
             return (
-              <div
-                key={groupKey}
-                className="rounded-[22px] border border-[var(--mc-border)]/85 bg-[linear-gradient(180deg,rgba(14,13,10,0.82),rgba(9,8,6,0.92))] p-2 sm:p-3"
-              >
+              <div key={groupKey} className="relative space-y-1.5">
+                <div className="relative">
+                  <span
+                    className={`pointer-events-none absolute inset-x-2 bottom-0 top-1.5 rounded-[20px] border border-amber-300/22 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(245,158,11,0.02))] shadow-[0_14px_24px_-20px_rgba(245,158,11,0.65)] transition-all duration-300 ${
+                      collapsed ? "translate-y-1.5 opacity-95" : "-translate-y-1 opacity-0"
+                    }`}
+                  />
+                  <span
+                    className={`pointer-events-none absolute inset-x-4 bottom-0 top-3 rounded-[20px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(245,158,11,0.08),rgba(245,158,11,0.015))] shadow-[0_10px_20px_-18px_rgba(245,158,11,0.55)] transition-all duration-300 ${
+                      collapsed ? "translate-y-2.5 opacity-80" : "translate-y-0 opacity-0"
+                    }`}
+                  />
                 <button
                   type="button"
-                  className="group relative block w-full min-w-0 overflow-hidden rounded-[18px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-4 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5"
+                  className={`group relative z-10 block w-full min-w-0 overflow-hidden rounded-[20px] border bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-3.5 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5 ${
+                    collapsed
+                      ? "border-amber-300/30 shadow-[0_16px_30px_-24px_rgba(245,158,11,0.55)]"
+                      : "border-[var(--mc-border)]"
+                  }`}
                   onClick={() =>
                     setCollapsedRoomGroups((prev) => ({
                       ...prev,
@@ -444,6 +576,11 @@ const RoomHistoryPage: React.FC = () => {
                   }
                 >
                   <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/35 opacity-65 transition group-hover:opacity-95" />
+                  <div
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-amber-300/[0.06] to-transparent transition duration-300 ${
+                      collapsed ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
                   <div className="flex min-w-0 items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -455,7 +592,7 @@ const RoomHistoryPage: React.FC = () => {
                         />
                         <Chip
                           size="small"
-                          label={`${group.items.length} 場`}
+                          label={`${group.items.length} 場堆疊`}
                           className="border-[var(--mc-border)] text-[var(--mc-text)]"
                           variant="outlined"
                         />
@@ -490,7 +627,7 @@ const RoomHistoryPage: React.FC = () => {
                         </div>
                         <div className="inline-flex items-center gap-1.5">
                           <MeetingRoom sx={{ fontSize: 16 }} />
-                          <span>{collapsed ? "點擊展開場次" : "點擊收合"}</span>
+                          <span>{collapsed ? "點擊展開全部" : "點擊收合"}</span>
                         </div>
                       </div>
 
@@ -517,107 +654,39 @@ const RoomHistoryPage: React.FC = () => {
                     </div>
                   </div>
                 </button>
+                </div>
 
-                {!collapsed && (
-                  <div className="mt-3 space-y-3">
-                    {group.items.map((item, itemIndex) => {
-                      const replayStatus = parseSummaryReplayStatus(item);
-                      const replayUnavailable =
-                        replayStatus === "too_large" || replayStatus === "omitted";
-                      const playlistLabel = parseSummaryPlaylistLabel(item);
-
-                      return (
-                        <button
+                <div
+                  className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${
+                    collapsed
+                      ? "mt-0 grid-rows-[0fr] opacity-0"
+                      : "mt-2.5 grid-rows-[1fr] opacity-100"
+                  }`}
+                >
+                  <div className={collapsed ? "pointer-events-none overflow-hidden" : "overflow-hidden"}>
+                    <div className="space-y-2.5 pb-1">
+                      {group.items.map((item, itemIndex) => (
+                        <div
                           key={item.matchId}
-                          type="button"
-                          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
-                          onClick={() => void openReplayDetail(item)}
+                          className={`transition-all duration-300 ease-out motion-reduce:transition-none ${
+                            collapsed
+                              ? "translate-y-2 opacity-0"
+                              : "translate-y-0 opacity-100"
+                          }`}
+                          style={{
+                            transitionDelay: collapsed
+                              ? "0ms"
+                              : `${80 + itemIndex * 55}ms`,
+                          }}
                         >
-                          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/25 opacity-60 transition group-hover:opacity-90" />
-                          <div className="flex min-w-0 items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <Chip
-                                  size="small"
-                                  label={`第 ${item.roundNo} 場`}
-                                  className="border-amber-300/30 bg-amber-300/10 text-amber-100"
-                                  variant="outlined"
-                                />
-                                {item.selfPlayer && (
-                                  <>
-                                    <Chip
-                                      size="small"
-                                      label={`分數 ${item.selfPlayer.finalScore}`}
-                                      className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
-                                      variant="outlined"
-                                    />
-                                    <Chip
-                                      size="small"
-                                      label={`答對 ${item.selfPlayer.correctCount}/${item.questionCount}`}
-                                      className="border-sky-300/30 bg-sky-300/10 text-sky-100"
-                                      variant="outlined"
-                                    />
-                                    <Chip
-                                      size="small"
-                                      label={`Combo x${item.selfPlayer.maxCombo}`}
-                                      className="border-fuchsia-300/30 bg-fuchsia-300/10 text-fuchsia-100"
-                                      variant="outlined"
-                                    />
-                                  </>
-                                )}
-                              </div>
-
-                              <div className="grid gap-1 text-sm text-[var(--mc-text-muted)] sm:grid-cols-3 sm:gap-x-4">
-                                <div className="inline-flex min-w-0 items-center gap-1.5">
-                                  <AccessTime sx={{ fontSize: 16 }} />
-                                  <span className="truncate">{formatDateTime(item.endedAt)}</span>
-                                </div>
-                                <div className="inline-flex items-center gap-1.5">
-                                  <Quiz sx={{ fontSize: 16 }} />
-                                  <span>{item.questionCount} 題</span>
-                                </div>
-                                <div className="inline-flex items-center gap-1.5">
-                                  <MeetingRoom sx={{ fontSize: 16 }} />
-                                  <span>
-                                    {item.playerCount} 人 · {formatRelative(item.endedAt)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {playlistLabel && (
-                                <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
-                                  {playlistLabel}
-                                </div>
-                              )}
-
-                              {replayUnavailable && (
-                                <div className="mt-2 text-xs text-amber-100/85">
-                                  回放內容已精簡，仍可查看本場摘要與分數資訊。
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="mt-1 flex shrink-0 items-center gap-2 text-[var(--mc-text-muted)]">
-                              <span className="hidden text-xs tracking-[0.14em] sm:inline">
-                                檢視詳情
-                              </span>
-                              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--mc-border)] bg-white/5 transition group-hover:border-amber-300/30 group-hover:bg-amber-300/10 group-hover:text-amber-100">
-                                <ChevronRightRounded sx={{ fontSize: 18 }} />
-                              </span>
-                            </div>
-                          </div>
-
-                          <div
-                            className="pointer-events-none absolute right-4 top-3 text-[10px] tracking-[0.3em] text-[var(--mc-text-muted)]/60"
-                            style={{ animationDelay: `${groupIndex * 80 + itemIndex * 60}ms` }}
-                          >
-                            ARCHIVE
-                          </div>
-                        </button>
-                      );
-                    })}
+                          {renderMatchRecordCard(item, {
+                            animationDelayMs: groupIndex * 80 + itemIndex * 60,
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
