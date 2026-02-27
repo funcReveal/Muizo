@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 
 import { RoomProvider } from "../features/Room/model/RoomProvider";
+import { SettingsProvider } from "../features/Setting/model/settingsModel";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
-        <RoomProvider>{children}</RoomProvider>
+        <SettingsProvider>
+          <RoomProvider>{children}</RoomProvider>
+        </SettingsProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

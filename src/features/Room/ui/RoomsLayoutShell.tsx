@@ -145,14 +145,14 @@ const RoomsLayoutShell: React.FC = () => {
 
   const handleNavigateRequest = useCallback(
     (target: NavigationTarget) => {
+      if (target === "settings") {
+        setInRoomSettingsOpen(true);
+        setStatusText(currentRoom ? "已開啟房內設定" : "已開啟設定視窗");
+        return;
+      }
       const path = getNavigationPath(target);
       if (!currentRoom) {
         navigate(path);
-        return;
-      }
-      if (target === "settings") {
-        setInRoomSettingsOpen(true);
-        setStatusText("已開啟房內設定");
         return;
       }
       setNavigationConfirmTarget(target);
@@ -304,7 +304,7 @@ const RoomsLayoutShell: React.FC = () => {
           onCancel={() => setNavigationConfirmTarget(null)}
         />
         <Dialog
-          open={Boolean(currentRoom) && inRoomSettingsOpen}
+          open={inRoomSettingsOpen}
           onClose={() => setInRoomSettingsOpen(false)}
           fullScreen={settingsDialogFullScreen}
           fullWidth

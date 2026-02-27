@@ -452,9 +452,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 handleMenuClose();
                 if (onNavigateSettings) {
                   onNavigateSettings();
-                  return;
                 }
-                navigate("/settings");
               }}
               sx={menuItemSx}
             >
@@ -478,11 +476,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               }}
               sx={menuItemSx}
             >
-              <ListItemIcon sx={{ minWidth: 30, color: "#67e8f9" }}>
+              <ListItemIcon sx={{ minWidth: 30, color: "#cbd5e1" }}>
                 <HistoryEdu fontSize="small" />
               </ListItemIcon>
               <ListItemText
-                primary="歷史紀錄"
+                primary="對戰歷史"
                 secondary="查看對戰歷程與回顧入口"
               />
             </MenuItem>

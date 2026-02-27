@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+﻿import React, { useMemo } from "react";
 import {
   CampaignRounded,
   GraphicEqRounded,
@@ -29,10 +29,10 @@ const SAMPLE_BUTTONS: Array<{
   event: GameSfxEvent;
   tone: "neutral" | "good" | "warn" | "hot";
 }> = [
-  { label: "鎖定作答", event: "lock", tone: "neutral" },
+  { label: "鎖定", event: "lock", tone: "neutral" },
   { label: "答對", event: "correct", tone: "good" },
   { label: "答錯", event: "wrong", tone: "warn" },
-  { label: "尾秒警示", event: "deadlineFinal", tone: "hot" },
+  { label: "倒數緊迫", event: "deadlineFinal", tone: "hot" },
 ];
 
 const sampleButtonClassByTone: Record<
@@ -88,7 +88,7 @@ const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
       id={sectionId}
       icon={<CampaignRounded fontSize="small" />}
       title="音效設定"
-      description="調整遊戲提示音的開關、音量與風格。設定會儲存在此裝置，進入房間與對戰時自動套用。"
+      description="調整提示音啟用、音量與風格，並可直接試聽。"
       actions={
         <div className="flex items-center gap-2">
           <Button
@@ -145,7 +145,7 @@ const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <p className="text-xs text-slate-400">
-              建議 35%~60%，避免蓋過背景音樂與語音提示。
+              建議 35%~60%，避免音效過大影響作答。
             </p>
             <button
               type="button"
@@ -161,7 +161,7 @@ const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
         <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 p-3">
           <div className="mb-3 flex items-center gap-2">
             <TuneRounded sx={{ fontSize: 18, color: "#c4b5fd" }} />
-            <p className="text-sm font-semibold text-slate-100">音色風格</p>
+            <p className="text-sm font-semibold text-slate-100">音效風格</p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {SFX_PRESET_OPTIONS.map((preset) => {
@@ -184,7 +184,7 @@ const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
                     </span>
                     {active && (
                       <span className="rounded-full border border-cyan-300/35 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
-                        使用中
+                        目前
                       </span>
                     )}
                   </div>
@@ -276,4 +276,3 @@ const SfxSettingsPanel: React.FC<SfxSettingsPanelProps> = ({ sectionId }) => {
 };
 
 export default SfxSettingsPanel;
-

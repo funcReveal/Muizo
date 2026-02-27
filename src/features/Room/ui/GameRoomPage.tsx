@@ -31,13 +31,12 @@ import {
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
 import {
-  parseStoredSfxPreset,
   resolveCorrectResultSfxEvent,
   resolveCountdownSfxEvent,
   resolveGuessDeadlineSfxEvent,
-  type SfxPresetId,
 } from "../model/sfx/gameSfxEngine";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
+import { useSfxSettings } from "../../Setting/ui/components/useSfxSettings";
 import { useGameSfx } from "./hooks/useGameSfx";
 import GameSettlementPanel, {
   type SettlementQuestionRecap,
@@ -320,21 +319,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (stored === "0") return false;
     return true;
   });
-  const [sfxEnabled] = useState(() => {
-    const stored = localStorage.getItem("mq_sfx_enabled");
-    if (stored === "1") return true;
-    if (stored === "0") return false;
-    return true;
-  });
-  const [sfxVolume] = useState(() => {
-    const stored = localStorage.getItem("mq_sfx_volume");
-    if (stored === null) return 68;
-    const parsed = Number(stored);
-    return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 68;
-  });
-  const [sfxPreset] = useState<SfxPresetId>(() =>
-    parseStoredSfxPreset(localStorage.getItem("mq_sfx_preset")),
-  );
+  const { sfxEnabled, sfxVolume, sfxPreset } = useSfxSettings();
   const [danmuItems, setDanmuItems] = useState<DanmuItem[]>([]);
   const danmuSeenMessageIdsRef = useRef<Set<string>>(new Set());
   const danmuLaneCursorRef = useRef(0);

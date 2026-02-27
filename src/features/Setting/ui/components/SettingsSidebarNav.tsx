@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 import type {
   SettingsCategoryId,
@@ -63,7 +63,7 @@ const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
       <section className={`${cardClassName} min-h-0 xl:flex xl:flex-1 xl:flex-col`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-            區段索引
+            本類區段
           </p>
           <span className="rounded-full border border-slate-700/60 bg-slate-900/60 px-2 py-0.5 text-[10px] font-bold text-slate-300">
             {categorySections.length}
@@ -82,4 +82,3 @@ const SettingsSidebarNav: React.FC<SettingsSidebarNavProps> = ({
 };
 
 export default SettingsSidebarNav;
-

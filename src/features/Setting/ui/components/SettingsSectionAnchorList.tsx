@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 
 import type {
   SettingsSectionMeta,
@@ -38,7 +38,7 @@ const SettingsSectionAnchorList: React.FC<SettingsSectionAnchorListProps> = ({
                 {section.title}
               </span>
               <span className="block truncate text-[11px] text-slate-400">
-                {section.status === "ready" ? "可使用" : "規劃中"}
+                {section.status === "ready" ? "可調整" : "規劃中"}
               </span>
             </span>
             <span
@@ -58,4 +58,3 @@ const SettingsSectionAnchorList: React.FC<SettingsSectionAnchorListProps> = ({
 };
 
 export default SettingsSectionAnchorList;
-

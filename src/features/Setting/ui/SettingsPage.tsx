@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+﻿import React, { useEffect, useMemo, useRef } from "react";
 import {
   AccessibilityNewRounded,
   ArrowBackRounded,
@@ -11,6 +11,7 @@ import {
 import { Button, Chip } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
+import { SETTINGS_PAGE_COPY } from "../model/settingsSchema";
 import { useSettingsState } from "../model/useSettingsState";
 import type { SettingsSectionId } from "../model/settingsTypes";
 import KeyBindingSettings from "./components/KeyBindingSettings";
@@ -36,6 +37,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
   onRequestClose,
 }) => {
   const navigate = useNavigate();
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const { keyBindings, setKeyBindings } = useKeyBindings();
   const {
     activeCategory,
@@ -45,6 +47,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     setActiveAnchorId,
     categorySections,
     categories,
+    sections,
     jumpToSection,
   } = useSettingsState();
 
@@ -54,6 +57,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
       if (first) setActiveAnchorId(first);
     }
   }, [activeAnchorId, categorySections, setActiveAnchorId]);
+
+  useEffect(() => {
+    const node = contentScrollRef.current;
+    if (!node) return;
+    node.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeCategoryId]);
+
+  const sectionMap = useMemo(
+    () => new Map(sections.map((section) => [section.id, section])),
+    [sections],
+  );
 
   const previewItems = useMemo(
     () =>
@@ -72,7 +86,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     [keyBindings],
   );
 
+  const getSectionMeta = (sectionId: SettingsSectionId) =>
+    sectionMap.get(sectionId) ?? {
+      id: sectionId,
+      categoryId: activeCategoryId,
+      title: sectionId,
+      description: "",
+      status: "ready" as const,
+    };
+
   const renderSection = (sectionId: SettingsSectionId) => {
+    const sectionMeta = getSectionMeta(sectionId);
+
     switch (sectionId) {
       case "keybindings":
         return (
@@ -80,13 +105,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             key={sectionId}
             id={sectionId}
             icon={<KeyboardRounded fontSize="small" />}
-            title="按鍵設定"
-            description="設定四個作答選項的快捷鍵。若輸入已被使用的按鍵，系統會自動交換位置，避免重複設定。"
+            title={sectionMeta.title}
+            description={sectionMeta.description}
             actions={
               <>
                 <Chip
                   size="small"
-                  label="自動交換"
+                  label="即時生效"
                   variant="outlined"
                   sx={{
                     color: "#d1fae5",
@@ -106,7 +131,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     color: "#e2e8f0",
                   }}
                 >
-                  重設預設
+                  恢復預設
                 </Button>
               </>
             }
@@ -121,8 +146,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             key={sectionId}
             id={sectionId}
             icon={<TuneRounded fontSize="small" />}
-            title="按鍵預覽"
-            description="確認目前鍵位配置與實戰使用建議。"
+            title={sectionMeta.title}
+            description={sectionMeta.description}
           >
             <div className="grid grid-cols-2 gap-2">
               {previewItems.map((item) => (
@@ -140,15 +165,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               ))}
             </div>
             <div className="mt-3 rounded-xl border border-amber-300/15 bg-amber-400/5 p-3">
-              <p className="text-xs font-semibold text-amber-100">使用建議</p>
+              <p className="text-xs font-semibold text-amber-100">使用提醒</p>
               <ul className="mt-2 space-y-1 text-xs leading-5 text-amber-50/85">
-                <li>保持左右手分工，減少連續跨區按鍵。</li>
-                <li>
-                  直播或錄影時，避免使用瀏覽器常用快捷鍵（例如 F5、Ctrl+R）。
-                </li>
-                <li>
-                  若改成 I / O / K / L，請同步確認你對鍵位位置的肌肉記憶。
-                </li>
+                <li>1. 建議使用單鍵（A-Z），避免功能鍵造成瀏覽器衝突。</li>
+                <li>2. 若遊戲中鍵位不符合預期，可回此頁快速檢查。</li>
+                <li>3. 若設定被瀏覽器攔截，可按 F5 或 Ctrl+R 後再測試。</li>
               </ul>
             </div>
           </SettingsSectionCard>
@@ -163,18 +184,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             key={sectionId}
             id={sectionId}
             icon={<VisibilityRounded fontSize="small" />}
-            title="顯示偏好（規劃中）"
-            description="這一區先預留結構，後續會將遊戲內顯示偏好集中到設定頁管理。"
+            title={sectionMeta.title}
+            description={sectionMeta.description}
           >
             <ul className="space-y-2 text-sm text-slate-300">
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                字體大小（標準 / 放大）與回饋卡緊湊模式。
+                介面密度（舒適 / 標準 / 緊湊）
               </li>
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                公布答案階段影片顯示與縮圖顯示偏好。
+                動畫強度（完整 / 精簡）
               </li>
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                題目資訊顯示密度（精簡 / 標準 / 完整）。
+                字級預設（一般 / 放大）
               </li>
             </ul>
           </SettingsSectionCard>
@@ -186,18 +207,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             key={sectionId}
             id={sectionId}
             icon={<AccessibilityNewRounded fontSize="small" />}
-            title="無障礙偏好（規劃中）"
-            description="提供不同視覺與動態需求的輔助設定。"
+            title={sectionMeta.title}
+            description={sectionMeta.description}
           >
             <ul className="space-y-2 text-sm text-slate-300">
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                高對比模式（標準 / 高對比 / 柔和高對比）。
+                高對比主題與色弱友善色盤
               </li>
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                減少動畫與強閃爍效果，降低視覺負擔。
+                降低動態效果與閃爍提示
               </li>
               <li className="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2">
-                色弱友善配色（特別是答對 / 答錯 / 正解標示）。
+                文字與按鈕可讀性增強模式
               </li>
             </ul>
           </SettingsSectionCard>
@@ -238,15 +259,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                 <SettingsSuggestRounded sx={{ fontSize: 14 }} />
-                Control Deck
+                {SETTINGS_PAGE_COPY.badge}
               </div>
               <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-100 sm:text-3xl">
-                設定
+                {SETTINGS_PAGE_COPY.title}
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                集中管理按鍵、提示音與未來的顯示偏好。設定頁採固定版面與內部捲動，
-                在遊戲中開啟時也不會因內容長短讓視窗忽大忽小。
-              </p>
             </div>
 
             <Button
@@ -278,8 +295,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
               }
             >
               <SettingsContentPane
-                title={activeCategory?.title ?? "設定分類"}
-                subtitle={activeCategory?.subtitle ?? "選擇左側分類與區段"}
+                title={activeCategory?.title ?? "設定"}
+                subtitle={activeCategory?.subtitle ?? "請選擇左側分類"}
+                scrollContainerRef={contentScrollRef}
               >
                 {categorySections.map((section) => renderSection(section.id))}
               </SettingsContentPane>

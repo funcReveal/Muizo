@@ -2,10 +2,8 @@
   AccessTime,
   ArrowBackRounded,
   ChevronRightRounded,
-  HistoryEdu,
   MeetingRoom,
   Quiz,
-  SportsScore,
 } from "@mui/icons-material";
 import { Chip, CircularProgress } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -83,13 +81,6 @@ const buildHistoryListCacheKey = (clientId: string | null) =>
 
 const buildHistoryGuardKey = (clientId: string | null) =>
   `mq_history_guard_v1:${clientId ?? "guest"}`;
-
-const parseSummaryReplayStatus = (summary: RoomSettlementHistorySummary) => {
-  const json = summary.summaryJson;
-  if (!json || typeof json !== "object") return null;
-  const replayStatus = (json as Record<string, unknown>).replayStatus;
-  return typeof replayStatus === "string" ? replayStatus : null;
-};
 
 const parseSummaryPlaylistLabel = (summary: RoomSettlementHistorySummary) => {
   const json = summary.summaryJson;
@@ -499,6 +490,8 @@ const RoomHistoryPage: React.FC = () => {
     [recentItems],
   );
   const latestRecentEntry = recentItems[0] ?? null;
+  const oldestRecentEntry =
+    recentItems.length > 0 ? recentItems[recentItems.length - 1] : null;
 
   const groupedHistoryItems = useMemo(() => {
     const groups = new Map<
@@ -558,16 +551,11 @@ const RoomHistoryPage: React.FC = () => {
         roomLabel?: string | null;
       },
     ) => {
-      const replayStatus = parseSummaryReplayStatus(item);
-      const replayUnavailable =
-        replayStatus === "too_large" || replayStatus === "omitted";
-      const playlistLabel = parseSummaryPlaylistLabel(item);
-
       return (
         <button
           key={item.matchId}
           type="button"
-          className="group relative block w-full min-w-0 overflow-hidden rounded-[20px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-3.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/24 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5"
+          className="group relative block w-full min-w-0 overflow-hidden rounded-[18px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/24 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5 sm:py-3.5"
           onClick={() => void openReplayDetail(item)}
           style={
             options?.animationDelayMs
@@ -576,9 +564,9 @@ const RoomHistoryPage: React.FC = () => {
           }
         >
           <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/30 opacity-70 transition group-hover:opacity-100" />
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 pr-2">
-              <div className="mb-2.5 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
                 {options?.roomLabel && (
                   <Chip
                     size="small"
@@ -617,7 +605,7 @@ const RoomHistoryPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-[var(--mc-text-muted)]">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]">
                 <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
                   <AccessTime sx={{ fontSize: 16 }} />
                   <span className="truncate">{formatDateTime(item.endedAt)}</span>
@@ -633,21 +621,9 @@ const RoomHistoryPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-
-              {playlistLabel && (
-                <div className="mt-1.5 truncate text-xs text-[var(--mc-text-muted)]/90">
-                  {playlistLabel}
-                </div>
-              )}
-
-              {replayUnavailable && (
-                <div className="mt-2 text-xs text-amber-100/85">
-                  回放內容已精簡，仍可查看本場摘要與分數資訊。
-                </div>
-              )}
             </div>
 
-            <div className="shrink-0 self-end sm:self-auto">
+            <div className="shrink-0 self-start sm:self-center">
               <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-sky-300/30 bg-sky-300/10 px-2.5 py-1 text-[11px] font-semibold tracking-[0.12em] text-sky-100 transition group-hover:border-sky-300/50 group-hover:bg-sky-300/18">
                 查看回顧
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-sky-300/40 bg-sky-300/12">
@@ -663,12 +639,10 @@ const RoomHistoryPage: React.FC = () => {
   );
 
   const archiveHeader = (
-    <section className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.94),rgba(8,7,5,0.98))] p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.72)] sm:p-7">
-
-      <div className="relative grid gap-5 lg:grid-cols-1">
+    <section className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.94),rgba(8,7,5,0.98))] p-4 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.72)] sm:p-5">
+      <div className="relative grid gap-4 lg:grid-cols-1">
         <div className="min-w-0">
-          <div className="mb-4 inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_86%,black_14%)] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.08)]">
-            <HistoryEdu className="text-amber-200" sx={{ fontSize: 24 }} />
+          <div className="mb-4 inline-flex min-w-[180px] items-center rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_86%,black_14%)] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.08)]">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
                 Match Archive
@@ -680,10 +654,7 @@ const RoomHistoryPage: React.FC = () => {
           </div>
 
           <p className="max-w-3xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-            近 {HISTORY_PAGE_LIMIT} 場對戰快照，優先提供可直接回看的關鍵表現。
-          </p>
-          <p className="mt-1 text-xs leading-6 text-[var(--mc-text-muted)]/85 sm:text-sm">
-            採用 D1 輕量讀取模式，避免全量統計造成延遲與讀取壓力。
+            近 {HISTORY_PAGE_LIMIT} 場對戰快照，點擊指標可直接開啟對應回顧。
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
@@ -691,7 +662,7 @@ const RoomHistoryPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <button
               type="button"
               disabled={!recentTopScoreEntry}
@@ -699,15 +670,14 @@ const RoomHistoryPage: React.FC = () => {
                 if (!recentTopScoreEntry) return;
                 void openReplayDetail(recentTopScoreEntry);
               }}
-              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
                 recentTopScoreEntry
                   ? "border-emerald-300/25 bg-[linear-gradient(180deg,rgba(16,185,129,0.14),rgba(5,30,24,0.78))] hover:-translate-y-0.5 hover:border-emerald-300/45"
                   : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
               }`}
             >
               <div className="flex h-full flex-col">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                  <SportsScore fontSize="inherit" />
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
                   近10把最高分
                 </div>
                 <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
@@ -737,15 +707,14 @@ const RoomHistoryPage: React.FC = () => {
                 if (!recentBestComboEntry) return;
                 void openReplayDetail(recentBestComboEntry);
               }}
-              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
                 recentBestComboEntry
                   ? "border-fuchsia-300/22 bg-[linear-gradient(180deg,rgba(116,58,176,0.14),rgba(22,12,32,0.78))] hover:-translate-y-0.5 hover:border-fuchsia-300/38"
                   : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
               }`}
             >
               <div className="flex h-full flex-col">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                  <Quiz fontSize="inherit" />
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
                   近10把最佳 COMBO
                 </div>
                 <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
@@ -777,15 +746,14 @@ const RoomHistoryPage: React.FC = () => {
                 if (!recentBestAccuracyEntry) return;
                 void openReplayDetail(recentBestAccuracyEntry.item);
               }}
-              className={`min-h-[128px] rounded-2xl border p-4 text-left transition ${
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
                 recentBestAccuracyEntry
                   ? "border-sky-300/24 bg-[linear-gradient(180deg,rgba(14,116,144,0.16),rgba(7,23,38,0.8))] hover:-translate-y-0.5 hover:border-sky-300/45"
                   : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
               }`}
             >
               <div className="flex h-full flex-col">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                  <AccessTime fontSize="inherit" />
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
                   近10把最佳答對率
                 </div>
                 <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
@@ -860,9 +828,6 @@ const RoomHistoryPage: React.FC = () => {
         </div>
       ) : items.length === 0 ? (
         <div className="relative overflow-hidden rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.86),rgba(8,7,5,0.96))] p-6 text-center">
-          <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200">
-            <HistoryEdu />
-          </div>
           <h2 className="text-lg font-semibold text-[var(--mc-text)]">
             尚無對戰紀錄
           </h2>
@@ -871,7 +836,8 @@ const RoomHistoryPage: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5 sm:space-y-3">
+        <>
+          <div className="space-y-4 sm:space-y-[18px]">
           {groupedHistoryItems.map((group, groupIndex) => {
             const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
             if (!groupKey) return null;
@@ -880,13 +846,15 @@ const RoomHistoryPage: React.FC = () => {
               ? (collapsedRoomGroups[groupKey] ?? true)
               : false;
             const latestItem = group.items[0] ?? null;
-            const latestPlaylistLabel = latestItem
-              ? parseSummaryPlaylistLabel(latestItem)
-              : null;
             const groupBestScore = group.items.reduce(
               (max, entry) => Math.max(max, entry.selfPlayer?.finalScore ?? 0),
               0,
             );
+            const previewRounds = group.items
+              .slice(0, 3)
+              .map((entry) => `第 ${entry.roundNo} 場`)
+              .join(" · ");
+            const startRoundNo = group.items[group.items.length - 1]?.roundNo ?? null;
 
             if (!isMultiGroup && latestItem) {
               return (
@@ -900,185 +868,182 @@ const RoomHistoryPage: React.FC = () => {
             }
 
             return (
-              <div
-                key={groupKey}
-                className={`relative space-y-1.5 ${collapsed ? "pb-7" : "pb-0"}`}
-              >
+              <div key={groupKey} className="relative space-y-1.5">
                 <div className="relative">
-                  <span
-                    className={`pointer-events-none absolute bottom-0 left-6 right-2 top-0 rounded-[20px] border border-amber-300/22 transition-all duration-300 ${
-                      collapsed
-                        ? "translate-x-3 translate-y-3 opacity-80"
-                        : "translate-x-0 translate-y-0 opacity-0"
-                    }`}
-                  />
-                  <span
-                    className={`pointer-events-none absolute bottom-0 left-10 right-3 top-0 rounded-[20px] border border-amber-300/14 transition-all duration-300 ${
-                      collapsed
-                        ? "translate-x-6 translate-y-6 opacity-62"
-                        : "translate-x-0 translate-y-0 opacity-0"
-                    }`}
-                  />
-                <button
-                  type="button"
-                  className={`group relative z-10 block w-full min-w-0 overflow-hidden rounded-[20px] border bg-[linear-gradient(180deg,rgba(20,17,13,0.92),rgba(8,7,5,0.99))] px-4 py-3 text-left transition duration-200 hover:border-amber-300/20 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.94),rgba(10,8,6,1))] sm:px-5 ${
-                    collapsed
-                      ? "border-amber-300/34 bg-[linear-gradient(180deg,rgba(13,11,8,0.98),rgba(4,3,2,1))] shadow-[0_16px_30px_-24px_rgba(245,158,11,0.55)]"
-                      : "border-amber-300/26 bg-[linear-gradient(180deg,rgba(18,15,11,0.96),rgba(6,5,4,0.99))]"
-                  }`}
-                  onClick={() =>
-                    setCollapsedRoomGroups((prev) => {
-                      const currentlyCollapsed = prev[groupKey] ?? true;
-                      if (currentlyCollapsed) {
-                        const next: Record<string, boolean> = {};
-                        for (const candidate of groupedHistoryItems) {
-                          const candidateKey =
-                            candidate.roomId ||
-                            candidate.roomName ||
-                            candidate.items[0]?.matchId;
-                          if (!candidateKey || candidate.items.length <= 1) continue;
-                          next[candidateKey] = candidateKey !== groupKey;
-                        }
-                        return next;
-                      }
-                      return { ...prev, [groupKey]: true };
-                    })
-                  }
-                >
-                  <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-amber-300/35 opacity-65 transition group-hover:opacity-95" />
-                  <div
-                    className={`pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-amber-300/[0.06] to-transparent transition duration-300 ${
-                      collapsed ? "opacity-100" : "opacity-0"
-                    }`}
-                  />
-                  <div className="flex min-w-0 items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="mb-1.5 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
-                        <Chip
-                          size="small"
-                          label={group.roomName || group.roomId}
-                          className="border-amber-300/22 bg-amber-300/8 text-amber-100"
-                          variant="outlined"
-                        />
-                        <Chip
-                          size="small"
-                          label={`${group.items.length} 場堆疊`}
-                          className="border-[var(--mc-border)] text-[var(--mc-text)]"
-                          variant="outlined"
-                        />
-                        {groupBestScore > 0 && (
-                          <Chip
-                            size="small"
-                            label={`最佳 ${groupBestScore}`}
-                            className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
-                            variant="outlined"
-                          />
-                        )}
-                        {latestItem && (
-                          <Chip
-                            size="small"
-                            label={`最近 ${formatRelative(latestItem.endedAt) || formatDateTime(latestItem.endedAt)}`}
-                            className="border-sky-300/25 bg-sky-300/10 text-sky-100"
-                            variant="outlined"
-                          />
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-[var(--mc-text-muted)]">
-                        <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                          <AccessTime sx={{ fontSize: 16 }} />
-                          <span className="truncate">
-                            {latestItem ? formatDateTime(latestItem.endedAt) : "-"}
-                          </span>
-                        </div>
-                        <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                          <Quiz sx={{ fontSize: 16 }} />
-                          <span>{latestItem ? `最近 ${latestItem.questionCount} 題` : "-"}</span>
-                        </div>
-                        <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                          <MeetingRoom sx={{ fontSize: 16 }} />
-                          <span>{collapsed ? "可展開場次列表" : "目前已展開"}</span>
-                        </div>
-                      </div>
-
-                      {latestPlaylistLabel && (
-                        <div className="mt-2 truncate text-xs text-[var(--mc-text-muted)]/90">
-                          {latestPlaylistLabel}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-1 flex shrink-0 items-center">
+                  {collapsed && (
+                    <>
                       <span
-                        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.12em] transition ${
-                          collapsed
-                            ? "border-amber-300/35 bg-amber-300/10 text-amber-100"
-                            : "border-amber-300/48 bg-amber-300/16 text-amber-50"
-                        }`}
-                      >
-                        {collapsed ? "展開場次" : "收合場次"}
-                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/45 bg-amber-300/12">
-                          <ChevronRightRounded
-                            sx={{
-                              fontSize: 14,
-                              transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
-                              transition: "transform 180ms ease",
-                            }}
+                        className="pointer-events-none absolute inset-x-6 top-0 z-0 h-full rounded-[18px] border border-amber-300/12 bg-[linear-gradient(180deg,rgba(14,11,9,0.88),rgba(7,6,4,0.95))]"
+                        style={{ transform: "translateY(12px)" }}
+                      />
+                      <span
+                        className="pointer-events-none absolute inset-x-3 top-0 z-10 h-full rounded-[18px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(16,13,10,0.92),rgba(8,7,5,0.98))]"
+                        style={{ transform: "translateY(7px)" }}
+                      />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className={`group relative z-20 block w-full min-w-0 overflow-hidden rounded-[18px] border px-4 py-3 text-left transition duration-200 sm:px-5 sm:py-3.5 ${
+                      collapsed
+                        ? "border-amber-300/42 bg-[linear-gradient(180deg,rgba(22,18,13,0.98),rgba(10,8,6,1))] shadow-[0_10px_22px_-22px_rgba(245,158,11,0.3)] hover:border-amber-300/58"
+                        : "border-amber-300/55 bg-[linear-gradient(180deg,rgba(24,20,14,0.97),rgba(10,8,6,1))] shadow-[0_12px_24px_-20px_rgba(245,158,11,0.42)]"
+                    }`}
+                    aria-expanded={!collapsed}
+                    onClick={() =>
+                      setCollapsedRoomGroups((prev) => {
+                        const currentlyCollapsed = prev[groupKey] ?? true;
+                        if (currentlyCollapsed) {
+                          const next: Record<string, boolean> = {};
+                          for (const candidate of groupedHistoryItems) {
+                            const candidateKey =
+                              candidate.roomId ||
+                              candidate.roomName ||
+                              candidate.items[0]?.matchId;
+                            if (!candidateKey || candidate.items.length <= 1) continue;
+                            next[candidateKey] = candidateKey !== groupKey;
+                          }
+                          return next;
+                        }
+                        return { ...prev, [groupKey]: true };
+                      })
+                    }
+                  >
+                    <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-amber-300/45 opacity-85 transition group-hover:opacity-100" />
+                    <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                          <Chip
+                            size="small"
+                            label={group.roomName || group.roomId}
+                            className="border-amber-300/22 bg-amber-300/8 text-amber-100"
+                            variant="outlined"
                           />
+                          <Chip
+                            size="small"
+                            label={`集合 ${group.items.length} 場`}
+                            className="border-amber-300/30 bg-amber-300/12 text-amber-50"
+                            variant="outlined"
+                          />
+                          {groupBestScore > 0 && (
+                            <Chip
+                              size="small"
+                              label={`最佳 ${groupBestScore}`}
+                              className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
+                              variant="outlined"
+                            />
+                          )}
+                          {latestItem && (
+                            <Chip
+                              size="small"
+                              label={`最近 ${formatRelative(latestItem.endedAt) || formatDateTime(latestItem.endedAt)}`}
+                              className="border-sky-300/25 bg-sky-300/10 text-sky-100"
+                              variant="outlined"
+                            />
+                          )}
+                        </div>
+
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]">
+                          <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                            <AccessTime sx={{ fontSize: 16 }} />
+                            <span className="truncate">
+                              {latestItem ? formatDateTime(latestItem.endedAt) : "-"}
+                            </span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <Quiz sx={{ fontSize: 16 }} />
+                            <span>{latestItem ? `最近 ${latestItem.questionCount} 題` : "-"}</span>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <MeetingRoom sx={{ fontSize: 16 }} />
+                            <span>
+                              {collapsed
+                                ? `可展開集合：從第 ${startRoundNo ?? "-"} 場開始${previewRounds ? `（${previewRounds}）` : ""}`
+                                : "集合已展開，點擊收合"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 self-start text-right sm:self-center sm:pr-1">
+                        <span className="mb-1.5 hidden items-center justify-end text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/72 sm:flex">
+                          Collection
                         </span>
-                      </span>
+                        <span
+                          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.12em] transition ${
+                            collapsed
+                              ? "border-amber-300/45 bg-amber-300/16 text-amber-50"
+                              : "border-amber-300/52 bg-amber-300/18 text-amber-50"
+                          }`}
+                        >
+                          {collapsed ? `展開 ${group.items.length} 場` : "收合集合"}
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/45 bg-amber-300/12">
+                            <ChevronRightRounded
+                              sx={{
+                                fontSize: 14,
+                                transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
+                                transition: "transform 180ms ease",
+                              }}
+                            />
+                          </span>
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
                 </div>
 
                 <div
                   className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${
                     collapsed
                       ? "mt-0 grid-rows-[0fr] opacity-0"
-                      : "mt-2.5 grid-rows-[1fr] opacity-100"
+                      : "mt-1 grid-rows-[1fr] opacity-100"
                   }`}
                 >
-                  <div className={collapsed ? "pointer-events-none overflow-hidden" : "overflow-hidden"}>
-                    <div className="relative pl-7 sm:pl-9">
-                      <span
-                        className={`pointer-events-none absolute bottom-10 left-3 top-10 w-px bg-gradient-to-b from-amber-400/50 via-amber-300/40 to-amber-300/0 transition-opacity duration-300 ${
-                          collapsed ? "opacity-0" : "opacity-100"
-                        }`}
-                      />
-                      <div className="space-y-2.5 pb-1">
-                        {group.items.map((item, itemIndex) => (
-                          <div
-                            key={item.matchId}
-                            className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${
-                              collapsed
-                                ? "translate-y-2 opacity-0"
-                                : "translate-y-0 opacity-100"
+                  <div
+                    className={
+                      collapsed
+                        ? "pointer-events-none min-h-0 overflow-hidden"
+                        : "min-h-0 overflow-hidden"
+                    }
+                  >
+                    <div className="space-y-1.5 border-l border-amber-300/26 pl-3 sm:pl-4">
+                      {group.items.map((item, itemIndex) => (
+                        <div
+                          key={item.matchId}
+                          className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${
+                            collapsed
+                              ? "translate-y-2 opacity-0"
+                              : "translate-y-0 opacity-100"
+                          }`}
+                          style={{
+                            transitionDelay: collapsed
+                              ? "0ms"
+                              : `${50 + itemIndex * 35}ms`,
+                          }}
+                        >
+                          <span
+                            className={`pointer-events-none absolute -left-3 top-1/2 h-px w-3 -translate-y-1/2 bg-amber-300/48 transition-opacity duration-300 ${
+                              collapsed ? "opacity-0" : "opacity-100"
                             }`}
-                            style={{
-                              transitionDelay: collapsed
-                                ? "0ms"
-                                : `${80 + itemIndex * 55}ms`,
-                            }}
-                          >
-                            <span
-                              className={`pointer-events-none absolute -left-5 top-1/2 h-px w-5 -translate-y-1/2 bg-amber-300/52 transition-opacity duration-300 ${
-                                collapsed ? "opacity-0" : "opacity-100"
-                              }`}
-                            />
-                            {renderMatchRecordCard(item, {
-                              animationDelayMs: groupIndex * 80 + itemIndex * 60,
-                            })}
-                          </div>
-                        ))}
-                      </div>
+                          />
+                          {renderMatchRecordCard(item, {
+                            animationDelayMs: groupIndex * 40 + itemIndex * 28,
+                          })}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
+          </div>
+          <div className="px-1 text-xs text-[var(--mc-text-muted)]/80">
+            {oldestRecentEntry
+              ? `目前顯示最近 ${recentItems.length} 場，從第 ${oldestRecentEntry.roundNo} 場開始。`
+              : "目前沒有可顯示的對戰場次。"}
+          </div>
+        </>
       )}
     </section>
   );
