@@ -2,116 +2,91 @@ const PrivacyPage: React.FC = () => (
   <div className="mx-auto w-full max-w-3xl rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 p-6 text-[var(--mc-text)] shadow-[0_20px_60px_-40px_rgba(2,6,23,0.8)]">
     <h2 className="text-2xl font-semibold text-[var(--mc-text)]">隱私權政策</h2>
     <p className="mt-2 text-xs uppercase tracking-[0.3em] text-[var(--mc-text-muted)]">
-      最後更新：2026/02/02
+      最後更新：2026/02/28
     </p>
     <p className="mt-4 text-sm text-[var(--mc-text-muted)]">
-      本服務（以下稱「本平台」）由個人/團隊於台灣提供與營運。目前未設立
-      公司行號，若有隱私相關問題，請聯絡：funcreveal@gmail.com。
+      歡迎使用本服務（Muizo）。我們重視你的隱私與個人資料保護，以下說明我們如何蒐集、使用、保護與刪除資料。若你對本政策有任何問題，請聯絡：
+      funcreveal@gmail.com。
     </p>
 
     <div className="mt-6 space-y-5 text-sm">
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          1. 我們蒐集的資料類型
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">1. 蒐集的資料類型</h3>
         <ul className="mt-2 space-y-2 text-[var(--mc-text-muted)]">
-          <li>
-            帳號與識別資料：Google OAuth 登入時的名稱、電子郵件、頭像與 Google
-            使用者 ID；使用者自訂暱稱。
-          </li>
-          <li>
-            使用行為資料：建立/加入房間、播放清單匯入、收藏庫操作、遊戲
-            使用紀錄等。
-          </li>
-          <li>
-            技術與裝置資料：IP 位址、瀏覽器與作業系統類型、連線資訊（含
-            WebSocket 連線事件）。
-          </li>
-          <li>
-            本機儲存：為改善體驗，我們會在瀏覽器保存暱稱、房間 ID、題數
-            設定、音量、密碼暫存與部分狀態（localStorage）。
-          </li>
+          <li>帳號與識別資料：Google OAuth 登入後的名稱、電子郵件、頭像、Google 帳號識別碼。</li>
+          <li>YouTube 相關資料：你主動同步的播放清單資訊與其公開可見的歌曲中繼資料。</li>
+          <li>遊戲與使用資料：房間名稱、收藏庫操作、基本錯誤紀錄與服務診斷資訊。</li>
+          <li>驗證資訊：為維持登入狀態所需的短期憑證與工作階段資料。</li>
         </ul>
       </section>
 
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          2. 蒐集方式
-        </h3>
-        <p className="mt-2 text-[var(--mc-text-muted)]">
-          我們透過使用者主動提供（例如登入、輸入暱稱、匯入播放清單）以及
-          自動記錄（例如連線資訊與功能使用紀錄）取得資料。
-        </p>
-      </section>
-
-      <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          3. 使用目的
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">2. 資料使用目的</h3>
         <ul className="mt-2 space-y-2 text-[var(--mc-text-muted)]">
-          <li>提供登入驗證、房間與遊戲功能。</li>
-          <li>同步 YouTube 播放清單與收藏庫。</li>
-          <li>維持服務安全、除錯、改善使用體驗。</li>
+          <li>提供登入、身分驗證與帳號管理功能。</li>
+          <li>提供 YouTube 播放清單同步、收藏庫管理與建立題庫功能。</li>
+          <li>提供房間遊戲、連線同步與問題排查。</li>
+          <li>提升服務穩定性與安全性（如偵錯、濫用防護）。</li>
         </ul>
       </section>
 
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          4. 第三方服務
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">3. Google 使用者資料與 API 使用聲明</h3>
         <p className="mt-2 text-[var(--mc-text-muted)]">
-          我們使用 Google OAuth 與 YouTube API 提供登入與播放清單功能。
-          前後端可能部署於雲端平台（例如 Vercel、Render）。必要時資料會在
-          這些第三方服務之間傳輸或處理。
+          本服務使用 Google OAuth 與 YouTube API。Google 使用者資料僅用於本服務向你明確提供的功能，不會出售、不會用於廣告投放、不會用於建立廣告受眾。除非法律要求或你明確授權，我們不會將 Google 使用者資料提供給無關第三方。
         </p>
       </section>
 
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          5. Cookie 與本機儲存
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">4. 敏感資料保護機制</h3>
+        <ul className="mt-2 space-y-2 text-[var(--mc-text-muted)]">
+          <li>傳輸加密：網站與 API 連線採用 HTTPS/TLS。</li>
+          <li>存取控制：僅授權人員可基於最小權限原則存取必要資料。</li>
+          <li>憑證管理：敏感金鑰與憑證儲存於受保護的環境變數或祕密管理機制，不寫入前端程式碼庫。</li>
+          <li>工作階段安全：登入狀態使用 HttpOnly Cookie 與短效存取憑證維持，並限制憑證有效期限。</li>
+          <li>權杖保護：Refresh Token 僅以雜湊值形式儲存於伺服器端資料庫；Google OAuth Token 僅在後端服務保存與更新，不回傳至一般前端使用者資料查詢。</li>
+          <li>日誌與監控：保留必要的安全與錯誤紀錄，用於偵測異常與資安事件調查。</li>
+          <li>事件應變：若發生重大資安事件，將依適用法律進行處理與通知。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">5. 資料保存期限與刪除</h3>
+        <ul className="mt-2 space-y-2 text-[var(--mc-text-muted)]">
+          <li>我們僅在提供服務所需期間保存資料。</li>
+          <li>你可以要求刪除帳號或相關資料，我們會在合理期間內處理。</li>
+          <li>依法必須保存的資料將在法定期間內保存，期滿後刪除或去識別化。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">6. 第三方服務與跨境處理</h3>
         <p className="mt-2 text-[var(--mc-text-muted)]">
-          我們使用 HttpOnly cookie 儲存 refresh token 以維持登入狀態，並使用
-          localStorage 保存偏好設定與暫存資訊。你可透過清除瀏覽器資料移除
-          相關資訊。
+          本服務可能使用第三方雲端基礎設施或託管服務。資料可能因服務部署而在不同地區處理。我們會要求合作服務商提供合理安全防護，並僅在提供服務必要範圍內處理資料。
         </p>
       </section>
 
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          6. 資料保存期間
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">7. 你的權利</h3>
+        <ul className="mt-2 space-y-2 text-[var(--mc-text-muted)]">
+          <li>查詢、更正或要求刪除你的個人資料。</li>
+          <li>隨時取消 Google 授權（可於 Google 帳戶權限頁面撤銷）。</li>
+          <li>停止使用本服務；停止後可申請刪除資料。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">8. 兒童與未成年人</h3>
         <p className="mt-2 text-[var(--mc-text-muted)]">
-          我們在服務提供期間保存必要資料。日後若提供帳號/資料刪除功能，
-          將依你的申請刪除或匿名化處理。
+          本服務不以未滿 13 歲兒童為對象。若你是未成年人，請在法定代理人同意下使用本服務。
         </p>
       </section>
 
       <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          7. 使用者權利
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--mc-text)]">9. 政策更新與聯絡方式</h3>
         <p className="mt-2 text-[var(--mc-text-muted)]">
-          你可依台灣個資法請求查詢、補正、停止蒐集或刪除資料。請透過
-          funcreveal@gmail.com 聯絡。
-        </p>
-      </section>
-
-      <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          8. 未成年人保護
-        </h3>
-        <p className="mt-2 text-[var(--mc-text-muted)]">
-          若你未滿 18 歲，請在法定代理人同意下使用本服務。
-        </p>
-      </section>
-
-      <section>
-        <h3 className="text-base font-semibold text-[var(--mc-text)]">
-          9. 政策更新
-        </h3>
-        <p className="mt-2 text-[var(--mc-text-muted)]">
-          本政策可能依營運需求更新，更新後將公告於本頁。
+          我們可能因法規或服務調整更新本政策，更新後將公布於本頁。若有問題，請來信
+          funcreveal@gmail.com。
         </p>
       </section>
     </div>
