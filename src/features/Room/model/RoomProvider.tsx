@@ -2048,8 +2048,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     if (gameState?.status === "ended") {
-      setIsGameView(false);
-      setStatusText("遊戲已結束，可從回顧查看結算");
+      // Keep game view mounted on ended so GameRoomPage can render settlement immediately,
+      // even if settlementHistoryUpdated arrives slightly later.
+      setStatusText("遊戲已結束，正在顯示結算");
     }
   }, [gameState?.status]);
 
