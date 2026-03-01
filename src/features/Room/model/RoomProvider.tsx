@@ -38,6 +38,7 @@ import {
   PLAYER_MIN,
   QUESTION_MAX,
   QUESTION_MIN,
+  USERNAME_MAX,
   SOCKET_URL,
   WORKER_API_URL,
 } from "./roomConstants";
@@ -78,6 +79,7 @@ import {
   type WorkerCollectionItem,
 } from "./roomApi";
 import { connectRoomSocket, disconnectRoomSocket } from "./roomSocket";
+import { trackEvent } from "../../../shared/analytics/track";
 import { useRoomAuth } from "./useRoomAuth";
 import { useRoomPlaylist } from "./useRoomPlaylist";
 import { useRoomCollections } from "./useRoomCollections";
@@ -298,8 +300,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     pathname.startsWith("/rooms") || pathname.startsWith("/invited");
   const socketSuspendedRef = useRef(false);
 
-  const [usernameInput, setUsernameInput] = useState(
-    () => getStoredUsername() ?? "",
+  const [usernameInput, setUsernameInputState] = useState(
+    () => (getStoredUsername() ?? "").slice(0, USERNAME_MAX),
   );
   const [username, setUsername] = useState<string | null>(
     () => getStoredUsername() ?? null,
@@ -460,7 +462,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const clearAuth = useCallback(() => {
     setUsername(null);
     clearStoredUsername();
-    setUsernameInput("");
+    setUsernameInputState("");
+  }, []);
+
+  const setUsernameInput = useCallback((value: string) => {
+    setUsernameInputState(value.slice(0, USERNAME_MAX));
   }, []);
 
   const onResetCollectionRef = useRef<() => void>(() => {});
@@ -745,6 +751,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const trimmed = usernameInput.trim();
     if (!trimmed) {
       setStatusText("請先輸入使用者名稱");
+      return;
+    }
+    if (trimmed.length > USERNAME_MAX) {
+      setStatusText(`使用者名稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
     persistUsername(trimmed);
@@ -1508,6 +1518,13 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
     const nextStartOffsetSec = clampStartOffsetSec(startOffsetSec);
     const nextAllowCollectionClipTiming = Boolean(allowCollectionClipTiming);
+    trackEvent("room_create_click", {
+      source_mode: roomCreateSourceMode,
+      room_visibility: desiredVisibility,
+      player_limit: desiredMaxPlayers ?? PLAYER_MAX,
+      question_count: nextQuestionCount,
+      playlist_count: playlistItems.length,
+    });
     const shouldSyncRoomSettings =
       desiredVisibility !== "public" ||
       desiredPassword !== null ||
@@ -1861,6 +1878,14 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setHostRoomPassword(desiredPassword);
         setRoomNameInput("");
         setRoomMaxPlayersInput("");
+        trackEvent("room_create_success", {
+          room_id: state.room.id,
+          source_mode: roomCreateSourceMode,
+          room_visibility: desiredVisibility,
+          player_limit: desiredMaxPlayers ?? PLAYER_MAX,
+          question_count: nextQuestionCount,
+          playlist_count: uploadItems.length,
+        });
         setStatusText(
           accessSettingsWarning
             ? `${accessSettingsWarning}（房間已建立：${state.room.name}）`
@@ -1885,6 +1910,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     playDurationSec,
     questionCount,
     refreshAuthToken,
+    roomCreateSourceMode,
     roomMaxPlayersInput,
     roomNameInput,
     roomVisibilityInput,
@@ -1940,8 +1966,19 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           lockSessionClientId(clientId);
           persistRoomId(state.room.id);
           setJoinPasswordInput("");
+          trackEvent("room_join_success", {
+            room_id: state.room.id,
+            room_visibility: state.room.visibility,
+            has_password: hasPassword,
+            participant_count: state.participants.length,
+          });
           setStatusText(`已加入房間：${state.room.name}`);
         } else {
+          trackEvent("room_join_failed", {
+            room_id: roomId,
+            has_password: hasPassword,
+            reason: ack.error ?? "unknown_error",
+          });
           setStatusText(formatAckError("加入房間失敗", ack.error));
         }
       },
@@ -2889,6 +2926,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setInviteRoomId,
       setRouteRoomId,
       setPlaylistUrl,
+      setUsernameInput,
       handleSetUsername,
       isCreatingRoom,
       handleCreateRoom,

@@ -3,6 +3,7 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { DbCollection, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
+import { trackEvent } from "../../../shared/analytics/track";
 
 const resolveItemSource = (
   item: EditableItem,
@@ -305,12 +306,24 @@ export const useCollectionEditor = ({
 
         const createdCollection = await run(token, true);
         if (createdCollection) {
+          trackEvent("collection_create_success", {
+            collection_id: createdCollection.id,
+            collection_visibility: createdCollection.visibility ?? collectionVisibility,
+            item_count: playlistItems.length,
+            import_source: "editor",
+          });
           setActiveCollectionId(createdCollection.id);
           setCollections((prev) => [createdCollection, ...prev]);
           navigateToEdit(createdCollection.id);
         }
 
         const noNewChanges = dirtyCounterRef.current === dirtySnapshot;
+        trackEvent("collection_save_success", {
+          collection_id: collectionId ?? createdCollection?.id ?? "new",
+          collection_visibility: collectionVisibility,
+          item_count: playlistItems.length,
+          mode,
+        });
         if (noNewChanges) {
           setHasUnsavedChanges(false);
           dirtyCounterRef.current = 0;
@@ -336,11 +349,15 @@ export const useCollectionEditor = ({
     },
     [
       activeCollectionId,
+      authExpired,
       authToken,
+      collectionVisibility,
       collectionTitle,
       dirtyCounterRef,
+      playlistItems,
       refreshAuthToken,
       navigateToEdit,
+      onAuthExpired,
       ownerId,
       setActiveCollectionId,
       setCollections,

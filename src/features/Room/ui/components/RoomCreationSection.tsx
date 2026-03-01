@@ -1193,45 +1193,6 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                       </Button>
                     ) : (
                       <>
-                        {sourceMode === "publicCollection" && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              size="small"
-                              variant={
-                                publicCollectionsSort === "popular"
-                                  ? "contained"
-                                  : "outlined"
-                              }
-                              onClick={() =>
-                                onPublicCollectionsSortChange?.("popular")
-                              }
-                            >
-                              熱門
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={
-                                publicCollectionsSort === "favorites_first"
-                                  ? "contained"
-                                  : "outlined"
-                              }
-                              disabled={!isGoogleAuthed}
-                              onClick={() =>
-                                onPublicCollectionsSortChange?.("favorites_first")
-                              }
-                            >
-                              收藏優先
-                            </Button>
-                            {!isGoogleAuthed && (
-                              <Typography
-                                variant="caption"
-                                className="room-create-muted"
-                              >
-                                登入後可使用收藏優先排序
-                              </Typography>
-                            )}
-                          </div>
-                        )}
                         <FormControl
                           size="small"
                           fullWidth
@@ -1276,6 +1237,45 @@ const RoomCreationSection: React.FC<RoomCreationSectionProps> = (props) => {
                       </Button>
                     ) : (
                       <>
+                        {sourceMode === "publicCollection" && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="small"
+                              variant={
+                                publicCollectionsSort === "popular"
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                              onClick={() =>
+                                onPublicCollectionsSortChange?.("popular")
+                              }
+                            >
+                              熱門
+                            </Button>
+                            <Button
+                              size="small"
+                              variant={
+                                publicCollectionsSort === "favorites_first"
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                              disabled={!isGoogleAuthed}
+                              onClick={() =>
+                                onPublicCollectionsSortChange?.("favorites_first")
+                              }
+                            >
+                              收藏優先
+                            </Button>
+                            {!isGoogleAuthed && (
+                              <Typography
+                                variant="caption"
+                                className="room-create-muted"
+                              >
+                                登入後可使用收藏優先排序
+                              </Typography>
+                            )}
+                          </div>
+                        )}
                         <FormControl
                           size="small"
                           fullWidth

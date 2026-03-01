@@ -7,6 +7,7 @@ interface LoginPageProps {
   onConfirm: () => void;
   onGoogleLogin: () => void;
   googleLoading?: boolean;
+  nicknameMaxLength?: number;
 }
 
 const rotatingWords = ["華語流行", "迷因 meme", "遊戲 BGM", "J-POP", "K-POP"];
@@ -22,6 +23,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
   onConfirm,
   onGoogleLogin,
   googleLoading = false,
+  nicknameMaxLength = 16,
 }) => {
   const [wordIndex, setWordIndex] = useState(0);
   const [typedLength, setTypedLength] = useState(0);
@@ -145,8 +147,11 @@ const LoginPage: React.FC<LoginPageProps> = ({
               <input
                 id="nickname"
                 value={usernameInput}
-                onChange={(e) => onInputChange(e.target.value)}
+                onChange={(e) =>
+                  onInputChange(e.target.value.slice(0, nicknameMaxLength))
+                }
                 placeholder="例如：Night DJ"
+                maxLength={nicknameMaxLength}
                 className="mq-auth-input w-full rounded-2xl px-4 py-3 text-sm"
               />
               <button

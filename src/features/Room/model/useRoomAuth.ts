@@ -7,8 +7,10 @@ import {
   apiRefreshAuthToken,
   apiUpsertWorkerUser,
 } from "./roomApi";
+import { USERNAME_MAX } from "./roomConstants";
 import { isProfileConfirmed, setProfileConfirmed } from "./roomStorage";
 import { clearTokenExpiry, persistTokenExpiry } from "../../../shared/auth/token";
+import { trackEvent } from "../../../shared/analytics/track";
 
 type UseRoomAuthOptions = {
   apiUrl: string;
@@ -83,10 +85,10 @@ export const useRoomAuth = ({
       persistTokenExpiry(token);
       const confirmed = isProfileConfirmed(user.id);
       if (!confirmed) {
-        setNicknameDraft(user.display_name ?? "");
+        setNicknameDraft((user.display_name ?? "").slice(0, USERNAME_MAX));
         setNeedsNicknameConfirm(true);
       } else if (!username && user.display_name) {
-        persistUsername(user.display_name);
+        persistUsername(user.display_name.slice(0, USERNAME_MAX));
       }
     },
     [persistUsername, username],
@@ -129,6 +131,10 @@ export const useRoomAuth = ({
     const trimmed = nicknameDraft.trim();
     if (!trimmed) {
       setStatusText("請先輸入暱稱");
+      return;
+    }
+    if (trimmed.length > USERNAME_MAX) {
+      setStatusText(`暱稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
 
@@ -174,7 +180,7 @@ export const useRoomAuth = ({
 
   const openProfileEditor = useCallback(() => {
     const fallbackName = authUser?.display_name ?? username ?? "";
-    setNicknameDraft(fallbackName);
+    setNicknameDraft(fallbackName.slice(0, USERNAME_MAX));
     setIsProfileEditorOpen(true);
   }, [authUser?.display_name, username]);
 
@@ -195,9 +201,16 @@ export const useRoomAuth = ({
           throw new Error(payload?.error ?? "Google 登入失敗");
         }
         persistAuth(payload.token, payload.user);
+        trackEvent("login_google_success", {
+          provider: "google",
+          user_type: "google",
+        });
 
         setStatusText("Google 登入成功");
       } catch (error) {
+        trackEvent("login_google_failed", {
+          reason: error instanceof Error ? error.message : "unknown_error",
+        });
         setStatusText(
           error instanceof Error ? error.message : "Google 登入失敗",
         );
@@ -235,6 +248,9 @@ export const useRoomAuth = ({
   };
 
   const loginWithGoogle = useCallback(() => {
+    trackEvent("login_google_click", {
+      entry: "google_oauth",
+    });
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setStatusText("尚未設定 Google Client ID");
