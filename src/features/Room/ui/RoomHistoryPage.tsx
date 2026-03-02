@@ -4,6 +4,7 @@
   ChevronRightRounded,
   MeetingRoom,
   Quiz,
+  TimerOutlined,
 } from "@mui/icons-material";
 import { Chip, CircularProgress } from "@mui/material";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,11 +13,13 @@ import { useNavigate } from "react-router-dom";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import type {
   RoomSettlementHistorySummary,
+  RoomSettlementQuestionRecap,
   RoomSettlementSnapshot,
 } from "../model/types";
 import { useRoom } from "../model/useRoom";
-import GameSettlementPanel from "./components/GameSettlementPanel";
-
+import GameSettlementPanel, {
+  type SettlementQuestionRecap,
+} from "./components/GameSettlementPanel";
 const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== "undefined" ? window.location.origin : "");
@@ -54,6 +57,8 @@ type HistoryRequestGuardPayload = {
   requestTimestamps: number[];
 };
 
+type HistoryListDisplayMode = "expanded" | "collapsed";
+
 const formatDateTime = (timestamp: number) => {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return "-";
   return new Date(timestamp).toLocaleString();
@@ -81,6 +86,151 @@ const buildHistoryListCacheKey = (clientId: string | null) =>
 
 const buildHistoryGuardKey = (clientId: string | null) =>
   `mq_history_guard_v1:${clientId ?? "guest"}`;
+
+const getMatchDurationMs = (startedAt: number, endedAt: number) => {
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt)) return null;
+  if (startedAt <= 0 || endedAt <= 0 || endedAt <= startedAt) return null;
+  return endedAt - startedAt;
+};
+
+const formatDuration = (durationMs: number | null) => {
+  if (!durationMs || durationMs <= 0) return "-";
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}時 ${minutes}分 ${seconds}秒`;
+  if (minutes > 0) return `${minutes}分 ${seconds}秒`;
+  return `${seconds}秒`;
+};
+
+const formatMonthDayTime = (timestamp: number) => {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return "-";
+  return new Date(timestamp).toLocaleString("zh-TW", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatRankFraction = (rank: number | null, playerCount: number | null | undefined) => {
+  const safeCount =
+    typeof playerCount === "number" && Number.isFinite(playerCount) && playerCount > 0
+      ? Math.floor(playerCount)
+      : null;
+  if (typeof rank === "number" && Number.isFinite(rank) && rank > 0) {
+    return safeCount ? `${Math.floor(rank)}/${safeCount}` : String(Math.floor(rank));
+  }
+  return safeCount ? `-/${safeCount}` : "-";
+};
+
+const isBetterRankResult = (
+  candidate: { rank: number; playerCount: number; endedAt: number },
+  currentBest: { rank: number; playerCount: number; endedAt: number } | null,
+) => {
+  if (!currentBest) return true;
+  if (candidate.rank !== currentBest.rank) return candidate.rank < currentBest.rank;
+  if (candidate.playerCount !== currentBest.playerCount) {
+    return candidate.playerCount > currentBest.playerCount;
+  }
+  return candidate.endedAt > currentBest.endedAt;
+};
+
+const readSelfRankFromSummary = (summary: RoomSettlementHistorySummary) => {
+  if (
+    typeof summary.selfRank === "number" &&
+    Number.isFinite(summary.selfRank) &&
+    summary.selfRank > 0
+  ) {
+    return Math.floor(summary.selfRank);
+  }
+
+  const json = summary.summaryJson;
+  if (!json || typeof json !== "object") return null;
+  const source = json as Record<string, unknown>;
+  const rankKeys = [
+    "selfRank",
+    "rank",
+    "placement",
+    "selfPlacement",
+    "myRank",
+    "finalRank",
+    "position",
+  ];
+  const pickPositiveRank = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0
+      ? Math.floor(value)
+      : null;
+
+  for (const key of rankKeys) {
+    const rank = pickPositiveRank(source[key]);
+    if (rank !== null) return rank;
+  }
+
+  const selfPlayer = source.selfPlayer;
+  if (selfPlayer && typeof selfPlayer === "object") {
+    const self = selfPlayer as Record<string, unknown>;
+    for (const key of rankKeys) {
+      const rank = pickPositiveRank(self[key]);
+      if (rank !== null) return rank;
+    }
+  }
+
+  const participants = source.participants;
+  if (Array.isArray(participants)) {
+    const meName = summary.selfPlayer?.usernameSnapshot?.trim().toLowerCase() ?? "";
+    for (const participant of participants) {
+      if (!participant || typeof participant !== "object") continue;
+      const row = participant as Record<string, unknown>;
+      const candidateName =
+        typeof row.username === "string" ? row.username.trim().toLowerCase() : "";
+      const isMeFlag = row.isMe === true || row.self === true;
+      if (isMeFlag || (meName && candidateName && candidateName === meName)) {
+        for (const key of rankKeys) {
+          const rank = pickPositiveRank(row[key]);
+          if (rank !== null) return rank;
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+const normalizeQuestionRecap = (
+  recap: RoomSettlementQuestionRecap,
+): SettlementQuestionRecap => {
+  const safeMyChoiceIndex =
+    typeof recap.myChoiceIndex === "number" ? recap.myChoiceIndex : null;
+
+  return {
+    ...recap,
+    myResult: recap.myResult ?? "unanswered",
+    myChoiceIndex: safeMyChoiceIndex,
+    choices: recap.choices.map((choice) => ({
+      index: choice.index,
+      title: choice.title,
+      isCorrect: Boolean(choice.isCorrect ?? choice.index === recap.correctChoiceIndex),
+      isSelectedByMe: Boolean(
+        choice.isSelectedByMe ??
+          (safeMyChoiceIndex !== null && choice.index === safeMyChoiceIndex),
+      ),
+    })),
+    answersByClientId: recap.answersByClientId
+      ? Object.fromEntries(
+          Object.entries(recap.answersByClientId).map(([clientId, answer]) => [
+            clientId,
+            {
+              choiceIndex: answer.choiceIndex ?? null,
+              result: answer.result ?? "unanswered",
+              answeredAtMs: answer.answeredAtMs ?? answer.firstAnsweredAtMs ?? null,
+            },
+          ]),
+        )
+      : undefined,
+  };
+};
 
 const parseSummaryPlaylistLabel = (summary: RoomSettlementHistorySummary) => {
   const json = summary.summaryJson;
@@ -115,10 +265,15 @@ const RoomHistoryPage: React.FC = () => {
   const [replayByMatchId, setReplayByMatchId] = useState<
     Record<string, RoomSettlementSnapshot>
   >({});
+  const [historyDisplayMode, setHistoryDisplayMode] =
+    useState<HistoryListDisplayMode>("expanded");
   const [collapsedRoomGroups, setCollapsedRoomGroups] = useState<
     Record<string, boolean>
   >({});
   const inFlightReplayMatchIdsRef = useRef<Set<string>>(new Set());
+  const groupContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const groupVisibilityTimerIdsRef = useRef<number[]>([]);
+  const lastExpandedGroupKeyRef = useRef<string | null>(null);
 
   const historyListCacheKey = useMemo(
     () => buildHistoryListCacheKey(clientId),
@@ -132,6 +287,126 @@ const RoomHistoryPage: React.FC = () => {
     0,
   );
 
+  const setGroupContainerRef = useCallback(
+    (groupKey: string, node: HTMLDivElement | null) => {
+      if (node) {
+        groupContainerRefs.current[groupKey] = node;
+        return;
+      }
+      delete groupContainerRefs.current[groupKey];
+    },
+    [],
+  );
+
+  const resolveScrollableParent = useCallback((node: HTMLElement) => {
+    let current: HTMLElement | null = node.parentElement;
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+      const isScrollable =
+        (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+        current.scrollHeight > current.clientHeight + 1;
+      if (isScrollable) return current;
+      current = current.parentElement;
+    }
+    return null;
+  }, []);
+
+  const ensureExpandedGroupVisible = useCallback(
+    (
+      groupKey: string,
+      options?: {
+        behavior?: ScrollBehavior;
+        minDelta?: number;
+      },
+    ) => {
+      if (typeof window === "undefined") return;
+      const container = groupContainerRefs.current[groupKey];
+      if (!container) return;
+      const behavior = options?.behavior ?? "smooth";
+      const minDelta = options?.minDelta ?? 1.5;
+
+      const scrollParent = resolveScrollableParent(container);
+      const rect = container.getBoundingClientRect();
+
+      let viewportTop = 16;
+      let viewportBottom = window.innerHeight - 16;
+      let applyScrollBy: ((delta: number) => void) | null = null;
+
+      if (scrollParent) {
+        const parentRect = scrollParent.getBoundingClientRect();
+        viewportTop = parentRect.top + 12;
+        viewportBottom = parentRect.bottom - 12;
+        applyScrollBy = (delta: number) => {
+          scrollParent.scrollBy({ top: delta, behavior });
+        };
+      } else {
+        applyScrollBy = (delta: number) => {
+          window.scrollBy({ top: delta, behavior });
+        };
+      }
+
+      const viewportHeight = viewportBottom - viewportTop;
+      const canFitAll = rect.height <= viewportHeight;
+      let delta = 0;
+
+      if (canFitAll) {
+        if (rect.top < viewportTop) {
+          delta = rect.top - viewportTop;
+        } else if (rect.bottom > viewportBottom) {
+          delta = rect.bottom - viewportBottom;
+        }
+      } else if (rect.top < viewportTop || rect.bottom > viewportBottom) {
+        delta = rect.top - viewportTop;
+      }
+
+      if (Math.abs(delta) > minDelta && applyScrollBy) {
+        applyScrollBy(delta);
+      }
+    },
+    [resolveScrollableParent],
+  );
+
+  const clearGroupVisibilityTimers = useCallback(() => {
+    if (typeof window === "undefined") return;
+    groupVisibilityTimerIdsRef.current.forEach((timerId) =>
+      window.clearTimeout(timerId),
+    );
+    groupVisibilityTimerIdsRef.current = [];
+  }, []);
+
+  const queueExpandedGroupVisibility = useCallback(
+    (groupKey: string) => {
+      if (typeof window === "undefined") return;
+      if (lastExpandedGroupKeyRef.current !== groupKey) {
+        clearGroupVisibilityTimers();
+      }
+      lastExpandedGroupKeyRef.current = groupKey;
+
+      [120, 460].forEach((delay) => {
+        const timerId = window.setTimeout(() => {
+          ensureExpandedGroupVisible(
+            groupKey,
+            delay >= 460
+              ? { behavior: "auto", minDelta: 18 }
+              : { behavior: "smooth", minDelta: 1.5 },
+          );
+          groupVisibilityTimerIdsRef.current =
+            groupVisibilityTimerIdsRef.current.filter((id) => id !== timerId);
+        }, delay);
+        groupVisibilityTimerIdsRef.current.push(timerId);
+      });
+    },
+    [clearGroupVisibilityTimers, ensureExpandedGroupVisible],
+  );
+
+  useEffect(
+    () => () => {
+      clearGroupVisibilityTimers();
+    },
+    [clearGroupVisibilityTimers],
+  );
+
   const selectedSummary = useMemo(
     () => items.find((item) => item.matchId === selectedMatchId) ?? null,
     [items, selectedMatchId],
@@ -139,6 +414,26 @@ const RoomHistoryPage: React.FC = () => {
   const selectedReplay = selectedMatchId ? replayByMatchId[selectedMatchId] : null;
   const isLoadingSelectedReplay =
     Boolean(selectedMatchId) && loadingReplayMatchId === selectedMatchId;
+  const normalizedSelectedQuestionRecaps = useMemo(() => {
+    if (!selectedReplay?.questionRecaps) return undefined;
+    return selectedReplay.questionRecaps.map(normalizeQuestionRecap);
+  }, [selectedReplay?.questionRecaps]);
+
+  const getSelfRankForSummary = useCallback(
+    (summary: RoomSettlementHistorySummary) => {
+      const rankFromSummary = readSelfRankFromSummary(summary);
+      if (rankFromSummary !== null) return rankFromSummary;
+
+      const replay = replayByMatchId[summary.matchId];
+      if (!replay || !clientId) return null;
+      const sorted = replay.participants
+        .slice()
+        .sort((a, b) => b.score - a.score);
+      const index = sorted.findIndex((participant) => participant.clientId === clientId);
+      return index >= 0 ? index + 1 : null;
+    },
+    [clientId, replayByMatchId],
+  );
 
   const getBearerToken = useCallback(async () => {
     if (!authToken) return null;
@@ -205,8 +500,8 @@ const RoomHistoryPage: React.FC = () => {
             blockedUntil: Number(parsed.blockedUntil ?? 0),
             requestTimestamps: Array.isArray(parsed.requestTimestamps)
               ? parsed.requestTimestamps
-                  .map((value) => Number(value))
-                  .filter((value) => Number.isFinite(value))
+                .map((value) => Number(value))
+                .filter((value) => Number.isFinite(value))
               : [],
           };
         }
@@ -295,9 +590,8 @@ const RoomHistoryPage: React.FC = () => {
       const params = new URLSearchParams();
       if (clientId) params.set("clientId", clientId);
 
-      const url = `${API_URL}/api/history/matches/${encodeURIComponent(matchId)}${
-        params.size ? `?${params.toString()}` : ""
-      }`;
+      const url = `${API_URL}/api/history/matches/${encodeURIComponent(matchId)}${params.size ? `?${params.toString()}` : ""
+        }`;
 
       const res = await fetch(url, {
         method: "GET",
@@ -485,6 +779,30 @@ const RoomHistoryPage: React.FC = () => {
     }
     return best;
   }, [recentScoredItems]);
+  const recentBestRankEntry = useMemo(() => {
+    let best: { item: RoomSettlementHistorySummary; rank: number } | null = null;
+    for (const item of recentItems) {
+      const rank = readSelfRankFromSummary(item);
+      if (rank === null) continue;
+      const candidate = {
+        rank,
+        playerCount: Math.max(1, item.playerCount),
+        endedAt: item.endedAt,
+      };
+      const currentBest =
+        best === null
+          ? null
+          : {
+              rank: best.rank,
+              playerCount: Math.max(1, best.item.playerCount),
+              endedAt: best.item.endedAt,
+            };
+      if (isBetterRankResult(candidate, currentBest)) {
+        best = { item, rank };
+      }
+    }
+    return best;
+  }, [recentItems]);
   const recentRoomSpread = useMemo(
     () => new Set(recentItems.map((item) => item.roomId)).size,
     [recentItems],
@@ -535,13 +853,30 @@ const RoomHistoryPage: React.FC = () => {
         const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
         if (!groupKey) continue;
         if (!(groupKey in next)) {
-          next[groupKey] = group.items.length > 1;
+          next[groupKey] = historyDisplayMode !== "expanded";
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [groupedHistoryItems]);
+  }, [groupedHistoryItems, historyDisplayMode]);
+
+  useEffect(() => {
+    setCollapsedRoomGroups((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const group of groupedHistoryItems) {
+        const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
+        if (!groupKey) continue;
+        const targetCollapsed = historyDisplayMode !== "expanded";
+        if ((next[groupKey] ?? true) !== targetCollapsed) {
+          next[groupKey] = targetCollapsed;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [groupedHistoryItems, historyDisplayMode]);
 
   const renderMatchRecordCard = useCallback(
     (
@@ -551,11 +886,13 @@ const RoomHistoryPage: React.FC = () => {
         roomLabel?: string | null;
       },
     ) => {
+      const selfRank = getSelfRankForSummary(item);
+      const matchDurationMs = getMatchDurationMs(item.startedAt, item.endedAt);
       return (
         <button
           key={item.matchId}
           type="button"
-          className="group relative block w-full min-w-0 overflow-hidden rounded-[18px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(18,16,12,0.9),rgba(8,7,5,0.98))] px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/24 hover:bg-[linear-gradient(180deg,rgba(24,20,16,0.92),rgba(10,8,6,0.99))] sm:px-5 sm:py-3.5"
+          className="group relative block w-full min-w-0 overflow-hidden rounded-[18px] border border-sky-300/22 bg-[linear-gradient(180deg,rgba(12,18,24,0.9),rgba(6,9,13,0.98))] px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-sky-300/34 hover:bg-[linear-gradient(180deg,rgba(14,22,30,0.94),rgba(7,11,16,0.99))] sm:px-5 sm:py-3.5"
           onClick={() => void openReplayDetail(item)}
           style={
             options?.animationDelayMs
@@ -563,7 +900,7 @@ const RoomHistoryPage: React.FC = () => {
               : undefined
           }
         >
-          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/30 opacity-70 transition group-hover:opacity-100" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/40 opacity-70 transition group-hover:opacity-100" />
           <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 pr-2">
               <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
@@ -579,6 +916,16 @@ const RoomHistoryPage: React.FC = () => {
                   size="small"
                   label={`第 ${item.roundNo} 場`}
                   className="border-amber-300/30 bg-amber-300/10 text-amber-100"
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  label={`名次 ${formatRankFraction(selfRank, item.playerCount)}`}
+                  className={
+                    selfRank !== null
+                      ? "border-amber-300/35 bg-amber-300/14 text-amber-50"
+                      : "border-slate-300/28 bg-slate-300/10 text-slate-200/90"
+                  }
                   variant="outlined"
                 />
                 {item.selfPlayer && (
@@ -608,7 +955,7 @@ const RoomHistoryPage: React.FC = () => {
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]">
                 <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
                   <AccessTime sx={{ fontSize: 16 }} />
-                  <span className="truncate">{formatDateTime(item.endedAt)}</span>
+                  <span className="truncate">遊玩 {formatDuration(matchDurationMs)}</span>
                 </div>
                 <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <Quiz sx={{ fontSize: 16 }} />
@@ -616,9 +963,7 @@ const RoomHistoryPage: React.FC = () => {
                 </div>
                 <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <MeetingRoom sx={{ fontSize: 16 }} />
-                  <span>
-                    {item.playerCount} 人 · {formatRelative(item.endedAt)}
-                  </span>
+                  <span>{item.playerCount} 人</span>
                 </div>
               </div>
             </div>
@@ -635,7 +980,7 @@ const RoomHistoryPage: React.FC = () => {
         </button>
       );
     },
-    [openReplayDetail],
+    [getSelfRankForSummary, openReplayDetail],
   );
 
   const archiveHeader = (
@@ -660,9 +1005,35 @@ const RoomHistoryPage: React.FC = () => {
             <div className="inline-flex items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
               已載入 {recentItems.length} / {HISTORY_PAGE_LIMIT} 場
             </div>
+            <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/28 bg-amber-300/8 p-1">
+              <button
+                type="button"
+                aria-pressed={historyDisplayMode === "expanded"}
+                onClick={() => setHistoryDisplayMode("expanded")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold tracking-[0.08em] transition ${
+                  historyDisplayMode === "expanded"
+                    ? "border border-emerald-300/35 bg-emerald-300/14 text-emerald-100"
+                    : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
+                }`}
+              >
+                完整顯示
+              </button>
+              <button
+                type="button"
+                aria-pressed={historyDisplayMode === "collapsed"}
+                onClick={() => setHistoryDisplayMode("collapsed")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold tracking-[0.08em] transition ${
+                  historyDisplayMode === "collapsed"
+                    ? "border border-amber-300/40 bg-amber-300/16 text-amber-50"
+                    : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
+                }`}
+              >
+                摺疊顯示
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
               disabled={!recentTopScoreEntry}
@@ -670,11 +1041,10 @@ const RoomHistoryPage: React.FC = () => {
                 if (!recentTopScoreEntry) return;
                 void openReplayDetail(recentTopScoreEntry);
               }}
-              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
-                recentTopScoreEntry
-                  ? "border-emerald-300/25 bg-[linear-gradient(180deg,rgba(16,185,129,0.14),rgba(5,30,24,0.78))] hover:-translate-y-0.5 hover:border-emerald-300/45"
-                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
-              }`}
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${recentTopScoreEntry
+                ? "border-emerald-300/25 bg-[linear-gradient(180deg,rgba(16,185,129,0.14),rgba(5,30,24,0.78))] hover:-translate-y-0.5 hover:border-emerald-300/45"
+                : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+                }`}
             >
               <div className="flex h-full flex-col">
                 <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
@@ -702,16 +1072,57 @@ const RoomHistoryPage: React.FC = () => {
 
             <button
               type="button"
+              disabled={!recentBestRankEntry}
+              onClick={() => {
+                if (!recentBestRankEntry) return;
+                void openReplayDetail(recentBestRankEntry.item);
+              }}
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
+                recentBestRankEntry
+                  ? "border-amber-300/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.16),rgba(40,24,8,0.78))] hover:-translate-y-0.5 hover:border-amber-300/50"
+                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+              }`}
+            >
+              <div className="flex h-full flex-col">
+                <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
+                  近10把最佳名次
+                </div>
+                <div className="mt-2 text-4xl font-semibold leading-none text-[var(--mc-text)]">
+                  {loadingList
+                    ? "-"
+                    : recentBestRankEntry
+                      ? formatRankFraction(
+                          recentBestRankEntry.rank,
+                          recentBestRankEntry.item.playerCount,
+                        )
+                      : "-"}
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 text-xs text-[var(--mc-text-muted)]">
+                  <span className="min-w-0 truncate whitespace-nowrap">
+                    {recentBestRankEntry
+                      ? `第 ${recentBestRankEntry.item.roundNo} 場`
+                      : "尚無可用名次資料"}
+                  </span>
+                  {recentBestRankEntry && (
+                    <span className="rounded-full border border-amber-300/38 bg-amber-300/14 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-amber-50">
+                      查看
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
               disabled={!recentBestComboEntry}
               onClick={() => {
                 if (!recentBestComboEntry) return;
                 void openReplayDetail(recentBestComboEntry);
               }}
-              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
-                recentBestComboEntry
-                  ? "border-fuchsia-300/22 bg-[linear-gradient(180deg,rgba(116,58,176,0.14),rgba(22,12,32,0.78))] hover:-translate-y-0.5 hover:border-fuchsia-300/38"
-                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
-              }`}
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${recentBestComboEntry
+                ? "border-fuchsia-300/22 bg-[linear-gradient(180deg,rgba(116,58,176,0.14),rgba(22,12,32,0.78))] hover:-translate-y-0.5 hover:border-fuchsia-300/38"
+                : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+                }`}
             >
               <div className="flex h-full flex-col">
                 <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
@@ -746,11 +1157,10 @@ const RoomHistoryPage: React.FC = () => {
                 if (!recentBestAccuracyEntry) return;
                 void openReplayDetail(recentBestAccuracyEntry.item);
               }}
-              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${
-                recentBestAccuracyEntry
-                  ? "border-sky-300/24 bg-[linear-gradient(180deg,rgba(14,116,144,0.16),rgba(7,23,38,0.8))] hover:-translate-y-0.5 hover:border-sky-300/45"
-                  : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
-              }`}
+              className={`min-h-[112px] rounded-2xl border p-3.5 text-left transition ${recentBestAccuracyEntry
+                ? "border-sky-300/24 bg-[linear-gradient(180deg,rgba(14,116,144,0.16),rgba(7,23,38,0.8))] hover:-translate-y-0.5 hover:border-sky-300/45"
+                : "cursor-default border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)]"
+                }`}
             >
               <div className="flex h-full flex-col">
                 <div className="text-xs uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
@@ -838,205 +1248,234 @@ const RoomHistoryPage: React.FC = () => {
       ) : (
         <>
           <div className="space-y-4 sm:space-y-[18px]">
-          {groupedHistoryItems.map((group, groupIndex) => {
-            const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
-            if (!groupKey) return null;
-            const isMultiGroup = group.items.length > 1;
-            const collapsed = isMultiGroup
-              ? (collapsedRoomGroups[groupKey] ?? true)
-              : false;
-            const latestItem = group.items[0] ?? null;
-            const groupBestScore = group.items.reduce(
-              (max, entry) => Math.max(max, entry.selfPlayer?.finalScore ?? 0),
-              0,
-            );
-            const previewRounds = group.items
-              .slice(0, 3)
-              .map((entry) => `第 ${entry.roundNo} 場`)
-              .join(" · ");
-            const startRoundNo = group.items[group.items.length - 1]?.roundNo ?? null;
-
-            if (!isMultiGroup && latestItem) {
-              return (
-                <div key={groupKey} className="relative">
-                  {renderMatchRecordCard(latestItem, {
-                    animationDelayMs: groupIndex * 60,
-                    roomLabel: group.roomName || group.roomId,
-                  })}
-                </div>
+            {groupedHistoryItems.map((group, groupIndex) => {
+              const groupKey = group.roomId || group.roomName || group.items[0]?.matchId;
+              if (!groupKey) return null;
+              const collapsed =
+                historyDisplayMode === "expanded"
+                  ? false
+                  : (collapsedRoomGroups[groupKey] ?? true);
+              const firstItem = group.items[group.items.length - 1] ?? null;
+              const firstPlayedAt = firstItem?.startedAt ?? firstItem?.endedAt ?? 0;
+              const groupBestScore = group.items.reduce(
+                (max, entry) => Math.max(max, entry.selfPlayer?.finalScore ?? 0),
+                0,
               );
-            }
+              const groupBestRank = group.items.reduce<{
+                rank: number;
+                playerCount: number;
+                endedAt: number;
+              } | null>((best, entry) => {
+                const rank = getSelfRankForSummary(entry);
+                if (rank === null) return best;
+                const next = {
+                  rank,
+                  playerCount: entry.playerCount,
+                  endedAt: entry.endedAt,
+                };
+                return isBetterRankResult(next, best) ? next : best;
+              }, null);
+              const groupTotalQuestionCount = group.items.reduce(
+                (sum, entry) => sum + Math.max(0, entry.questionCount),
+                0,
+              );
+              const groupTotalDurationMs = group.items.reduce((sum, entry) => {
+                const duration = getMatchDurationMs(entry.startedAt, entry.endedAt);
+                return sum + (duration ?? 0);
+              }, 0);
 
-            return (
-              <div key={groupKey} className="relative space-y-1.5">
-                <div className="relative">
-                  {collapsed && (
-                    <>
-                      <span
-                        className="pointer-events-none absolute inset-x-6 top-0 z-0 h-full rounded-[18px] border border-amber-300/12 bg-[linear-gradient(180deg,rgba(14,11,9,0.88),rgba(7,6,4,0.95))]"
-                        style={{ transform: "translateY(12px)" }}
-                      />
-                      <span
-                        className="pointer-events-none absolute inset-x-3 top-0 z-10 h-full rounded-[18px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(16,13,10,0.92),rgba(8,7,5,0.98))]"
-                        style={{ transform: "translateY(7px)" }}
-                      />
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    className={`group relative z-20 block w-full min-w-0 overflow-hidden rounded-[18px] border px-4 py-3 text-left transition duration-200 sm:px-5 sm:py-3.5 ${
-                      collapsed
-                        ? "border-amber-300/42 bg-[linear-gradient(180deg,rgba(22,18,13,0.98),rgba(10,8,6,1))] shadow-[0_10px_22px_-22px_rgba(245,158,11,0.3)] hover:border-amber-300/58"
-                        : "border-amber-300/55 bg-[linear-gradient(180deg,rgba(24,20,14,0.97),rgba(10,8,6,1))] shadow-[0_12px_24px_-20px_rgba(245,158,11,0.42)]"
-                    }`}
-                    aria-expanded={!collapsed}
-                    onClick={() =>
-                      setCollapsedRoomGroups((prev) => {
-                        const currentlyCollapsed = prev[groupKey] ?? true;
-                        if (currentlyCollapsed) {
-                          const next: Record<string, boolean> = {};
-                          for (const candidate of groupedHistoryItems) {
-                            const candidateKey =
-                              candidate.roomId ||
-                              candidate.roomName ||
-                              candidate.items[0]?.matchId;
-                            if (!candidateKey || candidate.items.length <= 1) continue;
-                            next[candidateKey] = candidateKey !== groupKey;
-                          }
-                          return next;
-                        }
-                        return { ...prev, [groupKey]: true };
-                      })
-                    }
-                  >
-                    <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-amber-300/45 opacity-85 transition group-hover:opacity-100" />
-                    <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
-                          <Chip
-                            size="small"
-                            label={group.roomName || group.roomId}
-                            className="border-amber-300/22 bg-amber-300/8 text-amber-100"
-                            variant="outlined"
-                          />
-                          <Chip
-                            size="small"
-                            label={`集合 ${group.items.length} 場`}
-                            className="border-amber-300/30 bg-amber-300/12 text-amber-50"
-                            variant="outlined"
-                          />
-                          {groupBestScore > 0 && (
-                            <Chip
-                              size="small"
-                              label={`最佳 ${groupBestScore}`}
-                              className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
-                              variant="outlined"
-                            />
-                          )}
-                          {latestItem && (
-                            <Chip
-                              size="small"
-                              label={`最近 ${formatRelative(latestItem.endedAt) || formatDateTime(latestItem.endedAt)}`}
-                              className="border-sky-300/25 bg-sky-300/10 text-sky-100"
-                              variant="outlined"
-                            />
-                          )}
-                        </div>
-
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]">
-                          <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                            <AccessTime sx={{ fontSize: 16 }} />
-                            <span className="truncate">
-                              {latestItem ? formatDateTime(latestItem.endedAt) : "-"}
-                            </span>
-                          </div>
-                          <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                            <Quiz sx={{ fontSize: 16 }} />
-                            <span>{latestItem ? `最近 ${latestItem.questionCount} 題` : "-"}</span>
-                          </div>
-                          <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                            <MeetingRoom sx={{ fontSize: 16 }} />
-                            <span>
-                              {collapsed
-                                ? `可展開集合：從第 ${startRoundNo ?? "-"} 場開始${previewRounds ? `（${previewRounds}）` : ""}`
-                                : "集合已展開，點擊收合"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 self-start text-right sm:self-center sm:pr-1">
-                        <span className="mb-1.5 hidden items-center justify-end text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/72 sm:flex">
-                          Collection
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.12em] transition ${
-                            collapsed
-                              ? "border-amber-300/45 bg-amber-300/16 text-amber-50"
-                              : "border-amber-300/52 bg-amber-300/18 text-amber-50"
-                          }`}
-                        >
-                          {collapsed ? `展開 ${group.items.length} 場` : "收合集合"}
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/45 bg-amber-300/12">
-                            <ChevronRightRounded
-                              sx={{
-                                fontSize: 14,
-                                transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
-                                transition: "transform 180ms ease",
-                              }}
-                            />
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
+              return (
                 <div
-                  className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${
-                    collapsed
+                  key={groupKey}
+                  className="relative space-y-1.5"
+                  ref={(node) => setGroupContainerRef(groupKey, node)}
+                >
+                  <div className="relative">
+                    {collapsed && (
+                      <>
+                        <span
+                          className="pointer-events-none absolute inset-x-6 top-0 z-0 h-full rounded-[18px] border border-amber-300/12 bg-[linear-gradient(180deg,rgba(14,11,9,0.88),rgba(7,6,4,0.95))]"
+                          style={{ transform: "translateY(12px)" }}
+                        />
+                        <span
+                          className="pointer-events-none absolute inset-x-3 top-0 z-10 h-full rounded-[18px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(16,13,10,0.92),rgba(8,7,5,0.98))]"
+                          style={{ transform: "translateY(7px)" }}
+                        />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className={`group relative z-20 block w-full min-w-0 overflow-hidden rounded-[18px] border px-4 py-3 text-left transition duration-200 sm:px-5 sm:py-3.5 ${
+                        historyDisplayMode === "expanded"
+                          ? "cursor-default border-amber-300/45 bg-[linear-gradient(180deg,rgba(24,20,14,0.97),rgba(10,8,6,1))] shadow-[0_12px_24px_-20px_rgba(245,158,11,0.38)]"
+                          : collapsed
+                            ? "border-amber-300/42 bg-[linear-gradient(180deg,rgba(22,18,13,0.98),rgba(10,8,6,1))] shadow-[0_10px_22px_-22px_rgba(245,158,11,0.3)] hover:border-amber-300/58"
+                            : "border-amber-300/55 bg-[linear-gradient(180deg,rgba(24,20,14,0.97),rgba(10,8,6,1))] shadow-[0_12px_24px_-20px_rgba(245,158,11,0.42)]"
+                      }`}
+                      disabled={historyDisplayMode === "expanded"}
+                      aria-expanded={!collapsed}
+                      onClick={() => {
+                        if (historyDisplayMode === "expanded") return;
+                        const willExpand = collapsed;
+                        setCollapsedRoomGroups((prev) => {
+                          const currentlyCollapsed = prev[groupKey] ?? true;
+                          if (currentlyCollapsed) {
+                            const next: Record<string, boolean> = {};
+                            for (const candidate of groupedHistoryItems) {
+                              const candidateKey =
+                                candidate.roomId ||
+                                candidate.roomName ||
+                                candidate.items[0]?.matchId;
+                              if (!candidateKey) continue;
+                              next[candidateKey] = candidateKey !== groupKey;
+                            }
+                            return next;
+                          }
+                          return { ...prev, [groupKey]: true };
+                        });
+                        if (willExpand) {
+                          queueExpandedGroupVisibility(groupKey);
+                        }
+                      }}
+                    >
+                      <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-amber-300/45 opacity-85 transition group-hover:opacity-100" />
+                      <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                            <Chip
+                              size="small"
+                              label={group.roomName || group.roomId}
+                              className="border-amber-300/22 bg-amber-300/8 text-amber-100"
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={`資料集 ${group.items.length} 場`}
+                              className="border-amber-300/36 bg-amber-300/18 text-amber-50"
+                              variant="outlined"
+                            />
+                            {groupBestScore > 0 && (
+                              <Chip
+                                size="small"
+                                label={`最佳 ${groupBestScore}`}
+                                className="border-emerald-300/30 bg-emerald-300/10 text-emerald-100"
+                                variant="outlined"
+                              />
+                            )}
+                            <Chip
+                              size="small"
+                              label={`最佳名次 ${formatRankFraction(
+                                groupBestRank?.rank ?? null,
+                                groupBestRank?.playerCount,
+                              )}`}
+                              className={
+                                groupBestRank !== null
+                                  ? "border-amber-300/35 bg-amber-300/14 text-amber-50"
+                                  : "border-slate-300/28 bg-slate-300/10 text-slate-200/90"
+                              }
+                              variant="outlined"
+                            />
+                          </div>
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]">
+                            <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                              <AccessTime sx={{ fontSize: 16 }} />
+                              <span className="truncate">
+                                首場 {formatMonthDayTime(firstPlayedAt)}
+                              </span>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <TimerOutlined sx={{ fontSize: 16 }} />
+                              <span>
+                                總遊玩 {formatDuration(groupTotalDurationMs)}
+                              </span>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <Quiz sx={{ fontSize: 16 }} />
+                              <span>
+                                總題數 {groupTotalQuestionCount} 題
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 self-start text-right sm:self-center sm:pr-1">
+                          <span className="mb-1.5 hidden items-center justify-end text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-100/72 sm:flex">
+                            Collection
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-semibold tracking-[0.12em] transition ${
+                              historyDisplayMode === "expanded"
+                                ? "border-emerald-300/42 bg-emerald-300/14 text-emerald-100"
+                                : collapsed
+                                  ? "border-amber-300/45 bg-amber-300/16 text-amber-50"
+                                  : "border-amber-300/52 bg-amber-300/18 text-amber-50"
+                            }`}
+                          >
+                            {historyDisplayMode === "expanded"
+                              ? "完整顯示"
+                              : collapsed
+                                ? "展開"
+                                : "收合"}
+                            {historyDisplayMode !== "expanded" && (
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/45 bg-amber-300/12">
+                                <ChevronRightRounded
+                                  sx={{
+                                    fontSize: 14,
+                                    transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
+                                    transition: "transform 180ms ease",
+                                  }}
+                                />
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${collapsed
                       ? "mt-0 grid-rows-[0fr] opacity-0"
                       : "mt-1 grid-rows-[1fr] opacity-100"
-                  }`}
-                >
-                  <div
-                    className={
-                      collapsed
-                        ? "pointer-events-none min-h-0 overflow-hidden"
-                        : "min-h-0 overflow-hidden"
-                    }
+                      }`}
                   >
-                    <div className="space-y-1.5 border-l border-amber-300/26 pl-3 sm:pl-4">
-                      {group.items.map((item, itemIndex) => (
-                        <div
-                          key={item.matchId}
-                          className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${
-                            collapsed
+                    <div
+                      className={
+                        collapsed
+                          ? "pointer-events-none min-h-0 overflow-hidden"
+                          : "min-h-0 overflow-hidden"
+                      }
+                    >
+                      <div className="space-y-1.5 border-l border-amber-300/26 pl-3 sm:pl-4">
+                        {group.items.map((item, itemIndex) => (
+                          <div
+                            key={item.matchId}
+                            className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${collapsed
                               ? "translate-y-2 opacity-0"
                               : "translate-y-0 opacity-100"
-                          }`}
-                          style={{
-                            transitionDelay: collapsed
-                              ? "0ms"
-                              : `${50 + itemIndex * 35}ms`,
-                          }}
-                        >
-                          <span
-                            className={`pointer-events-none absolute -left-3 top-1/2 h-px w-3 -translate-y-1/2 bg-amber-300/48 transition-opacity duration-300 ${
-                              collapsed ? "opacity-0" : "opacity-100"
-                            }`}
-                          />
-                          {renderMatchRecordCard(item, {
-                            animationDelayMs: groupIndex * 40 + itemIndex * 28,
-                          })}
-                        </div>
-                      ))}
+                              }`}
+                            style={{
+                              transitionDelay: collapsed
+                                ? "0ms"
+                                : `${50 + itemIndex * 35}ms`,
+                            }}
+                          >
+                            <span
+                              className={`pointer-events-none absolute -left-3 top-1/2 h-px w-3 -translate-y-1/2 bg-amber-300/48 transition-opacity duration-300 ${collapsed ? "opacity-0" : "opacity-100"
+                                }`}
+                            />
+                            {renderMatchRecordCard(item, {
+                              animationDelayMs: groupIndex * 40 + itemIndex * 28,
+                            })}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
           </div>
           <div className="px-1 text-xs text-[var(--mc-text-muted)]/80">
             {oldestRecentEntry
@@ -1081,8 +1520,12 @@ const RoomHistoryPage: React.FC = () => {
               對戰詳情
             </h2>
             <p className="mt-1 text-sm text-[var(--mc-text-muted)]">
-              {formatDateTime(selectedSummary.endedAt)} · {selectedSummary.playerCount} 人 ·{" "}
-              {selectedSummary.questionCount} 題
+              開始 {formatDateTime(selectedSummary.startedAt)} · 結束{" "}
+              {formatDateTime(selectedSummary.endedAt)} · 遊玩{" "}
+              {formatDuration(
+                getMatchDurationMs(selectedSummary.startedAt, selectedSummary.endedAt),
+              )}{" "}
+              · {selectedSummary.playerCount} 人 · {selectedSummary.questionCount} 題
             </p>
           </div>
 
@@ -1137,7 +1580,7 @@ const RoomHistoryPage: React.FC = () => {
             startedAt={selectedReplay.startedAt}
             endedAt={selectedReplay.endedAt}
             meClientId={clientId}
-            questionRecaps={selectedReplay.questionRecaps}
+            questionRecaps={normalizedSelectedQuestionRecaps}
             hideActions
             mode="history"
           />
@@ -1159,3 +1602,5 @@ const RoomHistoryPage: React.FC = () => {
 };
 
 export default RoomHistoryPage;
+
+
