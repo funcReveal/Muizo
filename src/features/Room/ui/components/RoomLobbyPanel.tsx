@@ -134,6 +134,8 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const [suggestError, setSuggestError] = useState<string | null>(null);
   const [suggestNotice, setSuggestNotice] = useState<string | null>(null);
+  const lastCollectionRequestScopeRef = useRef<"public" | "owner" | null>(null);
+  const hasRequestedYoutubeRef = useRef(false);
   const cooldownTimerRef = useRef<number | null>(null);
   const cooldownIntervalRef = useRef<number | null>(null);
   const SUGGESTION_COOLDOWN_MS = 5000;
@@ -198,15 +200,34 @@ const SuggestionPanel: React.FC<SuggestionPanelProps> = ({
   })();
 
   useEffect(() => {
-    if (suggestType !== "collection") return;
+    if (suggestType !== "collection") {
+      return;
+    }
+    if (lastCollectionRequestScopeRef.current === collectionScope) {
+      return;
+    }
+    lastCollectionRequestScopeRef.current = collectionScope;
     requestCollections(collectionScope);
   }, [collectionScope, requestCollections, suggestType]);
 
   useEffect(() => {
     if (suggestType !== "youtube") return;
     if (!isGoogleAuthed) return;
+    if (hasRequestedYoutubeRef.current) return;
+    hasRequestedYoutubeRef.current = true;
     requestYoutubePlaylists();
   }, [isGoogleAuthed, requestYoutubePlaylists, suggestType]);
+
+  useEffect(() => {
+    if (suggestType !== "youtube") {
+      hasRequestedYoutubeRef.current = false;
+    }
+  }, [suggestType]);
+
+  useEffect(() => {
+    if (isGoogleAuthed) return;
+    hasRequestedYoutubeRef.current = false;
+  }, [isGoogleAuthed]);
 
   useEffect(() => {
     if (cooldownTimerRef.current) {
@@ -730,6 +751,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const [selectedYoutubePlaylistId, setSelectedYoutubePlaylistId] = useState<
     string | null
   >(null);
+  const hostCollectionAutoRequestKeyRef = useRef<string | null>(null);
+  const hostYoutubeAutoRequestedRef = useRef(false);
   const isCompactLobbyLayout = useMediaQuery("(max-width:1180px)");
   const isMobileLobbyLayout = useMediaQuery("(max-width:640px)");
   const isHostPanelCollapsible = false;
@@ -1005,17 +1028,32 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     if (isGoogleAuthed) return;
     lastRequestedYoutubeRef.current = false;
     hasAttemptedYoutubeFetchRef.current = false;
+    hostYoutubeAutoRequestedRef.current = false;
   }, [isGoogleAuthed]);
 
   useEffect(() => {
     if (hostSourceType !== "collection") return;
+    const requestKey = collectionScope;
+    if (hostCollectionAutoRequestKeyRef.current === requestKey) return;
+    hostCollectionAutoRequestKeyRef.current = requestKey;
     requestCollections(collectionScope);
   }, [collectionScope, hostSourceType, requestCollections]);
 
   useEffect(() => {
     if (hostSourceType !== "youtube") return;
+    if (hostYoutubeAutoRequestedRef.current) return;
+    hostYoutubeAutoRequestedRef.current = true;
     requestYoutubePlaylists();
   }, [hostSourceType, isGoogleAuthed, requestYoutubePlaylists]);
+
+  useEffect(() => {
+    if (hostSourceType !== "collection") {
+      hostCollectionAutoRequestKeyRef.current = null;
+    }
+    if (hostSourceType !== "youtube") {
+      hostYoutubeAutoRequestedRef.current = false;
+    }
+  }, [hostSourceType]);
 
   const latestSuggestionAt = playlistSuggestions.reduce(
     (max, suggestion) => Math.max(max, suggestion.suggestedAt),
