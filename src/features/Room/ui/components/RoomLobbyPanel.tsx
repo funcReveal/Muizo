@@ -42,11 +42,13 @@ import type { YoutubePlaylist } from "../../model/RoomContext";
 import {
   clampPlayDurationSec,
   clampQuestionCount,
+  clampRevealDurationSec,
   clampStartOffsetSec,
   getQuestionMax,
 } from "../../model/roomUtils";
 import {
   DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_REVEAL_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
@@ -54,6 +56,8 @@ import {
   PLAY_DURATION_MIN,
   QUESTION_MIN,
   QUESTION_STEP,
+  REVEAL_DURATION_MAX,
+  REVEAL_DURATION_MIN,
   START_OFFSET_MAX,
   START_OFFSET_MIN,
 } from "../../model/roomConstants";
@@ -626,6 +630,7 @@ interface RoomLobbyPanelProps {
     password?: string | null;
     questionCount?: number;
     playDurationSec?: number;
+    revealDurationSec?: number;
     startOffsetSec?: number;
     allowCollectionClipTiming?: boolean;
     maxPlayers?: number | null;
@@ -755,6 +760,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     useState(QUESTION_MIN);
   const [settingsPlayDurationSec, setSettingsPlayDurationSec] = useState(
     DEFAULT_PLAY_DURATION_SEC,
+  );
+  const [settingsRevealDurationSec, setSettingsRevealDurationSec] = useState(
+    DEFAULT_REVEAL_DURATION_SEC,
   );
   const [settingsStartOffsetSec, setSettingsStartOffsetSec] = useState(
     DEFAULT_START_OFFSET_SEC,
@@ -913,6 +921,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const roomPlayDurationSec = clampPlayDurationSec(
     currentRoom?.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
   );
+  const roomRevealDurationSec = clampRevealDurationSec(
+    currentRoom?.gameSettings?.revealDurationSec ?? DEFAULT_REVEAL_DURATION_SEC,
+  );
   const roomStartOffsetSec = clampStartOffsetSec(
     currentRoom?.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
   );
@@ -944,8 +955,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   };
   const isCollectionsEmptyNotice = Boolean(
     collectionsError &&
-      (collectionsError.toLowerCase().includes("no collections") ||
-        collectionsError.includes("沒有收藏庫")),
+    (collectionsError.toLowerCase().includes("no collections") ||
+      collectionsError.includes("沒有收藏庫")),
   );
   const visibleCollectionsError = React.useMemo(() => {
     if (!collectionsError || isCollectionsEmptyNotice) {
@@ -1091,11 +1102,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     );
     const basePlayDurationSec =
       currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC;
+    const baseRevealDurationSec =
+      currentRoom.gameSettings?.revealDurationSec ?? DEFAULT_REVEAL_DURATION_SEC;
     const baseStartOffsetSec =
       currentRoom.gameSettings?.startOffsetSec ?? DEFAULT_START_OFFSET_SEC;
     const baseAllowCollectionClipTiming =
       currentRoom.gameSettings?.allowCollectionClipTiming ?? true;
     setSettingsPlayDurationSec(clampPlayDurationSec(basePlayDurationSec));
+    setSettingsRevealDurationSec(clampRevealDurationSec(baseRevealDurationSec));
     setSettingsStartOffsetSec(clampStartOffsetSec(baseStartOffsetSec));
     setSettingsAllowCollectionClipTiming(baseAllowCollectionClipTiming);
     setSettingsMaxPlayers(
@@ -1146,12 +1160,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       questionMaxLimit,
     );
     const nextPlayDurationSec = clampPlayDurationSec(settingsPlayDurationSec);
+    const nextRevealDurationSec = clampRevealDurationSec(settingsRevealDurationSec);
     const nextStartOffsetSec = clampStartOffsetSec(settingsStartOffsetSec);
     const payload = {
       name: trimmedName,
       visibility: settingsVisibility,
       questionCount: nextQuestionCount,
       playDurationSec: nextPlayDurationSec,
+      revealDurationSec: nextRevealDurationSec,
       startOffsetSec: nextStartOffsetSec,
       allowCollectionClipTiming: settingsAllowCollectionClipTiming,
       maxPlayers: nextMaxPlayers,
@@ -1274,6 +1290,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     const item = playlistItems[index];
     const displayTitle = normalizeDisplayText(item.title, `未命名歌曲 ${index + 1}`);
     const displayUploader = normalizeDisplayText(item.uploader ?? "", "Unknown");
+
     return (
       <div style={style}>
         <div className="room-lobby-playlist-row px-3 py-2 flex items-center gap-2 border-b border-slate-800/60">
@@ -1490,6 +1507,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 size="small"
                 variant="outlined"
                 label={`題數 ${currentRoom?.gameSettings?.questionCount ?? "-"}`}
+                className="text-slate-200 border-slate-600"
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`公布答案 ${roomRevealDurationSec} 秒`}
                 className="text-slate-200 border-slate-600"
               />
               {!roomAllowCollectionClipTiming && (
@@ -1715,17 +1738,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   <Box className="room-lobby-host-controls">
                     <Stack
                       spacing={1}
-                      className={`room-lobby-source-panel room-lobby-source-panel--host ${
-                        hostSourceType === "suggestions"
+                      className={`room-lobby-source-panel room-lobby-source-panel--host ${hostSourceType === "suggestions"
                           ? "room-lobby-source-panel-suggestions"
                           : "room-lobby-source-panel-fixed"
-                      }`}
+                        }`}
                     >
                       <Stack
                         direction="row"
                         className="room-lobby-mode-row room-lobby-mode-row--host"
                       >
-                          <Button
+                        <Button
                           size="small"
                           variant={
                             hostSourceType === "suggestions"
@@ -1745,7 +1767,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                         >
                           玩家推薦
                         </Button>
-                          <Button
+                        <Button
                           size="small"
                           variant={
                             hostSourceType === "playlist" ? "contained" : "outlined"
@@ -2186,7 +2208,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 const isPresenceSystemMessage = msg.userId === "system:presence";
                 const settlementRoundKey =
                   msg.userId === "system:settlement-review" &&
-                  msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
+                    msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
                     ? msg.id.slice(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX.length)
                     : null;
                 const canOpenSettlementReview = Boolean(
@@ -2410,8 +2432,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   variant="outlined"
                   label={
                     useCollectionTimingForSettings
-                      ? "收藏庫時間"
-                      : `${settingsPlayDurationSec}s / ${settingsStartOffsetSec}s`
+                      ? `收藏庫時間 / 揭曉 ${settingsRevealDurationSec}s`
+                      : `${settingsPlayDurationSec}s / ${settingsStartOffsetSec}s / ${settingsRevealDurationSec}s`
                   }
                   className="border-cyan-500/40 text-cyan-200"
                 />
@@ -2549,35 +2571,57 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   <Stack spacing={1.25}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                       <Typography variant="subtitle2" className="text-slate-100">
-                        作答時間與起始設定
+                        時間設定
                       </Typography>
                       <Chip
                         size="small"
                         variant="outlined"
                         label={
                           useCollectionTimingForSettings
-                            ? "收藏庫片段"
-                            : `${settingsPlayDurationSec}s / ${settingsStartOffsetSec}s`
+                            ? `揭曉 ${settingsRevealDurationSec}s（收藏庫片段）`
+                            : `揭曉 ${settingsRevealDurationSec}s / 作答 ${settingsPlayDurationSec}s / 起始 ${settingsStartOffsetSec}s`
                         }
                         className="border-slate-600 text-slate-200"
                       />
                     </Stack>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          size="small"
-                          checked={settingsAllowCollectionClipTiming}
-                          onChange={(_event, checked) => {
-                            setSettingsAllowCollectionClipTiming(checked);
-                            if (settingsError) {
-                              setSettingsError(null);
-                            }
-                          }}
-                          disabled={settingsDisabled}
-                        />
-                      }
-                      label="使用收藏庫設定的時間"
+                    <TextField
+                      label="公布答案時間 (秒)"
+                      type="number"
+                      value={settingsRevealDurationSec}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        if (!Number.isFinite(next)) return;
+                        setSettingsRevealDurationSec(next);
+                        if (settingsError) {
+                          setSettingsError(null);
+                        }
+                      }}
+                      inputProps={{
+                        min: REVEAL_DURATION_MIN,
+                        max: REVEAL_DURATION_MAX,
+                        inputMode: "numeric",
+                      }}
+                      disabled={settingsDisabled}
+                      fullWidth
                     />
+                    {settingsUseCollectionSource && (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            size="small"
+                            checked={settingsAllowCollectionClipTiming}
+                            onChange={(_event, checked) => {
+                              setSettingsAllowCollectionClipTiming(checked);
+                              if (settingsError) {
+                                setSettingsError(null);
+                              }
+                            }}
+                            disabled={settingsDisabled}
+                          />
+                        }
+                        label="使用收藏庫設定的時間"
+                      />
+                    )}
                     {useCollectionTimingForSettings ? (
                       <Typography variant="caption" className="text-cyan-200/90">
                         已啟用收藏庫時間，作答時間與起始時間已隱藏。

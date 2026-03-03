@@ -33,6 +33,7 @@ const RoomCreatePage: React.FC = () => {
     playlistProgress,
     questionCount,
     playDurationSec,
+    revealDurationSec,
     startOffsetSec,
     allowCollectionClipTiming,
     questionMin,
@@ -62,6 +63,7 @@ const RoomCreatePage: React.FC = () => {
     setPlaylistUrl,
     updateQuestionCount,
     updatePlayDurationSec,
+    updateRevealDurationSec,
     updateStartOffsetSec,
     updateAllowCollectionClipTiming,
     isCreatingRoom,
@@ -168,10 +170,12 @@ const RoomCreatePage: React.FC = () => {
                   playlistProgress={playlistProgress}
                   questionCount={questionCount}
                   playDurationSec={playDurationSec}
+                  revealDurationSec={revealDurationSec}
                   startOffsetSec={startOffsetSec}
                   allowCollectionClipTiming={allowCollectionClipTiming}
                   onQuestionCountChange={updateQuestionCount}
                   onPlayDurationChange={updatePlayDurationSec}
+                  onRevealDurationChange={updateRevealDurationSec}
                   onStartOffsetChange={updateStartOffsetSec}
                   onAllowCollectionClipTimingChange={
                     updateAllowCollectionClipTiming

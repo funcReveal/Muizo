@@ -1,6 +1,13 @@
 ﻿
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Chip } from "@mui/material";
+import { Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
+import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import ShuffleRoundedIcon from "@mui/icons-material/ShuffleRounded";
+import LocalFireDepartmentRoundedIcon from "@mui/icons-material/LocalFireDepartmentRounded";
+import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
+import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
+import AdsClickRoundedIcon from "@mui/icons-material/AdsClickRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 
 import { trackEvent } from "../../../../shared/analytics/track";
 import { useSettingsModel } from "../../../Setting/model/settingsContext";
@@ -17,7 +24,8 @@ import type {
 import type { SettlementQuestionRecap } from "./GameSettlementPanel";
 
 type LiveSettlementTab = "overview" | "recommend";
-type RecommendCategory = "quick" | "confuse" | "hard";
+type RecommendCategory = "quick" | "confuse" | "hard" | "other";
+type PreviewPlaybackMode = "idle" | "auto" | "manual";
 
 type ExtendedRecap = SettlementQuestionRecap & {
   provider?: string;
@@ -67,18 +75,70 @@ const TAB_HINTS: Record<LiveSettlementTab, string> = {
 const RECAPS_PER_PAGE = 12;
 const RECOMMEND_PREVIEW_SECONDS = 15;
 const RECOMMEND_MAX_ITEMS = 5;
-const RECOMMEND_CATEGORY_FLOW: RecommendCategory[] = ["quick", "confuse", "hard"];
+const RECOMMEND_CATEGORY_FLOW: RecommendCategory[] = ["quick", "confuse", "hard", "other"];
+const RECOMMEND_CATEGORY_LABELS: Record<RecommendCategory, string> = {
+  quick: "秒猜精選",
+  confuse: "易混淆",
+  hard: "高難挑戰",
+  other: "其餘歌單",
+};
+const RECOMMEND_CATEGORY_SHORT_HINT: Record<RecommendCategory, string> = {
+  quick: "高答對＋快反應",
+  confuse: "最常改答案",
+  hard: "低答對率挑戰",
+  other: "延伸聆聽",
+};
+const RECOMMEND_CATEGORY_THEME: Record<
+  RecommendCategory,
+  {
+    sectionClass: string;
+    listActiveClass: string;
+    autoWrapClass: string;
+    autoBarClass: string;
+    badgeClass: string;
+  }
+> = {
+  quick: {
+    sectionClass:
+      "border-emerald-300/35 bg-gradient-to-br from-slate-950/78 via-slate-950/62 to-slate-900/78 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.16),0_25px_55px_-45px_rgba(16,185,129,0.55)]",
+    listActiveClass: "border-emerald-300/50 bg-emerald-400/10",
+    autoWrapClass:
+      "border-emerald-300/45 bg-gradient-to-r from-emerald-500/20 via-emerald-400/10 to-slate-900/20 shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_12px_24px_-18px_rgba(16,185,129,0.7)]",
+    autoBarClass: "bg-gradient-to-r from-emerald-300 to-cyan-200",
+    badgeClass: "border-emerald-300/45 bg-emerald-500/16 text-emerald-50",
+  },
+  confuse: {
+    sectionClass:
+      "border-fuchsia-300/35 bg-gradient-to-br from-slate-950/78 via-slate-950/62 to-slate-900/78 shadow-[inset_0_0_0_1px_rgba(217,70,239,0.16),0_25px_55px_-45px_rgba(217,70,239,0.55)]",
+    listActiveClass: "border-fuchsia-300/50 bg-fuchsia-400/10",
+    autoWrapClass:
+      "border-fuchsia-300/45 bg-gradient-to-r from-fuchsia-500/20 via-fuchsia-400/10 to-slate-900/20 shadow-[0_0_0_1px_rgba(217,70,239,0.2),0_12px_24px_-18px_rgba(217,70,239,0.7)]",
+    autoBarClass: "bg-gradient-to-r from-fuchsia-300 to-pink-200",
+    badgeClass: "border-fuchsia-300/45 bg-fuchsia-500/16 text-fuchsia-50",
+  },
+  hard: {
+    sectionClass:
+      "border-amber-300/35 bg-gradient-to-br from-slate-950/78 via-slate-950/62 to-slate-900/78 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.16),0_25px_55px_-45px_rgba(251,191,36,0.55)]",
+    listActiveClass: "border-amber-300/50 bg-amber-400/10",
+    autoWrapClass:
+      "border-amber-300/45 bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-slate-900/20 shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_12px_24px_-18px_rgba(251,191,36,0.7)]",
+    autoBarClass: "bg-gradient-to-r from-amber-300 to-yellow-100",
+    badgeClass: "border-amber-300/45 bg-amber-500/16 text-amber-50",
+  },
+  other: {
+    sectionClass:
+      "border-slate-300/30 bg-gradient-to-br from-slate-950/78 via-slate-950/62 to-slate-900/78 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16),0_25px_55px_-45px_rgba(148,163,184,0.45)]",
+    listActiveClass: "border-slate-300/55 bg-slate-400/10",
+    autoWrapClass:
+      "border-slate-300/45 bg-gradient-to-r from-slate-500/20 via-slate-400/10 to-slate-900/20 shadow-[0_0_0_1px_rgba(148,163,184,0.2),0_12px_24px_-18px_rgba(148,163,184,0.7)]",
+    autoBarClass: "bg-gradient-to-r from-slate-200 to-slate-100",
+    badgeClass: "border-slate-300/45 bg-slate-500/16 text-slate-50",
+  },
+};
 
 const MULTILINE_ELLIPSIS_2: React.CSSProperties = {
   display: "-webkit-box",
   WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
-};
-
-const MULTILINE_ELLIPSIS_3: React.CSSProperties = {
-  display: "-webkit-box",
-  WebkitLineClamp: 3,
   WebkitBoxOrient: "vertical",
   overflow: "hidden",
 };
@@ -104,7 +164,13 @@ const RESULT_META: Record<
   },
 };
 
+const REVIEW_STATUS_BADGE_BASE =
+  "inline-flex h-6 min-w-[4.25rem] items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold";
+
 const AUTO_PREVIEW_STORAGE_KEY = "mq_settlement_auto_preview";
+const REVIEW_DOUBLE_PLAY_STORAGE_KEY = "mq_settlement_review_double_click_play";
+const RECOMMEND_CONTROLS_HINT_STORAGE_KEY =
+  "mq_settlement_recommend_controls_hint_seen";
 
 const readStoredBoolean = (key: string, fallback: boolean) => {
   if (typeof window === "undefined") return fallback;
@@ -209,6 +275,9 @@ const resolveParticipantCount = (
   return Math.max(1, count);
 };
 
+const clampMs = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
 const buildFallbackRecaps = (
   playlistItems: PlaylistItem[],
   trackOrder: number[],
@@ -280,7 +349,11 @@ const resolvePreviewEmbedUrl = (
   if (provider === "youtube") {
     const id = extractYouTubeId(recap.sourceId, recap.videoId, recap.url || link.href);
     if (!id) return null;
-    return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+    const originParam =
+      typeof window !== "undefined" && window.location?.origin
+        ? `&origin=${encodeURIComponent(window.location.origin)}`
+        : "";
+    return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1${originParam}`;
   }
   return null;
 };
@@ -344,14 +417,25 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const [autoPreviewEnabled, setAutoPreviewEnabled] = useState(() =>
     readStoredBoolean(AUTO_PREVIEW_STORAGE_KEY, true),
   );
+  const [reviewDoubleClickPlayEnabled, setReviewDoubleClickPlayEnabled] = useState(
+    () => readStoredBoolean(REVIEW_DOUBLE_PLAY_STORAGE_KEY, true),
+  );
   const [previewCountdownSec, setPreviewCountdownSec] = useState(
     RECOMMEND_PREVIEW_SECONDS,
   );
   const [autoAdvanceAtMs, setAutoAdvanceAtMs] = useState<number | null>(null);
+  const [previewPlaybackMode, setPreviewPlaybackMode] =
+    useState<PreviewPlaybackMode>("idle");
+  const [previewPlayerState, setPreviewPlayerState] = useState<
+    "idle" | "playing" | "paused"
+  >("idle");
   const [selectedRecapKey, setSelectedRecapKey] = useState<string | null>(null);
   const [previewRecapKey, setPreviewRecapKey] = useState<string | null>(null);
+  const [previewSwitchNotice, setPreviewSwitchNotice] = useState<string | null>(null);
   const [reviewPage, setReviewPage] = useState(0);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(true);
+  const [showRecommendControlsHint, setShowRecommendControlsHint] = useState(false);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [tabRenderKey, setTabRenderKey] = useState(0);
   const [tickerNowMs, setTickerNowMs] = useState(() => Date.now());
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -359,8 +443,12 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const recommendPreviewStageRef = useRef<HTMLDivElement | null>(null);
   const celebrationKeyRef = useRef<string | null>(null);
   const autoAdvanceTimeoutRef = useRef<number | null>(null);
-  const hasAutoCenteredRecommendRef = useRef(false);
+  const autoCenteredRecommendRoundKeyRef = useRef<string | null>(null);
   const previewVolumeRetryTimersRef = useRef<number[]>([]);
+  const previewSwitchNoticeTimerRef = useRef<number | null>(null);
+  const recommendControlsHintTimerRef = useRef<number | null>(null);
+  const previewStatePollTimerRef = useRef<number | null>(null);
+  const previewBridgeRetryTimersRef = useRef<number[]>([]);
 
   const stepIndex = TAB_ORDER.indexOf(activeTab);
   const sortedParticipants = useMemo(
@@ -541,6 +629,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     );
   }, [autoPreviewEnabled]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      REVIEW_DOUBLE_PLAY_STORAGE_KEY,
+      reviewDoubleClickPlayEnabled ? "1" : "0",
+    );
+  }, [reviewDoubleClickPlayEnabled]);
+
   const effectivePreviewVolume = settlementPreviewSyncGameVolume
     ? gameVolume
     : settlementPreviewVolume;
@@ -596,6 +692,41 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [],
   );
 
+  const clearPreviewBridgeRetryTimers = useCallback(() => {
+    previewBridgeRetryTimersRef.current.forEach((timerId) =>
+      window.clearTimeout(timerId),
+    );
+    previewBridgeRetryTimersRef.current = [];
+  }, []);
+
+  const registerYouTubeBridge = useCallback(() => {
+    const contentWindow = previewIframeRef.current?.contentWindow;
+    if (!contentWindow) return;
+    const send = () => {
+      contentWindow.postMessage(
+        JSON.stringify({ event: "listening", id: "settlement-preview" }),
+        "*",
+      );
+      contentWindow.postMessage(
+        JSON.stringify({
+          event: "command",
+          func: "addEventListener",
+          args: ["onStateChange"],
+        }),
+        "*",
+      );
+      contentWindow.postMessage(
+        JSON.stringify({ event: "command", func: "getPlayerState", args: [] }),
+        "*",
+      );
+    };
+    send();
+    clearPreviewBridgeRetryTimers();
+    previewBridgeRetryTimersRef.current = [160, 500, 1100].map((delay) =>
+      window.setTimeout(send, delay),
+    );
+  }, [clearPreviewBridgeRetryTimers]);
+
   const clearPreviewVolumeRetryTimers = useCallback(() => {
     previewVolumeRetryTimersRef.current.forEach((timerId) =>
       window.clearTimeout(timerId),
@@ -619,6 +750,99 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     previewRecapKey,
   ]);
 
+  const readYouTubePlayerState = useCallback(
+    (rawData: unknown): number | null => {
+      let payload: unknown = rawData;
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return null;
+        }
+      }
+      if (!payload || typeof payload !== "object") return null;
+      const eventValue =
+        "event" in payload ? (payload as { event?: unknown }).event : null;
+      const infoValue =
+        "info" in payload ? (payload as { info?: unknown }).info : null;
+      if (eventValue === "onStateChange" && typeof infoValue === "number") {
+        return infoValue;
+      }
+      if (
+        eventValue === "onStateChange" &&
+        infoValue &&
+        typeof infoValue === "object" &&
+        "playerState" in infoValue
+      ) {
+        const state = (infoValue as { playerState?: unknown }).playerState;
+        return typeof state === "number" ? state : null;
+      }
+      if (eventValue !== "infoDelivery" || !infoValue || typeof infoValue !== "object") {
+        return null;
+      }
+      const playerState =
+        "playerState" in infoValue
+          ? (infoValue as { playerState?: unknown }).playerState
+          : null;
+      return typeof playerState === "number" ? playerState : null;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMessage = (event: MessageEvent) => {
+      if (!previewRecapKey) return;
+      const origin = event.origin || "";
+      const trusted =
+        origin.includes("youtube.com") || origin.includes("youtube-nocookie.com");
+      if (!trusted) return;
+      const state = readYouTubePlayerState(event.data);
+      if (state === null) return;
+      if (state === 1) {
+        setPreviewPlayerState("playing");
+        return;
+      }
+      if (state === 2 || state === 0) {
+        setPreviewPlayerState("paused");
+        return;
+      }
+      if (state === -1) {
+        setPreviewPlayerState("idle");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+    };
+  }, [previewRecapKey, readYouTubePlayerState]);
+
+  useEffect(() => {
+    if (previewStatePollTimerRef.current !== null) {
+      window.clearInterval(previewStatePollTimerRef.current);
+      previewStatePollTimerRef.current = null;
+    }
+    if (!previewRecapKey) {
+      return;
+    }
+    registerYouTubeBridge();
+    previewStatePollTimerRef.current = window.setInterval(() => {
+      postYouTubeCommand("getPlayerState");
+    }, 900);
+    return () => {
+      if (previewStatePollTimerRef.current !== null) {
+        window.clearInterval(previewStatePollTimerRef.current);
+        previewStatePollTimerRef.current = null;
+      }
+      clearPreviewBridgeRetryTimers();
+    };
+  }, [
+    clearPreviewBridgeRetryTimers,
+    postYouTubeCommand,
+    previewRecapKey,
+    registerYouTubeBridge,
+  ]);
+
   useEffect(() => {
     if (!previewRecapKey) return;
     syncPreviewVolume();
@@ -635,9 +859,19 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       if (autoAdvanceTimeoutRef.current !== null) {
         window.clearTimeout(autoAdvanceTimeoutRef.current);
       }
+      if (previewSwitchNoticeTimerRef.current !== null) {
+        window.clearTimeout(previewSwitchNoticeTimerRef.current);
+      }
+      if (recommendControlsHintTimerRef.current !== null) {
+        window.clearTimeout(recommendControlsHintTimerRef.current);
+      }
+      if (previewStatePollTimerRef.current !== null) {
+        window.clearInterval(previewStatePollTimerRef.current);
+      }
+      clearPreviewBridgeRetryTimers();
       clearPreviewVolumeRetryTimers();
     },
-    [clearPreviewVolumeRetryTimers],
+    [clearPreviewBridgeRetryTimers, clearPreviewVolumeRetryTimers],
   );
 
   const normalizedRecaps = useMemo<ExtendedRecap[]>(() => {
@@ -697,6 +931,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       normalizedRecaps[0]
     );
   }, [effectiveSelectedRecapKey, normalizedRecaps]);
+  const selectedRecapLink = useMemo(() => {
+    if (!selectedRecap) return null;
+    return buildRecommendationLink(selectedRecap);
+  }, [selectedRecap]);
   const selectedRecapAnswer = useMemo(() => {
     if (!selectedRecap) {
       return {
@@ -757,21 +995,66 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   }, [selectedReviewParticipantIndex, sortedParticipants]);
 
   const defaultParticipantCount = Math.max(1, participants.length);
+  const configuredAnswerWindowMs = useMemo(() => {
+    const sec = room.gameSettings?.playDurationSec;
+    if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) {
+      return 15_000;
+    }
+    return sec * 1000;
+  }, [room.gameSettings?.playDurationSec]);
+  const quickMedianThresholdMs = useMemo(
+    () => clampMs(configuredAnswerWindowMs * 0.22, 1500, 7000),
+    [configuredAnswerWindowMs],
+  );
+  const quickFastestThresholdMs = useMemo(
+    () => clampMs(configuredAnswerWindowMs * 0.1, 700, 2800),
+    [configuredAnswerWindowMs],
+  );
 
   const quickRecommendations = useMemo(() => {
     return normalizedRecaps
       .map((recap) => {
         const participantCount = resolveParticipantCount(recap, defaultParticipantCount);
         const correctCount = Math.max(0, recap.correctCount ?? 0);
+        const unansweredCount = Math.max(0, recap.unansweredCount ?? 0);
         const correctRate = correctCount / participantCount;
-        const speed = typeof recap.fastestCorrectMs === "number" ? recap.fastestCorrectMs : 120_000;
-        return { recap, correctRate, speed };
+        const unansweredRate = unansweredCount / participantCount;
+        const medianCorrectMs =
+          typeof recap.medianCorrectMs === "number" && Number.isFinite(recap.medianCorrectMs)
+            ? recap.medianCorrectMs
+            : Number.POSITIVE_INFINITY;
+        const fastestCorrectMs =
+          typeof recap.fastestCorrectMs === "number" && Number.isFinite(recap.fastestCorrectMs)
+            ? recap.fastestCorrectMs
+            : Number.POSITIVE_INFINITY;
+        return {
+          recap,
+          correctRate,
+          unansweredRate,
+          medianCorrectMs,
+          fastestCorrectMs,
+        };
       })
+      .filter(
+        (row) =>
+          row.correctRate >= 0.7 &&
+          row.unansweredRate <= 0.2 &&
+          row.medianCorrectMs <= quickMedianThresholdMs &&
+          row.fastestCorrectMs <= quickFastestThresholdMs,
+      )
       .sort(
         (a, b) =>
-          b.correctRate - a.correctRate || a.speed - b.speed || a.recap.order - b.recap.order,
+          b.correctRate - a.correctRate ||
+          a.medianCorrectMs - b.medianCorrectMs ||
+          a.fastestCorrectMs - b.fastestCorrectMs ||
+          a.recap.order - b.recap.order,
       );
-  }, [defaultParticipantCount, normalizedRecaps]);
+  }, [
+    defaultParticipantCount,
+    normalizedRecaps,
+    quickFastestThresholdMs,
+    quickMedianThresholdMs,
+  ]);
 
   const confuseRecommendations = useMemo(() => {
     return normalizedRecaps
@@ -797,8 +1080,15 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         const participantCount = resolveParticipantCount(recap, defaultParticipantCount);
         const confusionRate =
           participantCount > 0 ? changedUsers / participantCount : 0;
-        return { recap, changedUsers, changedTimes, confusionRate };
+        const avgChangedCount =
+          participantCount > 0 ? changedTimes / participantCount : 0;
+        return { recap, changedUsers, changedTimes, confusionRate, avgChangedCount };
       })
+      .filter(
+        (row) =>
+          row.confusionRate >= 0.3 ||
+          row.avgChangedCount >= 0.5,
+      )
       .sort(
         (a, b) =>
           b.changedUsers - a.changedUsers ||
@@ -812,13 +1102,40 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     return normalizedRecaps
       .map((recap) => {
         const participantCount = resolveParticipantCount(recap, defaultParticipantCount);
+        const correctCount = Math.max(0, recap.correctCount ?? 0);
         const wrongCount = Math.max(0, recap.wrongCount ?? 0);
         const unansweredCount = Math.max(0, recap.unansweredCount ?? 0);
         const hardScore = (wrongCount + unansweredCount * 1.2) / participantCount;
-        return { recap, hardScore };
+        const correctRate = correctCount / participantCount;
+        const unansweredRate = unansweredCount / participantCount;
+        return { recap, hardScore, correctRate, unansweredRate };
       })
+      .filter((row) => row.correctRate <= 0.25 || row.unansweredRate >= 0.35)
       .sort((a, b) => b.hardScore - a.hardScore || a.recap.order - b.recap.order);
   }, [defaultParticipantCount, normalizedRecaps]);
+
+  const otherRecommendations = useMemo(() => {
+    const highlightedKeys = new Set<string>([
+      ...quickRecommendations.map((entry) => entry.recap.key),
+      ...confuseRecommendations.map((entry) => entry.recap.key),
+      ...hardRecommendations.map((entry) => entry.recap.key),
+    ]);
+    return normalizedRecaps
+      .filter((recap) => !highlightedKeys.has(recap.key))
+      .map((recap) => ({
+        recap,
+        correctRate:
+          Math.max(0, recap.correctCount ?? 0) /
+          resolveParticipantCount(recap, defaultParticipantCount),
+      }))
+      .sort((a, b) => b.correctRate - a.correctRate || a.recap.order - b.recap.order);
+  }, [
+    confuseRecommendations,
+    defaultParticipantCount,
+    hardRecommendations,
+    normalizedRecaps,
+    quickRecommendations,
+  ]);
 
   const recommendationCardsByCategory = useMemo<
     Record<RecommendCategory, RecommendationCard[]>
@@ -828,6 +1145,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       quick: [],
       confuse: [],
       hard: [],
+      other: [],
     };
     if (totalLimit <= 0) return result;
 
@@ -835,6 +1153,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       quick: quickRecommendations,
       confuse: confuseRecommendations,
       hard: hardRecommendations,
+      other: otherRecommendations,
     };
     const availableCategories = RECOMMEND_CATEGORY_FLOW.filter(
       (category) => rowsByCategory[category].length > 0,
@@ -845,8 +1164,20 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       quickRecommendations.length > 0
         ? quickRecommendations.slice(0, 3).reduce((sum, row) => {
             const speedBonus =
-              row.speed <= 1200 ? 0.28 : row.speed <= 2200 ? 0.2 : row.speed <= 4200 ? 0.1 : 0;
-            return sum + row.correctRate + speedBonus;
+              row.medianCorrectMs <= 1400
+                ? 0.28
+                : row.medianCorrectMs <= 2200
+                  ? 0.2
+                  : row.medianCorrectMs <= 3400
+                    ? 0.1
+                    : 0;
+            const fastestBonus =
+              row.fastestCorrectMs <= 900
+                ? 0.16
+                : row.fastestCorrectMs <= 1500
+                  ? 0.1
+                  : 0;
+            return sum + row.correctRate + speedBonus + fastestBonus;
           }, 0) / Math.min(3, quickRecommendations.length)
         : 0;
     const confuseStrength =
@@ -860,13 +1191,26 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         ? hardRecommendations.slice(0, 3).reduce((sum, row) => sum + row.hardScore, 0) /
           Math.min(3, hardRecommendations.length)
         : 0;
+    const otherStrength =
+      otherRecommendations.length > 0
+        ? otherRecommendations
+            .slice(0, 3)
+            .reduce((sum, row) => sum + row.correctRate, 0) /
+          Math.min(3, otherRecommendations.length)
+        : 0;
     const strengthByCategory: Record<RecommendCategory, number> = {
       quick: quickStrength,
       confuse: confuseStrength,
       hard: hardStrength,
+      other: otherStrength,
     };
 
-    const quotas: Record<RecommendCategory, number> = { quick: 0, confuse: 0, hard: 0 };
+    const quotas: Record<RecommendCategory, number> = {
+      quick: 0,
+      confuse: 0,
+      hard: 0,
+      other: 0,
+    };
     let remaining = totalLimit;
 
     for (const category of availableCategories) {
@@ -941,6 +1285,18 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       );
       return true;
     };
+    const addOtherEntry = (entry: (typeof otherRecommendations)[number]) => {
+      if (usedRecapKeys.has(entry.recap.key)) return false;
+      usedRecapKeys.add(entry.recap.key);
+      result.other.push(
+        buildRecommendationCard(
+          entry.recap,
+          `答對率 ${formatPercent(entry.correctRate)}`,
+          "延伸推薦",
+        ),
+      );
+      return true;
+    };
 
     for (const row of quickRecommendations) {
       if (result.quick.length >= quotas.quick) break;
@@ -954,15 +1310,25 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       if (result.hard.length >= quotas.hard) break;
       addHardEntry(row);
     }
+    for (const row of otherRecommendations) {
+      if (result.other.length >= quotas.other) break;
+      addOtherEntry(row);
+    }
 
     const pickedCount =
-      result.quick.length + result.confuse.length + result.hard.length;
+      result.quick.length +
+      result.confuse.length +
+      result.hard.length +
+      result.other.length;
     if (pickedCount < totalLimit) {
       for (const category of RECOMMEND_CATEGORY_FLOW) {
         if (category === "quick") {
           for (const row of quickRecommendations) {
             if (
-              result.quick.length + result.confuse.length + result.hard.length >=
+              result.quick.length +
+                result.confuse.length +
+                result.hard.length +
+                result.other.length >=
               totalLimit
             ) {
               break;
@@ -974,7 +1340,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         if (category === "confuse") {
           for (const row of confuseRecommendations) {
             if (
-              result.quick.length + result.confuse.length + result.hard.length >=
+              result.quick.length +
+                result.confuse.length +
+                result.hard.length +
+                result.other.length >=
               totalLimit
             ) {
               break;
@@ -983,14 +1352,32 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
           }
           continue;
         }
-        for (const row of hardRecommendations) {
+        if (category === "hard") {
+          for (const row of hardRecommendations) {
+            if (
+              result.quick.length +
+                result.confuse.length +
+                result.hard.length +
+                result.other.length >=
+              totalLimit
+            ) {
+              break;
+            }
+            addHardEntry(row);
+          }
+          continue;
+        }
+        for (const row of otherRecommendations) {
           if (
-            result.quick.length + result.confuse.length + result.hard.length >=
+            result.quick.length +
+              result.confuse.length +
+              result.hard.length +
+              result.other.length >=
             totalLimit
           ) {
             break;
           }
-          addHardEntry(row);
+          addOtherEntry(row);
         }
       }
     }
@@ -1000,6 +1387,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     confuseRecommendations,
     hardRecommendations,
     normalizedRecaps.length,
+    otherRecommendations,
     quickRecommendations,
   ]);
   const recommendationCardsByCategoryRef = useRef(recommendationCardsByCategory);
@@ -1021,6 +1409,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       : (availableRecommendCategories[0] ?? "quick");
 
   const recommendationCards = recommendationCardsByCategory[activeRecommendCategory];
+  const activeCategoryTheme = RECOMMEND_CATEGORY_THEME[activeRecommendCategory];
+  const totalRecommendationPoolCount =
+    recommendationCardsByCategory.quick.length +
+    recommendationCardsByCategory.confuse.length +
+    recommendationCardsByCategory.hard.length +
+    recommendationCardsByCategory.other.length;
+  const canNavigateRecommendations = totalRecommendationPoolCount > 1;
   const safeRecommendIndex =
     recommendationCards.length > 0
       ? Math.min(recommendIndex, recommendationCards.length - 1)
@@ -1028,6 +1423,9 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const currentRecommendation = recommendationCards[safeRecommendIndex] ?? null;
   const currentRecommendationLink = currentRecommendation?.link ?? null;
   const currentRecommendationPreviewUrl = currentRecommendation?.previewUrl ?? null;
+  const isCurrentRecommendationPreviewOpen =
+    Boolean(currentRecommendation) &&
+    previewRecapKey === currentRecommendation?.recap.key;
   const recommendationTransitionKey = `${activeRecommendCategory}:${currentRecommendation?.recap.key ?? "none"}`;
 
   const getFirstAutoPlayableIndex = useCallback(
@@ -1039,15 +1437,30 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [],
   );
 
+  const pushPreviewSwitchNotice = useCallback((text: string) => {
+    if (previewSwitchNoticeTimerRef.current !== null) {
+      window.clearTimeout(previewSwitchNoticeTimerRef.current);
+      previewSwitchNoticeTimerRef.current = null;
+    }
+    setPreviewSwitchNotice(text);
+    previewSwitchNoticeTimerRef.current = window.setTimeout(() => {
+      setPreviewSwitchNotice(null);
+      previewSwitchNoticeTimerRef.current = null;
+    }, 1300);
+  }, []);
+
   const jumpToRecommendation = useCallback(
     (
       nextCategory: RecommendCategory,
       nextIndex: number,
-      options?: { forcePreview?: boolean },
+      options?: { forcePreview?: boolean; playbackMode?: PreviewPlaybackMode },
     ) => {
       const nextCards = recommendationCardsByCategoryRef.current[nextCategory];
       if (!nextCards.length) {
+        setPreviewPlaybackMode("idle");
         setPreviewRecapKey(null);
+        setPreviewPlayerState("idle");
+        setAutoAdvanceAtMs(null);
         return;
       }
       const safeIndex = Math.max(0, Math.min(nextIndex, nextCards.length - 1));
@@ -1055,18 +1468,35 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       setRecommendCategory(nextCategory);
       setRecommendIndex(safeIndex);
       setSelectedRecapKey(targetCard?.recap.key ?? null);
+      pushPreviewSwitchNotice(`已切換到第 ${targetCard.recap.order} 題`);
       setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
-      if (autoPreviewEnabled || options?.forcePreview) {
-        setPreviewRecapKey(targetCard?.previewUrl ? targetCard.recap.key : null);
-        setAutoAdvanceAtMs(
-          autoPreviewEnabled ? Date.now() + RECOMMEND_PREVIEW_SECONDS * 1000 : null,
-        );
-      } else {
-        setPreviewRecapKey(null);
+      const nextPlaybackMode =
+        options?.playbackMode ?? (autoPreviewEnabled ? "auto" : "idle");
+      const hasPreview = Boolean(targetCard?.previewUrl);
+      if (nextPlaybackMode === "manual") {
+        setPreviewPlaybackMode("manual");
+        setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
+        setPreviewPlayerState(hasPreview ? "playing" : "idle");
         setAutoAdvanceAtMs(null);
+        return;
+      }
+      if (nextPlaybackMode === "auto" || options?.forcePreview) {
+        setPreviewPlaybackMode("auto");
+        setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
+        setPreviewPlayerState(hasPreview ? "playing" : "idle");
+        setAutoAdvanceAtMs(
+          hasPreview ? Date.now() + RECOMMEND_PREVIEW_SECONDS * 1000 : null,
+        );
+        return;
+      }
+      setPreviewPlaybackMode("idle");
+      setAutoAdvanceAtMs(null);
+      setPreviewPlayerState("idle");
+      if (!options?.forcePreview) {
+        setPreviewRecapKey(null);
       }
     },
-    [autoPreviewEnabled],
+    [autoPreviewEnabled, pushPreviewSwitchNotice],
   );
 
   const jumpToRecapPreview = useCallback(
@@ -1075,12 +1505,15 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         const cards = recommendationCardsByCategoryRef.current[category];
         const targetIndex = cards.findIndex((card) => card.recap.key === recap.key);
         if (targetIndex < 0) continue;
-        jumpToRecommendation(category, targetIndex, { forcePreview: true });
+        jumpToRecommendation(category, targetIndex, {
+          forcePreview: reviewDoubleClickPlayEnabled,
+          playbackMode: reviewDoubleClickPlayEnabled ? "manual" : "idle",
+        });
         return true;
       }
       return false;
     },
-    [jumpToRecommendation],
+    [jumpToRecommendation, reviewDoubleClickPlayEnabled],
   );
 
   const activateRecommendationCategory = useCallback(
@@ -1088,24 +1521,108 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       const nextCards = recommendationCardsByCategory[nextCategory];
       if (!nextCards.length) return;
       const nextIndex = getFirstAutoPlayableIndex(nextCards);
-      jumpToRecommendation(nextCategory, nextIndex);
+      jumpToRecommendation(nextCategory, nextIndex, {
+        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        forcePreview: previewPlaybackMode === "manual",
+      });
     },
-    [getFirstAutoPlayableIndex, jumpToRecommendation, recommendationCardsByCategory],
+    [
+      getFirstAutoPlayableIndex,
+      jumpToRecommendation,
+      previewPlaybackMode,
+      recommendationCardsByCategory,
+    ],
   );
 
   const goPrevRecommendation = () => {
     const total = recommendationCards.length;
     if (total <= 0) return;
-    const next = (Math.min(recommendIndex, total - 1) - 1 + total) % total;
-    jumpToRecommendation(activeRecommendCategory, next);
+    if (safeRecommendIndex > 0) {
+      jumpToRecommendation(activeRecommendCategory, safeRecommendIndex - 1, {
+        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        forcePreview: previewPlaybackMode === "manual",
+      });
+      return;
+    }
+    const currentFlowIdx = RECOMMEND_CATEGORY_FLOW.indexOf(activeRecommendCategory);
+    for (let offset = 1; offset <= RECOMMEND_CATEGORY_FLOW.length; offset += 1) {
+      const prevCategory =
+        RECOMMEND_CATEGORY_FLOW[
+          (currentFlowIdx - offset + RECOMMEND_CATEGORY_FLOW.length) %
+            RECOMMEND_CATEGORY_FLOW.length
+        ];
+      const cards = recommendationCardsByCategoryRef.current[prevCategory];
+      if (!cards.length) continue;
+      jumpToRecommendation(prevCategory, cards.length - 1, {
+        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        forcePreview: previewPlaybackMode === "manual",
+      });
+      return;
+    }
   };
 
   const goNextRecommendation = () => {
     const total = recommendationCards.length;
     if (total <= 0) return;
-    const next = (Math.min(recommendIndex, total - 1) + 1) % total;
-    jumpToRecommendation(activeRecommendCategory, next);
+    if (safeRecommendIndex < total - 1) {
+      jumpToRecommendation(activeRecommendCategory, safeRecommendIndex + 1, {
+        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        forcePreview: previewPlaybackMode === "manual",
+      });
+      return;
+    }
+    const currentFlowIdx = RECOMMEND_CATEGORY_FLOW.indexOf(activeRecommendCategory);
+    for (let offset = 1; offset <= RECOMMEND_CATEGORY_FLOW.length; offset += 1) {
+      const nextCategory =
+        RECOMMEND_CATEGORY_FLOW[
+          (currentFlowIdx + offset) % RECOMMEND_CATEGORY_FLOW.length
+        ];
+      const cards = recommendationCardsByCategoryRef.current[nextCategory];
+      if (!cards.length) continue;
+      jumpToRecommendation(nextCategory, 0, {
+        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        forcePreview: previewPlaybackMode === "manual",
+      });
+      return;
+    }
   };
+
+  const recommendNavLabels = useMemo(() => {
+    const total = recommendationCards.length;
+    if (total <= 0) {
+      return { prev: "上一首", next: "下一首" };
+    }
+    const currentFlowIdx = RECOMMEND_CATEGORY_FLOW.indexOf(activeRecommendCategory);
+    let hasPrevCategory = false;
+    let hasNextCategory = false;
+    for (let offset = 1; offset < RECOMMEND_CATEGORY_FLOW.length; offset += 1) {
+      const prevCategory =
+        RECOMMEND_CATEGORY_FLOW[
+          (currentFlowIdx - offset + RECOMMEND_CATEGORY_FLOW.length) %
+            RECOMMEND_CATEGORY_FLOW.length
+        ];
+      const nextCategory =
+        RECOMMEND_CATEGORY_FLOW[
+          (currentFlowIdx + offset) % RECOMMEND_CATEGORY_FLOW.length
+        ];
+      if (!hasPrevCategory && recommendationCardsByCategory[prevCategory].length > 0) {
+        hasPrevCategory = true;
+      }
+      if (!hasNextCategory && recommendationCardsByCategory[nextCategory].length > 0) {
+        hasNextCategory = true;
+      }
+      if (hasPrevCategory && hasNextCategory) break;
+    }
+    return {
+      prev: safeRecommendIndex <= 0 && hasPrevCategory ? "上一頁" : "上一首",
+      next: safeRecommendIndex >= total - 1 && hasNextCategory ? "下一頁" : "下一首",
+    };
+  }, [
+    activeRecommendCategory,
+    recommendationCards.length,
+    recommendationCardsByCategory,
+    safeRecommendIndex,
+  ]);
 
   const elapsedLabel = formatElapsed(startedAt, endedAt);
 
@@ -1154,15 +1671,50 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     handleOpenTrackLink(currentRecommendationLink, currentRecommendation.recap);
   };
 
+  const handleQuickPlayStart = useCallback(() => {
+    if (!currentRecommendationPreviewUrl || !currentRecommendation) return;
+    setPreviewPlaybackMode("manual");
+    if (!isCurrentRecommendationPreviewOpen) {
+      setPreviewRecapKey(currentRecommendation.recap.key);
+    } else {
+      postYouTubeCommand("playVideo");
+    }
+    setPreviewPlayerState("playing");
+    setAutoAdvanceAtMs(null);
+    setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+  }, [
+    currentRecommendation,
+    currentRecommendationPreviewUrl,
+    isCurrentRecommendationPreviewOpen,
+    postYouTubeCommand,
+  ]);
+
   const goToTab = (tab: LiveSettlementTab) => {
+    if (tab === activeTab) return;
     setTabRenderKey((prev) => prev + 1);
     setActiveTab(tab);
     if (tab === "recommend") {
+      if (typeof window !== "undefined") {
+        if (!readStoredBoolean(RECOMMEND_CONTROLS_HINT_STORAGE_KEY, false)) {
+          setShowRecommendControlsHint(true);
+          window.localStorage.setItem(RECOMMEND_CONTROLS_HINT_STORAGE_KEY, "1");
+          if (recommendControlsHintTimerRef.current !== null) {
+            window.clearTimeout(recommendControlsHintTimerRef.current);
+          }
+          recommendControlsHintTimerRef.current = window.setTimeout(() => {
+            setShowRecommendControlsHint(false);
+            recommendControlsHintTimerRef.current = null;
+          }, 2500);
+        }
+      }
       setReviewPage(0);
       activateRecommendationCategory(recommendCategory);
       return;
     }
+    setShowRecommendControlsHint(false);
+    setPreviewPlaybackMode("idle");
     setPreviewRecapKey(null);
+    setPreviewPlayerState("idle");
     setAutoAdvanceAtMs(null);
     setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
   };
@@ -1181,13 +1733,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   };
 
   const currentRecommendationHint = currentRecommendation?.hint ?? "";
-
-  const isCurrentRecommendationPreviewOpen =
-    Boolean(currentRecommendation) &&
-    previewRecapKey === currentRecommendation?.recap.key;
   const canAutoGuideLoop =
     activeTab === "recommend" &&
     autoPreviewEnabled &&
+    previewPlaybackMode !== "manual" &&
     recommendationCards.length > 0 &&
     availableRecommendCategories.length > 0;
 
@@ -1259,16 +1808,17 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   useEffect(() => {
     if (activeTab !== "recommend") return;
     if (typeof window === "undefined") return;
-    if (hasAutoCenteredRecommendRef.current) return;
     const media = window.matchMedia("(max-width: 1023px)");
     if (!media.matches) return;
-    hasAutoCenteredRecommendRef.current = true;
+    const roundKey = `${room.id}:${startedAt ?? 0}:${endedAt ?? 0}`;
+    if (autoCenteredRecommendRoundKeyRef.current === roundKey) return;
+    autoCenteredRecommendRoundKeyRef.current = roundKey;
     const timer = window.setTimeout(() => {
       const target = recommendPreviewStageRef.current ?? recommendSectionRef.current;
       target?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [activeTab]);
+  }, [activeTab, endedAt, room.id, startedAt]);
 
   const activeTabButtonClass = (tab: LiveSettlementTab) =>
     `rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
@@ -1280,7 +1830,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const progressPercent = Math.round(((stepIndex + 1) / TAB_ORDER.length) * 100);
 
   return (
-    <div className="mx-auto w-full max-w-6xl min-w-0 px-2 pb-4 sm:px-4">
+    <div className="mx-auto w-full max-w-6xl min-w-0 px-2 pb-24 sm:px-4 lg:pb-4">
       <section className="relative min-w-0 overflow-hidden rounded-[30px] border border-amber-400/35 bg-slate-950/95 px-4 py-6 shadow-[0_30px_120px_-60px_rgba(245,158,11,0.6)] sm:px-6 sm:py-7">
         <style>
           {`
@@ -1299,12 +1849,16 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
               100% { opacity: 0; transform: translateY(-12px) scale(0.82); }
             }
             @keyframes settlementCrownFloat {
-              0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.95; }
-              50% { transform: translateX(-50%) translateY(-4px); opacity: 1; }
+              0%, 100% { transform: translateY(0); opacity: 0.95; }
+              50% { transform: translateY(-4px); opacity: 1; }
             }
             @keyframes settlementSwapIn {
               0% { opacity: 0; transform: translateY(8px) scale(0.99); }
               100% { opacity: 1; transform: translateY(0) scale(1); }
+            }
+            @keyframes settlementControlHintPulse {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(56,189,248,0.0); }
+              50% { box-shadow: 0 0 0 2px rgba(56,189,248,0.38); }
             }
           `}
         </style>
@@ -1375,15 +1929,61 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
             </div>
           </div>
 
-          <nav className="flex flex-wrap items-center gap-2">
-            {TAB_ORDER.map((tab, index) => (
-              <span
-                key={tab}
-                className={activeTabButtonClass(tab)}
+          <nav className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {TAB_ORDER.map((tab, index) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={activeTabButtonClass(tab)}
+                  onClick={() => goToTab(tab)}
+                  title={TAB_HINTS[tab]}
+                >
+                  {index + 1}. {TAB_LABELS[tab]}
+                </button>
+              ))}
+            </div>
+            <div className="hidden items-center justify-end gap-2 lg:flex">
+              <Button
+                variant="outlined"
+                color="inherit"
+                size="small"
+                onClick={goPrevStep}
+                disabled={stepIndex <= 0}
               >
-                {index + 1}. {TAB_LABELS[tab]}
-              </span>
-            ))}
+                上一步
+              </Button>
+              {stepIndex < TAB_ORDER.length - 1 ? (
+                <Button
+                  variant="contained"
+                  color="warning"
+                  size="small"
+                  onClick={goNextStep}
+                >
+                  下一步
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  color="success"
+                  size="small"
+                  onClick={goNextStep}
+                  disabled={!onBackToLobby}
+                >
+                  完成結算
+                </Button>
+              )}
+              {onRequestExit && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="small"
+                  onClick={() => setExitConfirmOpen(true)}
+                >
+                  離開房間
+                </Button>
+              )}
+            </div>
           </nav>
 
           <div
@@ -1429,44 +2029,48 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                   {winner ? (
                     <>
                       <div className="mt-4 grid grid-cols-3 items-end gap-2">
-                        <div className="rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center">
+                        <div className="flex min-h-[154px] flex-col items-center rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center">
                           <p className="text-[10px] tracking-[0.15em] text-slate-300">#2</p>
-                          <p className="mt-1 truncate text-xs font-semibold text-slate-100">
+                          <p
+                            className="mt-2 min-h-[2.5rem] w-full px-1 text-xs font-semibold leading-tight text-slate-100"
+                            style={MULTILINE_ELLIPSIS_2}
+                          >
                             {runnerUp
                               ? `${runnerUp.username}${
                                   me && runnerUp.clientId === me.clientId ? "（我）" : ""
                                 }`
                               : "--"}
                           </p>
-                          <div className="mt-2 h-14 rounded-lg bg-slate-800/80 pt-2 text-sm font-bold text-slate-100">
+                          <div className="mt-auto flex h-14 w-full items-center justify-center rounded-lg bg-slate-800/80 text-2xl font-black leading-none text-slate-100">
                             {runnerUp?.score ?? "--"}
                           </div>
                         </div>
                         <div
-                          className={`relative rounded-xl border border-amber-300/60 bg-amber-500/12 p-2 text-center shadow-[0_0_0_1px_rgba(252,211,77,0.25),0_18px_46px_-24px_rgba(251,191,36,0.65)] ${
+                          className={`relative flex min-h-[172px] flex-col items-center rounded-xl border border-amber-300/60 bg-amber-500/12 px-2 pb-2 pt-3 text-center shadow-[0_0_0_1px_rgba(252,211,77,0.25),0_18px_46px_-24px_rgba(251,191,36,0.65)] ${
                             me && winner.clientId === me.clientId
                               ? "ring-2 ring-amber-200/70"
                               : ""
                           }`}
                           style={{ animation: "settlementChampionGlow 2.2s ease-in-out infinite" }}
                         >
-                          <span
-                            className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 text-xl"
-                            style={{ animation: "settlementCrownFloat 1.8s ease-in-out infinite" }}
-                            aria-hidden
-                          >
-                            👑
+                          <span className="pointer-events-none absolute inset-x-0 -top-4 flex justify-center text-[1.35rem]" aria-hidden>
+                            <span
+                              className="drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]"
+                              style={{ animation: "settlementCrownFloat 1.8s ease-in-out infinite" }}
+                            >
+                              👑
+                            </span>
                           </span>
                           <p className="text-[10px] tracking-[0.18em] text-amber-200">#1</p>
                           <p
-                            className="mt-1 text-sm font-black text-amber-100"
+                            className="mt-1 min-h-[2.5rem] w-full px-1 text-center text-sm font-black leading-tight text-amber-100"
                             style={MULTILINE_ELLIPSIS_2}
                           >
                             {winner.username}
                             {me && winner.clientId === me.clientId ? "（我）" : ""}
                           </p>
-                          <div className="mt-2 h-20 rounded-lg bg-amber-300/20 pt-3 text-lg font-black text-amber-50">
-                            {winner.score}
+                          <div className="mt-auto flex h-20 w-full items-center justify-center rounded-lg bg-amber-300/20 text-[2rem] font-black leading-none text-amber-50">
+                            <span>{winner.score}</span>
                           </div>
                           {[
                             { left: "16%", top: "16%", delay: "0ms" },
@@ -1486,22 +2090,25 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             />
                           ))}
                         </div>
-                        <div className="rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center">
+                        <div className="flex min-h-[142px] flex-col items-center rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center">
                           <p className="text-[10px] tracking-[0.15em] text-slate-300">#3</p>
-                          <p className="mt-1 truncate text-xs font-semibold text-slate-100">
+                          <p
+                            className="mt-2 min-h-[2.5rem] w-full px-1 text-xs font-semibold leading-tight text-slate-100"
+                            style={MULTILINE_ELLIPSIS_2}
+                          >
                             {thirdPlace
                               ? `${thirdPlace.username}${
                                   me && thirdPlace.clientId === me.clientId ? "（我）" : ""
                                 }`
                               : "--"}
                           </p>
-                          <div className="mt-2 h-10 rounded-lg bg-slate-800/80 pt-2 text-sm font-bold text-slate-100">
+                          <div className="mt-auto flex h-12 w-full items-center justify-center rounded-lg bg-slate-800/80 text-xl font-black leading-none text-slate-100">
                             {thirdPlace?.score ?? "--"}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2">
+                      <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-center">
                         <p className="text-sm font-bold text-amber-100">
                           冠軍 #1 {winner.username}
                           {me && winner.clientId === me.clientId ? "（我）" : ""}
@@ -1567,7 +2174,12 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                         </p>
                       </div>
                       <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                        <p className="text-[11px] text-amber-100/90">最快答題平均（只算答對）</p>
+                        <p
+                          className="text-[11px] text-amber-100/90"
+                          title="僅統計答對題目的平均答題速度"
+                        >
+                          最快答題平均
+                        </p>
                         <div className="mt-1 flex items-end justify-between gap-2">
                           <p className="text-2xl font-black leading-none text-amber-50">
                             {fastestAverageAnswerEntry
@@ -1657,11 +2269,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                                 {isMe ? "（你）" : ""}
                               </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="rounded-full border border-slate-500/70 bg-slate-900/75 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
+                            <div className="flex min-w-[92px] shrink-0 flex-col items-center justify-center gap-1 text-center">
+                              <span className="rounded-full border border-slate-500/70 bg-slate-900/75 px-2 py-0.5 text-[10px] font-semibold leading-none text-slate-200">
                                 {title}
                               </span>
-                              <p className="text-sm font-bold text-slate-100">{participant.score}</p>
+                              <p className="text-2xl font-black leading-none text-slate-100 sm:text-[1.7rem]">
+                                {participant.score}
+                              </p>
                             </div>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-slate-300">
@@ -1689,135 +2303,143 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
               ref={recommendSectionRef}
               className="rounded-2xl border border-slate-700/80 bg-slate-900/72 p-4"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-100">
-                    {activeRecommendCategory === "quick"
-                      ? "秒猜精選 · 本場熱門歌曲"
-                      : activeRecommendCategory === "confuse"
-                        ? "易混淆題 · 最多人換答案"
-                        : "高難挑戰 · 補完你的曲庫"}
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-300">
-                    {activeRecommendCategory === "quick"
-                      ? "這些歌曲在本場最容易被快速識別，適合直接加入你的常聽清單。"
-                      : activeRecommendCategory === "confuse"
-                        ? "這些題目最容易出現改答案，建議多聽幾次避免下次猶豫。"
-                        : "這些歌曲在本場最容易卡關，回聽後更容易記住作者與歌名。"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-300">
-                    <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2 py-0.5">
-                      秒猜 {recommendationCardsByCategory.quick.length} 首
-                    </span>
-                    <span className="rounded-full border border-fuchsia-300/35 bg-fuchsia-500/10 px-2 py-0.5">
-                      易混淆 {recommendationCardsByCategory.confuse.length} 首
-                    </span>
-                    <span className="rounded-full border border-amber-300/35 bg-amber-500/10 px-2 py-0.5">
-                      高難 {recommendationCardsByCategory.hard.length} 首
-                    </span>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-100">
+                      推薦導覽 · {RECOMMEND_CATEGORY_LABELS[activeRecommendCategory]}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-300">
+                      {RECOMMEND_CATEGORY_SHORT_HINT[activeRecommendCategory]}
+                    </p>
                   </div>
+                  {showRecommendControlsHint && (
+                    <span className="rounded-full border border-cyan-300/45 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                      可切換推薦與播放方式
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-full border border-slate-600/70 bg-slate-950/70 p-1">
-                    <button
-                      type="button"
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                        activeRecommendCategory === "quick"
-                          ? "bg-emerald-500/20 text-emerald-100"
-                          : "text-slate-300 hover:text-slate-100"
-                      }`}
-                      onClick={() => activateRecommendationCategory("quick")}
+
+                <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+                  <div className="min-w-0 overflow-x-auto pb-1">
+                    <div
+                      className="inline-flex min-w-max items-center gap-2 rounded-2xl border border-slate-600/80 bg-slate-950/80 p-1.5"
+                      style={
+                        showRecommendControlsHint
+                          ? { animation: "settlementControlHintPulse 1.2s ease-in-out 2" }
+                          : undefined
+                      }
                     >
-                      秒猜精選
-                    </button>
-                    <button
-                      type="button"
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                        activeRecommendCategory === "confuse"
-                          ? "bg-fuchsia-500/20 text-fuchsia-100"
-                          : "text-slate-300 hover:text-slate-100"
-                      } ${recommendationCardsByCategory.confuse.length === 0 ? "opacity-45" : ""}`}
-                      onClick={() => activateRecommendationCategory("confuse")}
-                      disabled={recommendationCardsByCategory.confuse.length === 0}
-                    >
-                      易混淆
-                    </button>
-                    <button
-                      type="button"
-                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                        activeRecommendCategory === "hard"
-                          ? "bg-amber-500/20 text-amber-100"
-                          : "text-slate-300 hover:text-slate-100"
-                      } ${recommendationCardsByCategory.hard.length === 0 ? "opacity-45" : ""}`}
-                      onClick={() => activateRecommendationCategory("hard")}
-                      disabled={recommendationCardsByCategory.hard.length === 0}
-                    >
-                      高難挑戰
-                    </button>
+                      {([
+                        { key: "quick", icon: BoltRoundedIcon },
+                        { key: "confuse", icon: ShuffleRoundedIcon },
+                        { key: "hard", icon: LocalFireDepartmentRoundedIcon },
+                        { key: "other", icon: LibraryMusicRoundedIcon },
+                      ] as const).map((item) => {
+                        const category = item.key;
+                        const active = activeRecommendCategory === category;
+                        const count = recommendationCardsByCategory[category].length;
+                        const Icon = item.icon;
+                        const theme = RECOMMEND_CATEGORY_THEME[category];
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                              active
+                                ? `${theme.badgeClass} shadow-[0_0_0_1px_rgba(148,163,184,0.25)]`
+                                : "border-slate-600/70 bg-slate-900/70 text-slate-200 hover:border-slate-400"
+                            } ${count <= 0 ? "cursor-not-allowed opacity-45" : ""}`}
+                            onClick={() => activateRecommendationCategory(category)}
+                            disabled={count <= 0}
+                            title={RECOMMEND_CATEGORY_SHORT_HINT[category]}
+                          >
+                            <Icon fontSize="small" className="text-[0.95rem]" />
+                            <span>{RECOMMEND_CATEGORY_LABELS[category]}</span>
+                            <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      autoPreviewEnabled
-                        ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100"
-                        : "border-slate-600/80 bg-slate-900/70 text-slate-300 hover:text-slate-100"
-                    }`}
-                    onClick={() => {
-                      setAutoPreviewEnabled((prev) => {
-                        const next = !prev;
-                        if (!next) {
-                          setPreviewRecapKey(null);
-                          setAutoAdvanceAtMs(null);
-                        } else {
-                          const nextIndex = getFirstAutoPlayableIndex(recommendationCards);
-                          jumpToRecommendation(activeRecommendCategory, nextIndex);
-                        }
-                        setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
-                        return next;
-                      });
-                    }}
-                  >
-                    {autoPreviewEnabled ? "自動試聽：開" : "自動試聽：關"}
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                      reviewDrawerOpen
-                        ? "border-sky-300/60 bg-sky-400/18 text-sky-100"
-                        : "border-slate-600/80 bg-slate-900/70 text-slate-300 hover:text-slate-100"
-                    }`}
-                    onClick={() => setReviewDrawerOpen((prev) => !prev)}
-                  >
-                    {reviewDrawerOpen ? "隱藏全員作答" : "查看全員作答"}
-                  </button>
+
+                  <div className="min-w-0 overflow-x-auto pb-1 xl:justify-self-end">
+                    <div
+                      className="inline-flex min-w-max items-center gap-2 rounded-2xl border border-slate-600/80 bg-slate-950/80 p-1.5"
+                      style={
+                        showRecommendControlsHint
+                          ? { animation: "settlementControlHintPulse 1.2s ease-in-out 2 200ms" }
+                          : undefined
+                      }
+                    >
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                          autoPreviewEnabled
+                            ? "border-cyan-300/55 bg-cyan-500/18 text-cyan-50"
+                            : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                        }`}
+                        onClick={() => {
+                          setAutoPreviewEnabled((prev) => {
+                            const next = !prev;
+                            if (!next) {
+                              setPreviewPlaybackMode("idle");
+                              setPreviewRecapKey(null);
+                              setPreviewPlayerState("idle");
+                              setAutoAdvanceAtMs(null);
+                            } else {
+                              const nextIndex = getFirstAutoPlayableIndex(recommendationCards);
+                              jumpToRecommendation(activeRecommendCategory, nextIndex, {
+                                playbackMode: "auto",
+                              });
+                            }
+                            setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+                            return next;
+                          });
+                        }}
+                      >
+                        <GraphicEqRoundedIcon fontSize="small" className="text-[0.95rem]" />
+                        自動導覽
+                        <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                          {autoPreviewEnabled ? "ON" : "OFF"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                          reviewDoubleClickPlayEnabled
+                            ? "border-violet-300/55 bg-violet-500/18 text-violet-50"
+                            : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                        }`}
+                        onClick={() => setReviewDoubleClickPlayEnabled((prev) => !prev)}
+                      >
+                        <AdsClickRoundedIcon fontSize="small" className="text-[0.95rem]" />
+                        雙擊播放
+                        <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                          {reviewDoubleClickPlayEnabled ? "ON" : "OFF"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                          reviewDrawerOpen
+                            ? "border-sky-300/60 bg-sky-500/18 text-sky-50"
+                            : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                        }`}
+                        onClick={() => setReviewDrawerOpen((prev) => !prev)}
+                      >
+                        <GroupsRoundedIcon fontSize="small" className="text-[0.95rem]" />
+                        全員作答
+                        <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                          {reviewDrawerOpen ? "顯示" : "隱藏"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {canAutoGuideLoop && (
-                <div className="mt-3 rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-amber-100">
-                    <span className="font-semibold">
-                      本首 {previewCountdownSec}s 後自動前進（秒猜 → 易混淆 → 高難）
-                    </span>
-                    <span className="rounded-full border border-amber-300/45 px-2 py-0.5 font-bold">
-                      AUTO
-                    </span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-amber-500/20">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-300 to-yellow-100 transition-[width] duration-500"
-                      style={{
-                        width: `${Math.max(
-                          6,
-                          ((RECOMMEND_PREVIEW_SECONDS - previewCountdownSec + 1) /
-                            RECOMMEND_PREVIEW_SECONDS) *
-                            100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
 
               {!currentRecommendation || !currentRecommendationLink ? (
                 <div className="mt-4 rounded-xl border border-dashed border-slate-600/70 bg-slate-900/55 px-4 py-6 text-sm text-slate-400">
@@ -1827,7 +2449,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)]">
                   <article
                     key={recommendationTransitionKey}
-                    className="rounded-2xl border border-cyan-300/35 bg-gradient-to-br from-slate-950/78 via-slate-950/62 to-slate-900/78 p-4 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.16),0_25px_55px_-45px_rgba(56,189,248,0.55)]"
+                    className={`rounded-2xl border p-4 ${activeCategoryTheme.sectionClass}`}
                     style={{ animation: "settlementSwapIn 240ms ease-out both" }}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1889,38 +2511,28 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                         }
                         disabled={!currentRecommendationLink.href}
                       >
-                        如果喜歡這首歌曲，請至 {currentRecommendation.providerLabel} 支持
+                        如果喜歡這首歌曲，請至 {currentRecommendation.providerLabel} 支持作者
                       </button>
-                      {currentRecommendationPreviewUrl && (
-                        <button
-                          type="button"
-                          className="rounded-full border border-amber-300/45 bg-amber-500/12 px-3 py-1 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/24"
-                          onClick={() => {
-                            setPreviewRecapKey((prev) => {
-                              const next =
-                                prev === currentRecommendation.recap.key
-                                  ? null
-                                  : currentRecommendation.recap.key;
-                              if (next) {
-                                setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
-                              }
-                              return next;
-                            });
-                          }}
+                      {canAutoGuideLoop && (
+                        <span
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${activeCategoryTheme.badgeClass}`}
                         >
-                          {isCurrentRecommendationPreviewOpen
-                            ? `播放中 ${previewCountdownSec}s`
-                            : `直接播放 ${RECOMMEND_PREVIEW_SECONDS} 秒`}
-                        </button>
+                          AUTO {previewCountdownSec}s
+                        </span>
+                      )}
+                      {previewSwitchNotice && (
+                        <span
+                          className="rounded-full border border-cyan-300/40 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-semibold text-cyan-100"
+                          style={{ animation: "settlementSwapIn 180ms ease-out both" }}
+                        >
+                          {previewSwitchNotice}
+                        </span>
                       )}
                     </div>
 
                     <p className="mt-2 text-[11px] text-slate-400">
-                      試聽音量 {effectivePreviewVolume}% ·
+                      試聽音量目標 {effectivePreviewVolume}% ·
                       {settlementPreviewSyncGameVolume ? " 同步遊玩音量" : " 使用自訂音量"}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      如果喜歡該歌曲或清單，請至 {currentRecommendation.providerLabel} 支持創作者與平台。
                     </p>
 
                     <div
@@ -1930,17 +2542,46 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                       <div className="relative aspect-video w-full">
                         {isCurrentRecommendationPreviewOpen &&
                         currentRecommendationPreviewUrl ? (
-                          <iframe
-                            ref={previewIframeRef}
-                            src={currentRecommendationPreviewUrl}
-                            className="absolute inset-0 h-full w-full"
-                            allow="autoplay; encrypted-media; picture-in-picture"
-                            allowFullScreen
-                            title={`preview-${currentRecommendation.recap.key}`}
+                          <>
+                            <iframe
+                              ref={previewIframeRef}
+                              src={currentRecommendationPreviewUrl}
+                              className="absolute inset-0 h-full w-full"
+                              allow="autoplay; encrypted-media; picture-in-picture"
+                              allowFullScreen
+                              title={`preview-${currentRecommendation.recap.key}`}
                             onLoad={() => {
                               syncPreviewVolume();
+                              registerYouTubeBridge();
                             }}
                           />
+                            {previewPlayerState !== "playing" && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
+                                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/25 via-slate-950/55 to-slate-950/82" />
+                                <div className="relative z-10 flex flex-col items-center gap-2">
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    <p className="text-sm font-semibold text-slate-200">
+                                      按下
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-amber-300/45 bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-50 transition hover:bg-amber-500/30"
+                                      onClick={handleQuickPlayStart}
+                                    >
+                                      快速播放
+                                    </button>
+                                    <p className="text-sm font-semibold text-slate-200">
+                                      即可試聽，暫停後可切換其他歌曲
+                                    </p>
+                                  </div>
+                                  <p className="text-xs text-slate-300">
+                                    如果喜歡這首歌曲，請至{" "}
+                                    {currentRecommendation.providerLabel} 支持作者。
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
                             {currentRecommendation.recap.thumbnail && (
@@ -1952,25 +2593,38 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             )}
                             <div className="absolute inset-0 bg-gradient-to-b from-slate-950/25 via-slate-950/55 to-slate-950/80" />
                             <div className="relative z-10 flex flex-col items-center gap-2">
-                            {currentRecommendationPreviewUrl ? (
-                              <>
-                                <p className="text-sm font-semibold text-slate-200">
-                                  按下「直接播放 {RECOMMEND_PREVIEW_SECONDS} 秒」可快速試聽
-                                </p>
-                                <p className="text-xs text-slate-400">
-                                  進入下一首或切換分類時，會保留固定區塊大小避免畫面膨脹。
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-sm font-semibold text-slate-200">
-                                  此平台不支援嵌入試聽
-                                </p>
-                                <p className="text-xs text-slate-400">
-                                  請使用上方連結前往 {currentRecommendation.providerLabel} 收聽。
-                                </p>
-                              </>
-                            )}
+                              {currentRecommendationPreviewUrl ? (
+                                <>
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    <p className="text-sm font-semibold text-slate-200">
+                                      按下
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-amber-300/45 bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-50 transition hover:bg-amber-500/30"
+                                      onClick={handleQuickPlayStart}
+                                    >
+                                      快速播放
+                                    </button>
+                                    <p className="text-sm font-semibold text-slate-200">
+                                      即可試聽，暫停後可切換其他歌曲
+                                    </p>
+                                  </div>
+                                  <p className="text-xs text-slate-300">
+                                    如果喜歡這首歌曲，請至{" "}
+                                    {currentRecommendation.providerLabel} 支持作者。
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-semibold text-slate-200">
+                                    此平台不支援嵌入試聽
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    請使用上方連結前往 {currentRecommendation.providerLabel} 收聽。
+                                  </p>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1998,19 +2652,42 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             type="button"
                             className={`w-full rounded-lg border px-3 py-2 text-left transition ${
                               active
-                                ? "border-amber-300/50 bg-amber-400/10"
+                                ? activeCategoryTheme.listActiveClass
                                 : "border-slate-700/70 bg-slate-900/65 hover:border-slate-500/75"
                             }`}
                             onClick={() => {
-                              jumpToRecommendation(activeRecommendCategory, index);
+                              jumpToRecommendation(activeRecommendCategory, index, {
+                                playbackMode:
+                                  previewPlaybackMode === "manual" ? "manual" : undefined,
+                                forcePreview: previewPlaybackMode === "manual",
+                              });
+                            }}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
                             }}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <p
-                                className="min-w-0 text-xs font-semibold text-slate-100"
-                                style={MULTILINE_ELLIPSIS_2}
-                              >
-                                #{card.recap.order} {card.recap.title}
+                              <p className="min-w-0 text-xs font-semibold text-slate-100">
+                                <span
+                                  className={`inline ${
+                                    card.link?.href
+                                      ? "cursor-pointer underline decoration-slate-500/60 underline-offset-2 transition hover:text-cyan-200 hover:decoration-cyan-300/70"
+                                      : ""
+                                  }`}
+                                  style={MULTILINE_ELLIPSIS_2}
+                                  onClick={(event) => {
+                                    if (!card.link?.href) return;
+                                    event.stopPropagation();
+                                    handleOpenTrackLink(card.link, card.recap);
+                                  }}
+                                  title={
+                                    card.link?.href
+                                      ? `前往 ${card.providerLabel}`
+                                      : card.recap.title
+                                  }
+                                >
+                                  #{card.recap.order} {card.recap.title}
+                                </span>
                               </p>
                               <span className="shrink-0 rounded-full border border-slate-600/70 bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-300">
                                 {card.providerLabel}
@@ -2025,19 +2702,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             <p className="mt-1 text-[10px] text-slate-400">
                               {card.hint} · {card.emphasis}
                             </p>
-                            {card.link?.href && (
-                              <button
-                                type="button"
-                                className="mt-1 rounded-full border border-sky-300/35 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-100 hover:bg-sky-400/20"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (!card.link) return;
-                                  handleOpenTrackLink(card.link, card.recap);
-                                }}
-                              >
-                                前往 {card.providerLabel}
-                              </button>
-                            )}
                           </button>
                         );
                       })}
@@ -2047,17 +2711,17 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                         type="button"
                         className="rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
                         onClick={goPrevRecommendation}
-                        disabled={recommendationCards.length <= 1}
+                        disabled={!canNavigateRecommendations}
                       >
-                        上一首
+                        {recommendNavLabels.prev}
                       </button>
                       <button
                         type="button"
                         className="rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
                         onClick={goNextRecommendation}
-                        disabled={recommendationCards.length <= 1}
+                        disabled={!canNavigateRecommendations}
                       >
-                        下一首
+                        {recommendNavLabels.next}
                       </button>
                     </div>
                   </aside>
@@ -2141,8 +2805,45 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                   </div>
                 </div>
               </div>
+              {sortedParticipants.length > 0 && (
+                <div className="mt-2 overflow-x-auto pb-1">
+                  <div className="inline-flex min-w-max items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-950/60 px-2 py-1.5">
+                    {sortedParticipants.map((participant, index) => {
+                      const isActive =
+                        participant.clientId ===
+                        effectiveSelectedReviewParticipantClientId;
+                      const isMe = participant.clientId === meClientId;
+                      return (
+                        <button
+                          key={`review-chip-${participant.clientId}`}
+                          type="button"
+                          onClick={() =>
+                            setSelectedReviewParticipantClientId(participant.clientId)
+                          }
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold transition ${
+                            isActive
+                              ? "border-sky-300/60 bg-sky-500/18 text-sky-50"
+                              : "border-slate-600/70 bg-slate-900/70 text-slate-200 hover:border-slate-400"
+                          }`}
+                        >
+                          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-current/40 px-1 text-[10px] leading-none">
+                            {index + 1}
+                          </span>
+                          <span className="max-w-[120px] truncate">
+                            {participant.username}
+                            {isMe ? "（你）" : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 text-[11px] text-slate-400">
+                提示：雙擊題目可切換到該首試聽（上方控制列可切換雙擊播放）
+              </p>
 
-              <div className="mt-3 grid gap-3 lg:grid-cols-[340px_minmax(0,1fr)]">
+              <div className="mt-3 grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
                 <div
                   key={`review-list-${reviewContextTransitionKey}`}
                   className="max-h-[500px] space-y-2 overflow-y-auto pr-1"
@@ -2179,7 +2880,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             {recap.title}
                           </p>
                           <span
-                            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone.badgeClass}`}
+                            className={`shrink-0 ${REVIEW_STATUS_BADGE_BASE} ${tone.badgeClass}`}
                           >
                             {tone.label}
                           </span>
@@ -2189,7 +2890,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                   })}
                 </div>
 
-                <div className="rounded-xl border border-slate-700/70 bg-slate-950/60 p-3">
+                <div className="rounded-xl border border-slate-700/70 bg-slate-950/60 p-2.5 sm:p-3">
                   {selectedRecap ? (
                     <div
                       key={reviewDetailTransitionKey}
@@ -2203,17 +2904,30 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                               ? ` · ${selectedReviewParticipant.username}`
                               : ""}
                           </p>
-                          <p
-                            className="mt-1 text-sm font-semibold text-slate-100"
-                            style={MULTILINE_ELLIPSIS_3}
-                            title={selectedRecap.title}
+                          <button
+                            type="button"
+                            className={`mt-1 w-full text-left text-sm font-semibold leading-5 underline-offset-4 transition ${
+                              selectedRecapLink?.href
+                                ? "text-slate-100 hover:text-cyan-200 hover:underline"
+                                : "cursor-default text-slate-100"
+                            }`}
+                            onClick={() => {
+                              if (!selectedRecapLink?.href) return;
+                              handleOpenTrackLink(selectedRecapLink, selectedRecap);
+                            }}
+                            disabled={!selectedRecapLink?.href}
+                            title={
+                              selectedRecapLink?.href
+                                ? `前往 ${selectedRecapLink.providerLabel || "平台"}`
+                                : selectedRecap.title
+                            }
                           >
-                            {selectedRecap.title}
-                          </p>
+                            <p style={MULTILINE_ELLIPSIS_2}>{selectedRecap.title}</p>
+                          </button>
                           <p className="mt-1 text-xs text-slate-400">{selectedRecap.uploader}</p>
                         </div>
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                          className={`${REVIEW_STATUS_BADGE_BASE} ${
                             RESULT_META[selectedRecapAnswer.result].badgeClass
                           }`}
                         >
@@ -2254,22 +2968,26 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                                     : "border-slate-700/70 bg-slate-900/55"
                               }`}
                             >
-                              <div className="flex items-start justify-between gap-2">
+                              <div className="relative min-h-[2.75rem]">
                                 <p
-                                  className="min-w-0 flex-1 text-sm leading-5 text-slate-100"
+                                  className="min-w-0 pr-[9rem] text-sm leading-5 text-slate-100 h-[2.5rem]"
                                   style={MULTILINE_ELLIPSIS_2}
                                   title={choice.title}
                                 >
                                   {choice.title}
                                 </p>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="absolute inset-y-0 right-0 flex items-center gap-1">
                                   {isCorrect && (
-                                    <span className="rounded-full border border-emerald-300/45 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-100">
+                                    <span
+                                      className={`${REVIEW_STATUS_BADGE_BASE} border-emerald-300/45 bg-emerald-400/15 text-emerald-100`}
+                                    >
                                       正確
                                     </span>
                                   )}
                                   {isMine && (
-                                    <span className="rounded-full border border-sky-300/45 bg-sky-400/15 px-2 py-0.5 text-[10px] font-semibold text-sky-100">
+                                    <span
+                                      className={`${REVIEW_STATUS_BADGE_BASE} border-sky-300/45 bg-sky-400/15 text-sky-100`}
+                                    >
                                       玩家選擇
                                     </span>
                                   )}
@@ -2299,49 +3017,83 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
           )}
           </div>
 
-          <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={goPrevStep}
-                disabled={stepIndex <= 0}
-              >
-                上一步
-              </Button>
-              {stepIndex < TAB_ORDER.length - 1 ? (
-                <Button
-                  variant="contained"
-                  color="warning"
-                  onClick={goNextStep}
-                >
-                  下一步：{TAB_LABELS[TAB_ORDER[stepIndex + 1]]}
-                </Button>
-              ) : (
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={goNextStep}
-                  disabled={!onBackToLobby}
-                >
-                  完成結算
-                </Button>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {onRequestExit && (
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={onRequestExit}
-                >
-                  離開房間
-                </Button>
-              )}
-            </div>
-          </footer>
         </div>
       </section>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-700/70 bg-slate-950/92 px-2 backdrop-blur lg:hidden">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 py-2 pb-[calc(env(safe-area-inset-bottom)+0.6rem)]">
+          <Button
+            variant="outlined"
+            color="inherit"
+            size="small"
+            onClick={goPrevStep}
+            disabled={stepIndex <= 0}
+            className="!min-w-0 !flex-1"
+          >
+            上一步
+          </Button>
+          {stepIndex < TAB_ORDER.length - 1 ? (
+            <Button
+              variant="contained"
+              color="warning"
+              size="small"
+              onClick={goNextStep}
+              className="!min-w-0 !flex-[1.1]"
+            >
+              下一步
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              onClick={goNextStep}
+              disabled={!onBackToLobby}
+              className="!min-w-0 !flex-[1.1]"
+            >
+              完成結算
+            </Button>
+          )}
+          {onRequestExit && (
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              onClick={() => setExitConfirmOpen(true)}
+              className="!min-w-[84px] !shrink-0"
+            >
+              離開
+            </Button>
+          )}
+        </div>
+      </div>
+      <Dialog
+        open={exitConfirmOpen}
+        onClose={() => setExitConfirmOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>確認離開房間？</DialogTitle>
+        <DialogContent>
+          <p className="text-sm text-slate-700">
+            離開後會中斷目前結算導覽，並返回房間外。
+          </p>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExitConfirmOpen(false)} color="inherit">
+            取消
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => {
+              setExitConfirmOpen(false);
+              onRequestExit?.();
+            }}
+          >
+            確認離開
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };
