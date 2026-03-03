@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { initGa, trackGaPageView } from "./ga";
+import { trackGaPageView } from "./ga";
 
 const normalizePathname = (pathname: string) => {
   if (/^\/rooms\/[^/]+$/.test(pathname)) {
@@ -17,10 +17,6 @@ const normalizePathname = (pathname: string) => {
 
 const AnalyticsPageTracker = () => {
   const location = useLocation();
-
-  useEffect(() => {
-    initGa();
-  }, []);
 
   useEffect(() => {
     const path = normalizePathname(location.pathname);
