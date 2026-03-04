@@ -2874,7 +2874,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                           <IconButton
                             size="small"
                             className="!h-6 !w-6 !border !border-cyan-300/45 !bg-cyan-500/12 !text-cyan-100"
-                            title={RECOMMEND_CONTROLS_TOOLTIP}
                             aria-label="推薦功能提示"
                           >
                             <HelpOutlineRoundedIcon fontSize="inherit" />
