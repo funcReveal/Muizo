@@ -39,6 +39,11 @@ import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
 import { useSfxSettings } from "../../Setting/ui/components/useSfxSettings";
 import { useGameSfx } from "./hooks/useGameSfx";
 import LiveSettlementShowcase from "./components/LiveSettlementShowcase";
+import {
+  isComboMilestone,
+  resolveComboBreakTier,
+  resolveComboTier,
+} from "./gameRoomUiUtils";
 import type {
   SettlementQuestionRecap,
   SettlementQuestionResult,
@@ -295,21 +300,6 @@ type AnswerDecisionMeta = {
   firstChoiceIndex: number | null;
   firstSubmittedAtMs: number | null;
   hasChangedChoice: boolean;
-};
-
-const DECISION_BONUS_TIERS = [
-  { maxElapsedMs: 2000, points: 20 },
-  { maxElapsedMs: 5000, points: 10 },
-] as const;
-
-const resolveDecisionBonusPreviewPoints = (firstAnswerElapsedMs: number | null) => {
-  if (firstAnswerElapsedMs === null || firstAnswerElapsedMs < 0) return 0;
-  for (const tier of DECISION_BONUS_TIERS) {
-    if (firstAnswerElapsedMs <= tier.maxElapsedMs) {
-      return tier.points;
-    }
-  }
-  return 0;
 };
 
 type FeedbackTone = "neutral" | "locked" | "correct" | "wrong";
@@ -1832,7 +1822,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           return current;
         });
         choiceCommitFxTimerRef.current = null;
-      }, 340);
+      }, 620);
 
       const result = await onSubmitChoice(choiceIndex);
       setPendingChoiceState((prev) => {
@@ -2123,34 +2113,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const answerDecisionMetaForCurrentTrack =
     answerDecisionMeta.trackSessionKey === trackSessionKey ? answerDecisionMeta : null;
   const myHasChangedAnswer = Boolean(answerDecisionMetaForCurrentTrack?.hasChangedChoice);
-  const myFirstSubmittedAtMs = answerDecisionMetaForCurrentTrack?.firstSubmittedAtMs ?? null;
-  const myFirstChoiceIndex = answerDecisionMetaForCurrentTrack?.firstChoiceIndex ?? null;
-  const myFirstAnswerElapsedMs =
-    myFirstSubmittedAtMs !== null ? myFirstSubmittedAtMs - gameState.startedAt : null;
   const myHasAnswered =
     selectedChoice !== null ||
     Boolean(meClientId && answeredClientIdSet.has(meClientId));
   const myIsCorrect = selectedChoice !== null && selectedChoice === correctChoiceIndex;
-  const myDecisionBonusPreviewPoints =
-    gameState.phase === "guess" || isReveal
-      ? (
-          myHasAnswered &&
-            selectedChoice !== null &&
-            myFirstSubmittedAtMs !== null &&
-            myFirstChoiceIndex === selectedChoice &&
-            !myHasChangedAnswer
-        )
-        ? resolveDecisionBonusPreviewPoints(myFirstAnswerElapsedMs)
-        : 0
-      : 0;
-  const myDecisionBonusEligible = myDecisionBonusPreviewPoints > 0;
   const myResolvedScoreBreakdown = myBackendScoreBreakdown;
   const myResolvedGain = myResolvedScoreBreakdown?.totalGainPoints ?? myGain;
+  const myComboNow = Math.max(0, meParticipant?.combo ?? 0);
+  const myComboTier = resolveComboTier(myComboNow);
+  const myComboMilestone = isComboMilestone(myComboNow);
+  const hasActiveComboStreak = myComboTier > 0;
+  const comboBonusPoints = myResolvedScoreBreakdown?.comboBonusPoints ?? 0;
+  const comboBreakTier = resolveComboBreakTier(comboBonusPoints);
+  const isComboBreakThisQuestion =
+    isReveal &&
+    (!myHasAnswered || !myIsCorrect) &&
+    comboBreakTier > 0;
   const myFeedback = useMemo<MyFeedbackModel>(() => {
     const guessBadges: string[] = [];
-    if (myDecisionBonusEligible) {
-      guessBadges.push("決斷候選");
-    }
     if (myAnswerRank !== null) {
       guessBadges.push(`第${myAnswerRank}答`);
     }
@@ -2209,12 +2189,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           myHasChangedAnswer
             ? "答案已更新，系統以最後提交為準"
             : "答案已送出，倒數前仍可修改",
-          [
-            liveParticipantCount > 0
-              ? `已答 ${liveAnsweredCount}/${liveParticipantCount}`
-              : "已答統計載入中",
-            myDecisionBonusEligible ? "決斷候選" : "5 秒內不改答可拿決斷",
-          ].join(" · "),
+          liveParticipantCount > 0
+            ? `已答 ${liveAnsweredCount}/${liveParticipantCount}`
+            : "已答統計載入中",
         ],
       };
     }
@@ -2304,8 +2281,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     liveParticipantCount,
     meClientId,
     myAnswerRank,
-    myDecisionBonusEligible,
-    myDecisionBonusPreviewPoints,
     myHasChangedAnswer,
     myHasAnswered,
     myResolvedScoreBreakdown,
@@ -2906,7 +2881,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         {isReveal && scoreParts.gain !== 0 && (
                           <span
                             className={`ml-1 ${
-                              scoreParts.gain > 0 ? "text-sky-300" : "text-rose-300"
+                              scoreParts.gain > 0
+                                ? "text-sky-300 game-room-score-gain-pop"
+                                : "text-rose-300 game-room-score-loss-pop"
                             }`}
                           >
                             {scoreParts.gain > 0
@@ -3282,8 +3259,29 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                             ? choiceCommitFxState.kind
                             : null;
                         const showGuessLockTag = !isReveal && isMyChoice;
-                        const showGuessDecisionTag =
-                          !isReveal && isMyChoice && myDecisionBonusPreviewPoints > 0;
+                        const showComboLiveStyle =
+                          !isReveal && isMyChoice && hasActiveComboStreak;
+                        const showComboOverdriveStyle =
+                          showComboLiveStyle && myComboTier === 5 && myComboNow > 10;
+                        const showComboBreakStyle =
+                          isReveal && isMyChoice && isComboBreakThisQuestion;
+                        const showComboMilestoneStyle =
+                          isReveal &&
+                          isMyChoice &&
+                          myIsCorrect &&
+                          myComboTier > 0 &&
+                          myComboMilestone;
+                        const comboLiveTierClass =
+                          showComboLiveStyle && myComboTier > 0
+                            ? `game-room-choice-button--combo-live-tier-${myComboTier}`
+                            : "";
+                        const comboBreakTierClass =
+                          showComboBreakStyle && comboBreakTier > 0
+                            ? `game-room-choice-button--combo-break-tier-${comboBreakTier}`
+                            : "";
+                        const comboMilestoneTierClass = showComboMilestoneStyle
+                          ? `game-room-choice-button--combo-milestone-tier-${myComboTier}`
+                          : "";
 
                         return (
                           <Button
@@ -3335,13 +3333,39 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                     ? "game-room-choice-button--commit-reselect"
                                     : ""
                               } ${
+                                choiceCommitFxKind
+                                  ? "game-room-choice-button--commit-burst"
+                                  : ""
+                              } ${
+                                choiceCommitFxKind
+                                  ? "game-room-choice-button--press-hit"
+                                  : ""
+                              } ${
                                 !isReveal && isSelected
                                   ? "game-room-choice-button--selected-live"
                                   : ""
                               } ${
-                                !isReveal && isSelected && myDecisionBonusEligible
-                                  ? "game-room-choice-button--decision-live"
+                                showComboLiveStyle
+                                  ? "game-room-choice-button--combo-live"
                                   : ""
+                              } ${
+                                comboLiveTierClass
+                              } ${
+                                showComboOverdriveStyle
+                                  ? "game-room-choice-button--combo-overdrive"
+                                  : ""
+                              } ${
+                                showComboBreakStyle
+                                  ? "game-room-choice-button--combo-break"
+                                  : ""
+                              } ${
+                                comboBreakTierClass
+                              } ${
+                                showComboMilestoneStyle
+                                  ? "game-room-choice-button--combo-milestone"
+                                  : ""
+                              } ${
+                                comboMilestoneTierClass
                               } ${
                                 isLocked || waitingToStart || shouldShowGestureOverlay
                                   ? "pointer-events-none"
@@ -3353,6 +3377,34 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                               submitChoiceWithFeedback(choice.index);
                             }}
                           >
+                            {choiceCommitFxKind && (
+                              <span
+                                aria-hidden="true"
+                                className="game-room-choice-press-flash"
+                              />
+                            )}
+                            {choiceCommitFxKind && (
+                              <span
+                                aria-hidden="true"
+                                className={`game-room-choice-burst game-room-choice-burst--${choiceCommitFxKind}`}
+                              />
+                            )}
+                            {showComboMilestoneStyle && (
+                              <span
+                                aria-hidden="true"
+                                className={`game-room-choice-burst game-room-choice-burst--combo-milestone game-room-choice-burst--combo-tier-${myComboTier}`}
+                              />
+                            )}
+                            {showComboLiveStyle && (
+                              <span
+                                aria-hidden="true"
+                                className={`game-room-choice-combo-aura game-room-choice-combo-aura--tier-${myComboTier} ${
+                                  showComboOverdriveStyle
+                                    ? "game-room-choice-combo-aura--overdrive"
+                                    : ""
+                                }`}
+                              />
+                            )}
                             <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
                               <span
                                 className="game-room-choice-title"
@@ -3372,9 +3424,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                                     {myHasChangedAnswer ? "已改答" : "已鎖定"}
                                   </span>
                                 )}
-                                {showGuessDecisionTag && (
-                                  <span className="game-room-choice-tag game-room-choice-tag--decision">
-                                    決斷候選
+                                {isMyChoice && myComboTier > 0 && (
+                                  <span
+                                    className={`game-room-choice-tag game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
+                                    title={`連擊 x${myComboNow}`}
+                                  >
+                                    連擊 x{myComboNow}
                                   </span>
                                 )}
                                 {showCorrectTag && (
@@ -3405,7 +3460,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
                 <div className="game-room-reveal">
                   <div
-                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result" : ""} ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""}`}
+                    className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""} ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""} ${
+                      isComboBreakThisQuestion && comboBreakTier > 0
+                        ? `game-room-reveal-card--combo-break game-room-reveal-card--combo-break-tier-${comboBreakTier}`
+                        : ""
+                    }`}
                   >
                     <div
                       className={`game-room-feedback-head ${

@@ -1770,6 +1770,17 @@ body {
   }
 }
 
+.game-room-score-gain-pop {
+  display: inline-block;
+  animation: game-room-score-gain-pop 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-room-score-loss-pop {
+  display: inline-block;
+  animation: game-room-score-loss-pop 420ms
+    cubic-bezier(0.36, 0.01, 0.24, 1.02);
+}
+
 .game-room-chat {
   background: rgba(2, 6, 23, 0.45);
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -1791,10 +1802,10 @@ body {
   overflow: hidden;
   isolation: isolate;
   transition:
-    transform 90ms ease,
-    box-shadow 140ms ease,
-    border-color 140ms ease,
-    background-color 140ms ease;
+    transform 140ms ease,
+    box-shadow 320ms ease,
+    border-color 300ms ease,
+    background-color 300ms ease;
 }
 
 .game-room-choice-button.MuiButton-root::before,
@@ -1825,26 +1836,175 @@ body {
 }
 
 .game-room-choice-button.MuiButton-root:not(.pointer-events-none):active {
-  transform: translateY(1px) scale(0.988);
+  transform: translateY(0.5px) scale(0.994);
 }
 
 .game-room-choice-button--selected-live.MuiButton-root {
+  border-color: rgba(56, 189, 248, 0.62) !important;
+  background:
+    radial-gradient(
+      220px 120px at 12% 18%,
+      rgba(56, 189, 248, 0.2),
+      transparent 74%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(3, 105, 161, 0.22),
+      rgba(8, 47, 73, 0.24)
+    ) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(56, 189, 248, 0.22),
-    0 0 0 1px rgba(56, 189, 248, 0.08);
+    inset 0 0 0 1px rgba(56, 189, 248, 0.34),
+    inset 0 0 0 2px rgba(14, 165, 233, 0.14),
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    0 0 18px -12px rgba(56, 189, 248, 0.7) !important;
+  animation: game-room-choice-selected-breathe 2.2s ease-in-out infinite;
+}
+
+.game-room-choice-button--combo-live.MuiButton-root {
+  --gr-combo-border: rgba(52, 211, 153, 0.72);
+  --gr-combo-inner: rgba(16, 185, 129, 0.34);
+  --gr-combo-glow: rgba(52, 211, 153, 0.86);
+  --gr-combo-top: rgba(4, 78, 64, 0.46);
+  --gr-combo-bottom: rgba(6, 95, 70, 0.4);
+  --gr-combo-core: rgba(20, 184, 166, 0.26);
+  --gr-combo-duration: 1.35s;
+  border-color: var(--gr-combo-border) !important;
+  background:
+    radial-gradient(
+      240px 150px at 14% 14%,
+      var(--gr-combo-core),
+      transparent 72%
+    ),
+    linear-gradient(180deg, var(--gr-combo-top), var(--gr-combo-bottom)) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--gr-combo-inner) 95%, transparent),
+    inset 0 0 0 2px rgba(15, 23, 42, 0.16),
+    0 0 0 1px color-mix(in srgb, var(--gr-combo-border) 70%, transparent),
+    0 0 30px -10px color-mix(in srgb, var(--gr-combo-glow) 92%, transparent),
+    0 0 52px -24px color-mix(in srgb, var(--gr-combo-glow) 70%, transparent);
+  animation: game-room-choice-combo-live var(--gr-combo-duration) ease-in-out infinite;
+}
+
+.game-room-choice-button--combo-live-tier-1.MuiButton-root {
+  --gr-combo-border: rgba(45, 212, 191, 0.64);
+  --gr-combo-inner: rgba(20, 184, 166, 0.3);
+  --gr-combo-glow: rgba(45, 212, 191, 0.76);
+  --gr-combo-top: rgba(12, 74, 68, 0.44);
+  --gr-combo-bottom: rgba(8, 47, 73, 0.36);
+  --gr-combo-core: rgba(45, 212, 191, 0.22);
+  --gr-combo-duration: 1.62s;
+}
+
+.game-room-choice-button--combo-live-tier-2.MuiButton-root {
+  --gr-combo-border: rgba(74, 222, 128, 0.74);
+  --gr-combo-inner: rgba(34, 197, 94, 0.34);
+  --gr-combo-glow: rgba(74, 222, 128, 0.9);
+  --gr-combo-top: rgba(6, 78, 59, 0.48);
+  --gr-combo-bottom: rgba(20, 83, 45, 0.4);
+  --gr-combo-core: rgba(74, 222, 128, 0.24);
+  --gr-combo-duration: 1.48s;
+}
+
+.game-room-choice-button--combo-live-tier-3.MuiButton-root {
+  --gr-combo-border: rgba(251, 191, 36, 0.84);
+  --gr-combo-inner: rgba(245, 158, 11, 0.4);
+  --gr-combo-glow: rgba(251, 191, 36, 0.98);
+  --gr-combo-top: rgba(120, 53, 15, 0.54);
+  --gr-combo-bottom: rgba(146, 64, 14, 0.46);
+  --gr-combo-core: rgba(251, 191, 36, 0.28);
+  --gr-combo-duration: 1.34s;
+}
+
+.game-room-choice-button--combo-live-tier-4.MuiButton-root {
+  --gr-combo-border: rgba(251, 146, 60, 0.9);
+  --gr-combo-inner: rgba(249, 115, 22, 0.44);
+  --gr-combo-glow: rgba(251, 146, 60, 1);
+  --gr-combo-top: rgba(127, 29, 29, 0.58);
+  --gr-combo-bottom: rgba(154, 52, 18, 0.5);
+  --gr-combo-core: rgba(251, 146, 60, 0.32);
+  --gr-combo-duration: 1.2s;
+}
+
+.game-room-choice-button--combo-live-tier-5.MuiButton-root {
+  --gr-combo-border: rgba(244, 114, 182, 0.96);
+  --gr-combo-inner: rgba(225, 29, 72, 0.5);
+  --gr-combo-glow: rgba(244, 114, 182, 1);
+  --gr-combo-top: rgba(126, 34, 206, 0.58);
+  --gr-combo-bottom: rgba(157, 23, 77, 0.54);
+  --gr-combo-core: rgba(244, 114, 182, 0.35);
+  --gr-combo-duration: 1.02s;
+}
+
+.game-room-choice-button--combo-overdrive.MuiButton-root {
+  filter: saturate(1.16) brightness(1.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(225, 29, 72, 0.62),
+    inset 0 0 0 2px rgba(251, 191, 36, 0.22),
+    0 0 0 1px rgba(244, 114, 182, 0.48),
+    0 0 42px -8px rgba(244, 114, 182, 1),
+    0 0 60px -24px rgba(251, 191, 36, 0.72);
+  animation: game-room-choice-combo-overdrive 1.6s ease-in-out infinite;
+}
+
+.game-room-choice-button--combo-break.MuiButton-root {
+  --gr-combo-break-border: rgba(251, 113, 133, 0.76);
+  --gr-combo-break-inner: rgba(244, 63, 94, 0.32);
+  --gr-combo-break-glow: rgba(244, 63, 94, 0.86);
+  --gr-combo-break-duration: 420ms;
+  --gr-combo-break-shift: 1px;
+  border-color: var(--gr-combo-break-border);
+  box-shadow:
+    inset 0 0 0 1px var(--gr-combo-break-inner),
+    inset 0 0 0 2px rgba(15, 23, 42, 0.14),
+    0 0 0 1px color-mix(in srgb, var(--gr-combo-break-border) 56%, transparent),
+    0 0 30px -14px var(--gr-combo-break-glow);
+  animation: game-room-choice-combo-break var(--gr-combo-break-duration)
+    cubic-bezier(0.36, 0.01, 0.24, 1.02);
+}
+
+.game-room-choice-button--combo-break-tier-1.MuiButton-root {
+  --gr-combo-break-border: rgba(251, 113, 133, 0.72);
+  --gr-combo-break-inner: rgba(244, 63, 94, 0.26);
+  --gr-combo-break-glow: rgba(244, 63, 94, 0.72);
+  --gr-combo-break-duration: 460ms;
+  --gr-combo-break-shift: 1px;
+}
+
+.game-room-choice-button--combo-break-tier-2.MuiButton-root {
+  --gr-combo-break-border: rgba(251, 113, 133, 0.78);
+  --gr-combo-break-inner: rgba(244, 63, 94, 0.34);
+  --gr-combo-break-glow: rgba(244, 63, 94, 0.84);
+  --gr-combo-break-duration: 520ms;
+  --gr-combo-break-shift: 1.4px;
+}
+
+.game-room-choice-button--combo-break-tier-3.MuiButton-root {
+  --gr-combo-break-border: rgba(251, 113, 133, 0.84);
+  --gr-combo-break-inner: rgba(225, 29, 72, 0.42);
+  --gr-combo-break-glow: rgba(225, 29, 72, 0.92);
+  --gr-combo-break-duration: 600ms;
+  --gr-combo-break-shift: 1.8px;
+}
+
+.game-room-choice-button--combo-break-tier-4.MuiButton-root {
+  --gr-combo-break-border: rgba(251, 113, 133, 0.92);
+  --gr-combo-break-inner: rgba(225, 29, 72, 0.5);
+  --gr-combo-break-glow: rgba(225, 29, 72, 0.98);
+  --gr-combo-break-duration: 700ms;
+  --gr-combo-break-shift: 2.2px;
 }
 
 .game-room-choice-button--commit-lock.MuiButton-root::before {
-  animation: game-room-choice-lock-hit 260ms ease-out;
+  animation: game-room-choice-lock-hit 420ms ease-out;
 }
 
 .game-room-choice-button--commit-lock.MuiButton-root::after {
   opacity: 1;
-  animation: game-room-choice-commit-sweep 260ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  animation: game-room-choice-commit-sweep 420ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
 .game-room-choice-button--commit-reselect.MuiButton-root::before {
-  animation: game-room-choice-reselect-hit 300ms ease-out;
+  animation: game-room-choice-reselect-hit 360ms ease-out;
 }
 
 .game-room-choice-button--commit-reselect.MuiButton-root::after {
@@ -1857,11 +2017,188 @@ body {
     rgba(248, 113, 113, 0.2) 56%,
     transparent 78%
   );
-  animation: game-room-choice-commit-sweep 300ms cubic-bezier(0.2, 0.9, 0.25, 1);
+  animation: game-room-choice-commit-sweep 380ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.game-room-choice-button--commit-burst.MuiButton-root {
+  isolation: isolate;
+}
+
+.game-room-choice-button--press-hit.MuiButton-root {
+  isolation: isolate;
+}
+
+.game-room-choice-press-flash {
+  pointer-events: none;
+  position: absolute;
+  inset: -12%;
+  border-radius: inherit;
+  opacity: 0;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(125, 211, 252, 0.38),
+      rgba(125, 211, 252, 0.15) 36%,
+      rgba(125, 211, 252, 0) 72%
+    );
+  mix-blend-mode: screen;
+  animation: game-room-choice-press-flash 460ms ease-out;
+}
+
+.game-room-choice-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: -20%;
+  border-radius: inherit;
+  opacity: 0;
+  transform: scale(0.46);
+  filter: saturate(1.08);
+}
+
+.game-room-choice-burst--lock {
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(56, 189, 248, 0.42),
+      rgba(56, 189, 248, 0.12) 36%,
+      rgba(56, 189, 248, 0) 72%
+    ),
+    radial-gradient(circle at 24% 68%, rgba(125, 211, 252, 0.5), transparent 36%),
+    radial-gradient(circle at 74% 32%, rgba(34, 211, 238, 0.44), transparent 34%);
+  animation: game-room-choice-burst-lock 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-room-choice-burst--reselect {
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(251, 146, 60, 0.34),
+      rgba(251, 146, 60, 0.08) 36%,
+      rgba(251, 146, 60, 0) 72%
+    ),
+    radial-gradient(circle at 24% 68%, rgba(248, 113, 113, 0.42), transparent 36%),
+    radial-gradient(circle at 74% 32%, rgba(251, 191, 36, 0.34), transparent 34%);
+  animation: game-room-choice-burst-reselect 520ms
+    cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-room-choice-burst--combo-milestone {
+  mix-blend-mode: screen;
+  animation: game-room-choice-burst-combo-milestone 840ms
+    cubic-bezier(0.18, 1, 0.3, 1);
+}
+
+.game-room-choice-burst--combo-tier-1 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(45, 212, 191, 0.4), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(125, 211, 252, 0.46), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(56, 189, 248, 0.42), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-2 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(74, 222, 128, 0.44), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(134, 239, 172, 0.52), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(16, 185, 129, 0.4), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-3 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.48), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(251, 146, 60, 0.54), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(245, 158, 11, 0.44), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-4 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 146, 60, 0.5), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(248, 113, 113, 0.56), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(245, 158, 11, 0.46), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-5 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(244, 114, 182, 0.56), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(251, 113, 133, 0.58), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(251, 191, 36, 0.48), transparent 32%);
+}
+
+.game-room-choice-button--combo-milestone.MuiButton-root {
+  isolation: isolate;
+}
+
+.game-room-choice-button--combo-milestone-tier-1.MuiButton-root {
+  animation: game-room-choice-combo-milestone 680ms ease-out;
+}
+
+.game-room-choice-button--combo-milestone-tier-2.MuiButton-root {
+  animation: game-room-choice-combo-milestone 740ms ease-out;
+}
+
+.game-room-choice-button--combo-milestone-tier-3.MuiButton-root {
+  animation: game-room-choice-combo-milestone 780ms ease-out;
+}
+
+.game-room-choice-button--combo-milestone-tier-4.MuiButton-root {
+  animation: game-room-choice-combo-milestone 860ms ease-out;
+}
+
+.game-room-choice-button--combo-milestone-tier-5.MuiButton-root {
+  animation: game-room-choice-combo-milestone 960ms ease-out;
+}
+
+.game-room-choice-combo-aura {
+  pointer-events: none;
+  position: absolute;
+  inset: -20%;
+  border-radius: inherit;
+  z-index: 0;
+  opacity: 0.75;
+  filter: blur(10px) saturate(1.24);
+  mix-blend-mode: screen;
+  animation: game-room-choice-combo-aura 1.9s ease-in-out infinite;
+}
+
+.game-room-choice-combo-aura--tier-1 {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(45, 212, 191, 0.56), transparent 44%),
+    radial-gradient(circle at 76% 66%, rgba(125, 211, 252, 0.48), transparent 50%);
+}
+
+.game-room-choice-combo-aura--tier-2 {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(74, 222, 128, 0.58), transparent 44%),
+    radial-gradient(circle at 76% 66%, rgba(110, 231, 183, 0.5), transparent 50%);
+}
+
+.game-room-choice-combo-aura--tier-3 {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(251, 191, 36, 0.62), transparent 44%),
+    radial-gradient(circle at 76% 66%, rgba(251, 146, 60, 0.52), transparent 50%);
+}
+
+.game-room-choice-combo-aura--tier-4 {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(251, 146, 60, 0.66), transparent 44%),
+    radial-gradient(circle at 76% 66%, rgba(248, 113, 113, 0.56), transparent 50%);
+}
+
+.game-room-choice-combo-aura--tier-5 {
+  background:
+    radial-gradient(circle at 22% 30%, rgba(244, 114, 182, 0.72), transparent 44%),
+    radial-gradient(circle at 76% 66%, rgba(251, 191, 36, 0.56), transparent 50%);
+}
+
+.game-room-choice-combo-aura--overdrive {
+  opacity: 0.92;
+  filter: blur(11px) saturate(1.34) brightness(1.08);
+  animation-duration: 1.2s;
 }
 
 .game-room-choice-content {
+  position: relative;
   min-width: 0;
+  z-index: 1;
 }
 
 .game-room-choice-meta {
@@ -1920,8 +2257,8 @@ body {
 
 .game-room-options-grid {
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 2px;
+  overflow-y: hidden;
+  padding-right: 0;
   align-content: start;
 }
 
@@ -2010,7 +2347,7 @@ body {
     height: 100%;
     min-height: 100%;
     max-height: 100%;
-    scrollbar-gutter: stable;
+    overflow: hidden;
   }
 }
 
@@ -2023,8 +2360,7 @@ body {
 .game-room-reveal-card {
   height: 100%;
   min-height: 100%;
-  scrollbar-gutter: stable;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -2045,6 +2381,32 @@ body {
   box-shadow:
     0 0 0 1px rgba(56, 189, 248, 0.16),
     0 16px 30px -20px rgba(2, 132, 199, 0.45);
+}
+
+.game-room-reveal-card--result-burst {
+  position: relative;
+  isolation: isolate;
+  animation: game-room-reveal-result-entry 540ms cubic-bezier(0.18, 1, 0.3, 1);
+}
+
+.game-room-reveal-card--result-burst::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: -28%;
+  border-radius: inherit;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 20% 24%, rgba(103, 232, 249, 0.5), transparent 44%),
+    radial-gradient(circle at 78% 24%, rgba(125, 211, 252, 0.44), transparent 40%),
+    radial-gradient(circle at 50% 78%, rgba(255, 255, 255, 0.3), transparent 46%);
+  mix-blend-mode: screen;
+  animation: game-room-reveal-result-flash 640ms ease-out;
+}
+
+.game-room-reveal-card--result-burst > * {
+  position: relative;
+  z-index: 1;
 }
 
 .game-room-reveal-card--result .game-room-feedback-title {
@@ -2151,6 +2513,44 @@ body {
 .game-room-reveal-card--wrong .game-room-feedback-title {
   color: #fff1f2;
   text-shadow: 0 0 12px rgba(251, 113, 133, 0.28);
+}
+
+.game-room-reveal-card--combo-break {
+  border-color: rgba(251, 113, 133, 0.86) !important;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.38),
+    0 0 30px rgba(225, 29, 72, 0.24) !important;
+  animation: game-room-reveal-combo-break 460ms
+    cubic-bezier(0.36, 0.01, 0.24, 1.02);
+}
+
+.game-room-reveal-card--combo-break-tier-1 {
+  border-color: rgba(251, 113, 133, 0.8) !important;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.3),
+    0 0 22px rgba(225, 29, 72, 0.2) !important;
+}
+
+.game-room-reveal-card--combo-break-tier-2 {
+  border-color: rgba(251, 113, 133, 0.86) !important;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.38),
+    0 0 30px rgba(225, 29, 72, 0.24) !important;
+}
+
+.game-room-reveal-card--combo-break-tier-3 {
+  border-color: rgba(251, 113, 133, 0.9) !important;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.42),
+    0 0 34px rgba(225, 29, 72, 0.28) !important;
+}
+
+.game-room-reveal-card--combo-break-tier-4 {
+  border-color: rgba(251, 113, 133, 0.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.48),
+    0 0 40px rgba(225, 29, 72, 0.34) !important;
+  animation-duration: 520ms;
 }
 
 .game-room-reveal-card--neutral .game-room-feedback-title {
@@ -2412,26 +2812,39 @@ body {
   color: #fed7aa;
 }
 
-.game-room-choice-tag--decision {
-  border-color: rgba(251, 191, 36, 0.55);
-  background: linear-gradient(
-    180deg,
-    rgba(251, 191, 36, 0.26),
-    rgba(245, 158, 11, 0.16)
-  );
-  color: #fde68a;
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 191, 36, 0.26),
-    0 0 0 1px rgba(245, 158, 11, 0.12);
-  animation: game-room-decision-tag-glow 1.25s ease-in-out infinite;
+.game-room-choice-tag--combo {
+  border-width: 1px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
-.game-room-choice-button--decision-live.MuiButton-root {
-  border-color: rgba(250, 204, 21, 0.55);
-  box-shadow:
-    0 0 0 1px rgba(250, 204, 21, 0.24),
-    0 0 20px -10px rgba(250, 204, 21, 0.7);
-  animation: game-room-decision-choice-pulse 1.5s ease-in-out infinite;
+.game-room-choice-tag--combo-tier-1 {
+  border-color: rgba(45, 212, 191, 0.55);
+  background: rgba(20, 184, 166, 0.18);
+  color: #ccfbf1;
+}
+
+.game-room-choice-tag--combo-tier-2 {
+  border-color: rgba(74, 222, 128, 0.58);
+  background: rgba(34, 197, 94, 0.18);
+  color: #dcfce7;
+}
+
+.game-room-choice-tag--combo-tier-3 {
+  border-color: rgba(251, 191, 36, 0.62);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fef3c7;
+}
+
+.game-room-choice-tag--combo-tier-4 {
+  border-color: rgba(251, 146, 60, 0.64);
+  background: rgba(249, 115, 22, 0.22);
+  color: #ffedd5;
+}
+
+.game-room-choice-tag--combo-tier-5 {
+  border-color: rgba(244, 114, 182, 0.66);
+  background: rgba(225, 29, 72, 0.24);
+  color: #ffe4e6;
 }
 
 @keyframes game-room-choice-commit-sweep {
@@ -2476,6 +2889,247 @@ body {
   }
 }
 
+@keyframes game-room-choice-selected-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(56, 189, 248, 0.3),
+      inset 0 0 0 2px rgba(14, 165, 233, 0.12),
+      0 0 0 1px rgba(56, 189, 248, 0.16),
+      0 0 16px -12px rgba(56, 189, 248, 0.55);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 1px rgba(56, 189, 248, 0.4),
+      inset 0 0 0 2px rgba(14, 165, 233, 0.18),
+      0 0 0 1px rgba(56, 189, 248, 0.26),
+      0 0 24px -8px rgba(56, 189, 248, 0.78);
+  }
+}
+
+@keyframes game-room-choice-combo-live {
+  0%,
+  100% {
+    filter: saturate(1.02) brightness(1);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--gr-combo-inner) 84%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--gr-combo-border) 46%, transparent),
+      0 0 18px -12px color-mix(in srgb, var(--gr-combo-glow) 62%, transparent),
+      0 0 44px -28px color-mix(in srgb, var(--gr-combo-glow) 44%, transparent);
+  }
+  50% {
+    filter: saturate(1.14) brightness(1.12);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--gr-combo-inner) 100%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--gr-combo-border) 72%, transparent),
+      0 0 32px -6px color-mix(in srgb, var(--gr-combo-glow) 100%, transparent),
+      0 0 56px -20px color-mix(in srgb, var(--gr-combo-glow) 66%, transparent);
+  }
+}
+
+@keyframes game-room-choice-combo-overdrive {
+  0%,
+  100% {
+    filter: saturate(1.12) brightness(1.08);
+  }
+  50% {
+    filter: saturate(1.26) brightness(1.22);
+  }
+}
+
+@keyframes game-room-choice-combo-aura {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.07);
+  }
+}
+
+@keyframes game-room-choice-combo-break {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  22% {
+    transform: translateX(calc(var(--gr-combo-break-shift, 1px) * -1)) scale(1.008);
+  }
+  48% {
+    transform: translateX(var(--gr-combo-break-shift, 1px)) scale(0.997);
+  }
+  74% {
+    transform: translateX(calc(var(--gr-combo-break-shift, 1px) * -1)) scale(1.003);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes game-room-choice-burst-lock {
+  0% {
+    opacity: 0;
+    transform: scale(0.42);
+    filter: saturate(0.96);
+  }
+  28% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.16);
+    filter: saturate(1.2);
+  }
+}
+
+@keyframes game-room-choice-burst-reselect {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+    filter: saturate(0.92);
+  }
+  30% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+    filter: saturate(1.06);
+  }
+}
+
+@keyframes game-room-choice-press-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  52% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes game-room-choice-combo-milestone {
+  0% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  45% {
+    transform: translateY(-1px) scale(1.018);
+    filter: brightness(1.15);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes game-room-choice-burst-combo-milestone {
+  0% {
+    opacity: 0;
+    transform: scale(0.52);
+    filter: saturate(1);
+  }
+  34% {
+    opacity: 0.96;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.26);
+    filter: saturate(1.24);
+  }
+}
+
+@keyframes game-room-reveal-result-entry {
+  0% {
+    transform: translateY(10px) scale(0.972);
+    filter: brightness(0.88);
+  }
+  45% {
+    transform: translateY(-1px) scale(1.012);
+    filter: brightness(1.08);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes game-room-reveal-result-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  30% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes game-room-score-gain-pop {
+  0% {
+    transform: translateY(6px) scale(0.84);
+    opacity: 0;
+    filter: brightness(0.9);
+  }
+  34% {
+    transform: translateY(-2px) scale(1.12);
+    opacity: 1;
+    filter: brightness(1.26);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes game-room-score-loss-pop {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 0.92;
+  }
+  26% {
+    transform: translateX(-1px) scale(1.03);
+  }
+  52% {
+    transform: translateX(1px) scale(1);
+  }
+  78% {
+    transform: translateX(-1px) scale(1.02);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes game-room-reveal-combo-break {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  26% {
+    transform: translateX(-1px) scale(1.004);
+  }
+  54% {
+    transform: translateX(1px) scale(0.998);
+  }
+  82% {
+    transform: translateX(-1px) scale(1.002);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
 @keyframes game-room-pending-pulse {
   0%,
   100% {
@@ -2487,6 +3141,29 @@ body {
     box-shadow:
       0 0 0 1px rgba(148, 163, 184, 0.24),
       0 0 16px rgba(148, 163, 184, 0.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-room-choice-button--selected-live,
+  .game-room-choice-button--combo-live,
+  .game-room-choice-button--combo-overdrive,
+  .game-room-choice-button--combo-break,
+  .game-room-choice-button--combo-milestone-tier-1,
+  .game-room-choice-button--combo-milestone-tier-2,
+  .game-room-choice-button--combo-milestone-tier-3,
+  .game-room-choice-button--combo-milestone-tier-4,
+  .game-room-choice-button--combo-milestone-tier-5,
+  .game-room-choice-combo-aura,
+  .game-room-choice-press-flash,
+  .game-room-choice-burst,
+  .game-room-reveal-card--combo-break,
+  .game-room-reveal-card--result-burst,
+  .game-room-reveal-card--result-burst::before,
+  .game-room-score-gain-pop,
+  .game-room-score-loss-pop {
+    animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -2863,37 +3540,6 @@ body {
   white-space: normal;
   text-overflow: initial;
   overflow: hidden;
-}
-
-@keyframes game-room-decision-tag-glow {
-  0%,
-  100% {
-    transform: translateY(0);
-    box-shadow:
-      inset 0 0 0 1px rgba(251, 191, 36, 0.2),
-      0 0 0 1px rgba(245, 158, 11, 0.08);
-  }
-  50% {
-    transform: translateY(-1px);
-    box-shadow:
-      inset 0 0 0 1px rgba(251, 191, 36, 0.34),
-      0 0 0 1px rgba(245, 158, 11, 0.2),
-      0 0 20px -10px rgba(251, 191, 36, 0.6);
-  }
-}
-
-@keyframes game-room-decision-choice-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px rgba(250, 204, 21, 0.2),
-      0 0 12px -10px rgba(250, 204, 21, 0.44);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px rgba(250, 204, 21, 0.42),
-      0 0 22px -8px rgba(250, 204, 21, 0.74);
-  }
 }
 
 @media (max-width: 640px) {

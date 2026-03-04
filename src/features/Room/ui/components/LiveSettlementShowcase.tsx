@@ -12,6 +12,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import ShuffleRoundedIcon from "@mui/icons-material/ShuffleRounded";
@@ -20,6 +22,7 @@ import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
 import AdsClickRoundedIcon from "@mui/icons-material/AdsClickRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 
 import { trackEvent } from "../../../../shared/analytics/track";
 import { useSettingsModel } from "../../../Setting/model/settingsContext";
@@ -34,9 +37,21 @@ import type {
   RoomState,
 } from "../../model/types";
 import type { SettlementQuestionRecap } from "./GameSettlementPanel";
+import {
+  buildAnsweredRankMap,
+  buildCorrectAnsweredRankMap,
+  calculateSongPerformanceScore,
+  distributeRecommendationCards,
+  RECOMMEND_CATEGORY_FLOW,
+  resolveAverageCorrectMs,
+  resolveAutoGuideStartTarget,
+  resolveRecapPreviewNavigation,
+  resolveSpeedComparisonInsight,
+  type RecommendCategory,
+  type SongPerformanceGrade,
+} from "./liveSettlementUtils";
 
 type LiveSettlementTab = "overview" | "recommend";
-type RecommendCategory = "quick" | "confuse" | "hard" | "other";
 type PreviewPlaybackMode = "idle" | "auto" | "manual";
 
 type ExtendedRecap = SettlementQuestionRecap & {
@@ -53,6 +68,15 @@ type RecommendationCard = {
   link: SettlementTrackLink;
   providerLabel: string;
   previewUrl: string | null;
+};
+
+type SongPerformanceRating = {
+  score: number;
+  grade: SongPerformanceGrade;
+  result: "correct" | "wrong" | "unanswered";
+  answeredRank: number | null;
+  answeredAtMs: number | null;
+  correctRate: number;
 };
 
 interface LiveSettlementShowcaseProps {
@@ -86,14 +110,7 @@ const TAB_HINTS: Record<LiveSettlementTab, string> = {
 
 const RECAPS_PER_PAGE = 12;
 const RECOMMEND_PREVIEW_SECONDS = 15;
-const RECOMMEND_MAX_ITEMS = 5;
 const QUICK_SOLVE_TIME_CAP_MS = 10_000;
-const RECOMMEND_CATEGORY_FLOW: RecommendCategory[] = [
-  "quick",
-  "confuse",
-  "hard",
-  "other",
-];
 const RECOMMEND_CATEGORY_LABELS: Record<RecommendCategory, string> = {
   quick: "全員速解",
   confuse: "易混淆",
@@ -106,6 +123,8 @@ const RECOMMEND_CATEGORY_SHORT_HINT: Record<RecommendCategory, string> = {
   hard: "低答對率挑戰",
   other: "延伸聆聽",
 };
+const RECOMMEND_CONTROLS_TOOLTIP =
+  "分類可切換不同推薦來源；自動導覽會依倒數自動切歌；雙擊播放可在題目回顧直接開啟試聽。";
 const RECOMMEND_CATEGORY_THEME: Record<
   RecommendCategory,
   {
@@ -219,6 +238,36 @@ type RecapAnswerResult = keyof typeof RESULT_META;
 const REVIEW_STATUS_BADGE_BASE =
   "inline-flex h-6 min-w-[4.25rem] items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold";
 
+const PERFORMANCE_GRADE_META: Record<
+  SongPerformanceGrade,
+  { badgeClass: string; detailClass: string }
+> = {
+  S: {
+    badgeClass: "border-emerald-200/65 bg-emerald-500/28 text-emerald-50",
+    detailClass: "text-emerald-100",
+  },
+  A: {
+    badgeClass: "border-cyan-200/65 bg-cyan-500/26 text-cyan-50",
+    detailClass: "text-cyan-100",
+  },
+  B: {
+    badgeClass: "border-sky-200/60 bg-sky-500/24 text-sky-50",
+    detailClass: "text-sky-100",
+  },
+  C: {
+    badgeClass: "border-amber-200/58 bg-amber-500/22 text-amber-50",
+    detailClass: "text-amber-100",
+  },
+  D: {
+    badgeClass: "border-orange-200/58 bg-orange-500/20 text-orange-50",
+    detailClass: "text-orange-100",
+  },
+  E: {
+    badgeClass: "border-rose-200/58 bg-rose-500/20 text-rose-50",
+    detailClass: "text-rose-100",
+  },
+};
+
 const AUTO_PREVIEW_STORAGE_KEY = "mq_settlement_auto_preview";
 const REVIEW_DOUBLE_PLAY_STORAGE_KEY = "mq_settlement_review_double_click_play";
 const RECOMMEND_CONTROLS_HINT_STORAGE_KEY =
@@ -291,6 +340,44 @@ const resolveParticipantResult = (
   }
   if (typeof answer.choiceIndex !== "number") return "unanswered";
   return answer.choiceIndex === recap.correctChoiceIndex ? "correct" : "wrong";
+};
+
+const resolveAnsweredRank = (
+  recap: SettlementQuestionRecap,
+  participantClientId: string | null,
+) => {
+  if (!participantClientId) return null;
+  const rankMap = buildAnsweredRankMap(recap.answersByClientId);
+  return rankMap.get(participantClientId) ?? null;
+};
+
+const resolveCorrectAnsweredRank = (
+  recap: SettlementQuestionRecap,
+  participantClientId: string | null,
+) => {
+  if (!participantClientId) return null;
+  const rankMap = buildCorrectAnsweredRankMap(recap.answersByClientId);
+  return rankMap.get(participantClientId) ?? null;
+};
+
+const isParticipantGlobalFastestCorrect = (
+  recap: SettlementQuestionRecap,
+  rating: SongPerformanceRating | null | undefined,
+) => {
+  if (!rating || rating.result !== "correct") return false;
+  if (
+    typeof rating.answeredAtMs !== "number" ||
+    !Number.isFinite(rating.answeredAtMs)
+  ) {
+    return false;
+  }
+  if (
+    typeof recap.fastestCorrectMs !== "number" ||
+    !Number.isFinite(recap.fastestCorrectMs)
+  ) {
+    return false;
+  }
+  return Math.floor(rating.answeredAtMs) === Math.floor(recap.fastestCorrectMs);
 };
 
 const formatElapsed = (startedAt?: number, endedAt?: number) => {
@@ -496,6 +583,9 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     RECOMMEND_PREVIEW_SECONDS,
   );
   const [autoAdvanceAtMs, setAutoAdvanceAtMs] = useState<number | null>(null);
+  const [pausedCountdownRemainingMs, setPausedCountdownRemainingMs] = useState<
+    number | null
+  >(null);
   const [previewPlaybackMode, setPreviewPlaybackMode] =
     useState<PreviewPlaybackMode>("idle");
   const [previewPlayerState, setPreviewPlayerState] = useState<
@@ -524,6 +614,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const recommendControlsHintTimerRef = useRef<number | null>(null);
   const previewStatePollTimerRef = useRef<number | null>(null);
   const previewBridgeRetryTimersRef = useRef<number[]>([]);
+  const autoAdvanceAtMsRef = useRef<number | null>(autoAdvanceAtMs);
+  const pausedCountdownRemainingMsRef = useRef<number | null>(
+    pausedCountdownRemainingMs,
+  );
+  const previewPlayerStateRef = useRef<"idle" | "playing" | "paused">(
+    previewPlayerState,
+  );
+  const canAutoGuideLoopRef = useRef(false);
 
   const stepIndex = TAB_ORDER.indexOf(activeTab);
   const sortedParticipants = useMemo(
@@ -898,15 +996,50 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       const state = readYouTubePlayerState(event.data);
       if (state === null) return;
       if (state === 1) {
-        setPreviewPlayerState("playing");
+        const wasPlaying = previewPlayerStateRef.current === "playing";
+        previewPlayerStateRef.current = "playing";
+        if (!wasPlaying) {
+          setPreviewPlayerState("playing");
+        }
+        if (
+          canAutoGuideLoopRef.current &&
+          autoAdvanceAtMsRef.current === null &&
+          pausedCountdownRemainingMsRef.current !== null
+        ) {
+          const remainingMs = Math.max(0, pausedCountdownRemainingMsRef.current);
+          const nextAutoAdvanceAtMs = Date.now() + remainingMs;
+          autoAdvanceAtMsRef.current = nextAutoAdvanceAtMs;
+          pausedCountdownRemainingMsRef.current = null;
+          setAutoAdvanceAtMs(nextAutoAdvanceAtMs);
+          setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
+          setPausedCountdownRemainingMs(null);
+        }
         return;
       }
       if (state === 2 || state === 0) {
-        setPreviewPlayerState("paused");
+        const wasPaused = previewPlayerStateRef.current === "paused";
+        previewPlayerStateRef.current = "paused";
+        if (!wasPaused) {
+          setPreviewPlayerState("paused");
+        }
+        if (
+          canAutoGuideLoopRef.current &&
+          autoAdvanceAtMsRef.current !== null
+        ) {
+          const remainingMs = Math.max(0, autoAdvanceAtMsRef.current - Date.now());
+          autoAdvanceAtMsRef.current = null;
+          pausedCountdownRemainingMsRef.current = remainingMs;
+          setPausedCountdownRemainingMs(remainingMs);
+          setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
+          setAutoAdvanceAtMs(null);
+        }
         return;
       }
       if (state === -1) {
-        setPreviewPlayerState("idle");
+        if (previewPlayerStateRef.current !== "idle") {
+          previewPlayerStateRef.current = "idle";
+          setPreviewPlayerState("idle");
+        }
       }
     };
     window.addEventListener("message", onMessage);
@@ -1068,6 +1201,19 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         typeof answer.answeredAtMs === "number" ? answer.answeredAtMs : null,
     };
   }, [effectiveSelectedReviewParticipantClientId, meClientId, selectedRecap]);
+  const selectedRecapCorrectRank = useMemo(() => {
+    if (!selectedRecap) return null;
+    if (!effectiveSelectedReviewParticipantClientId) return null;
+    if (selectedRecapAnswer.result !== "correct") return null;
+    return resolveCorrectAnsweredRank(
+      selectedRecap,
+      effectiveSelectedReviewParticipantClientId,
+    );
+  }, [
+    effectiveSelectedReviewParticipantClientId,
+    selectedRecap,
+    selectedRecapAnswer.result,
+  ]);
   const reviewContextTransitionKey = `${effectiveSelectedReviewParticipantClientId ?? "none"}:${safeReviewPage}`;
   const reviewDetailTransitionKey = `${reviewContextTransitionKey}:${selectedRecap?.key ?? "none"}`;
   const selectedReviewParticipant = effectiveSelectedReviewParticipantClientId
@@ -1090,6 +1236,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
             participant.clientId === effectiveSelectedReviewParticipantClientId,
         )
       : -1;
+  const currentReviewTargetLabel = selectedReviewParticipant
+    ? `${selectedReviewParticipant.username}${
+        meClientId && selectedReviewParticipant.clientId === meClientId
+          ? "（你）"
+          : ""
+      }`
+    : "你";
 
   const goPrevReviewParticipant = useCallback(() => {
     if (sortedParticipants.length <= 1) return;
@@ -1121,6 +1274,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     }
     return sec * 1000;
   }, [room.gameSettings?.playDurationSec]);
+  const averageCorrectMsByRecapKey = useMemo(() => {
+    const next = new Map<string, number | null>();
+    normalizedRecaps.forEach((recap) => {
+      next.set(recap.key, resolveAverageCorrectMs(recap.answersByClientId));
+    });
+    return next;
+  }, [normalizedRecaps]);
   const quickSolveThresholdMs = useMemo(
     () =>
       clampMs(
@@ -1271,266 +1431,162 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
   const recommendationCardsByCategory = useMemo<
     Record<RecommendCategory, RecommendationCard[]>
-  >(() => {
-    const totalLimit = Math.min(RECOMMEND_MAX_ITEMS, normalizedRecaps.length);
-    const result: Record<RecommendCategory, RecommendationCard[]> = {
-      quick: [],
-      confuse: [],
-      hard: [],
-      other: [],
-    };
-    if (totalLimit <= 0) return result;
-
-    const rowsByCategory = {
-      quick: quickRecommendations,
-      confuse: confuseRecommendations,
-      hard: hardRecommendations,
-      other: otherRecommendations,
-    };
-    const availableCategories = RECOMMEND_CATEGORY_FLOW.filter(
-      (category) => rowsByCategory[category].length > 0,
-    );
-    if (!availableCategories.length) return result;
-
-    const quickStrength =
-      quickRecommendations.length > 0
-        ? quickRecommendations.slice(0, 3).reduce((sum, row) => {
-            const speedBonus =
-              row.medianCorrectMs <= 1400
-                ? 0.28
-                : row.medianCorrectMs <= 2200
-                  ? 0.2
-                  : row.medianCorrectMs <= 3400
-                    ? 0.1
-                    : 0;
-            const fastestBonus =
-              row.fastestCorrectMs <= 900
-                ? 0.16
-                : row.fastestCorrectMs <= 1500
-                  ? 0.1
-                  : 0;
-            return sum + row.correctRate + speedBonus + fastestBonus;
-          }, 0) / Math.min(3, quickRecommendations.length)
-        : 0;
-    const confuseStrength =
-      confuseRecommendations.length > 0
-        ? confuseRecommendations.slice(0, 3).reduce((sum, row) => {
-            return (
-              sum +
-              row.changedUsers * 0.7 +
-              row.changedTimes * 0.3 +
-              row.confusionRate
-            );
-          }, 0) / Math.min(3, confuseRecommendations.length)
-        : 0;
-    const hardStrength =
-      hardRecommendations.length > 0
-        ? hardRecommendations
-            .slice(0, 3)
-            .reduce((sum, row) => sum + row.hardScore, 0) /
-          Math.min(3, hardRecommendations.length)
-        : 0;
-    const otherStrength =
-      otherRecommendations.length > 0
-        ? otherRecommendations
-            .slice(0, 3)
-            .reduce((sum, row) => sum + row.correctRate, 0) /
-          Math.min(3, otherRecommendations.length)
-        : 0;
-    const strengthByCategory: Record<RecommendCategory, number> = {
-      quick: quickStrength,
-      confuse: confuseStrength,
-      hard: hardStrength,
-      other: otherStrength,
-    };
-
-    const quotas: Record<RecommendCategory, number> = {
-      quick: 0,
-      confuse: 0,
-      hard: 0,
-      other: 0,
-    };
-    let remaining = totalLimit;
-
-    for (const category of availableCategories) {
-      if (remaining <= 0) break;
-      quotas[category] += 1;
-      remaining -= 1;
-    }
-
-    while (remaining > 0) {
-      const nextTarget = availableCategories
-        .map((category) => {
-          const maxCount = rowsByCategory[category].length;
-          if (quotas[category] >= maxCount) return null;
-          const scarcityWeight = 1 / (1 + quotas[category] * 0.65);
-          const flowPriority =
-            (RECOMMEND_CATEGORY_FLOW.length -
-              RECOMMEND_CATEGORY_FLOW.indexOf(category)) *
-            0.01;
-          return {
-            category,
-            score: strengthByCategory[category] * scarcityWeight + flowPriority,
-          };
-        })
-        .filter(
-          (
-            candidate,
-          ): candidate is {
-            category: RecommendCategory;
-            score: number;
-          } => candidate !== null,
-        )
-        .sort((a, b) => b.score - a.score)[0];
-      if (!nextTarget) break;
-      quotas[nextTarget.category] += 1;
-      remaining -= 1;
-    }
-
-    const usedRecapKeys = new Set<string>();
-    const addQuickEntry = (entry: (typeof quickRecommendations)[number]) => {
-      if (usedRecapKeys.has(entry.recap.key)) return false;
-      usedRecapKeys.add(entry.recap.key);
-      result.quick.push(
-        buildRecommendationCard(
-          entry.recap,
-          `全員答對 · 中位 ${formatMs(entry.medianCorrectMs)}`,
-          `最快答對 ${formatMs(entry.fastestCorrectMs)}`,
+  >(
+    () =>
+      distributeRecommendationCards({
+        quick: quickRecommendations.map((entry) =>
+          buildRecommendationCard(
+            entry.recap,
+            `全員答對 · 中位 ${formatMs(entry.medianCorrectMs)}`,
+            `最快答對 ${formatMs(entry.fastestCorrectMs)}`,
+          ),
         ),
-      );
-      return true;
-    };
-    const addConfuseEntry = (
-      entry: (typeof confuseRecommendations)[number],
-    ) => {
-      if (usedRecapKeys.has(entry.recap.key)) return false;
-      usedRecapKeys.add(entry.recap.key);
-      result.confuse.push(
-        buildRecommendationCard(
-          entry.recap,
-          `換答案 ${entry.changedUsers} 人 · ${entry.changedTimes} 次`,
-          "最容易混淆",
+        confuse: confuseRecommendations.map((entry) =>
+          buildRecommendationCard(
+            entry.recap,
+            `換答案 ${entry.changedUsers} 人 · ${entry.changedTimes} 次`,
+            "最容易混淆",
+          ),
         ),
-      );
-      return true;
-    };
-    const addHardEntry = (entry: (typeof hardRecommendations)[number]) => {
-      if (usedRecapKeys.has(entry.recap.key)) return false;
-      usedRecapKeys.add(entry.recap.key);
-      result.hard.push(
-        buildRecommendationCard(
-          entry.recap,
-          `答錯 ${entry.recap.wrongCount ?? 0} · 未作答 ${entry.recap.unansweredCount ?? 0}`,
-          "高難保留題",
+        hard: hardRecommendations.map((entry) =>
+          buildRecommendationCard(
+            entry.recap,
+            `答錯 ${entry.recap.wrongCount ?? 0} · 未作答 ${entry.recap.unansweredCount ?? 0}`,
+            "高難保留題",
+          ),
         ),
-      );
-      return true;
-    };
-    const addOtherEntry = (entry: (typeof otherRecommendations)[number]) => {
-      if (usedRecapKeys.has(entry.recap.key)) return false;
-      usedRecapKeys.add(entry.recap.key);
-      result.other.push(
-        buildRecommendationCard(
-          entry.recap,
-          `答對率 ${formatPercent(entry.correctRate)}`,
-          "延伸推薦",
+        other: otherRecommendations.map((entry) =>
+          buildRecommendationCard(
+            entry.recap,
+            `答對率 ${formatPercent(entry.correctRate)}`,
+            "延伸推薦",
+          ),
         ),
+      }),
+    [
+      confuseRecommendations,
+      hardRecommendations,
+      otherRecommendations,
+      quickRecommendations,
+    ],
+  );
+  const ratingParticipantClientId =
+    effectiveSelectedReviewParticipantClientId ?? meClientId ?? null;
+  const performanceRatingByRecapKey = useMemo(() => {
+    const next = new Map<string, SongPerformanceRating>();
+    if (!ratingParticipantClientId) return next;
+    normalizedRecaps.forEach((recap) => {
+      const participantCount = resolveParticipantCount(
+        recap,
+        defaultParticipantCount,
       );
-      return true;
-    };
-
-    for (const row of quickRecommendations) {
-      if (result.quick.length >= quotas.quick) break;
-      addQuickEntry(row);
-    }
-    for (const row of confuseRecommendations) {
-      if (result.confuse.length >= quotas.confuse) break;
-      addConfuseEntry(row);
-    }
-    for (const row of hardRecommendations) {
-      if (result.hard.length >= quotas.hard) break;
-      addHardEntry(row);
-    }
-    for (const row of otherRecommendations) {
-      if (result.other.length >= quotas.other) break;
-      addOtherEntry(row);
-    }
-
-    const pickedCount =
-      result.quick.length +
-      result.confuse.length +
-      result.hard.length +
-      result.other.length;
-    if (pickedCount < totalLimit) {
-      for (const category of RECOMMEND_CATEGORY_FLOW) {
-        if (category === "quick") {
-          for (const row of quickRecommendations) {
-            if (
-              result.quick.length +
-                result.confuse.length +
-                result.hard.length +
-                result.other.length >=
-              totalLimit
-            ) {
-              break;
-            }
-            addQuickEntry(row);
-          }
-          continue;
-        }
-        if (category === "confuse") {
-          for (const row of confuseRecommendations) {
-            if (
-              result.quick.length +
-                result.confuse.length +
-                result.hard.length +
-                result.other.length >=
-              totalLimit
-            ) {
-              break;
-            }
-            addConfuseEntry(row);
-          }
-          continue;
-        }
-        if (category === "hard") {
-          for (const row of hardRecommendations) {
-            if (
-              result.quick.length +
-                result.confuse.length +
-                result.hard.length +
-                result.other.length >=
-              totalLimit
-            ) {
-              break;
-            }
-            addHardEntry(row);
-          }
-          continue;
-        }
-        for (const row of otherRecommendations) {
-          if (
-            result.quick.length +
-              result.confuse.length +
-              result.hard.length +
-              result.other.length >=
-            totalLimit
-          ) {
-            break;
-          }
-          addOtherEntry(row);
-        }
-      }
-    }
-
-    return result;
+      const correctCount = Math.max(0, recap.correctCount ?? 0);
+      const correctRate = correctCount / participantCount;
+      const answer = resolveParticipantAnswer(
+        recap,
+        ratingParticipantClientId,
+        meClientId,
+      );
+      const result: "correct" | "wrong" | "unanswered" =
+        answer.result === "correct" || answer.result === "wrong"
+          ? answer.result
+          : "unanswered";
+      const answeredAtMs =
+        typeof answer.answeredAtMs === "number" && Number.isFinite(answer.answeredAtMs)
+          ? Math.max(0, Math.floor(answer.answeredAtMs))
+          : null;
+      const answeredRank = resolveAnsweredRank(recap, ratingParticipantClientId);
+      const ratingScore = calculateSongPerformanceScore({
+        result,
+        participantCount,
+        correctRate,
+        answeredAtMs,
+        answeredRank,
+        answerWindowMs: configuredAnswerWindowMs,
+      });
+      next.set(recap.key, {
+        score: ratingScore.score,
+        grade: ratingScore.grade,
+        result,
+        answeredRank,
+        answeredAtMs,
+        correctRate,
+      });
+    });
+    return next;
   }, [
-    confuseRecommendations,
-    hardRecommendations,
-    normalizedRecaps.length,
-    otherRecommendations,
-    quickRecommendations,
+    configuredAnswerWindowMs,
+    defaultParticipantCount,
+    meClientId,
+    normalizedRecaps,
+    ratingParticipantClientId,
   ]);
+  const personalFastestCorrectRecapKeys = useMemo(() => {
+    let fastestMs: number | null = null;
+    performanceRatingByRecapKey.forEach((rating) => {
+      if (rating.result !== "correct") return;
+      if (
+        typeof rating.answeredAtMs !== "number" ||
+        !Number.isFinite(rating.answeredAtMs)
+      ) {
+        return;
+      }
+      fastestMs =
+        fastestMs === null
+          ? rating.answeredAtMs
+          : Math.min(fastestMs, rating.answeredAtMs);
+    });
+    if (fastestMs === null) return new Set<string>();
+    const keys = new Set<string>();
+    performanceRatingByRecapKey.forEach((rating, key) => {
+      if (rating.result !== "correct") return;
+      if (
+        typeof rating.answeredAtMs !== "number" ||
+        !Number.isFinite(rating.answeredAtMs)
+      ) {
+        return;
+      }
+      if (rating.answeredAtMs === fastestMs) {
+        keys.add(key);
+      }
+    });
+    return keys;
+  }, [performanceRatingByRecapKey]);
+  const selectedRecapRating = selectedRecap
+    ? performanceRatingByRecapKey.get(selectedRecap.key) ?? null
+    : null;
+  const selectedRecapAverageCorrectMs = selectedRecap
+    ? averageCorrectMsByRecapKey.get(selectedRecap.key) ?? null
+    : null;
+  const selectedRecapGradeMeta = selectedRecapRating
+    ? PERFORMANCE_GRADE_META[selectedRecapRating.grade]
+    : null;
+  const isSelectedRecapFastest = selectedRecap
+    ? personalFastestCorrectRecapKeys.has(selectedRecap.key) &&
+      selectedRecapAnswer.result === "correct"
+    : false;
+  const isSelectedRecapGlobalFastest = selectedRecap
+    ? isParticipantGlobalFastestCorrect(selectedRecap, selectedRecapRating)
+    : false;
+  const selectedRecapFastestBadgeText = isSelectedRecapGlobalFastest
+    ? "全場最快"
+    : "我的最快";
+  const selectedRecapRatingBreakdown = (() => {
+    if (!selectedRecapRating) return "--";
+    const parts: string[] = [];
+    if (selectedRecapRating.result === "correct") {
+      if (typeof selectedRecapCorrectRank === "number") {
+        parts.push(`第${selectedRecapCorrectRank}答`);
+      }
+    } else if (typeof selectedRecapRating.answeredRank === "number") {
+      parts.push(`第${selectedRecapRating.answeredRank}答`);
+    }
+    if (typeof selectedRecapRating.answeredAtMs === "number") {
+      parts.push(`作答 ${formatMs(selectedRecapRating.answeredAtMs)}`);
+    }
+    parts.push(`全場答對率 ${formatPercent(selectedRecapRating.correctRate)}`);
+    return parts.join(" · ");
+  })();
   const recommendationCardsByCategoryRef = useRef(
     recommendationCardsByCategory,
   );
@@ -1568,10 +1624,96 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const currentRecommendationLink = currentRecommendation?.link ?? null;
   const currentRecommendationPreviewUrl =
     currentRecommendation?.previewUrl ?? null;
+  const currentRecommendationAverageCorrectMs = currentRecommendation
+    ? averageCorrectMsByRecapKey.get(currentRecommendation.recap.key) ?? null
+    : null;
   const isCurrentRecommendationPreviewOpen =
     Boolean(currentRecommendation) &&
     previewRecapKey === currentRecommendation?.recap.key;
+  const isCurrentRecommendationFastest = currentRecommendation
+    ? personalFastestCorrectRecapKeys.has(currentRecommendation.recap.key)
+    : false;
   const recommendationTransitionKey = `${activeRecommendCategory}:${currentRecommendation?.recap.key ?? "none"}`;
+  const currentRecommendationRating = currentRecommendation
+    ? performanceRatingByRecapKey.get(currentRecommendation.recap.key) ?? null
+    : null;
+  const currentRecommendationCorrectRank =
+    currentRecommendation &&
+    ratingParticipantClientId &&
+    currentRecommendationRating?.result === "correct"
+      ? resolveCorrectAnsweredRank(
+          currentRecommendation.recap,
+          ratingParticipantClientId,
+        )
+      : null;
+  const currentRecommendationSpeedInsight = (() => {
+    if (!currentRecommendation || !currentRecommendationRating) {
+      return {
+        label: "你比大家快多少",
+        value: "--",
+        valueClass: "text-slate-300",
+        note: "尚無作答資料",
+      };
+    }
+    const speedInsight = resolveSpeedComparisonInsight(
+      {
+        medianCorrectMs:
+          currentRecommendationRating.result === "correct"
+            ? currentRecommendation.recap.medianCorrectMs
+            : null,
+        answeredAtMs: currentRecommendationRating.answeredAtMs,
+      },
+      formatMs,
+    );
+    if (speedInsight.answeredMs === null) {
+      return {
+        ...speedInsight,
+        valueClass: "text-slate-300",
+        note: "尚無作答資料",
+      };
+    }
+    if (
+      currentRecommendationRating.result === "correct" &&
+      speedInsight.deltaMs !== null
+    ) {
+      const isAhead = speedInsight.deltaMs >= 0;
+      const medianMsText = formatMs(
+        speedInsight.medianMs ?? speedInsight.answeredMs,
+      );
+      return {
+        ...speedInsight,
+        valueClass: isAhead ? "text-emerald-100" : "text-rose-100",
+        note: `你的作答 ${formatMs(speedInsight.answeredMs)} · 全場中位 ${medianMsText}`,
+      };
+    }
+    return {
+      ...speedInsight,
+      valueClass: "text-slate-300",
+      note: `你的作答 ${formatMs(speedInsight.answeredMs)}`,
+    };
+  })();
+  const currentRecommendationResultKey: RecapAnswerResult =
+    currentRecommendationRating?.result ?? "unanswered";
+  const currentRecommendationResultTone =
+    RESULT_META[currentRecommendationResultKey];
+  const isCurrentRecommendationFirstCorrect =
+    currentRecommendationRating?.result === "correct" &&
+    currentRecommendationCorrectRank === 1;
+  const showCurrentRecommendationRankBadge =
+    typeof currentRecommendationCorrectRank === "number" &&
+    currentRecommendationCorrectRank > 1;
+  const isCurrentRecommendationGlobalFastest = currentRecommendation
+    ? isParticipantGlobalFastestCorrect(
+        currentRecommendation.recap,
+        currentRecommendationRating,
+      )
+    : false;
+  const currentRecommendationFastestBadgeText =
+    isCurrentRecommendationGlobalFastest ? "全場最快" : "我的最快";
+  const hasCurrentRecommendationSpeedDelta =
+    currentRecommendationSpeedInsight.value !== "--";
+  const isPreviewFrozen =
+    pausedCountdownRemainingMs !== null || previewPlayerState === "paused";
 
   const getFirstAutoPlayableIndex = useCallback(
     (cards: RecommendationCard[]) => {
@@ -1606,6 +1748,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         setPreviewRecapKey(null);
         setPreviewPlayerState("idle");
         setAutoAdvanceAtMs(null);
+        setPausedCountdownRemainingMs(null);
         return;
       }
       const safeIndex = Math.max(0, Math.min(nextIndex, nextCards.length - 1));
@@ -1614,29 +1757,54 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       setRecommendIndex(safeIndex);
       setSelectedRecapKey(targetCard?.recap.key ?? null);
       pushPreviewSwitchNotice(`已切換到第 ${targetCard.recap.order} 題`);
-      setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
       const nextPlaybackMode =
         options?.playbackMode ?? (autoPreviewEnabled ? "auto" : "idle");
       const hasPreview = Boolean(targetCard?.previewUrl);
+      const keepPausedWhenSwitching =
+        !options?.forcePreview &&
+        (pausedCountdownRemainingMsRef.current !== null ||
+          previewPlayerStateRef.current === "paused");
       if (nextPlaybackMode === "manual") {
         setPreviewPlaybackMode("manual");
         setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
         setPreviewPlayerState(hasPreview ? "playing" : "idle");
         setAutoAdvanceAtMs(null);
+        setPausedCountdownRemainingMs(null);
+        setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
         return;
       }
       if (nextPlaybackMode === "auto" || options?.forcePreview) {
         setPreviewPlaybackMode("auto");
-        setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
-        setPreviewPlayerState(hasPreview ? "playing" : "idle");
-        setAutoAdvanceAtMs(
-          hasPreview ? Date.now() + RECOMMEND_PREVIEW_SECONDS * 1000 : null,
-        );
+        if (keepPausedWhenSwitching) {
+          const frozenMs = RECOMMEND_PREVIEW_SECONDS * 1000;
+          setPreviewRecapKey(null);
+          setPreviewPlayerState("paused");
+          setAutoAdvanceAtMs(null);
+          setPausedCountdownRemainingMs(frozenMs);
+          setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+        } else {
+          setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
+          setPreviewPlayerState("idle");
+          setAutoAdvanceAtMs(
+            hasPreview ? Date.now() + RECOMMEND_PREVIEW_SECONDS * 1000 : null,
+          );
+          setPausedCountdownRemainingMs(null);
+          setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+        }
         return;
       }
       setPreviewPlaybackMode("idle");
       setAutoAdvanceAtMs(null);
-      setPreviewPlayerState("idle");
+      if (keepPausedWhenSwitching) {
+        const frozenMs = RECOMMEND_PREVIEW_SECONDS * 1000;
+        setPreviewPlayerState("paused");
+        setPausedCountdownRemainingMs(frozenMs);
+        setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+      } else {
+        setPreviewPlayerState("idle");
+        setPausedCountdownRemainingMs(null);
+        setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+      }
       if (!options?.forcePreview) {
         setPreviewRecapKey(null);
       }
@@ -1645,22 +1813,44 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   );
 
   const jumpToRecapPreview = useCallback(
-    (recap: ExtendedRecap) => {
+    (recap: ExtendedRecap, source: "click" | "doubleClick" = "doubleClick") => {
       for (const category of RECOMMEND_CATEGORY_FLOW) {
         const cards = recommendationCardsByCategoryRef.current[category];
         const targetIndex = cards.findIndex(
           (card) => card.recap.key === recap.key,
         );
         if (targetIndex < 0) continue;
-        jumpToRecommendation(category, targetIndex, {
-          forcePreview: reviewDoubleClickPlayEnabled,
-          playbackMode: reviewDoubleClickPlayEnabled ? "manual" : "idle",
+        const navigation = resolveRecapPreviewNavigation(source, {
+          autoPreviewEnabled,
+          reviewDoubleClickPlayEnabled,
         });
+        jumpToRecommendation(category, targetIndex, navigation);
         return true;
       }
       return false;
     },
-    [jumpToRecommendation, reviewDoubleClickPlayEnabled],
+    [autoPreviewEnabled, jumpToRecommendation, reviewDoubleClickPlayEnabled],
+  );
+
+  const startAutoGuideFromPreferredCategory = useCallback(
+    (preferredCategory: RecommendCategory) => {
+      const target = resolveAutoGuideStartTarget(
+        recommendationCardsByCategoryRef.current,
+        preferredCategory,
+      );
+      if (!target) {
+        setPreviewPlaybackMode("idle");
+        setPreviewRecapKey(null);
+        setPreviewPlayerState("idle");
+        setAutoAdvanceAtMs(null);
+        setPausedCountdownRemainingMs(null);
+        return;
+      }
+      jumpToRecommendation(target.category, target.index, {
+        playbackMode: "auto",
+      });
+    },
+    [jumpToRecommendation],
   );
 
   const activateRecommendationCategory = useCallback(
@@ -1806,6 +1996,19 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     }
     return messages[messages.length - 1]?.timestamp;
   }, [endedAt, messages]);
+  const settlementTimeChipLabel = useMemo(() => {
+    if (
+      typeof startedAt === "number" &&
+      Number.isFinite(startedAt) &&
+      startedAt > 0
+    ) {
+      return `起始於 ${new Date(startedAt).toLocaleString()}`;
+    }
+    if (gameEndTime) {
+      return `結束於 ${new Date(gameEndTime).toLocaleString()}`;
+    }
+    return null;
+  }, [gameEndTime, startedAt]);
 
   const settlementStartGuard = useMemo(() => {
     if (!upcomingGameStartAt || !Number.isFinite(upcomingGameStartAt)) {
@@ -1850,19 +2053,25 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
   const handleQuickPlayStart = useCallback(() => {
     if (!currentRecommendationPreviewUrl || !currentRecommendation) return;
-    setPreviewPlaybackMode("manual");
+    const keepAutoMode = autoPreviewEnabled && previewPlaybackMode === "auto";
+    setPreviewPlaybackMode(keepAutoMode ? "auto" : "manual");
     if (!isCurrentRecommendationPreviewOpen) {
       setPreviewRecapKey(currentRecommendation.recap.key);
     } else {
       postYouTubeCommand("playVideo");
     }
     setPreviewPlayerState("playing");
-    setAutoAdvanceAtMs(null);
-    setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+    if (!keepAutoMode) {
+      setAutoAdvanceAtMs(null);
+      setPausedCountdownRemainingMs(null);
+      setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+    }
   }, [
+    autoPreviewEnabled,
     currentRecommendation,
     currentRecommendationPreviewUrl,
     isCurrentRecommendationPreviewOpen,
+    previewPlaybackMode,
     postYouTubeCommand,
   ]);
 
@@ -1885,7 +2094,11 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         }
       }
       setReviewPage(0);
-      activateRecommendationCategory(recommendCategory);
+      if (autoPreviewEnabled) {
+        startAutoGuideFromPreferredCategory(recommendCategory);
+      } else {
+        activateRecommendationCategory(recommendCategory);
+      }
       return;
     }
     setShowRecommendControlsHint(false);
@@ -1893,6 +2106,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     setPreviewRecapKey(null);
     setPreviewPlayerState("idle");
     setAutoAdvanceAtMs(null);
+    setPausedCountdownRemainingMs(null);
     setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
   };
 
@@ -1909,13 +2123,101 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     goToTab(TAB_ORDER[stepIndex - 1]);
   };
 
-  const currentRecommendationHint = currentRecommendation?.hint ?? "";
   const canAutoGuideLoop =
     activeTab === "recommend" &&
     autoPreviewEnabled &&
     previewPlaybackMode !== "manual" &&
     recommendationCards.length > 0 &&
     availableRecommendCategories.length > 0;
+
+  useEffect(() => {
+    autoAdvanceAtMsRef.current = autoAdvanceAtMs;
+  }, [autoAdvanceAtMs]);
+
+  useEffect(() => {
+    pausedCountdownRemainingMsRef.current = pausedCountdownRemainingMs;
+  }, [pausedCountdownRemainingMs]);
+
+  useEffect(() => {
+    previewPlayerStateRef.current = previewPlayerState;
+  }, [previewPlayerState]);
+
+  useEffect(() => {
+    canAutoGuideLoopRef.current = canAutoGuideLoop;
+  }, [canAutoGuideLoop]);
+
+  useEffect(() => {
+    if (activeTab !== "recommend") return;
+    if (!autoPreviewEnabled || previewPlaybackMode !== "auto") return;
+    if (autoAdvanceAtMs === null) return;
+    if (pausedCountdownRemainingMs !== null || previewPlayerState === "paused") {
+      return;
+    }
+    if (!isCurrentRecommendationPreviewOpen || !currentRecommendationPreviewUrl) {
+      return;
+    }
+    if (previewPlayerState === "playing") return;
+    const timers = [120, 460, 980].map((delay) =>
+      window.setTimeout(() => {
+        if (
+          autoAdvanceAtMsRef.current === null ||
+          pausedCountdownRemainingMsRef.current !== null ||
+          previewPlayerStateRef.current === "paused"
+        ) {
+          return;
+        }
+        postYouTubeCommand("playVideo");
+      }, delay),
+    );
+    return () => {
+      timers.forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, [
+    activeTab,
+    autoAdvanceAtMs,
+    autoPreviewEnabled,
+    currentRecommendationPreviewUrl,
+    isCurrentRecommendationPreviewOpen,
+    pausedCountdownRemainingMs,
+    postYouTubeCommand,
+    previewPlaybackMode,
+    previewPlayerState,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "recommend") return;
+    if (!autoPreviewEnabled || previewPlaybackMode !== "auto") return;
+    if (!isCurrentRecommendationPreviewOpen || !currentRecommendationPreviewUrl) {
+      return;
+    }
+    if (autoAdvanceAtMs === null) return;
+    const timer = window.setTimeout(() => {
+      if (previewPlayerStateRef.current === "playing") return;
+      const remainingMs = Math.max(
+        0,
+        autoAdvanceAtMsRef.current !== null
+          ? autoAdvanceAtMsRef.current - Date.now()
+          : pausedCountdownRemainingMsRef.current ??
+            RECOMMEND_PREVIEW_SECONDS * 1000,
+      );
+      autoAdvanceAtMsRef.current = null;
+      pausedCountdownRemainingMsRef.current = remainingMs;
+      setAutoAdvanceAtMs(null);
+      setPausedCountdownRemainingMs(remainingMs);
+      setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
+      setPreviewPlayerState("paused");
+      pushPreviewSwitchNotice("瀏覽器限制自動播放，點擊影片區即可開始");
+    }, 1600);
+    return () => window.clearTimeout(timer);
+  }, [
+    activeTab,
+    autoAdvanceAtMs,
+    autoPreviewEnabled,
+    currentRecommendationPreviewUrl,
+    isCurrentRecommendationPreviewOpen,
+    previewPlaybackMode,
+    pushPreviewSwitchNotice,
+  ]);
 
   const advanceAutoRecommendationLoop = useCallback(() => {
     if (!canAutoGuideLoop) return;
@@ -1976,7 +2278,11 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         autoAdvanceTimeoutRef.current = null;
       }
     };
-  }, [advanceAutoRecommendationLoop, autoAdvanceAtMs, canAutoGuideLoop]);
+  }, [
+    advanceAutoRecommendationLoop,
+    autoAdvanceAtMs,
+    canAutoGuideLoop,
+  ]);
 
   useEffect(() => {
     if (!canAutoGuideLoop || autoAdvanceAtMs === null) return;
@@ -2087,10 +2393,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                   className="border-emerald-300/45 text-emerald-100"
                 />
               )}
-              {gameEndTime && (
+              {settlementTimeChipLabel && (
                 <Chip
                   size="small"
-                  label={new Date(gameEndTime).toLocaleString()}
+                  label={settlementTimeChipLabel}
                   variant="outlined"
                   className="border-slate-400/50 text-slate-200"
                 />
@@ -2559,10 +2865,22 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">
-                        推薦導覽 ·{" "}
-                        {RECOMMEND_CATEGORY_LABELS[activeRecommendCategory]}
-                      </h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-semibold text-slate-100">
+                          推薦導覽 ·{" "}
+                          {RECOMMEND_CATEGORY_LABELS[activeRecommendCategory]}
+                        </h3>
+                        <Tooltip title={RECOMMEND_CONTROLS_TOOLTIP} arrow>
+                          <IconButton
+                            size="small"
+                            className="!h-6 !w-6 !border !border-cyan-300/45 !bg-cyan-500/12 !text-cyan-100"
+                            title={RECOMMEND_CONTROLS_TOOLTIP}
+                            aria-label="推薦功能提示"
+                          >
+                            <HelpOutlineRoundedIcon fontSize="inherit" />
+                          </IconButton>
+                        </Tooltip>
+                      </div>
                       <p className="mt-1 text-xs text-slate-300">
                         {RECOMMEND_CATEGORY_SHORT_HINT[activeRecommendCategory]}
                       </p>
@@ -2604,30 +2922,39 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             recommendationCardsByCategory[category].length;
                           const Icon = item.icon;
                           const theme = RECOMMEND_CATEGORY_THEME[category];
+                          const categoryHint = `${RECOMMEND_CATEGORY_LABELS[category]}：${RECOMMEND_CATEGORY_SHORT_HINT[category]}`;
                           return (
-                            <button
+                            <Tooltip
                               key={category}
-                              type="button"
-                              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                                active
-                                  ? `${theme.badgeClass} shadow-[0_0_0_1px_rgba(148,163,184,0.25)]`
-                                  : "border-slate-600/70 bg-slate-900/70 text-slate-200 hover:border-slate-400"
-                              } ${count <= 0 ? "cursor-not-allowed opacity-45" : ""}`}
-                              onClick={() =>
-                                activateRecommendationCategory(category)
-                              }
-                              disabled={count <= 0}
-                              title={RECOMMEND_CATEGORY_SHORT_HINT[category]}
+                              title={categoryHint}
+                              placement="top"
+                              arrow
                             >
-                              <Icon
-                                fontSize="small"
-                                className="text-[0.95rem]"
-                              />
-                              <span>{RECOMMEND_CATEGORY_LABELS[category]}</span>
-                              <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
-                                {count}
+                              <span className="inline-flex">
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                                    active
+                                      ? `${theme.badgeClass} shadow-[0_0_0_1px_rgba(148,163,184,0.25)]`
+                                      : "border-slate-600/70 bg-slate-900/70 text-slate-200 hover:border-slate-400"
+                                  } ${count <= 0 ? "cursor-not-allowed opacity-45" : ""}`}
+                                  onClick={() =>
+                                    activateRecommendationCategory(category)
+                                  }
+                                  disabled={count <= 0}
+                                  title={categoryHint}
+                                >
+                                  <Icon
+                                    fontSize="small"
+                                    className="text-[0.95rem]"
+                                  />
+                                  <span>{RECOMMEND_CATEGORY_LABELS[category]}</span>
+                                  <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                                    {count}
+                                  </span>
+                                </button>
                               </span>
-                            </button>
+                            </Tooltip>
                           );
                         })}
                       </div>
@@ -2645,86 +2972,96 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             : undefined
                         }
                       >
-                        <button
-                          type="button"
-                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                            autoPreviewEnabled
-                              ? "border-cyan-300/55 bg-cyan-500/18 text-cyan-50"
-                              : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
-                          }`}
-                          onClick={() => {
-                            setAutoPreviewEnabled((prev) => {
-                              const next = !prev;
-                              if (!next) {
-                                setPreviewPlaybackMode("idle");
-                                setPreviewRecapKey(null);
-                                setPreviewPlayerState("idle");
-                                setAutoAdvanceAtMs(null);
-                              } else {
-                                const nextIndex =
-                                  getFirstAutoPlayableIndex(
-                                    recommendationCards,
+                        <Tooltip
+                          title="自動導覽：自動倒數並切換推薦曲目"
+                          placement="top"
+                          arrow
+                        >
+                          <span className="inline-flex">
+                            <button
+                              type="button"
+                              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                                autoPreviewEnabled
+                                  ? "border-cyan-300/55 bg-cyan-500/18 text-cyan-50"
+                                  : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                              }`}
+                              title="自動導覽：自動倒數並切換推薦曲目"
+                              onClick={() => {
+                                const next = !autoPreviewEnabled;
+                                setAutoPreviewEnabled(next);
+                                if (!next) {
+                                  setPreviewPlaybackMode("idle");
+                                  setPreviewRecapKey(null);
+                                  setPreviewPlayerState("idle");
+                                  setAutoAdvanceAtMs(null);
+                                  setPausedCountdownRemainingMs(null);
+                                } else {
+                                  startAutoGuideFromPreferredCategory(
+                                    activeRecommendCategory,
                                   );
-                                jumpToRecommendation(
-                                  activeRecommendCategory,
-                                  nextIndex,
-                                  {
-                                    playbackMode: "auto",
-                                  },
-                                );
+                                }
+                                setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+                              }}
+                            >
+                              <GraphicEqRoundedIcon
+                                fontSize="small"
+                                className="text-[0.95rem]"
+                              />
+                              自動導覽
+                              <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                                {autoPreviewEnabled ? "ON" : "OFF"}
+                              </span>
+                            </button>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="雙擊播放：雙擊回顧題目可直接切換試聽" placement="top" arrow>
+                          <span className="inline-flex">
+                            <button
+                              type="button"
+                              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                                reviewDoubleClickPlayEnabled
+                                  ? "border-violet-300/55 bg-violet-500/18 text-violet-50"
+                                  : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                              }`}
+                              title="雙擊播放：雙擊回顧題目可直接切換試聽"
+                              onClick={() =>
+                                setReviewDoubleClickPlayEnabled((prev) => !prev)
                               }
-                              setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
-                              return next;
-                            });
-                          }}
-                        >
-                          <GraphicEqRoundedIcon
-                            fontSize="small"
-                            className="text-[0.95rem]"
-                          />
-                          自動導覽
-                          <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
-                            {autoPreviewEnabled ? "ON" : "OFF"}
+                            >
+                              <AdsClickRoundedIcon
+                                fontSize="small"
+                                className="text-[0.95rem]"
+                              />
+                              雙擊播放
+                              <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                                {reviewDoubleClickPlayEnabled ? "ON" : "OFF"}
+                              </span>
+                            </button>
                           </span>
-                        </button>
-                        <button
-                          type="button"
-                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                            reviewDoubleClickPlayEnabled
-                              ? "border-violet-300/55 bg-violet-500/18 text-violet-50"
-                              : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
-                          }`}
-                          onClick={() =>
-                            setReviewDoubleClickPlayEnabled((prev) => !prev)
-                          }
-                        >
-                          <AdsClickRoundedIcon
-                            fontSize="small"
-                            className="text-[0.95rem]"
-                          />
-                          雙擊播放
-                          <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
-                            {reviewDoubleClickPlayEnabled ? "ON" : "OFF"}
+                        </Tooltip>
+                        <Tooltip title="全員作答：開啟或收合題目回顧區" placement="top" arrow>
+                          <span className="inline-flex">
+                            <button
+                              type="button"
+                              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                                reviewDrawerOpen
+                                  ? "border-sky-300/60 bg-sky-500/18 text-sky-50"
+                                  : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
+                              }`}
+                              title="全員作答：開啟或收合題目回顧區"
+                              onClick={() => setReviewDrawerOpen((prev) => !prev)}
+                            >
+                              <GroupsRoundedIcon
+                                fontSize="small"
+                                className="text-[0.95rem]"
+                              />
+                              全員作答
+                              <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
+                                {reviewDrawerOpen ? "顯示" : "隱藏"}
+                              </span>
+                            </button>
                           </span>
-                        </button>
-                        <button
-                          type="button"
-                          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
-                            reviewDrawerOpen
-                              ? "border-sky-300/60 bg-sky-500/18 text-sky-50"
-                              : "border-slate-600/70 bg-slate-900/70 text-slate-300 hover:border-slate-400"
-                          }`}
-                          onClick={() => setReviewDrawerOpen((prev) => !prev)}
-                        >
-                          <GroupsRoundedIcon
-                            fontSize="small"
-                            className="text-[0.95rem]"
-                          />
-                          全員作答
-                          <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
-                            {reviewDrawerOpen ? "顯示" : "隱藏"}
-                          </span>
-                        </button>
+                        </Tooltip>
                       </div>
                     </div>
                   </div>
@@ -2743,8 +3080,8 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                         animation: "settlementSwapIn 240ms ease-out both",
                       }}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap">
+                        <div className="min-w-0 flex-1">
                           <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
                             Artist Spotlight
                           </p>
@@ -2763,40 +3100,70 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             {currentRecommendation.recap.uploader || "Unknown"}
                           </p>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="ml-auto flex shrink-0 flex-row flex-wrap items-center justify-end gap-1.5 sm:flex-col sm:items-end sm:justify-start">
+                          {isCurrentRecommendationFastest && (
+                            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-orange-300/45 bg-orange-500/16 text-orange-100">
+                              <LocalFireDepartmentRoundedIcon className="text-[0.85rem]" />
+                            </span>
+                          )}
                           <span className="rounded-full border border-slate-500/55 bg-slate-800/75 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
                             {currentRecommendation.providerLabel}
+                          </span>
+                          <span className="rounded-full border border-sky-300/40 bg-sky-500/14 px-2 py-0.5 text-[10px] font-semibold text-sky-100">
+                            目前檢視：{currentReviewTargetLabel}
                           </span>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <div className="rounded-lg border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-2">
-                          <p className="text-[10px] text-emerald-100/90">
-                            本場觀察
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-emerald-50">
-                            {currentRecommendationHint}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-amber-300/35 bg-amber-500/10 px-2.5 py-2">
-                          <p className="text-[10px] text-amber-100/90">
-                            重點標記
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-amber-50">
-                            {currentRecommendation.emphasis}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-sky-300/35 bg-sky-500/10 px-2.5 py-2">
-                          <p className="text-[10px] text-sky-100/90">
-                            答對時間（中位數）
-                          </p>
-                          <p className="mt-1 text-xs font-semibold text-sky-50">
-                            {formatMs(
-                              currentRecommendation.recap.medianCorrectMs,
-                            )}
-                          </p>
-                        </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={`${REVIEW_STATUS_BADGE_BASE} ${currentRecommendationResultTone.badgeClass}`}
+                        >
+                          {currentRecommendationResultTone.label}
+                        </span>
+                        {showCurrentRecommendationRankBadge && (
+                          <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-sky-300/45 bg-sky-500/16 px-2 text-[10px] font-semibold text-sky-50">
+                            第{currentRecommendationCorrectRank}答
+                          </span>
+                        )}
+                        {isCurrentRecommendationFirstCorrect && (
+                          <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-emerald-300/45 bg-emerald-500/16 px-2 text-[10px] font-semibold text-emerald-100">
+                            首答
+                          </span>
+                        )}
+                        {currentRecommendationRating && (
+                          <span
+                            className={`inline-flex h-6 min-w-[4.4rem] items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold ${
+                              PERFORMANCE_GRADE_META[currentRecommendationRating.grade]
+                                .badgeClass
+                            }`}
+                          >
+                            評級 {currentRecommendationRating.grade}
+                          </span>
+                        )}
+                        {hasCurrentRecommendationSpeedDelta && (
+                          <span
+                            className={`inline-flex h-6 min-w-[5.8rem] items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold ${
+                              currentRecommendationSpeedInsight.value.startsWith("-")
+                                ? "border-rose-300/45 bg-rose-500/16 text-rose-100"
+                                : "border-emerald-300/45 bg-emerald-500/16 text-emerald-100"
+                            }`}
+                            title={currentRecommendationSpeedInsight.note}
+                          >
+                            快度 {currentRecommendationSpeedInsight.value}
+                          </span>
+                        )}
+                        {typeof currentRecommendationAverageCorrectMs === "number" && (
+                          <span className="inline-flex h-6 min-w-[7.2rem] items-center justify-center rounded-full border border-amber-300/40 bg-amber-500/14 px-2.5 text-[11px] font-semibold text-amber-100">
+                            平均答對 {formatMs(currentRecommendationAverageCorrectMs)}
+                          </span>
+                        )}
+                        {isCurrentRecommendationFastest && (
+                          <span className="inline-flex h-6 min-w-[5.1rem] items-center justify-center gap-1 rounded-full border border-orange-300/45 bg-orange-500/16 px-2.5 text-[11px] font-semibold text-orange-100">
+                            <LocalFireDepartmentRoundedIcon className="text-[0.85rem]" />
+                            {currentRecommendationFastestBadgeText}
+                          </span>
+                        )}
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -2814,7 +3181,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                           如果喜歡這首歌曲，請至{" "}
                           {currentRecommendation.providerLabel} 支持作者
                         </button>
-                        {canAutoGuideLoop && (
+                        {canAutoGuideLoop && !isPreviewFrozen && (
                           <span
                             className={`rounded-full border px-3 py-1 text-xs font-semibold ${activeCategoryTheme.badgeClass}`}
                           >
@@ -2845,9 +3212,16 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                         className="mt-3 overflow-hidden rounded-xl border border-slate-700/80 bg-black/45 scroll-mt-24"
                       >
                         <div className="relative aspect-video w-full">
+                          {currentRecommendation.recap.thumbnail &&
+                            !isCurrentRecommendationPreviewOpen && (
+                              <img
+                                src={currentRecommendation.recap.thumbnail}
+                                alt={currentRecommendation.recap.title}
+                                className="absolute inset-0 h-full w-full object-cover opacity-30"
+                              />
+                            )}
                           {isCurrentRecommendationPreviewOpen &&
-                          currentRecommendationPreviewUrl ? (
-                            <>
+                            currentRecommendationPreviewUrl && (
                               <iframe
                                 ref={previewIframeRef}
                                 src={currentRecommendationPreviewUrl}
@@ -2860,81 +3234,40 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                                   registerYouTubeBridge();
                                 }}
                               />
-                              {previewPlayerState !== "playing" && (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-                                  <div className="absolute inset-0 bg-gradient-to-b from-slate-950/25 via-slate-950/55 to-slate-950/82" />
-                                  <div className="relative z-10 flex flex-col items-center gap-2">
-                                    <div className="flex flex-wrap items-center justify-center gap-2">
-                                      <p className="text-sm font-semibold text-slate-200">
-                                        按下
-                                      </p>
-                                      <button
-                                        type="button"
-                                        className="rounded-full border border-amber-300/45 bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-50 transition hover:bg-amber-500/30"
-                                        onClick={handleQuickPlayStart}
-                                      >
-                                        快速播放
-                                      </button>
-                                      <p className="text-sm font-semibold text-slate-200">
-                                        即可試聽，暫停後可切換其他歌曲
-                                      </p>
-                                    </div>
-                                    <p className="text-xs text-slate-300">
-                                      如果喜歡這首歌曲，請至{" "}
-                                      {currentRecommendation.providerLabel}{" "}
-                                      支持作者。
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </>
+                            )}
+                          {(!isCurrentRecommendationPreviewOpen ||
+                            previewPlayerState !== "playing") && (
+                            <div
+                              className={`absolute inset-0 bg-gradient-to-b ${
+                                previewPlayerState === "paused"
+                                  ? "from-slate-950/48 via-slate-950/78 to-slate-950/95"
+                                  : "from-slate-950/25 via-slate-950/55 to-slate-950/82"
+                              }`}
+                            />
+                          )}
+                          {currentRecommendationPreviewUrl ? (
+                            (!isCurrentRecommendationPreviewOpen ||
+                              previewPlayerState !== "playing") && (
+                              <button
+                                type="button"
+                                className="absolute inset-0 z-20 flex items-center justify-center px-4 text-center"
+                                onClick={handleQuickPlayStart}
+                                title="點擊播放試聽"
+                              >
+                                <span className="text-xs font-semibold text-slate-100 sm:text-sm">
+                                  如果喜歡這首歌曲，請至 YouTube 支持作者。
+                                </span>
+                              </button>
+                            )
                           ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
-                              {currentRecommendation.recap.thumbnail && (
-                                <img
-                                  src={currentRecommendation.recap.thumbnail}
-                                  alt={currentRecommendation.recap.title}
-                                  className="absolute inset-0 h-full w-full object-cover opacity-30"
-                                />
-                              )}
-                              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/25 via-slate-950/55 to-slate-950/80" />
-                              <div className="relative z-10 flex flex-col items-center gap-2">
-                                {currentRecommendationPreviewUrl ? (
-                                  <>
-                                    <div className="flex flex-wrap items-center justify-center gap-2">
-                                      <p className="text-sm font-semibold text-slate-200">
-                                        按下
-                                      </p>
-                                      <button
-                                        type="button"
-                                        className="rounded-full border border-amber-300/45 bg-amber-500/20 px-3 py-1 text-sm font-bold text-amber-50 transition hover:bg-amber-500/30"
-                                        onClick={handleQuickPlayStart}
-                                      >
-                                        快速播放
-                                      </button>
-                                      <p className="text-sm font-semibold text-slate-200">
-                                        即可試聽，暫停後可切換其他歌曲
-                                      </p>
-                                    </div>
-                                    <p className="text-xs text-slate-300">
-                                      如果喜歡這首歌曲，請至{" "}
-                                      {currentRecommendation.providerLabel}{" "}
-                                      支持作者。
-                                    </p>
-                                  </>
-                                ) : (
-                                  <>
-                                    <p className="text-sm font-semibold text-slate-200">
-                                      此平台不支援嵌入試聽
-                                    </p>
-                                    <p className="text-xs text-slate-400">
-                                      請使用上方連結前往{" "}
-                                      {currentRecommendation.providerLabel}{" "}
-                                      收聽。
-                                    </p>
-                                  </>
-                                )}
-                              </div>
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 px-4 text-center">
+                              <p className="text-sm font-semibold text-slate-200">
+                                此平台不支援嵌入試聽
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                請使用上方連結前往{" "}
+                                {currentRecommendation.providerLabel} 收聽。
+                              </p>
                             </div>
                           )}
                         </div>
@@ -3190,6 +3523,28 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                       );
                       const tone = RESULT_META[result];
                       const active = selectedRecap?.key === recap.key;
+                      const recapCorrectRank =
+                        result === "correct"
+                          ? resolveCorrectAnsweredRank(
+                              recap,
+                              effectiveSelectedReviewParticipantClientId,
+                            )
+                          : null;
+                      const recapRating =
+                        performanceRatingByRecapKey.get(recap.key) ?? null;
+                      const recapGradeMeta = recapRating
+                        ? PERFORMANCE_GRADE_META[recapRating.grade]
+                        : null;
+                      const isFastestRecap =
+                        personalFastestCorrectRecapKeys.has(recap.key) &&
+                        result === "correct";
+                      const isGlobalFastestRecap = isParticipantGlobalFastestCorrect(
+                        recap,
+                        recapRating,
+                      );
+                      const fastestRecapBadgeText = isGlobalFastestRecap
+                        ? "全場最快"
+                        : "我的最快";
                       return (
                         <button
                           key={recap.key}
@@ -3199,10 +3554,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                               ? "border-amber-300/55 bg-amber-400/10"
                               : "border-slate-700/70 bg-slate-950/55 hover:border-slate-500/80"
                           }`}
-                          onClick={() => setSelectedRecapKey(recap.key)}
+                          onClick={() => {
+                            setSelectedRecapKey(recap.key);
+                            jumpToRecapPreview(recap, "click");
+                          }}
                           onDoubleClick={() => {
                             setSelectedRecapKey(recap.key);
-                            jumpToRecapPreview(recap);
+                            jumpToRecapPreview(recap, "doubleClick");
                           }}
                         >
                           <div className="flex items-center gap-2">
@@ -3212,11 +3570,43 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
                               {recap.title}
                             </p>
+                            {isFastestRecap && (
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-orange-300/45 bg-orange-500/16 text-orange-100">
+                                <LocalFireDepartmentRoundedIcon className="text-[0.95rem]" />
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                             <span
                               className={`shrink-0 ${REVIEW_STATUS_BADGE_BASE} ${tone.badgeClass}`}
                             >
                               {tone.label}
                             </span>
+                            {typeof recapCorrectRank === "number" &&
+                              recapCorrectRank > 1 && (
+                              <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-sky-300/45 bg-sky-500/16 px-2 text-[10px] font-semibold text-sky-50">
+                                第{recapCorrectRank}答
+                              </span>
+                              )}
+                            {recapCorrectRank === 1 && (
+                              <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-emerald-300/45 bg-emerald-500/16 px-2 text-[10px] font-semibold text-emerald-100">
+                                首答
+                              </span>
+                            )}
+                            {recapRating && recapGradeMeta && (
+                              <span
+                                className={`inline-flex h-6 min-w-[2.2rem] items-center justify-center rounded-full border px-2 text-[11px] font-semibold ${recapGradeMeta.badgeClass}`}
+                                title={`評分 ${recapRating.grade}`}
+                              >
+                                {recapRating.grade}
+                              </span>
+                            )}
+                            {isFastestRecap && (
+                              <span className="inline-flex h-6 min-w-[4.4rem] items-center justify-center gap-1 rounded-full border border-orange-300/45 bg-orange-500/16 px-2.5 text-[11px] font-semibold text-orange-100">
+                                <LocalFireDepartmentRoundedIcon className="text-[0.85rem]" />
+                                {fastestRecapBadgeText}
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
@@ -3268,31 +3658,62 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                               {selectedRecap.uploader}
                             </p>
                           </div>
-                          <span
-                            className={`${REVIEW_STATUS_BADGE_BASE} ${
-                              RESULT_META[selectedRecapAnswer.result].badgeClass
-                            }`}
-                          >
-                            {RESULT_META[selectedRecapAnswer.result].label}
-                          </span>
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            <span
+                              className={`${REVIEW_STATUS_BADGE_BASE} ${
+                                RESULT_META[selectedRecapAnswer.result].badgeClass
+                              }`}
+                            >
+                              {RESULT_META[selectedRecapAnswer.result].label}
+                            </span>
+                            {typeof selectedRecapCorrectRank === "number" &&
+                              selectedRecapCorrectRank > 1 && (
+                              <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-sky-300/45 bg-sky-500/16 px-2 text-[10px] font-semibold text-sky-50">
+                                第{selectedRecapCorrectRank}答
+                              </span>
+                              )}
+                            {selectedRecapCorrectRank === 1 && (
+                              <span className="inline-flex h-5 min-w-[3.9rem] items-center justify-center rounded-full border border-emerald-300/45 bg-emerald-500/16 px-2 text-[10px] font-semibold text-emerald-100">
+                                首答
+                              </span>
+                            )}
+                            {isSelectedRecapFastest && (
+                              <span className="inline-flex h-6 min-w-[4.4rem] items-center justify-center gap-1 rounded-full border border-orange-300/45 bg-orange-500/16 px-2.5 text-[11px] font-semibold text-orange-100">
+                                <LocalFireDepartmentRoundedIcon className="text-[0.85rem]" />
+                                {selectedRecapFastestBadgeText}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/70 px-3 py-2">
-                          <p className="text-[11px] text-slate-400">作答統計</p>
+                          <p className="text-[11px] text-slate-400">作答評分</p>
                           <p className="mt-1 text-xs text-slate-300">
                             答對 {selectedRecap.correctCount ?? 0} · 答錯{" "}
-                            {selectedRecap.wrongCount ?? 0}· 未作答{" "}
-                            {selectedRecap.unansweredCount ?? 0} · 最快{" "}
-                            {formatMs(selectedRecap.fastestCorrectMs)}
+                            {selectedRecap.wrongCount ?? 0} · 未作答{" "}
+                            {selectedRecap.unansweredCount ?? 0} · 最快答對{" "}
+                            {formatMs(selectedRecap.fastestCorrectMs)} · 平均答對{" "}
+                            {formatMs(selectedRecapAverageCorrectMs)}
                           </p>
-                          {selectedReviewParticipant && (
-                            <p className="mt-1 text-xs text-sky-100">
-                              玩家：第 {selectedReviewParticipantRank}/
-                              {Math.max(1, sortedParticipants.length)} 名 · 分數{" "}
-                              {selectedReviewParticipant.score} · Combo x
-                              {Math.max(
-                                selectedReviewParticipant.maxCombo ?? 0,
-                                selectedReviewParticipant.combo,
-                              )}
+                          {selectedRecapRating && selectedRecapGradeMeta ? (
+                            <>
+                              <p className="mt-1 text-xs font-semibold text-slate-100">
+                                評分{" "}
+                                <span
+                                  className={`rounded-full border px-1.5 py-0.5 text-[10px] ${selectedRecapGradeMeta.badgeClass}`}
+                                >
+                                  {selectedRecapRating.grade}
+                                </span>{" "}
+                                · {selectedRecapRating.score}
+                              </p>
+                              <p
+                                className={`mt-1 text-[11px] ${selectedRecapGradeMeta.detailClass}`}
+                              >
+                                {selectedRecapRatingBreakdown}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="mt-1 text-xs text-slate-400">
+                              尚無作答資料可計算評分
                             </p>
                           )}
                         </div>
