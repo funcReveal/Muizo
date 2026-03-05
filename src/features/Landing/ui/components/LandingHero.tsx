@@ -49,7 +49,7 @@ const LandingHero: React.FC = () => {
   }, [activeWord.length, isDeleting, typedLength]);
 
   return (
-    <div className="flex min-w-0 flex-col justify-between gap-6">
+    <div className="landing-hero flex min-w-0 flex-col justify-between gap-6">
       <div className="space-y-5">
         <h2 className="landing-title text-[2.15rem] leading-[1.2] text-[var(--mc-text)] sm:text-[2.5rem] lg:text-[3rem]">
           和朋友一起猜
@@ -68,9 +68,12 @@ const LandingHero: React.FC = () => {
             秒進房間，直接開始挑戰
           </span>
         </h2>
-        <p className="max-w-[92ch] text-[13px] leading-6 text-[var(--mc-text-muted)] sm:text-sm">
-          推薦使用 Google
-          登入，完整啟用播放清單同步與收藏資料延續。若只想快速試玩，也可以用訪客模式立即加入。
+        <p className="landing-hero-copy max-w-[92ch] text-[13px] leading-6 text-[var(--mc-text-muted)] sm:text-sm">
+          Google
+          登入可同步題庫、保留收藏與對戰紀錄，換裝置也能無縫接續。想先熱身？輸入暱稱就能用訪客模式立刻開打。
+        </p>
+        <p className="landing-hero-vision">
+          我們不只想讓猜歌更方便、互動更即時，也希望每一次出題都能把好歌重新帶回大家耳邊，讓被記憶收藏的旋律與創作者再次被看見。
         </p>
       </div>
     </div>

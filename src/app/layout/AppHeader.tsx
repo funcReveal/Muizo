@@ -323,14 +323,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="group inline-flex min-w-[156px] items-center justify-between gap-2 rounded-full border border-[var(--mc-accent-2)]/40 bg-[var(--mc-accent-2)]/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.28em] text-emerald-100 shadow-[0_10px_30px_-24px_rgba(16,185,129,0.5)] transition hover:border-[var(--mc-accent-2)]/60 hover:bg-[var(--mc-accent-2)]/20"
+            className="group inline-flex min-w-[156px] items-center justify-between gap-2 rounded-full border border-[var(--mc-accent-2)]/40 bg-[var(--mc-accent-2)]/10 px-3 py-1.5 text-xs font-semibold tracking-[0.28em] text-emerald-100 shadow-[0_10px_30px_-24px_rgba(16,185,129,0.5)] transition hover:border-[var(--mc-accent-2)]/60 hover:bg-[var(--mc-accent-2)]/20"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
           >
             <span className="inline-flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-[var(--mc-accent-2)] shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
-              Sign in
+              登入 Login
             </span>
             <span
               className={`text-[10px] transition-transform ${

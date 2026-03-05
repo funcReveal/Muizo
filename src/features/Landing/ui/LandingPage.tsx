@@ -1,4 +1,4 @@
-﻿import React from "react";
+﻿import React, { useEffect, useRef } from "react";
 
 import LandingHero from "./components/LandingHero";
 import GoogleLoginCard from "./components/GoogleLoginCard";
@@ -6,6 +6,7 @@ import GuestEntryCard from "./components/GuestEntryCard";
 import HowItWorksSection from "./components/HowItWorksSection";
 import AuthComparisonSection from "./components/AuthComparisonSection";
 import RecentUpdatesSection from "./components/RecentUpdatesSection";
+import CommunityCallout from "./components/CommunityCallout";
 import type { LandingPageProps } from "./types";
 import "./LandingPage.css";
 
@@ -17,30 +18,86 @@ const LandingPage: React.FC<LandingPageProps> = ({
   googleLoading = false,
   nicknameMaxLength = 16,
 }) => {
+  const shellRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const stageElements = Array.from(
+      shell.querySelectorAll<HTMLElement>("[data-landing-stage]"),
+    );
+    if (stageElements.length === 0) return;
+
+    stageElements[0]?.classList.add("is-visible");
+    if (!("IntersectionObserver" in window)) {
+      stageElements.forEach((element) => element.classList.add("is-visible"));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            return;
+          }
+          entry.target.classList.remove("is-visible");
+        });
+      },
+      { threshold: 0.24, rootMargin: "0px 0px -10% 0px" },
+    );
+
+    stageElements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="landing-shell relative overflow-hidden p-5 sm:p-6 lg:p-8">
-      <div className="relative grid gap-6 lg:grid-cols-[1.08fr,0.92fr] lg:gap-7">
-        <LandingHero />
+    <section
+      ref={shellRef}
+      className="landing-shell relative overflow-hidden p-5 sm:p-6 lg:p-8"
+    >
+      <section className="landing-stage landing-stage-plain is-visible" data-landing-stage>
+        <div className="landing-stage-content">
+          <div className="landing-top-grid relative grid gap-6 lg:grid-cols-[1.08fr,0.92fr] lg:gap-7">
+            <LandingHero />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          <GoogleLoginCard
-            onGoogleLogin={onGoogleLogin}
-            googleLoading={googleLoading}
-          />
-          <GuestEntryCard
-            usernameInput={usernameInput}
-            onInputChange={onInputChange}
-            onConfirm={onConfirm}
-            nicknameMaxLength={nicknameMaxLength}
-          />
+            <div className="landing-entry-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <GoogleLoginCard
+                onGoogleLogin={onGoogleLogin}
+                googleLoading={googleLoading}
+              />
+              <GuestEntryCard
+                usernameInput={usernameInput}
+                onInputChange={onInputChange}
+                onConfirm={onConfirm}
+                nicknameMaxLength={nicknameMaxLength}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="landing-info-grid mt-8 grid gap-4 lg:grid-cols-3">
-        <HowItWorksSection />
-        <AuthComparisonSection />
-        <RecentUpdatesSection />
-      </div>
+      <section className="landing-stage" data-landing-stage>
+        <div className="landing-stage-head">
+          <p className="landing-stage-kicker">Know More</p>
+          <h2 className="landing-stage-title">三個重點，快速理解玩法</h2>
+        </div>
+        <div className="landing-stage-content landing-info-grid mt-8 grid gap-4 lg:grid-cols-3">
+          <HowItWorksSection />
+          <AuthComparisonSection />
+          <RecentUpdatesSection />
+        </div>
+      </section>
+
+      <section className="landing-stage landing-stage-community" data-landing-stage>
+        <div className="landing-stage-head">
+          <p className="landing-stage-kicker">Build Together</p>
+          <h2 className="landing-stage-title">一起定義下一版 Muizo</h2>
+        </div>
+        <div className="landing-stage-content mt-4">
+          <CommunityCallout />
+        </div>
+      </section>
     </section>
   );
 };

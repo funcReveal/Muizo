@@ -18,15 +18,15 @@ export interface LandingUpdateItem {
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     title: "建立或加入房間",
-    description: "貼上房號或自己開房，朋友一鍵加入，開局前就能先同步題庫。",
+    description: "尋找想玩的題庫，進入房間或自己開房，一鍵邀請朋友加入。",
   },
   {
     title: "回合猜歌對戰",
-    description: "系統依序播放片段，大家即時作答，節奏快、互動密度高。",
+    description: "系統隨機播放題目，透過選項即時作答。",
   },
   {
     title: "即時結算排行",
-    description: "每回合都更新分數與排名，結束後直接看到勝負與重點數據。",
+    description: "記錄每回合分數與排名，結束後可看到勝負與各項數據。",
   },
 ];
 

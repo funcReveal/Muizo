@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
@@ -7,13 +7,14 @@ import { AUTH_COMPARISON_ROWS } from "../../model/landingContent";
 
 const AuthComparisonSection: React.FC = () => {
   return (
-    <section className="landing-info-block">
+    <section className="landing-info-block landing-info-block-compare">
       <header className="landing-info-header">
         <p className="landing-info-kicker">Guest vs Google</p>
         <h3 className="landing-info-title landing-title-with-icon">
           <FactCheckRoundedIcon fontSize="small" />
           登入方式比較
         </h3>
+        <p className="landing-info-subtitle">先玩可用訪客，長期使用建議綁定 Google。</p>
       </header>
 
       <div className="landing-compare-table" role="table" aria-label="登入方式比較">
@@ -27,7 +28,10 @@ const AuthComparisonSection: React.FC = () => {
             <span role="cell">{row.label}</span>
             <span role="cell" className={row.guest ? "is-yes" : "is-no"}>
               {row.guest ? (
-                <CheckCircleRoundedIcon className="landing-compare-icon" fontSize="inherit" />
+                <CheckCircleRoundedIcon
+                  className="landing-compare-icon"
+                  fontSize="inherit"
+                />
               ) : (
                 <CancelRoundedIcon className="landing-compare-icon" fontSize="inherit" />
               )}
@@ -35,7 +39,10 @@ const AuthComparisonSection: React.FC = () => {
             </span>
             <span role="cell" className={row.google ? "is-yes" : "is-no"}>
               {row.google ? (
-                <CheckCircleRoundedIcon className="landing-compare-icon" fontSize="inherit" />
+                <CheckCircleRoundedIcon
+                  className="landing-compare-icon"
+                  fontSize="inherit"
+                />
               ) : (
                 <CancelRoundedIcon className="landing-compare-icon" fontSize="inherit" />
               )}
