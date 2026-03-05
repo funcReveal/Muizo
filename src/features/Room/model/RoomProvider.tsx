@@ -432,6 +432,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const serverOffsetRef = useRef(0);
   const presenceParticipantNamesRef = useRef<Map<string, string>>(new Map());
   const presenceSeededRoomIdRef = useRef<string | null>(null);
+  const lastLatencyProbeRoomIdRef = useRef<string | null>(null);
 
   const resetPresenceParticipants = useCallback(() => {
     presenceParticipantNamesRef.current = new Map();
@@ -491,6 +492,22 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         ];
       });
     },
+    [],
+  );
+
+  const mergeCachedParticipantPing = useCallback(
+    (nextParticipants: RoomParticipant[], previousParticipants: RoomParticipant[]) =>
+      nextParticipants.map((participant) => {
+        if (typeof participant.pingMs === "number") {
+          return participant;
+        }
+        const cachedPing = previousParticipants.find(
+          (prev) => prev.clientId === participant.clientId,
+        )?.pingMs;
+        return typeof cachedPing === "number"
+          ? { ...participant, pingMs: cachedPing }
+          : participant;
+      }),
     [],
   );
 
@@ -1241,7 +1258,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
                 const state = ack.data;
                 syncServerOffset(state.serverNow);
                 setCurrentRoom(applyGameSettingsPatch(state.room, {}));
-                setParticipants(state.participants);
+                setParticipants((prev) =>
+                  mergeCachedParticipantPing(state.participants, prev),
+                );
                 seedPresenceParticipants(state.room.id, state.participants);
                 setMessages(state.messages);
                 setSettlementHistory(state.settlementHistory ?? []);
@@ -1300,6 +1319,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         setRouteRoomResolved(false);
         setCurrentRoom(null);
         setParticipants([]);
+        lastLatencyProbeRoomIdRef.current = null;
         resetPresenceParticipants();
         setMessages([]);
         setSettlementHistory([]);
@@ -1331,7 +1351,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         releaseCreateRoomLockRef.current?.();
         syncServerOffset(state.serverNow);
         setCurrentRoom(applyGameSettingsPatch(state.room, {}));
-        setParticipants(state.participants);
+        setParticipants((prev) =>
+          mergeCachedParticipantPing(state.participants, prev),
+        );
         seedPresenceParticipants(state.room.id, state.participants);
         setMessages(state.messages);
         setSettlementHistory(state.settlementHistory ?? []);
@@ -1373,8 +1395,21 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           }
           seedPresenceParticipants(roomId, participants);
         }
-        setParticipants(participants);
+        setParticipants((prev) =>
+          mergeCachedParticipantPing(participants, prev),
+        );
         setCurrentRoom((prev) => (prev ? { ...prev, hostClientId } : prev));
+      },
+      onRoomPingUpdated: ({ roomId, pings }) => {
+        if (roomId !== currentRoomIdRef.current) return;
+        setParticipants((prev) =>
+          prev.map((participant) => {
+            if (!(participant.clientId in pings)) return participant;
+            const nextPing = pings[participant.clientId];
+            if (participant.pingMs === nextPing) return participant;
+            return { ...participant, pingMs: nextPing };
+          }),
+        );
       },
       onUserLeft: ({ roomId, clientId: leftId }) => {
         if (roomId !== currentRoomIdRef.current) return;
@@ -1499,9 +1534,46 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     resetSessionClientId,
     resetPresenceParticipants,
     seedPresenceParticipants,
+    mergeCachedParticipantPing,
     appendPresenceSystemMessage,
     syncServerOffset,
   ]);
+
+  const requestLatencyProbe = useCallback(
+    (roomId: string) => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) return;
+      const startedAt = performance.now();
+      socket.emit("latencyProbe", { roomId }, (ack: Ack<{ serverNow: number }>) => {
+        if (!ack?.ok) return;
+        const measuredMs = Math.max(0, Math.round(performance.now() - startedAt));
+        syncServerOffset(ack.data.serverNow);
+        setParticipants((prev) =>
+          prev.map((participant) =>
+            participant.clientId === clientId
+              ? { ...participant, pingMs: measuredMs }
+              : participant,
+          ),
+        );
+      });
+    },
+    [clientId, syncServerOffset],
+  );
+
+  useEffect(() => {
+    const roomId = currentRoom?.id ?? null;
+    if (!roomId || !isConnected) {
+      lastLatencyProbeRoomIdRef.current = null;
+      return;
+    }
+    if (lastLatencyProbeRoomIdRef.current === roomId) return;
+    lastLatencyProbeRoomIdRef.current = roomId;
+    requestLatencyProbe(roomId);
+    const timer = window.setTimeout(() => {
+      requestLatencyProbe(roomId);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [currentRoom?.id, isConnected, requestLatencyProbe]);
 
   const handleCreateRoom = useCallback(async () => {
     const s = getSocket();
@@ -1645,7 +1717,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           allowCollectionClipTiming: nextAllowCollectionClipTiming,
         }),
       );
-      setParticipants(state.participants);
+      setParticipants((prev) =>
+        mergeCachedParticipantPing(state.participants, prev),
+      );
       seedPresenceParticipants(state.room.id, state.participants);
       setMessages(state.messages);
       setSettlementHistory(state.settlementHistory ?? []);
@@ -1970,6 +2044,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     revealDurationSec,
     questionCount,
     refreshAuthToken,
+    mergeCachedParticipantPing,
     roomCreateSourceMode,
     roomMaxPlayersInput,
     roomNameInput,
@@ -2003,7 +2078,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
           const state = ack.data;
           syncServerOffset(state.serverNow);
           setCurrentRoom(applyGameSettingsPatch(state.room, {}));
-          setParticipants(state.participants);
+          setParticipants((prev) =>
+            mergeCachedParticipantPing(state.participants, prev),
+          );
           seedPresenceParticipants(state.room.id, state.participants);
           setMessages(state.messages);
           setSettlementHistory(state.settlementHistory ?? []);
@@ -2050,6 +2127,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     getSocket,
     joinPasswordInput,
     lockSessionClientId,
+    mergeCachedParticipantPing,
     persistRoomId,
     syncServerOffset,
     username,

@@ -121,6 +121,7 @@ export interface RoomParticipant {
   joinedAt: number;
   isOnline: boolean;
   lastSeen: number;
+  pingMs?: number | null;
   score: number;
   combo: number;
   maxCombo?: number;
@@ -346,6 +347,10 @@ export interface ClientToServerEvents {
     payload: { roomId: string; choiceIndex: number },
     callback?: (ack: Ack<SubmitAnswerAckData>) => void
   ) => void;
+  latencyProbe: (
+    payload: { roomId: string },
+    callback?: (ack: Ack<{ serverNow: number }>) => void
+  ) => void;
   updateRoomSettings: (
     payload: {
       roomId: string;
@@ -416,6 +421,11 @@ export interface ServerToClientEvents {
     roomId: string;
     participants: RoomParticipant[];
     hostClientId: string;
+  }) => void;
+  roomPingUpdated: (payload: {
+    roomId: string;
+    pings: Record<string, number | null>;
+    updatedAt: number;
   }) => void;
   playlistProgress: (payload: {
     roomId: string;

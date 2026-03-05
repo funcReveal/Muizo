@@ -45,10 +45,14 @@ const buildSettlementSummaryFromSnapshot = (
 
 const getSnapshotRecapCount = (
   snapshot: Pick<RoomSettlementSnapshot, "questionRecaps"> | null | undefined,
-) => (Array.isArray(snapshot?.questionRecaps) ? snapshot.questionRecaps.length : 0);
+) =>
+  Array.isArray(snapshot?.questionRecaps) ? snapshot.questionRecaps.length : 0;
 
 const hasCompleteSettlementRecaps = (
-  snapshot: Pick<RoomSettlementSnapshot, "questionRecaps" | "playedQuestionCount"> | null | undefined,
+  snapshot:
+    | Pick<RoomSettlementSnapshot, "questionRecaps" | "playedQuestionCount">
+    | null
+    | undefined,
 ) => {
   if (!snapshot) return false;
   const recapCount = getSnapshotRecapCount(snapshot);
@@ -62,7 +66,8 @@ const getSettlementSessionCacheKey = (
   roomId: string,
   clientId: string,
   joinedAtMs: number,
-) => `${SETTLEMENT_SESSION_CACHE_KEY_PREFIX}${roomId}:${clientId}:${joinedAtMs}`;
+) =>
+  `${SETTLEMENT_SESSION_CACHE_KEY_PREFIX}${roomId}:${clientId}:${joinedAtMs}`;
 
 const readSettlementSessionCache = (
   key: string,
@@ -70,7 +75,9 @@ const readSettlementSessionCache = (
   try {
     const raw = window.sessionStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<SettlementSessionCachePayload> | null;
+    const parsed = JSON.parse(
+      raw,
+    ) as Partial<SettlementSessionCachePayload> | null;
     if (!parsed || typeof parsed !== "object") return null;
     return {
       summaries: Array.isArray(parsed.summaries)
@@ -97,7 +104,10 @@ const writeSettlementSessionCache = (
   }
 };
 
-const clearSettlementSessionCacheForRoomClient = (roomId: string, clientId: string) => {
+const clearSettlementSessionCacheForRoomClient = (
+  roomId: string,
+  clientId: string,
+) => {
   try {
     const prefix = `${SETTLEMENT_SESSION_CACHE_KEY_PREFIX}${roomId}:${clientId}:`;
     const toRemove: string[] = [];
@@ -177,10 +187,12 @@ const RoomLobbyPage: React.FC = () => {
     fetchSettlementReplay,
   } = useRoom();
 
-  const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<string | null>(null);
-  const [loadingSettlementRoundKey, setLoadingSettlementRoundKey] = useState<string | null>(
-    null,
-  );
+  const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<
+    string | null
+  >(null);
+  const [loadingSettlementRoundKey, setLoadingSettlementRoundKey] = useState<
+    string | null
+  >(null);
   const [settlementHistorySummaries, setSettlementHistorySummaries] = useState<
     RoomSettlementHistorySummary[]
   >([]);
@@ -188,7 +200,8 @@ const RoomLobbyPage: React.FC = () => {
     Record<string, RoomSettlementSnapshot>
   >({});
   const [settlementCacheHydrated, setSettlementCacheHydrated] = useState(false);
-  const [settlementSummaryListLoaded, setSettlementSummaryListLoaded] = useState(false);
+  const [settlementSummaryListLoaded, setSettlementSummaryListLoaded] =
+    useState(false);
   const [settlementRecapsByRoundKey, setSettlementRecapsByRoundKey] = useState<
     Record<string, SettlementQuestionRecap[]>
   >({});
@@ -202,11 +215,13 @@ const RoomLobbyPage: React.FC = () => {
     previousTopRoundKey: string | null;
   } | null>(null);
   const lastJoinedRoomIdRef = useRef<string | null>(null);
-  const settlementSummaryListRequestRef = useRef<Promise<RoomSettlementHistorySummary[]> | null>(
-    null,
-  );
+  const settlementSummaryListRequestRef = useRef<Promise<
+    RoomSettlementHistorySummary[]
+  > | null>(null);
   const selfParticipantJoinedAt = useMemo(
-    () => participants.find((participant) => participant.clientId === clientId)?.joinedAt ?? null,
+    () =>
+      participants.find((participant) => participant.clientId === clientId)
+        ?.joinedAt ?? null,
     [clientId, participants],
   );
 
@@ -270,14 +285,18 @@ const RoomLobbyPage: React.FC = () => {
       isError: Boolean(sessionProgress && sessionProgress.status === "error"),
       errorMessage:
         sessionProgress?.status === "error"
-          ? sessionProgress.message ?? "連線流程發生錯誤"
+          ? (sessionProgress.message ?? "連線流程發生錯誤")
           : null,
     };
   }, [isConnected, sessionProgress]);
 
   const settlementSessionCacheKey =
     currentRoom?.id && clientId && typeof selfParticipantJoinedAt === "number"
-      ? getSettlementSessionCacheKey(currentRoom.id, clientId, selfParticipantJoinedAt)
+      ? getSettlementSessionCacheKey(
+          currentRoom.id,
+          clientId,
+          selfParticipantJoinedAt,
+        )
       : null;
 
   useEffect(() => {
@@ -359,7 +378,9 @@ const RoomLobbyPage: React.FC = () => {
   const roomScopedSettlementHistorySummaries = useMemo(
     () =>
       currentRoom?.id
-        ? settlementHistorySummaries.filter((item) => item.roomId === currentRoom.id)
+        ? settlementHistorySummaries.filter(
+            (item) => item.roomId === currentRoom.id,
+          )
         : [],
     [currentRoom?.id, settlementHistorySummaries],
   );
@@ -367,7 +388,9 @@ const RoomLobbyPage: React.FC = () => {
   const roomScopedSettlementReplayByRoundKey = useMemo(() => {
     if (!currentRoom?.id) return {} as Record<string, RoomSettlementSnapshot>;
     const next: Record<string, RoomSettlementSnapshot> = {};
-    for (const [roundKey, snapshot] of Object.entries(settlementReplayByRoundKey)) {
+    for (const [roundKey, snapshot] of Object.entries(
+      settlementReplayByRoundKey,
+    )) {
       if (snapshot.room.id === currentRoom.id) {
         next[roundKey] = snapshot;
       }
@@ -377,7 +400,9 @@ const RoomLobbyPage: React.FC = () => {
 
   useEffect(() => {
     if (!currentRoom?.id || roomScopedSettlementHistory.length === 0) return;
-    const liveSummaries = roomScopedSettlementHistory.map(buildSettlementSummaryFromSnapshot);
+    const liveSummaries = roomScopedSettlementHistory.map(
+      buildSettlementSummaryFromSnapshot,
+    );
     const timer = window.setTimeout(() => {
       setSettlementReplayByRoundKey((prev) => {
         let changed = false;
@@ -417,8 +442,10 @@ const RoomLobbyPage: React.FC = () => {
 
   const ensureSettlementSummaryListLoaded = useCallback(async () => {
     if (!currentRoom?.id) return [] as RoomSettlementHistorySummary[];
-    if (roomScopedSettlementHistorySummaries.length > 0) return roomScopedSettlementHistorySummaries;
-    if (settlementSummaryListLoaded) return roomScopedSettlementHistorySummaries;
+    if (roomScopedSettlementHistorySummaries.length > 0)
+      return roomScopedSettlementHistorySummaries;
+    if (settlementSummaryListLoaded)
+      return roomScopedSettlementHistorySummaries;
     if (settlementSummaryListRequestRef.current) {
       return await settlementSummaryListRequestRef.current;
     }
@@ -458,9 +485,12 @@ const RoomLobbyPage: React.FC = () => {
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
       setActiveSettlementRoundKey(roundKey);
-      const cachedReplaySnapshot = roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
+      const cachedReplaySnapshot =
+        roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
       const cachedLiveSnapshot =
-        roomScopedSettlementHistory.find((item) => item.roundKey === roundKey) ?? null;
+        roomScopedSettlementHistory.find(
+          (item) => item.roundKey === roundKey,
+        ) ?? null;
       const hasReplayRecaps = hasCompleteSettlementRecaps(cachedReplaySnapshot);
       const hasLiveRecaps = hasCompleteSettlementRecaps(cachedLiveSnapshot);
       if (hasReplayRecaps || hasLiveRecaps) {
@@ -468,17 +498,23 @@ const RoomLobbyPage: React.FC = () => {
       }
 
       let summary =
-        roomScopedSettlementHistorySummaries.find((item) => item.roundKey === roundKey) ?? null;
+        roomScopedSettlementHistorySummaries.find(
+          (item) => item.roundKey === roundKey,
+        ) ?? null;
       if (!summary) {
         try {
           const loaded = await ensureSettlementSummaryListLoaded();
           summary =
             loaded.find((item) => item.roundKey === roundKey) ??
-            roomScopedSettlementHistorySummaries.find((item) => item.roundKey === roundKey) ??
+            roomScopedSettlementHistorySummaries.find(
+              (item) => item.roundKey === roundKey,
+            ) ??
             null;
         } catch (error) {
           setStatusText(
-            error instanceof Error ? error.message : "讀取對戰回顧失敗，請稍後再試",
+            error instanceof Error
+              ? error.message
+              : "讀取對戰回顧失敗，請稍後再試",
           );
           setActiveSettlementRoundKey(null);
           return;
@@ -502,10 +538,14 @@ const RoomLobbyPage: React.FC = () => {
           setActiveSettlementRoundKey(snapshot.roundKey);
         }
       } catch (error) {
-        setStatusText(error instanceof Error ? error.message : "讀取對戰回顧失敗");
+        setStatusText(
+          error instanceof Error ? error.message : "讀取對戰回顧失敗",
+        );
         setActiveSettlementRoundKey(null);
       } finally {
-        setLoadingSettlementRoundKey((prev) => (prev === roundKey ? null : prev));
+        setLoadingSettlementRoundKey((prev) =>
+          prev === roundKey ? null : prev,
+        );
       }
     },
     [
@@ -629,23 +669,27 @@ const RoomLobbyPage: React.FC = () => {
     return activeSettlementRoundKey;
   }, [activeSettlementRoundKey, currentRoom]);
 
-  const activeSettlementSnapshot = useMemo<RoomSettlementSnapshot | null>(() => {
-    if (!resolvedActiveSettlementRoundKey) return null;
-    const liveSnapshot =
-      roomScopedSettlementHistory.find((item) => item.roundKey === resolvedActiveSettlementRoundKey) ??
-      null;
-    const replaySnapshot =
-      roomScopedSettlementReplayByRoundKey[resolvedActiveSettlementRoundKey] ?? null;
-    if (!liveSnapshot) return replaySnapshot;
-    if (!replaySnapshot) return liveSnapshot;
-    const liveRecapCount = getSnapshotRecapCount(liveSnapshot);
-    const replayRecapCount = getSnapshotRecapCount(replaySnapshot);
-    return replayRecapCount > liveRecapCount ? replaySnapshot : liveSnapshot;
-  }, [
-    resolvedActiveSettlementRoundKey,
-    roomScopedSettlementHistory,
-    roomScopedSettlementReplayByRoundKey,
-  ]);
+  const activeSettlementSnapshot =
+    useMemo<RoomSettlementSnapshot | null>(() => {
+      if (!resolvedActiveSettlementRoundKey) return null;
+      const liveSnapshot =
+        roomScopedSettlementHistory.find(
+          (item) => item.roundKey === resolvedActiveSettlementRoundKey,
+        ) ?? null;
+      const replaySnapshot =
+        roomScopedSettlementReplayByRoundKey[
+          resolvedActiveSettlementRoundKey
+        ] ?? null;
+      if (!liveSnapshot) return replaySnapshot;
+      if (!replaySnapshot) return liveSnapshot;
+      const liveRecapCount = getSnapshotRecapCount(liveSnapshot);
+      const replayRecapCount = getSnapshotRecapCount(replaySnapshot);
+      return replayRecapCount > liveRecapCount ? replaySnapshot : liveSnapshot;
+    }, [
+      resolvedActiveSettlementRoundKey,
+      roomScopedSettlementHistory,
+      roomScopedSettlementReplayByRoundKey,
+    ]);
 
   const activeSettlementQuestionRecaps = useMemo(() => {
     if (!activeSettlementSnapshot) return undefined;
@@ -669,12 +713,14 @@ const RoomLobbyPage: React.FC = () => {
         (item) => item.roundKey === resolvedActiveSettlementRoundKey,
       ) ??
       null;
-    const localRecaps = settlementRecapsByRoundKey[resolvedActiveSettlementRoundKey];
+    const localRecaps =
+      settlementRecapsByRoundKey[resolvedActiveSettlementRoundKey];
     const localRecapCount = Array.isArray(localRecaps) ? localRecaps.length : 0;
     const expectedCount = Math.max(0, snapshot?.playedQuestionCount ?? 0);
     const snapshotHasCompleteRecaps = hasCompleteSettlementRecaps(snapshot);
     const localHasCompleteRecaps =
-      localRecapCount > 0 && (expectedCount <= 0 || localRecapCount >= expectedCount);
+      localRecapCount > 0 &&
+      (expectedCount <= 0 || localRecapCount >= expectedCount);
     if (snapshotHasCompleteRecaps || localHasCompleteRecaps) return;
     void openSettlementReviewByRoundKey(resolvedActiveSettlementRoundKey);
   }, [
@@ -688,22 +734,23 @@ const RoomLobbyPage: React.FC = () => {
 
   const latestSettlementSnapshot = roomScopedSettlementHistory[0] ?? null;
 
-  const latestSettlementSummary = useMemo<RoomSettlementHistorySummary | null>(() => {
-    if (!latestSettlementSnapshot) return null;
-    return {
-      matchId: `${latestSettlementSnapshot.room.id}:${latestSettlementSnapshot.roundNo}`,
-      roundKey: latestSettlementSnapshot.roundKey,
-      roundNo: latestSettlementSnapshot.roundNo,
-      roomId: latestSettlementSnapshot.room.id,
-      roomName: latestSettlementSnapshot.room.name,
-      startedAt: latestSettlementSnapshot.startedAt,
-      endedAt: latestSettlementSnapshot.endedAt,
-      status: "ended",
-      playerCount: latestSettlementSnapshot.participants.length,
-      questionCount: latestSettlementSnapshot.playedQuestionCount,
-      summaryJson: null,
-    };
-  }, [latestSettlementSnapshot]);
+  const latestSettlementSummary =
+    useMemo<RoomSettlementHistorySummary | null>(() => {
+      if (!latestSettlementSnapshot) return null;
+      return {
+        matchId: `${latestSettlementSnapshot.room.id}:${latestSettlementSnapshot.roundNo}`,
+        roundKey: latestSettlementSnapshot.roundKey,
+        roundNo: latestSettlementSnapshot.roundNo,
+        roomId: latestSettlementSnapshot.room.id,
+        roomName: latestSettlementSnapshot.room.name,
+        startedAt: latestSettlementSnapshot.startedAt,
+        endedAt: latestSettlementSnapshot.endedAt,
+        status: "ended",
+        playerCount: latestSettlementSnapshot.participants.length,
+        questionCount: latestSettlementSnapshot.playedQuestionCount,
+        summaryJson: null,
+      };
+    }, [latestSettlementSnapshot]);
 
   const mergedSettlementSummaries = useMemo(() => {
     const next = new Map<string, RoomSettlementHistorySummary>();
@@ -718,17 +765,16 @@ const RoomLobbyPage: React.FC = () => {
     );
   }, [latestSettlementSummary, roomScopedSettlementHistorySummaries]);
 
-
   const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
     if (!currentRoom?.id) return [];
     return mergedSettlementSummaries.map((snapshot) => ({
-        id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
-        roomId: currentRoom.id,
-        userId: "system:settlement-review",
-        username: "系統",
-        content: `對戰回顧：第 ${snapshot.roundNo} 局`,
-        timestamp: snapshot.endedAt,
-      }));
+      id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
+      roomId: currentRoom.id,
+      userId: "system:settlement-review",
+      username: "系統",
+      content: `對戰回顧：第 ${snapshot.roundNo} 局`,
+      timestamp: snapshot.endedAt,
+    }));
   }, [currentRoom, mergedSettlementSummaries]);
 
   const lobbyMessages = useMemo(() => {
@@ -767,12 +813,7 @@ const RoomLobbyPage: React.FC = () => {
       setIsGameView(true);
     }, delayMs);
     return () => window.clearTimeout(timer);
-  }, [
-    activeSettlementRoundKey,
-    gameState,
-    serverOffsetMs,
-    setIsGameView,
-  ]);
+  }, [activeSettlementRoundKey, gameState, serverOffsetMs, setIsGameView]);
 
   const removeSettlementCacheForRoom = useCallback(
     (targetRoomId: string | null) => {
@@ -783,13 +824,20 @@ const RoomLobbyPage: React.FC = () => {
   );
 
   const leaveRoomAndNavigate = useCallback(() => {
-    const targetRoomId = currentRoom?.id ?? roomId ?? lastJoinedRoomIdRef.current;
+    const targetRoomId =
+      currentRoom?.id ?? roomId ?? lastJoinedRoomIdRef.current;
     setActiveSettlementRoundKey(null);
     handleLeaveRoom(() => {
       removeSettlementCacheForRoom(targetRoomId ?? null);
       navigate("/rooms", { replace: true });
     });
-  }, [currentRoom?.id, handleLeaveRoom, navigate, removeSettlementCacheForRoom, roomId]);
+  }, [
+    currentRoom?.id,
+    handleLeaveRoom,
+    navigate,
+    removeSettlementCacheForRoom,
+    roomId,
+  ]);
 
   const settlementStartBroadcastRemainingSec =
     gameState?.status === "playing"
@@ -807,14 +855,17 @@ const RoomLobbyPage: React.FC = () => {
               全員同步中
             </div>
             <p className="mt-3 text-sm text-slate-200">
-              房主已按下開始，{settlementStartBroadcastRemainingSec} 秒後切入開局倒數
+              房主已按下開始，{settlementStartBroadcastRemainingSec}{" "}
+              秒後切入開局倒數
             </p>
             <div className="mt-4 flex items-center justify-center">
               <div className="flex h-24 w-24 items-center justify-center rounded-full border border-amber-300/60 bg-amber-500/12 text-5xl font-black text-amber-100 shadow-[0_0_30px_rgba(251,191,36,0.45)]">
                 {settlementStartBroadcastRemainingSec}
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-300">倒數結束後會自動切入遊戲</p>
+            <p className="mt-3 text-xs text-slate-300">
+              倒數結束後會自動切入遊戲
+            </p>
           </div>
         </div>,
         document.body,
@@ -834,127 +885,134 @@ const RoomLobbyPage: React.FC = () => {
       <>
         <div className="mx-auto mt-6 w-full max-w-[1080px] min-w-0">
           <div className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[radial-gradient(circle_at_16%_18%,rgba(245,158,11,0.14),transparent_42%),radial-gradient(circle_at_84%_14%,rgba(234,179,8,0.08),transparent_46%),linear-gradient(180deg,rgba(12,10,8,0.96),rgba(7,6,4,0.98))] p-6 text-[var(--mc-text)] shadow-[0_30px_90px_-62px_rgba(245,158,11,0.65)] sm:p-8">
-          <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:18px_18px]" />
-          <div className="relative grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="min-w-0 rounded-2xl border border-amber-200/12 bg-[color-mix(in_srgb,var(--mc-surface-strong)_80%,black_20%)] p-5">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-amber-300/35 bg-amber-300/10 shadow-[0_0_24px_-10px_rgba(245,158,11,0.9)]">
-                  <span className="absolute inset-1 rounded-[10px] border border-amber-200/20" />
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-200/85 border-t-transparent" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
-                    Room Connect
+            <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:18px_18px]" />
+            <div className="relative grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="min-w-0 rounded-2xl border border-amber-200/12 bg-[color-mix(in_srgb,var(--mc-surface-strong)_80%,black_20%)] p-5">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex h-12 w-12 items-center justify-center rounded-xl border border-amber-300/35 bg-amber-300/10 shadow-[0_0_24px_-10px_rgba(245,158,11,0.9)]">
+                    <span className="absolute inset-1 rounded-[10px] border border-amber-200/20" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-amber-200/85 border-t-transparent" />
                   </div>
-                  <div className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-lg">
-                    正在進入房間，請稍後
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
+                      Room Connect
+                    </div>
+                    <div className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-lg">
+                      正在進入房間，請稍後
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <p className="mt-4 text-sm leading-6 text-[var(--mc-text-muted)]">
-                正在同步房間狀態、播放清單與目前對戰資訊。完成後會自動切換到房間畫面。
-              </p>
+                <p className="mt-4 text-sm leading-6 text-[var(--mc-text-muted)]">
+                  正在同步房間狀態、播放清單與目前對戰資訊。完成後會自動切換到房間畫面。
+                </p>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
-                  房號：<span className="ml-1 truncate text-[var(--mc-text)]">{roomId}</span>
-                </span>
-                <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-                  玩家：<span className="ml-1 truncate text-amber-50">{username}</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="min-w-0 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-xs tracking-[0.2em] text-[var(--mc-text-muted)]">
-                  連線進度
-                </div>
-                <div
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${
-                    waitingChecklist.isError
-                      ? "border border-rose-300/30 bg-rose-300/10 text-rose-100"
-                      : "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100/90"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      waitingChecklist.isError
-                        ? "bg-rose-300"
-                        : "animate-pulse bg-emerald-300"
-                    }`}
-                  />
-                  {waitingChecklist.isError ? "需要重試" : "同步中"}
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+                    房號：
+                    <span className="ml-1 truncate text-[var(--mc-text)]">
+                      {roomId}
+                    </span>
+                  </span>
+                  <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+                    玩家：
+                    <span className="ml-1 truncate text-amber-50">
+                      {username}
+                    </span>
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
-                <div
-                  className={`h-full rounded-full ${
-                    waitingChecklist.isError
-                      ? "bg-[linear-gradient(90deg,rgba(251,113,133,0.7),rgba(244,63,94,0.9))]"
-                      : "animate-pulse bg-[linear-gradient(90deg,rgba(245,158,11,0.75),rgba(250,204,21,0.95),rgba(251,191,36,0.7))]"
-                  }`}
-                  style={{
-                    width: `${Math.max(8, Math.round(waitingChecklist.ratio * 100))}%`,
-                  }}
-                />
-              </div>
-
-              <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-[var(--mc-text-muted)]">
-                {waitingChecklist.isError
-                  ? waitingChecklist.errorMessage
-                  : `目前階段：${waitingChecklist.activeLabel}`}
-              </div>
-
-              <div className="mt-5 space-y-3 text-sm text-[var(--mc-text-muted)]">
-                {waitingChecklist.rows.map((step, index) => (
+              <div className="min-w-0 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs tracking-[0.2em] text-[var(--mc-text-muted)]">
+                    連線進度
+                  </div>
                   <div
-                    key={step.key}
-                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${
-                      step.state === "done"
-                        ? "border-emerald-300/15 bg-emerald-300/[0.03]"
-                        : step.state === "active"
-                          ? "border-amber-300/15 bg-amber-300/[0.03]"
-                          : step.state === "error"
-                            ? "border-rose-300/15 bg-rose-300/[0.03]"
-                            : "border-white/5 bg-white/[0.02]"
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${
+                      waitingChecklist.isError
+                        ? "border border-rose-300/30 bg-rose-300/10 text-rose-100"
+                        : "border border-emerald-300/20 bg-emerald-300/10 text-emerald-100/90"
                     }`}
                   >
                     <span
-                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                        step.state === "done"
-                          ? "border border-emerald-200/25 bg-emerald-300/12 text-emerald-100"
-                          : step.state === "active"
-                            ? "border border-amber-200/20 bg-amber-300/10 text-amber-100"
-                            : step.state === "error"
-                              ? "border border-rose-200/20 bg-rose-300/10 text-rose-100"
-                              : "border border-slate-300/15 bg-slate-300/5 text-slate-300/80"
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        waitingChecklist.isError
+                          ? "bg-rose-300"
+                          : "animate-pulse bg-emerald-300"
                       }`}
-                      style={
-                        step.state === "active"
-                          ? {
-                              animation: "pulse 1.6s ease-in-out infinite",
-                              animationDelay: `${index * 0.18}s`,
-                            }
-                          : undefined
-                      }
-                    >
-                      {step.state === "done"
-                        ? "✓"
-                        : step.state === "error"
-                          ? "!"
-                          : index + 1}
-                    </span>
-                    <span className="truncate">{step.label}</span>
+                    />
+                    {waitingChecklist.isError ? "需要重試" : "同步中"}
                   </div>
-                ))}
+                </div>
+
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
+                  <div
+                    className={`h-full rounded-full ${
+                      waitingChecklist.isError
+                        ? "bg-[linear-gradient(90deg,rgba(251,113,133,0.7),rgba(244,63,94,0.9))]"
+                        : "animate-pulse bg-[linear-gradient(90deg,rgba(245,158,11,0.75),rgba(250,204,21,0.95),rgba(251,191,36,0.7))]"
+                    }`}
+                    style={{
+                      width: `${Math.max(8, Math.round(waitingChecklist.ratio * 100))}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="mt-3 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-[var(--mc-text-muted)]">
+                  {waitingChecklist.isError
+                    ? waitingChecklist.errorMessage
+                    : `目前階段：${waitingChecklist.activeLabel}`}
+                </div>
+
+                <div className="mt-5 space-y-3 text-sm text-[var(--mc-text-muted)]">
+                  {waitingChecklist.rows.map((step, index) => (
+                    <div
+                      key={step.key}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${
+                        step.state === "done"
+                          ? "border-emerald-300/15 bg-emerald-300/[0.03]"
+                          : step.state === "active"
+                            ? "border-amber-300/15 bg-amber-300/[0.03]"
+                            : step.state === "error"
+                              ? "border-rose-300/15 bg-rose-300/[0.03]"
+                              : "border-white/5 bg-white/[0.02]"
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                          step.state === "done"
+                            ? "border border-emerald-200/25 bg-emerald-300/12 text-emerald-100"
+                            : step.state === "active"
+                              ? "border border-amber-200/20 bg-amber-300/10 text-amber-100"
+                              : step.state === "error"
+                                ? "border border-rose-200/20 bg-rose-300/10 text-rose-100"
+                                : "border border-slate-300/15 bg-slate-300/5 text-slate-300/80"
+                        }`}
+                        style={
+                          step.state === "active"
+                            ? {
+                                animation: "pulse 1.6s ease-in-out infinite",
+                                animationDelay: `${index * 0.18}s`,
+                              }
+                            : undefined
+                        }
+                      >
+                        {step.state === "done"
+                          ? "✓"
+                          : step.state === "error"
+                            ? "!"
+                            : index + 1}
+                      </span>
+                      <span className="truncate">{step.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-          </div>
-        </div>      </>
+        </div>
+      </>
     );
   }
 
@@ -963,81 +1021,85 @@ const RoomLobbyPage: React.FC = () => {
       <>
         <div className="mx-auto mt-6 w-full max-w-[1080px] min-w-0">
           <div className="relative overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[radial-gradient(circle_at_14%_16%,rgba(245,158,11,0.14),transparent_42%),radial-gradient(circle_at_88%_10%,rgba(234,179,8,0.08),transparent_46%),linear-gradient(180deg,rgba(20,17,13,0.96),rgba(9,8,6,0.98))] p-6 text-[var(--mc-text)] shadow-[0_35px_80px_-60px_rgba(245,158,11,0.55)] sm:p-8">
-          <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:20px_20px]" />
-          <div className="relative grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_88%,black_12%)] px-4 py-3">
-                <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/28 bg-amber-300/10">
-                  <span className="absolute h-5 w-5 rounded-full border border-amber-200/55" />
-                  <span className="absolute h-[2px] w-4 rotate-45 rounded-full bg-amber-200/70" />
-                  <span className="absolute h-1.5 w-1.5 rounded-full bg-amber-200" />
-                </span>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
-                    Room Check
+            <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(245,158,11,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.03)_1px,transparent_1px)] [background-size:20px_20px]" />
+            <div className="relative grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-3 rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface-strong)_88%,black_12%)] px-4 py-3">
+                  <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/28 bg-amber-300/10">
+                    <span className="absolute h-5 w-5 rounded-full border border-amber-200/55" />
+                    <span className="absolute h-[2px] w-4 rotate-45 rounded-full bg-amber-200/70" />
+                    <span className="absolute h-1.5 w-1.5 rounded-full bg-amber-200" />
+                  </span>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
+                      Room Check
+                    </div>
+                    <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
+                      找不到這個房間
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
-                    房間連線失敗
-                  </div>
+                </div>
+
+                <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
+                  房間不存在或已關閉
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
+                  可能是房間已結束、連結過期，或房主已關閉房間。你可以返回房間列表重新加入，或建立新房間。
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="inline-flex max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+                    房間 ID：
+                    <span className="ml-1 truncate text-[var(--mc-text)]">
+                      {roomId}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+                    你可以返回房間列表重新加入
+                  </span>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/65 bg-[var(--mc-accent)]/18 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/28"
+                    onClick={() => navigate("/rooms", { replace: true })}
+                  >
+                    返回房間列表
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-amber-200/25 hover:bg-[var(--mc-surface-strong)]/85"
+                    onClick={() => navigate("/rooms/create")}
+                  >
+                    建立新房間
+                  </button>
                 </div>
               </div>
 
-              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
-                找不到這個房間
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-                這個房間可能已關閉、房號錯誤，或邀請連結已失效。你可以返回大廳重新加入房間，或建立一個新的房間開始對戰。
-              </p>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="inline-flex max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
-                  房號：<span className="ml-1 truncate text-[var(--mc-text)]">{roomId}</span>
-                </span>
-                <span className="inline-flex items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-                  狀態：未找到或已關閉
-                </span>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-accent)]/65 bg-[var(--mc-accent)]/18 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/28"
-                  onClick={() => navigate("/rooms", { replace: true })}
-                >
-                  返回大廳
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-amber-200/25 hover:bg-[var(--mc-surface-strong)]/85"
-                  onClick={() => navigate("/rooms/create")}
-                >
-                  建立房間
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_86%,black_14%)] p-4 sm:p-5">
-              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                可能原因
-              </div>
-              <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
-                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                  房主已離開並關閉房間
-                </li>
-                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                  邀請連結對應的房號已過期
-                </li>
-                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                  複製連結時房號被截斷或修改
-                </li>
-              </ul>
-              <div className="mt-4 rounded-xl border border-amber-300/18 bg-amber-300/8 px-3 py-2 text-xs leading-5 text-amber-100/85">
-                建議從「房間大廳」重新整理列表後再加入，避免使用已失效的舊連結。
+              <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_86%,black_14%)] p-4 sm:p-5">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
+                  可能原因
+                </div>
+                <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
+                  <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                    房主已離開並關閉房間
+                  </li>
+                  <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                    邀請連結對應的房號已過期
+                  </li>
+                  <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                    複製連結時房號被截斷或修改
+                  </li>
+                </ul>
+                <div className="mt-4 rounded-xl border border-amber-300/18 bg-amber-300/8 px-3 py-2 text-xs leading-5 text-amber-100/85">
+                  建議從「房間大廳」重新整理列表後再加入，避免使用已失效的舊連結。
+                </div>
               </div>
             </div>
           </div>
-          </div>
-        </div>      </>
+        </div>{" "}
+      </>
     );
   }
 
@@ -1050,9 +1112,7 @@ const RoomLobbyPage: React.FC = () => {
             gameState={gameState}
             playlist={gamePlaylist}
             onBackToLobby={() => setIsGameView(false)}
-            onExitGame={() =>
-              leaveRoomAndNavigate()
-            }
+            onExitGame={() => leaveRoomAndNavigate()}
             onSubmitChoice={handleSubmitChoice}
             participants={participants}
             meClientId={clientId}
@@ -1064,7 +1124,8 @@ const RoomLobbyPage: React.FC = () => {
             serverOffsetMs={serverOffsetMs}
             onSettlementRecapChange={handleSettlementRecapChange}
           />
-        </div>      </>
+        </div>{" "}
+      </>
     );
   }
 
@@ -1088,9 +1149,7 @@ const RoomLobbyPage: React.FC = () => {
             }
             nowMs={uiNowMs}
             onBackToLobby={() => setActiveSettlementRoundKey(null)}
-            onRequestExit={() =>
-              leaveRoomAndNavigate()
-            }
+            onRequestExit={() => leaveRoomAndNavigate()}
           />
         </div>
         {settlementStartBroadcastOverlay}
@@ -1108,7 +1167,8 @@ const RoomLobbyPage: React.FC = () => {
           <div className="w-full max-w-[1200px] rounded-[24px] border border-slate-700/80 bg-slate-950/90 px-6 py-10 text-center text-slate-200">
             正在讀取對戰回顧...
           </div>
-        </div>      </>
+        </div>
+      </>
     );
   }
 
@@ -1120,7 +1180,7 @@ const RoomLobbyPage: React.FC = () => {
             currentRoom={currentRoom}
             participants={participants}
             messages={lobbyMessages}
-            username={username}
+            selfClientId={clientId}
             roomPassword={hostRoomPassword}
             messageInput={messageInput}
             playlistItems={playlistViewItems}
@@ -1145,17 +1205,14 @@ const RoomLobbyPage: React.FC = () => {
             isHost={currentRoom.hostClientId === clientId}
             gameState={gameState}
             canStartGame={playlistProgress.ready}
-            onLeave={() =>
-              leaveRoomAndNavigate()
-            }
+            onLeave={() => leaveRoomAndNavigate()}
             onInputChange={setMessageInput}
             onSend={handleSendMessage}
             onLoadMorePlaylist={loadMorePlaylist}
             onStartGame={handleStartGame}
             onUpdateRoomSettings={handleUpdateRoomSettings}
             hasLastSettlement={Boolean(
-              latestSettlementSnapshot ||
-                mergedSettlementSummaries.length > 0
+              latestSettlementSnapshot || mergedSettlementSummaries.length > 0,
             )}
             onOpenLastSettlement={() => {
               if (latestSettlementSnapshot) {
@@ -1171,13 +1228,15 @@ const RoomLobbyPage: React.FC = () => {
                   (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
                 )[0];
                 if (!latest) {
-                  setStatusText("目前沒有可查看的對戰回顧");
+                  setStatusText("目前沒有可檢視的結算紀錄");
                   return;
                 }
                 await openSettlementReviewByRoundKey(latest.roundKey);
               })().catch((error) => {
                 setStatusText(
-                  error instanceof Error ? error.message : "讀取對戰回顧失敗，請稍後再試",
+                  error instanceof Error
+                    ? error.message
+                    : "載入結算資料失敗，請稍後再試",
                 );
               });
             }}
@@ -1218,9 +1277,9 @@ const RoomLobbyPage: React.FC = () => {
             }}
           />
         )}
-      </div>    </>
+      </div>{" "}
+    </>
   );
 };
 
 export default RoomLobbyPage;
-

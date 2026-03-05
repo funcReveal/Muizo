@@ -24,6 +24,11 @@ type RoomSocketHandlers = {
     participants: RoomParticipant[];
     hostClientId: string;
   }) => void;
+  onRoomPingUpdated?: (payload: {
+    roomId: string;
+    pings: Record<string, number | null>;
+    updatedAt: number;
+  }) => void;
   onUserLeft?: (payload: { roomId: string; clientId: string }) => void;
   onPlaylistProgress?: (payload: {
     roomId: string;
@@ -82,6 +87,9 @@ export const connectRoomSocket = (
   );
   socket.on("participantsUpdated", (payload) =>
     handlers.onParticipantsUpdated?.(payload),
+  );
+  socket.on("roomPingUpdated", (payload) =>
+    handlers.onRoomPingUpdated?.(payload),
   );
   socket.on("userLeft", (payload) => handlers.onUserLeft?.(payload));
   socket.on("playlistProgress", (payload) =>

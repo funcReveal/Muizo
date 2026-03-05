@@ -614,7 +614,7 @@ interface RoomLobbyPanelProps {
   currentRoom: RoomState["room"] | null;
   participants: RoomParticipant[];
   messages: ChatMessage[];
-  username: string | null;
+  selfClientId: string;
   roomPassword?: string | null;
   messageInput: string;
   playlistItems: PlaylistItem[];
@@ -686,7 +686,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   currentRoom,
   participants,
   messages,
-  username,
+  selfClientId,
   roomPassword,
   messageInput,
   playlistItems,
@@ -1628,11 +1628,17 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             ) : (
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {participants.map((p) => {
-                  const isSelf = p.username === username;
+                  const isSelf = p.clientId === selfClientId;
                   const host = p.clientId === currentRoom?.hostClientId;
                   const isActionOpen =
                     Boolean(actionAnchorEl) && actionTargetId === p.clientId;
                   const showActions = isHost && !isSelf;
+                  const participantPingText =
+                    typeof p.pingMs === "number"
+                      ? `${Math.max(0, Math.round(p.pingMs))}ms`
+                      : p.isOnline
+                        ? "測速中"
+                        : "--";
                   return (
                     <Box key={p.clientId} className="flex items-center gap-1">
                       <Chip
@@ -1659,6 +1665,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                             {isSelf && (
                               <span className="opacity-80 text-[10px]">(我)</span>
                             )}
+                            <span className="opacity-85 text-[10px]">
+                              {participantPingText}
+                            </span>
                             {showActions && (
                               <IconButton
                                 size="small"
