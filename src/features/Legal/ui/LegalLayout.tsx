@@ -6,7 +6,14 @@ import { useRoom } from "../../Room/model/useRoom";
 
 const LegalLayout: React.FC = () => {
   const navigate = useNavigate();
-  const { displayUsername, authUser, authLoading, loginWithGoogle, logout } =
+  const {
+    displayUsername,
+    username,
+    authUser,
+    authLoading,
+    loginWithGoogle,
+    logout,
+  } =
     useRoom();
 
   return (
@@ -14,6 +21,7 @@ const LegalLayout: React.FC = () => {
       <div className="mx-auto w-full max-w-[1600px] space-y-6">
         <AppHeader
           displayUsername={displayUsername}
+          hasGuestIdentity={Boolean(username)}
           authUser={authUser}
           authLoading={authLoading}
           onLogin={loginWithGoogle}

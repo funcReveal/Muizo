@@ -2,6 +2,7 @@
   ExpandMore,
   HistoryEdu,
   LibraryMusic,
+  LockOutlined,
   Login,
   Logout,
   ManageAccounts,
@@ -33,6 +34,7 @@ import BrandLogo from "../../shared/ui/BrandLogo";
 
 interface AppHeaderProps {
   displayUsername: string;
+  hasGuestIdentity?: boolean;
   authUser?: {
     id: string;
     email?: string | null;
@@ -111,6 +113,7 @@ const formatDuration = (sec: number) => {
 
 const AppHeader: React.FC<AppHeaderProps> = ({
   displayUsername,
+  hasGuestIdentity = false,
   authUser,
   authLoading = false,
   onLogin,
@@ -126,6 +129,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const authLabel =
     authUser?.display_name || authUser?.id || displayUsername || "Guest";
   const authSubLabel = authUser?.email ?? null;
+  const isAnonymousVisitor = !authUser && !hasGuestIdentity;
 
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [systemOpen, setSystemOpen] = useState(false);
@@ -237,41 +241,61 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <ListItemText primary="登出" secondary="退出目前帳號" />
         </MenuItem>,
       ]
-    : [
-        <MenuItem
-          key="edit-guest-name"
-          onClick={() => {
-            handleMenuClose();
-            onEditProfile?.();
-          }}
-          sx={menuItemSx}
-        >
-          <ListItemIcon sx={{ minWidth: 30, color: "#fcd34d" }}>
-            <ManageAccounts fontSize="small" />
-          </ListItemIcon>
-          <ListItemText
-            primary="編輯訪客暱稱"
-            secondary="更新你目前的訪客名稱"
-          />
-        </MenuItem>,
-        <MenuItem
-          key="login"
-          onClick={() => {
-            handleMenuClose();
-            onLogin?.();
-          }}
-          disabled={authLoading}
-          sx={menuItemSx}
-        >
-          <ListItemIcon sx={{ minWidth: 30, color: "#38bdf8" }}>
-            <Login fontSize="small" />
-          </ListItemIcon>
-          <ListItemText
-            primary={authLoading ? "登入中..." : "使用 Google 登入"}
-            secondary="啟用 YouTube 播放清單匯入"
-          />
-        </MenuItem>,
-      ];
+    : hasGuestIdentity
+      ? [
+          <MenuItem
+            key="edit-guest-name"
+            onClick={() => {
+              handleMenuClose();
+              onEditProfile?.();
+            }}
+            sx={menuItemSx}
+          >
+            <ListItemIcon sx={{ minWidth: 30, color: "#fcd34d" }}>
+              <ManageAccounts fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="編輯訪客暱稱"
+              secondary="更新你目前的訪客名稱"
+            />
+          </MenuItem>,
+          <MenuItem
+            key="login"
+            onClick={() => {
+              handleMenuClose();
+              onLogin?.();
+            }}
+            disabled={authLoading}
+            sx={menuItemSx}
+          >
+            <ListItemIcon sx={{ minWidth: 30, color: "#38bdf8" }}>
+              <Login fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={authLoading ? "登入中..." : "使用 Google 登入"}
+              secondary="啟用 YouTube 播放清單匯入"
+            />
+          </MenuItem>,
+        ]
+      : [
+          <MenuItem
+            key="login"
+            onClick={() => {
+              handleMenuClose();
+              onLogin?.();
+            }}
+            disabled={authLoading}
+            sx={menuItemSx}
+          >
+            <ListItemIcon sx={{ minWidth: 30, color: "#38bdf8" }}>
+              <Login fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={authLoading ? "登入中..." : "登入 / 開始使用"}
+              secondary="登入後可解鎖完整功能"
+            />
+          </MenuItem>,
+        ];
 
   return (
     <header className="flex w-full min-w-0 items-center justify-between gap-3 text-[var(--mc-text)] sm:gap-4">
@@ -385,15 +409,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                   letterSpacing: "0.12em",
                 }}
               >
-                帳號
+                {isAnonymousVisitor ? "體驗模式" : "帳號"}
               </Typography>
               <Typography
                 variant="subtitle2"
                 sx={{ color: "#e2e8f0", fontWeight: 700 }}
               >
-                {authLabel}
+                {isAnonymousVisitor ? "尚未登入" : authLabel}
               </Typography>
-              {authSubLabel && (
+              {authSubLabel && !isAnonymousVisitor && (
                 <Typography
                   variant="caption"
                   sx={{ color: "rgba(148, 163, 184, 0.85)" }}
@@ -434,60 +458,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <MenuItem
               onClick={() => {
                 handleMenuClose();
-                setSystemOpen(true);
-              }}
-              sx={menuItemSx}
-            >
-              <ListItemIcon sx={{ minWidth: 30, color: "#f59e0b" }}>
-                <Memory fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="系統狀態"
-                secondary="檢視後端 OS 與執行狀態"
-              />
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                handleMenuClose();
-                if (onNavigateSettings) {
-                  onNavigateSettings();
-                }
-              }}
-              sx={menuItemSx}
-            >
-              <ListItemIcon sx={{ minWidth: 30, color: "#c4b5fd" }}>
-                <Settings fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="設定"
-                secondary="調整快捷鍵與遊戲偏好（即將擴充）"
-              />
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                handleMenuClose();
-                if (onNavigateHistory) {
-                  onNavigateHistory();
-                  return;
-                }
-                navigate("/history");
-              }}
-              sx={menuItemSx}
-            >
-              <ListItemIcon sx={{ minWidth: 30, color: "#cbd5e1" }}>
-                <HistoryEdu fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="對戰歷史"
-                secondary="查看對戰歷程與回顧入口"
-              />
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                handleMenuClose();
                 if (onNavigateRooms) {
                   onNavigateRooms();
                   return;
@@ -499,28 +469,152 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               <ListItemIcon sx={{ minWidth: 30, color: "#fde68a" }}>
                 <MeetingRoom fontSize="small" />
               </ListItemIcon>
-              <ListItemText primary="房間大廳" secondary="瀏覽與加入遊戲房間" />
+              <ListItemText
+                primary="房間大廳"
+                secondary={
+                  isAnonymousVisitor
+                    ? "先登入即可開始完整對戰體驗"
+                    : "瀏覽與加入遊戲房間"
+                }
+              />
             </MenuItem>
 
-            {authUser && (
+            {isAnonymousVisitor ? (
               <MenuItem
                 onClick={() => {
                   handleMenuClose();
-                  if (onNavigateCollections) {
-                    onNavigateCollections();
-                    return;
-                  }
-                  navigate("/collections");
+                  onLogin?.();
                 }}
                 sx={menuItemSx}
               >
                 <ListItemIcon sx={{ minWidth: 30, color: "#a7f3d0" }}>
                   <LibraryMusic fontSize="small" />
                 </ListItemIcon>
-                <ListItemText primary="收藏庫" secondary="管理你的題庫收藏" />
+                <ListItemText
+                  primary={
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.7,
+                      }}
+                    >
+                      <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                      收藏庫
+                    </Box>
+                  }
+                  secondary="登入後可收藏與同步題庫"
+                />
               </MenuItem>
+            ) : (
+              authUser && (
+                <MenuItem
+                  onClick={() => {
+                    handleMenuClose();
+                    if (onNavigateCollections) {
+                      onNavigateCollections();
+                      return;
+                    }
+                    navigate("/collections");
+                  }}
+                  sx={menuItemSx}
+                >
+                  <ListItemIcon sx={{ minWidth: 30, color: "#a7f3d0" }}>
+                    <LibraryMusic fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="收藏庫" secondary="管理你的題庫收藏" />
+                </MenuItem>
+              )
             )}
+
+            <MenuItem
+              onClick={() => {
+                handleMenuClose();
+                if (isAnonymousVisitor) {
+                  onLogin?.();
+                  return;
+                }
+                if (onNavigateHistory) {
+                  onNavigateHistory();
+                  return;
+                }
+                navigate("/history");
+              }}
+              sx={menuItemSx}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 30,
+                  color: isAnonymousVisitor ? "#f59e0b" : "#7dd3fc",
+                }}
+              >
+                <HistoryEdu fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  isAnonymousVisitor ? (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.7,
+                      }}
+                    >
+                      <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                      對戰歷史
+                    </Box>
+                  ) : (
+                    "對戰歷史"
+                  )
+                }
+                secondary={
+                  isAnonymousVisitor
+                    ? "登入後可查看完整對戰歷程與回顧"
+                    : "查看對戰歷程與回顧入口"
+                }
+              />
+            </MenuItem>
           </MenuList>
+
+          {!isAnonymousVisitor && (
+            <>
+              <MenuItem
+                onClick={() => {
+                  handleMenuClose();
+                  setSystemOpen(true);
+                }}
+                sx={menuItemSx}
+              >
+                <ListItemIcon sx={{ minWidth: 30, color: "#f59e0b" }}>
+                  <Memory fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="系統狀態"
+                  secondary="檢視後端 OS 與執行狀態"
+                />
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  handleMenuClose();
+                  if (onNavigateSettings) {
+                    onNavigateSettings();
+                  }
+                }}
+                sx={menuItemSx}
+              >
+                <ListItemIcon sx={{ minWidth: 30, color: "#c4b5fd" }}>
+                  <Settings fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="設定"
+                  secondary="調整快捷鍵與遊戲偏好（即將擴充）"
+                />
+              </MenuItem>
+            </>
+          )}
         </Popover>
 
         <Dialog

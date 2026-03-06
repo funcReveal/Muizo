@@ -230,6 +230,7 @@ const RoomsLayoutShell: React.FC = () => {
         <div>
           <AppHeader
             displayUsername={displayUsername}
+            hasGuestIdentity={Boolean(username)}
             authUser={authUser}
             authLoading={authLoading}
             onLogin={handleLoginRequest}
