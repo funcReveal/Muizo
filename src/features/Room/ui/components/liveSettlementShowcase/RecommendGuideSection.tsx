@@ -535,7 +535,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                     第{currentRecommendationCorrectRank}答
                   </span>
                 )}
-                {hasCurrentRecommendationSpeedDelta && (
+                {!isMobileView && hasCurrentRecommendationSpeedDelta && (
                   <span
                     className={`inline-flex h-6 min-w-[7.2rem] items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold game-settlement-pill game-settlement-pill--speed ${
                       currentRecommendationSpeedValue.startsWith("-")
@@ -547,15 +547,39 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                     速度差 {currentRecommendationSpeedValue}
                   </span>
                 )}
-                {typeof currentRecommendationAverageCorrectMs === "number" && (
-                  <span className="inline-flex h-6 min-w-[9.8rem] items-center justify-center rounded-full border border-amber-300/40 bg-amber-500/14 px-2.5 text-[11px] font-semibold text-amber-100 game-settlement-pill game-settlement-pill--average">
-                    平均答對時長 {formatMs(currentRecommendationAverageCorrectMs)}
-                  </span>
-                )}
+                {!isMobileView &&
+                  typeof currentRecommendationAverageCorrectMs === "number" && (
+                    <span className="inline-flex h-6 min-w-[9.8rem] items-center justify-center rounded-full border border-amber-300/40 bg-amber-500/14 px-2.5 text-[11px] font-semibold text-amber-100 game-settlement-pill game-settlement-pill--average">
+                      平均答對時長 {formatMs(currentRecommendationAverageCorrectMs)}
+                    </span>
+                  )}
               </div>
+              {isMobileView && (
+                <div className="game-settlement-mobile-metrics rounded-lg border border-slate-700/70 bg-slate-950/55 px-2.5 py-2 text-[11px] text-slate-200">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {hasCurrentRecommendationSpeedDelta && (
+                      <span
+                        className={
+                          currentRecommendationSpeedValue.startsWith("-")
+                            ? "text-rose-200"
+                            : "text-cyan-200"
+                        }
+                        title={currentRecommendationSpeedNote}
+                      >
+                        速度差 {currentRecommendationSpeedValue}
+                      </span>
+                    )}
+                    {typeof currentRecommendationAverageCorrectMs === "number" && (
+                      <span className="text-amber-200">
+                        平均答對時長 {formatMs(currentRecommendationAverageCorrectMs)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="game-settlement-badge-row min-h-[2rem]">
                 {currentRecommendationFastestCorrectMeta && (
-                  <span className="inline-flex h-6 min-w-[13rem] items-center justify-center rounded-full border border-orange-300/45 bg-orange-500/14 px-2.5 text-[11px] font-semibold text-orange-100 game-settlement-pill game-settlement-pill--fastest-meta">
+                  <span className={`inline-flex h-6 ${isMobileView ? "min-w-[10.8rem]" : "min-w-[13rem]"} items-center justify-center rounded-full border border-orange-300/45 bg-orange-500/14 px-2.5 text-[11px] font-semibold text-orange-100 game-settlement-pill game-settlement-pill--fastest-meta`}>
                     全場最快 {currentRecommendationFastestCorrectMeta.username}{" "}
                     {formatMs(currentRecommendationFastestCorrectMeta.answeredAtMs)}
                   </span>
@@ -679,7 +703,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
 
           <aside
             className={`game-settlement-recommend-list-card flex flex-col rounded-2xl border p-3 transition-colors duration-300 ${
-              isMobileView ? "min-h-[320px]" : "min-h-[420px]"
+              isMobileView ? "min-h-[272px]" : "min-h-[420px]"
             } ${activeCategoryTheme.asideClass}`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -693,27 +717,29 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                     : `${safeRecommendIndex + 1}/${recommendationCards.length}`}
                 </span>
               </div>
-              <div className="game-settlement-recommend-review-switch flex items-center gap-1 rounded-full border border-sky-300/35 bg-sky-500/10 px-1 py-1">
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
-                  onClick={onGoPrevReviewParticipant}
-                  disabled={!canCycleReviewParticipants}
-                >
-                  上一位
-                </button>
-                <span className="max-w-[150px] truncate whitespace-nowrap px-1 text-[11px] font-semibold text-sky-100">
-                  {selectedReviewParticipantLabel}
-                </span>
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
-                  onClick={onGoNextReviewParticipant}
-                  disabled={!canCycleReviewParticipants}
-                >
-                  下一位
-                </button>
-              </div>
+              {!isMobileView && (
+                <div className="game-settlement-recommend-review-switch flex items-center gap-1 rounded-full border border-sky-300/35 bg-sky-500/10 px-1 py-1">
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
+                    onClick={onGoPrevReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    上一位
+                  </button>
+                  <span className="max-w-[150px] truncate whitespace-nowrap px-1 text-[11px] font-semibold text-sky-100">
+                    {selectedReviewParticipantLabel}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
+                    onClick={onGoNextReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    下一位
+                  </button>
+                </div>
+              )}
             </div>
             <div
               className={`game-settlement-recommend-list-viewport mt-3 flex-1 overflow-hidden pr-1 ${

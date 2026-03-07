@@ -232,7 +232,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const [previewSwitchNotice, setPreviewSwitchNotice] = useState<string | null>(
     null,
   );
-  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(true);
+  const [reviewDrawerOpen, setReviewDrawerOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !window.matchMedia("(max-width: 1023.95px)").matches;
+  });
   const [showRecommendControlsHint, setShowRecommendControlsHint] =
     useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -1051,4 +1054,3 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 };
 
 export default LiveSettlementShowcase;
-

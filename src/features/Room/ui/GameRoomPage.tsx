@@ -971,20 +971,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             mobileChatUnread={mobileChatUnread}
           />
         </div>
-        <GameRoomMobileChatPopover
-          open={mobileChatOpen}
-          unreadCount={mobileChatUnread}
-          onOpen={handleOpenMobileChat}
-          onClose={handleCloseMobileChat}
-          danmuEnabled={danmuEnabled}
-          onDanmuEnabledChange={setDanmuEnabled}
-          messagesLength={messages.length}
-          recentMessages={recentMessages}
-          messageInput={messageInput}
-          onMessageChange={onMessageChange}
-          onSendMessage={onSendMessage}
-          chatScrollRef={mobileChatScrollRef}
-        />
+        {isMobileGameViewport && (
+          <GameRoomMobileChatPopover
+            open={mobileChatOpen}
+            unreadCount={mobileChatUnread}
+            onOpen={handleOpenMobileChat}
+            onClose={handleCloseMobileChat}
+            danmuEnabled={danmuEnabled}
+            onDanmuEnabledChange={setDanmuEnabled}
+            messagesLength={messages.length}
+            recentMessages={recentMessages}
+            messageInput={messageInput}
+            onMessageChange={onMessageChange}
+            onSendMessage={onSendMessage}
+            chatScrollRef={mobileChatScrollRef}
+          />
+        )}
         {audioGestureOverlay}
         {startBroadcastOverlay}
         {exitGameDialog}
