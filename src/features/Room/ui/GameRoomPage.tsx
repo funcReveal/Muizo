@@ -1087,15 +1087,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         </section>
         {isMobileGameViewport && (
           <>
-            {mobilePlaybackOpen && (
-              <div
-                ref={mobilePlaybackWindowRef}
-                className="game-room-mobile-floating-player lg:!hidden"
-                style={{
-                  left: mobilePlaybackPosition.x,
-                  top: mobilePlaybackPosition.y,
-                }}
-              >
+            <div
+              ref={mobilePlaybackWindowRef}
+              className={`game-room-mobile-floating-player lg:!hidden ${
+                mobilePlaybackOpen
+                  ? "game-room-mobile-floating-player--open"
+                  : "game-room-mobile-floating-player--closed"
+              }`}
+              style={{
+                left: mobilePlaybackPosition.x,
+                top: mobilePlaybackPosition.y,
+              }}
+            >
                 <div
                   className="game-room-mobile-floating-player-head"
                   onPointerDown={handleMobilePlaybackDragStart}
@@ -1141,8 +1144,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     onGameVolumeChange={setGameVolume}
                   />
                 </div>
-              </div>
-            )}
+            </div>
             <Drawer
               anchor="bottom"
               open={mobileScoreboardOpen}
