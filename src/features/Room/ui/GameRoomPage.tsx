@@ -112,6 +112,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const [mobileChatUnread, setMobileChatUnread] = useState(0);
   const [mobilePlaybackOpen, setMobilePlaybackOpen] = useState(false);
   const [mobileScoreboardOpen, setMobileScoreboardOpen] = useState(false);
+  const [mobileRevealAutoOverlayEnabled, setMobileRevealAutoOverlayEnabled] =
+    useState(true);
+  const [mobileScoreboardAnchor, setMobileScoreboardAnchor] = useState<
+    "top" | "bottom"
+  >("bottom");
   const [mobilePlaybackPosition, setMobilePlaybackPosition] = useState({
     x: 12,
     y: 96,
@@ -123,6 +128,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastCountdownGoSfxKeyRef = useRef<string | null>(null);
   const lastRevealResultSfxKeyRef = useRef<string | null>(null);
   const lastComboStateSfxKeyRef = useRef<string | null>(null);
+  const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
   const answerPanelRef = useRef<HTMLDivElement | null>(null);
   const mobilePlaybackWindowRef = useRef<HTMLDivElement | null>(null);
   const mobilePlaybackDragRef = useRef<{
@@ -162,21 +168,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     },
     [],
   );
-  const handleOpenMobilePlayback = useCallback(() => {
+  const handleToggleMobilePlayback = useCallback(() => {
     setMobileChatOpen(false);
-    setMobileScoreboardOpen(false);
-    setMobilePlaybackOpen(true);
+    setMobilePlaybackOpen((current) => !current);
   }, []);
   const handleCloseMobilePlayback = useCallback(() => {
     setMobilePlaybackOpen(false);
   }, []);
-  const handleOpenMobileScoreboard = useCallback(() => {
+  const handleToggleMobileScoreboard = useCallback(() => {
     setMobileChatOpen(false);
-    setMobilePlaybackOpen(false);
-    setMobileScoreboardOpen(true);
+    setMobileScoreboardOpen((current) => !current);
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
     setMobileScoreboardOpen(false);
+  }, []);
+  const handleToggleMobileScoreboardAnchor = useCallback(() => {
+    setMobileScoreboardAnchor((current) =>
+      current === "bottom" ? "top" : "bottom",
+    );
   }, []);
   const handleOpenMobileChat = useCallback(() => {
     setMobilePlaybackOpen(false);
@@ -906,6 +915,41 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     };
   }, [clampMobilePlaybackPosition, isMobileGameViewport, mobilePlaybackOpen]);
 
+  useEffect(() => {
+    if (!isMobileGameViewport) {
+      previousPhaseRef.current = gameState.phase;
+      return;
+    }
+    const previousPhase = previousPhaseRef.current;
+    const currentPhase = gameState.phase;
+    let phaseTransitionTimer: number | null = null;
+    if (previousPhase !== currentPhase) {
+      const shouldOpenRevealOverlay =
+        currentPhase === "reveal" && mobileRevealAutoOverlayEnabled;
+      const shouldCloseRevealOverlay =
+        currentPhase === "guess" && previousPhase === "reveal";
+      if (shouldOpenRevealOverlay || shouldCloseRevealOverlay) {
+        phaseTransitionTimer = window.setTimeout(() => {
+          if (shouldOpenRevealOverlay) {
+            setMobileChatOpen(false);
+            setMobilePlaybackOpen(true);
+            setMobileScoreboardOpen(true);
+          }
+          if (shouldCloseRevealOverlay) {
+            setMobilePlaybackOpen(false);
+            setMobileScoreboardOpen(false);
+          }
+        }, 0);
+      }
+    }
+    previousPhaseRef.current = currentPhase;
+    return () => {
+      if (phaseTransitionTimer !== null) {
+        window.clearTimeout(phaseTransitionTimer);
+      }
+    };
+  }, [gameState.phase, isMobileGameViewport, mobileRevealAutoOverlayEnabled]);
+
   const exitGameDialog = (
     <GameRoomExitDialog
       open={exitConfirmOpen}
@@ -979,6 +1023,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         <section className="game-room-main-section flex min-h-0 flex-col gap-2 lg:h-full lg:overflow-hidden">
           {!isMobileGameViewport && (
             <GameRoomPlaybackPanel
+              isRevealPhase={isReveal}
+              revealAnswerTitle={resolvedAnswerTitle}
               roomName={room.name}
               boundedCursor={boundedCursor}
               trackOrderLength={trackOrderLength}
@@ -1051,7 +1097,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <button
                 type="button"
                 className="game-room-mobile-action-btn"
-                onClick={handleOpenMobileScoreboard}
+                onClick={handleToggleMobileScoreboard}
               >
                 <span>分數榜</span>
                 <span className="game-room-mobile-action-meta">
@@ -1061,7 +1107,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <button
                 type="button"
                 className="game-room-mobile-action-btn"
-                onClick={handleOpenMobilePlayback}
+                onClick={handleToggleMobilePlayback}
               >
                 <span>影片視窗</span>
                 <span className="game-room-mobile-action-meta">
@@ -1082,6 +1128,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     : "開啟"}
                 </span>
               </button>
+              <div className="game-room-mobile-action-subdock col-span-3">
+                <button
+                  type="button"
+                  className="game-room-mobile-toggle-btn"
+                  onClick={() =>
+                    setMobileRevealAutoOverlayEnabled((current) => !current)
+                  }
+                >
+                  <span>公布答案自動彈出</span>
+                  <span className="game-room-mobile-action-meta">
+                    {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="game-room-mobile-toggle-btn"
+                  onClick={handleToggleMobileScoreboardAnchor}
+                >
+                  <span>分數榜位置</span>
+                  <span className="game-room-mobile-action-meta">
+                    {mobileScoreboardAnchor === "top" ? "上方" : "下方"}
+                  </span>
+                </button>
+              </div>
             </div>
           )}
         </section>
@@ -1121,6 +1191,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <div className="game-room-mobile-floating-player-body">
                   <GameRoomPlaybackPanel
                     isMobileView
+                    isRevealPhase={isReveal}
+                    revealAnswerTitle={resolvedAnswerTitle}
                     roomName={room.name}
                     boundedCursor={boundedCursor}
                     trackOrderLength={trackOrderLength}
@@ -1146,15 +1218,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
             </div>
             <Drawer
-              anchor="bottom"
+              anchor={mobileScoreboardAnchor}
               open={mobileScoreboardOpen}
               onClose={handleCloseMobileScoreboard}
               keepMounted
               PaperProps={{
-                className: "game-room-mobile-scoreboard-drawer lg:!hidden",
+                className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--${mobileScoreboardAnchor} lg:!hidden`,
               }}
             >
-              <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--bottom">
+              <div
+                className={`game-room-mobile-drawer-head ${
+                  mobileScoreboardAnchor === "bottom"
+                    ? "game-room-mobile-drawer-head--bottom"
+                    : "game-room-mobile-drawer-head--top"
+                }`}
+              >
+                <button
+                  type="button"
+                  className="game-room-mobile-drawer-close"
+                  onClick={handleToggleMobileScoreboardAnchor}
+                >
+                  {mobileScoreboardAnchor === "bottom"
+                    ? "切換到上方"
+                    : "切換到下方"}
+                </button>
                 <button
                   type="button"
                   className="game-room-mobile-drawer-close"

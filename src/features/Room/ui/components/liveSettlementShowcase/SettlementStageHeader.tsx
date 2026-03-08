@@ -4,6 +4,7 @@ import { Button, Chip } from "@mui/material";
 type LiveSettlementTab = "overview" | "recommend";
 
 interface SettlementStageHeaderProps {
+  isMobileView?: boolean;
   roomName: string;
   playlistTitle?: string | null;
   playedQuestionCount: number;
@@ -27,6 +28,7 @@ interface SettlementStageHeaderProps {
 }
 
 const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
+  isMobileView = false,
   roomName,
   playlistTitle,
   playedQuestionCount,
@@ -48,6 +50,14 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   hasNextStep,
   canFinish,
 }) => {
+  const [mobileMetaExpanded, setMobileMetaExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isMobileView) {
+      setMobileMetaExpanded(false);
+    }
+  }, [isMobileView]);
+
   const activeTabButtonClass = (tab: LiveSettlementTab) =>
     `rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
       activeTab === tab
@@ -70,36 +80,65 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
             {playlistTitle ? ` · ${playlistTitle}` : ""}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip
-            size="small"
-            label={`題數 ${playedQuestionCount}`}
-            variant="outlined"
-            className="border-amber-300/40 text-amber-100"
-          />
-          <Chip
-            size="small"
-            label={`玩家 ${participantsLength}`}
-            variant="outlined"
-            className="border-sky-400/45 text-sky-100"
-          />
-          {elapsedLabel && (
+        {isMobileView ? (
+          <div className="game-settlement-mobile-meta flex flex-col items-end gap-1.5">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <span className="rounded-full bg-amber-400/14 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
+                題數 {playedQuestionCount}
+              </span>
+              <span className="rounded-full bg-sky-400/14 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
+                玩家 {participantsLength}
+              </span>
+              <button
+                type="button"
+                className="rounded-full border border-slate-500/70 bg-slate-900/60 px-2 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
+                onClick={() => setMobileMetaExpanded((prev) => !prev)}
+              >
+                {mobileMetaExpanded ? "收合" : "更多"}
+              </button>
+            </div>
+            {mobileMetaExpanded && (
+              <div className="w-full max-w-[300px] rounded-xl bg-slate-900/55 px-2.5 py-2 text-[11px] text-slate-200">
+                {elapsedLabel && <p>局長 {elapsedLabel}</p>}
+                {settlementTimeChipLabel && (
+                  <p className="mt-0.5 text-slate-300">{settlementTimeChipLabel}</p>
+                )}
+                <p className="mt-1 text-slate-400">{tabHints[activeTab]}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
             <Chip
               size="small"
-              label={`局長 ${elapsedLabel}`}
+              label={`題數 ${playedQuestionCount}`}
               variant="outlined"
-              className="border-emerald-300/45 text-emerald-100"
+              className="border-amber-300/40 text-amber-100"
             />
-          )}
-          {settlementTimeChipLabel && (
             <Chip
               size="small"
-              label={settlementTimeChipLabel}
+              label={`玩家 ${participantsLength}`}
               variant="outlined"
-              className="border-slate-400/50 text-slate-200"
+              className="border-sky-400/45 text-sky-100"
             />
-          )}
-        </div>
+            {elapsedLabel && (
+              <Chip
+                size="small"
+                label={`局長 ${elapsedLabel}`}
+                variant="outlined"
+                className="border-emerald-300/45 text-emerald-100"
+              />
+            )}
+            {settlementTimeChipLabel && (
+              <Chip
+                size="small"
+                label={settlementTimeChipLabel}
+                variant="outlined"
+                className="border-slate-400/50 text-slate-200"
+              />
+            )}
+          </div>
+        )}
       </header>
 
       <div className="game-settlement-stage-progress rounded-2xl border border-slate-700/70 bg-slate-900/60 px-4 py-3">
@@ -109,7 +148,10 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
               結算導覽
             </p>
             <p className="text-sm font-semibold text-slate-100">
-              Step {stepIndex + 1}/{totalSteps} · {tabHints[activeTab]}
+              Step {stepIndex + 1}/{totalSteps} ·{" "}
+              {isMobileView && !mobileMetaExpanded
+                ? tabLabels[activeTab]
+                : tabHints[activeTab]}
             </p>
           </div>
           <div className="text-xs font-semibold text-amber-100">
@@ -180,6 +222,70 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
           )}
         </div>
       </nav>
+      <div className="game-settlement-mobile-step-quickbar flex flex-wrap items-center gap-2 lg:hidden">
+        <Button
+          variant="outlined"
+          color="inherit"
+          size="small"
+          onClick={onGoPrevStep}
+          disabled={!canGoPrev}
+          className="!min-w-0 !flex-1"
+        >
+          上一步
+        </Button>
+        {hasNextStep ? (
+          <Button
+            variant="contained"
+            color="warning"
+            size="small"
+            onClick={onGoNextStep}
+            className="!min-w-0 !flex-[1.1]"
+          >
+            下一步
+          </Button>
+        ) : canFinish ? (
+          <Button
+            variant="contained"
+            color="success"
+            size="small"
+            onClick={onGoNextStep}
+            className="!min-w-0 !flex-[1.1]"
+          >
+            完成結算
+          </Button>
+        ) : onOpenExitConfirm ? (
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={onOpenExitConfirm}
+            className="!min-w-0 !flex-[1.1]"
+          >
+            離開房間
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            color="inherit"
+            size="small"
+            disabled
+            className="!min-w-0 !flex-[1.1]"
+          >
+            等待房主
+          </Button>
+        )}
+        {onOpenExitConfirm && hasNextStep && (
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={onOpenExitConfirm}
+            className="!min-w-[84px] !shrink-0"
+          >
+            離開
+          </Button>
+        )}
+      </div>
     </>
   );
 };

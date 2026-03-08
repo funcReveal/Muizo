@@ -15,6 +15,7 @@ interface ParticipantScoreMeta {
 }
 
 interface OverviewSectionProps {
+  isMobileView?: boolean;
   winner: RoomParticipant | null;
   runnerUp: RoomParticipant | null;
   thirdPlace: RoomParticipant | null;
@@ -48,6 +49,7 @@ const renderName = (
 };
 
 const OverviewSection: React.FC<OverviewSectionProps> = ({
+  isMobileView = false,
   winner,
   runnerUp,
   thirdPlace,
@@ -65,9 +67,33 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
   formatMs,
   multilineEllipsis2Style,
 }) => {
+  const [mobileStatsExpanded, setMobileStatsExpanded] = React.useState(false);
+  const [mobileRankingExpanded, setMobileRankingExpanded] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isMobileView) {
+      setMobileStatsExpanded(true);
+      setMobileRankingExpanded(true);
+      return;
+    }
+    setMobileStatsExpanded(false);
+    setMobileRankingExpanded(false);
+  }, [isMobileView]);
+
+  const visibleParticipants =
+    isMobileView && !mobileRankingExpanded
+      ? sortedParticipants.slice(0, 3)
+      : sortedParticipants;
+
   return (
     <section className="game-settlement-overview-shell grid gap-4 xl:grid-cols-[1.15fr_1.15fr]">
-      <article className="game-settlement-overview-podium relative isolate overflow-hidden rounded-2xl border border-amber-300/45 bg-[radial-gradient(circle_at_50%_-5%,rgba(250,204,21,0.24),transparent_45%),linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.96))] p-4">
+      <article
+        className={`game-settlement-overview-podium relative isolate overflow-hidden rounded-2xl border p-4 ${
+          isMobileView
+            ? "border-amber-300/28 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(2,6,23,0.95))]"
+            : "border-amber-300/45 bg-[radial-gradient(circle_at_50%_-5%,rgba(250,204,21,0.24),transparent_45%),linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.96))]"
+        }`}
+      >
         <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-72 -translate-x-1/2 bg-[radial-gradient(circle,rgba(251,191,36,0.3)_0%,rgba(251,191,36,0.08)_35%,transparent_75%)] blur-2xl" />
         <div className="pointer-events-none absolute -left-10 bottom-0 h-36 w-36 rounded-full bg-sky-400/15 blur-2xl" />
         <div className="relative">
@@ -191,115 +217,154 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             <p className="mt-4 text-sm text-slate-400">目前尚無可用結果資料</p>
           )}
 
-          <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/50 p-2.5">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
-              本場觀察
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2">
-                <p className="text-[11px] text-cyan-100/90" title="本場答對率最高的玩家">
-                  最高答對率
-                </p>
-                <div className="mt-1 flex items-end justify-between gap-2">
-                  <p className="text-2xl font-black leading-none text-cyan-50">
-                    {topAccuracyEntry ? formatPercent(topAccuracyEntry.accuracy) : "--"}
-                  </p>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-cyan-100/95">
-                  {topAccuracyEntry
-                    ? `${topAccuracyEntry.participant.username}${
-                        meClientId &&
-                        topAccuracyEntry.participant.clientId === meClientId
-                          ? "（你）"
-                          : ""
-                      }`
-                    : "尚無資料"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-fuchsia-300/35 bg-fuchsia-500/10 px-3 py-2">
-                <p className="text-[11px] text-fuchsia-100/90" title="本場最高連續答對數">
-                  最高 Combo
-                </p>
-                <div className="mt-1 flex items-end justify-between gap-2">
-                  <p className="text-2xl font-black leading-none text-fuchsia-50">
-                    {topComboEntry ? `x${topComboEntry.combo}` : "--"}
-                  </p>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-fuchsia-100/95">
-                  {topComboEntry
-                    ? `${topComboEntry.participant.username}${
-                        meClientId &&
-                        topComboEntry.participant.clientId === meClientId
-                          ? "（你）"
-                          : ""
-                      }`
-                    : "尚無資料"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                <p
-                  className="text-[11px] text-amber-100/90"
-                  title="僅計算有答對題目的玩家"
-                >
-                  最快平均答對時長
-                </p>
-                <div className="mt-1 flex items-end justify-between gap-2">
-                  <p className="text-2xl font-black leading-none text-amber-50">
-                    {fastestAverageAnswerEntry
-                      ? formatMs(fastestAverageAnswerEntry.ms)
-                      : "--"}
-                  </p>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-amber-100/95">
-                  {fastestAverageAnswerEntry
-                    ? `${fastestAverageAnswerEntry.participant.username}${
-                        meClientId &&
-                        fastestAverageAnswerEntry.participant.clientId === meClientId
-                          ? "（你）"
-                          : ""
-                      }`
-                    : "尚無資料"}
-                </p>
-              </div>
-            </div>
-          </div>
+          {isMobileView && (
+            <button
+              type="button"
+              className="mt-3 inline-flex items-center rounded-full border border-slate-500/70 bg-slate-900/65 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-300/70"
+              onClick={() => setMobileStatsExpanded((prev) => !prev)}
+            >
+              {mobileStatsExpanded ? "收合統計資訊" : "展開統計資訊"}
+            </button>
+          )}
 
-          <div className="mt-3 border-t border-slate-700/80 pt-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 px-3 py-2">
-                <p className="text-[11px] text-emerald-100/90">你的分數</p>
-                <p className="mt-1 text-xl font-bold text-emerald-50">
-                  {me ? me.score : "--"}
+          {(!isMobileView || mobileStatsExpanded) && (
+            <>
+              <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/50 p-2.5">
+                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
+                  本場觀察
                 </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2">
+                    <p className="text-[11px] text-cyan-100/90" title="本場答對率最高的玩家">
+                      最高答對率
+                    </p>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <p className="text-2xl font-black leading-none text-cyan-50">
+                        {topAccuracyEntry
+                          ? formatPercent(topAccuracyEntry.accuracy)
+                          : "--"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-cyan-100/95">
+                      {topAccuracyEntry
+                        ? `${topAccuracyEntry.participant.username}${
+                            meClientId &&
+                            topAccuracyEntry.participant.clientId === meClientId
+                              ? "（你）"
+                              : ""
+                          }`
+                        : "尚無資料"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-fuchsia-300/35 bg-fuchsia-500/10 px-3 py-2">
+                    <p className="text-[11px] text-fuchsia-100/90" title="本場最高連續答對數">
+                      最高 Combo
+                    </p>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <p className="text-2xl font-black leading-none text-fuchsia-50">
+                        {topComboEntry ? `x${topComboEntry.combo}` : "--"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-fuchsia-100/95">
+                      {topComboEntry
+                        ? `${topComboEntry.participant.username}${
+                            meClientId &&
+                            topComboEntry.participant.clientId === meClientId
+                              ? "（你）"
+                              : ""
+                          }`
+                        : "尚無資料"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
+                    <p
+                      className="text-[11px] text-amber-100/90"
+                      title="僅計算有答對題目的玩家"
+                    >
+                      最快平均答對時長
+                    </p>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <p className="text-2xl font-black leading-none text-amber-50">
+                        {fastestAverageAnswerEntry
+                          ? formatMs(fastestAverageAnswerEntry.ms)
+                          : "--"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-amber-100/95">
+                      {fastestAverageAnswerEntry
+                        ? `${fastestAverageAnswerEntry.participant.username}${
+                            meClientId &&
+                            fastestAverageAnswerEntry.participant.clientId === meClientId
+                              ? "（你）"
+                              : ""
+                          }`
+                        : "尚無資料"}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-3 py-2">
-                <p className="text-[11px] text-sky-100/90">你的名次</p>
-                <p className="mt-1 text-xl font-bold text-sky-50">
-                  {myRank > 0 ? `${myRank}/${Math.max(1, participantsLength)}` : "--"}
-                </p>
+
+              <div className="mt-3 border-t border-slate-700/80 pt-3">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 px-3 py-2">
+                    <p className="text-[11px] text-emerald-100/90">你的分數</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-50">
+                      {me ? me.score : "--"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-3 py-2">
+                    <p className="text-[11px] text-sky-100/90">你的名次</p>
+                    <p className="mt-1 text-xl font-bold text-sky-50">
+                      {myRank > 0
+                        ? `${myRank}/${Math.max(1, participantsLength)}`
+                        : "--"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
+                    <p className="text-[11px] text-amber-100/90">你的答對題數</p>
+                    <p className="mt-1 text-xl font-bold text-amber-50">
+                      {me?.correctCount ?? 0}/{playedQuestionCount}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                <p className="text-[11px] text-amber-100/90">你的答對題數</p>
-                <p className="mt-1 text-xl font-bold text-amber-50">
-                  {me?.correctCount ?? 0}/{playedQuestionCount}
-                </p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </article>
 
-      <article className="game-settlement-overview-ranking rounded-2xl border border-cyan-300/30 bg-[radial-gradient(circle_at_92%_8%,rgba(56,189,248,0.16),transparent_38%),linear-gradient(175deg,rgba(3,10,28,0.96),rgba(4,16,34,0.9))] p-4 shadow-[0_24px_52px_-40px_rgba(56,189,248,0.65)]">
-        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">排行榜</p>
+      <article
+        className={`game-settlement-overview-ranking rounded-2xl border p-4 ${
+          isMobileView
+            ? "border-cyan-300/20 bg-[linear-gradient(175deg,rgba(3,10,28,0.92),rgba(4,16,34,0.86))]"
+            : "border-cyan-300/30 bg-[radial-gradient(circle_at_92%_8%,rgba(56,189,248,0.16),transparent_38%),linear-gradient(175deg,rgba(3,10,28,0.96),rgba(4,16,34,0.9))] shadow-[0_24px_52px_-40px_rgba(56,189,248,0.65)]"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+            排行榜
+          </p>
+          {isMobileView && sortedParticipants.length > 3 && (
+            <button
+              type="button"
+              className="rounded-full border border-slate-500/70 bg-slate-900/65 px-2.5 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-300/70"
+              onClick={() => setMobileRankingExpanded((prev) => !prev)}
+            >
+              {mobileRankingExpanded ? "收合" : "展開全部"}
+            </button>
+          )}
+        </div>
         <div className="game-settlement-overview-ranking-list mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-          {sortedParticipants.length === 0 ? (
+          {visibleParticipants.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/55 px-3 py-4 text-sm text-slate-400">
               目前尚無玩家資料
             </div>
           ) : (
-            sortedParticipants.map((participant, index) => {
+            visibleParticipants.map((participant) => {
+              const rank = sortedParticipants.findIndex(
+                (entry) => entry.clientId === participant.clientId,
+              ) + 1;
               const isMe = meClientId && participant.clientId === meClientId;
-              const rank = index + 1;
               const metrics =
                 participantScoreMeta.metricsByClientId[participant.clientId];
               const title =
@@ -374,6 +439,11 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             })
           )}
         </div>
+        {isMobileView && !mobileRankingExpanded && sortedParticipants.length > 3 && (
+          <p className="mt-2 text-[11px] text-slate-400">
+            目前僅顯示前 3 名，點擊「展開全部」可查看完整榜單。
+          </p>
+        )}
       </article>
     </section>
   );

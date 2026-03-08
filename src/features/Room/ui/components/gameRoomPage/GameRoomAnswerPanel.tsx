@@ -202,12 +202,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                 答案已送出，等待伺服器同步...
               </div>
             )}
-            {isMobileView && !isReveal && (
-              <div className="game-room-mobile-guess-hint mt-1 rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100">
-                拇指點選作答，可在倒數內改答
-              </div>
-            )}
-
             <div
               className={`game-room-options-grid game-room-options-grid--blaze grid grid-cols-1 gap-2 md:grid-cols-2 ${
                 isMobileView ? "game-room-options-grid--mobile" : ""

@@ -250,6 +250,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   const [recommendationTitleOverflowPx, setRecommendationTitleOverflowPx] =
     React.useState(0);
   const [mobileDetailExpanded, setMobileDetailExpanded] = React.useState(false);
+  const [mobileControlsExpanded, setMobileControlsExpanded] = React.useState(false);
+  const [mobileListExpanded, setMobileListExpanded] = React.useState(false);
 
   React.useLayoutEffect(() => {
     const button = recommendationTitleButtonRef.current;
@@ -270,9 +272,13 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   React.useEffect(() => {
     if (!isMobileView) {
       setMobileDetailExpanded(false);
+      setMobileControlsExpanded(false);
+      setMobileListExpanded(false);
       return;
     }
     setMobileDetailExpanded(false);
+    setMobileControlsExpanded(false);
+    setMobileListExpanded(false);
   }, [isMobileView, recommendationTransitionKey]);
 
   const shouldRunTitleMarquee = recommendationTitleOverflowPx > 10;
@@ -330,19 +336,31 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 </IconButton>
               </Tooltip>
             </div>
-            <p className="mt-1 text-xs text-slate-300">
-              {recommendCategoryShortHints[activeRecommendCategory]}
-            </p>
+            {(!isMobileView || mobileControlsExpanded) && (
+              <p className="mt-1 text-xs text-slate-300">
+                {recommendCategoryShortHints[activeRecommendCategory]}
+              </p>
+            )}
           </div>
-          {showRecommendControlsHint && (
+          {isMobileView && (
+            <button
+              type="button"
+              className="rounded-full border border-slate-500/65 bg-slate-900/68 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-300/70"
+              onClick={() => setMobileControlsExpanded((prev) => !prev)}
+            >
+              {mobileControlsExpanded ? "收合操作" : "展開操作"}
+            </button>
+          )}
+          {!isMobileView && showRecommendControlsHint && (
             <span className="rounded-full border border-cyan-300/45 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
               提示：可切換分類、啟用自動導覽，並在回顧中雙擊播放
             </span>
           )}
         </div>
 
-        <div className="game-settlement-controls-sticky game-settlement-controls-dock rounded-2xl border border-slate-500/35 bg-slate-950/72 p-2">
-          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+        {(!isMobileView || mobileControlsExpanded) && (
+          <div className="game-settlement-controls-sticky game-settlement-controls-dock rounded-2xl border border-slate-500/35 bg-slate-950/72 p-2">
+            <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
             <div className="game-settlement-recommend-control-scroll min-w-0 overflow-x-auto pb-1">
               <div
                 className={`inline-flex min-w-max items-center gap-2 rounded-2xl border p-1.5 ${activeCategoryTheme.controlGroupClass}`}
@@ -455,8 +473,9 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 </Tooltip>
               </div>
             </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {!currentRecommendation || !hasCurrentRecommendationLink ? (
@@ -638,7 +657,9 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 onClick={onSupportArtistClick}
                 disabled={!currentRecommendation.link?.href}
               >
-                如果喜歡這首歌曲，請至 YouTube 支持作者
+                {isMobileView
+                  ? "前往 YouTube 支持作者"
+                  : "如果喜歡這首歌曲，請至 YouTube 支持作者"}
               </button>
               {canAutoGuideLoop && !isPreviewFrozen && (
                 <span
@@ -659,10 +680,12 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
               )}
             </div>
 
-            <p className="mt-2 text-[11px] text-slate-400">
-              試聽音量目標 {effectivePreviewVolume}% ·
-              {settlementPreviewSyncGameVolume ? " 同步遊戲音量" : " 自訂試聽音量"}
-            </p>
+            {(!isMobileView || mobileDetailExpanded) && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                試聽音量目標 {effectivePreviewVolume}% ·
+                {settlementPreviewSyncGameVolume ? " 同步遊戲音量" : " 自訂試聽音量"}
+              </p>
+            )}
 
             <div
               ref={recommendPreviewStageRef}
@@ -721,13 +744,41 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 )}
               </div>
             </div>
+            {isMobileView && (
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex-1 rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
+                  onClick={onGoPrevRecommendation}
+                  disabled={!canNavigateRecommendations}
+                >
+                  {recommendNavLabels.prev}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-cyan-300/50 bg-cyan-500/12 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70"
+                  onClick={() => setMobileListExpanded((prev) => !prev)}
+                >
+                  {mobileListExpanded ? "收合清單" : "展開清單"}
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
+                  onClick={onGoNextRecommendation}
+                  disabled={!canNavigateRecommendations}
+                >
+                  {recommendNavLabels.next}
+                </button>
+              </div>
+            )}
           </article>
 
-          <aside
-            className={`game-settlement-recommend-list-card flex flex-col rounded-2xl border p-3 transition-colors duration-300 ${
-              isMobileView ? "min-h-[272px]" : "min-h-[420px]"
-            } ${activeCategoryTheme.asideClass}`}
-          >
+          {(!isMobileView || mobileListExpanded) && (
+            <aside
+              className={`game-settlement-recommend-list-card flex flex-col rounded-2xl border p-3 transition-colors duration-300 ${
+                isMobileView ? "min-h-[272px]" : "min-h-[420px]"
+              } ${activeCategoryTheme.asideClass}`}
+            >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
@@ -800,7 +851,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 {recommendNavLabels.next}
               </button>
             </div>
-          </aside>
+            </aside>
+          )}
         </div>
       )}
     </section>

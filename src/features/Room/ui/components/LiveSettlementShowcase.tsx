@@ -746,7 +746,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       goToTab(TAB_ORDER[stepIndex + 1]);
       return;
     }
-    onBackToLobby?.();
+    if (onBackToLobby) {
+      onBackToLobby();
+      return;
+    }
+    if (onRequestExit) {
+      setExitConfirmOpen(true);
+    }
   };
 
   const goPrevStep = () => {
@@ -822,6 +828,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
         <div className="relative space-y-4">
           <SettlementStageHeader
+            isMobileView={isMobileSettlementViewport}
             roomName={room.name}
             playlistTitle={room.playlist.title}
             playedQuestionCount={playedQuestionCount}
@@ -860,19 +867,24 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold">
-                    新的一局即將開始，請先完成本場結算與回顧
+                    {isMobileSettlementViewport
+                      ? "新一局即將開始，請先完成結算"
+                      : "新的一局即將開始，請先完成本場結算與回顧"}
                   </p>
                   <span className="rounded-full border border-current/50 px-2 py-0.5 text-xs font-bold">
                     {settlementStartGuard.remainingSec}s
                   </span>
                 </div>
-                <p className="mt-1 text-xs opacity-90">
-                  將在 {settlementStartGuard.remainingSec} 秒後回到房間準備階段
-                </p>
+                {!isMobileSettlementViewport && (
+                  <p className="mt-1 text-xs opacity-90">
+                    將在 {settlementStartGuard.remainingSec} 秒後回到房間準備階段
+                  </p>
+                )}
               </div>
             )}
             {activeTab === "overview" && (
               <OverviewSection
+                isMobileView={isMobileSettlementViewport}
                 winner={winner}
                 runnerUp={runnerUp}
                 thirdPlace={thirdPlace}
