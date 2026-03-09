@@ -1,7 +1,7 @@
 ﻿import React from "react";
-import { Badge, IconButton, SwipeableDrawer } from "@mui/material";
+import { Badge, SwipeableDrawer } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import DragHandleRoundedIcon from "@mui/icons-material/DragHandleRounded";
 
 import type { ChatMessage } from "../../../model/types";
 import GameRoomChatPanel from "./GameRoomChatPanel";
@@ -62,7 +62,7 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
         open={open}
         onOpen={onOpen}
         onClose={onClose}
-        disableSwipeToOpen
+        swipeAreaWidth={26}
         keepMounted
         ModalProps={{
           keepMounted: true,
@@ -76,7 +76,9 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
         }}
       >
         <div className="game-room-mobile-chat-sheet-head">
-          <div className="game-room-mobile-chat-handle" />
+          <div className="game-room-mobile-drawer-handle-wrap" aria-hidden="true">
+            <span className="game-room-mobile-drawer-handle-bar" />
+          </div>
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
@@ -84,14 +86,10 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
               </p>
               <p className="truncate text-sm font-semibold text-slate-100">房間聊天室</p>
             </div>
-            <IconButton
-              size="medium"
-              aria-label="關閉聊天室"
-              onClick={onClose}
-              className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon !text-slate-100"
-            >
-              <CloseRoundedIcon fontSize="inherit" />
-            </IconButton>
+            <span className="game-room-mobile-drawer-gesture-hint">
+              <DragHandleRoundedIcon className="text-[1rem]" />
+              拖曳調整
+            </span>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden p-3 pt-2">

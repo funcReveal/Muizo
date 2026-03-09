@@ -60,6 +60,13 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
 }) => {
   const isMobileOverlay = isMobileView && isOverlayMode;
   const shouldShowRoomName = !(isMobileView && isOverlayMode);
+  const revealAnswerLabel = revealAnswerTitle?.trim() ?? "";
+  const revealAnswerWrapperClass = isMobileOverlay
+    ? "mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-2.5 py-1 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
+    : "mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]";
+  const revealAnswerTextClass = isMobileOverlay
+    ? "min-w-0 truncate text-[11px] font-semibold leading-4"
+    : "text-xs font-semibold leading-5 sm:text-sm";
   const mediaFrameHeightClass = isMobileOverlay
     ? "h-full min-h-0 flex-1"
     : isMobileView
@@ -87,16 +94,16 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
               題目 {boundedCursor + 1}/{trackOrderLength || "?"}
             </div>
-            {isMobileView && isRevealPhase && revealAnswerTitle && (
+            {isMobileView && isRevealPhase && revealAnswerLabel && (
               <div
-                className="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
-                title={`答案：${revealAnswerTitle}`}
+                className={revealAnswerWrapperClass}
+                title={`答案：${revealAnswerLabel}`}
               >
                 <span className="shrink-0 rounded-full border border-emerald-200/50 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]">
                   答案
                 </span>
-                <span className="text-xs font-semibold leading-5 sm:text-sm">
-                  {revealAnswerTitle}
+                <span className={revealAnswerTextClass}>
+                  {revealAnswerLabel}
                 </span>
               </div>
             )}

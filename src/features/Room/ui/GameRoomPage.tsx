@@ -11,7 +11,7 @@ import LeaderboardRoundedIcon from "@mui/icons-material/LeaderboardRounded";
 import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import DragHandleRoundedIcon from "@mui/icons-material/DragHandleRounded";
 import type {
   ChatMessage,
   GameState,
@@ -1102,7 +1102,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               open={mobilePlaybackOpen}
               onOpen={handleOpenMobilePlayback}
               onClose={handleCloseMobilePlayback}
-              disableSwipeToOpen
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1120,17 +1120,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               }}
             >
               <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--playback">
-                <span className="game-room-mobile-drawer-title">影片視窗</span>
-                {!mobileRevealSplitMode && (
-                  <button
-                    type="button"
-                    className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                    onClick={handleCloseMobilePlayback}
-                    aria-label="關閉影片視窗"
-                  >
-                    <CloseRoundedIcon fontSize="inherit" />
-                  </button>
-                )}
+                <div className="game-room-mobile-drawer-handle-wrap" aria-hidden="true">
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="game-room-mobile-drawer-title">影片視窗</span>
+                  <span className="game-room-mobile-drawer-gesture-hint">
+                    <DragHandleRoundedIcon className="text-[1rem]" />
+                    拖曳調整
+                  </span>
+                </div>
               </div>
               <div
                 className={`min-h-0 flex-1 overflow-hidden ${
@@ -1172,7 +1171,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               open={mobileScoreboardOpen}
               onOpen={handleOpenMobileScoreboard}
               onClose={handleCloseMobileScoreboard}
-              disableSwipeToOpen
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1190,17 +1189,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               }}
             >
               <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard">
-                <span className="game-room-mobile-drawer-title">分數榜</span>
-                {!mobileRevealSplitMode && (
-                  <button
-                    type="button"
-                    className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                    onClick={handleCloseMobileScoreboard}
-                    aria-label="關閉分數榜"
-                  >
-                    <CloseRoundedIcon fontSize="inherit" />
-                  </button>
-                )}
+                <div className="game-room-mobile-drawer-handle-wrap" aria-hidden="true">
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="game-room-mobile-drawer-title">分數榜</span>
+                  <span className="game-room-mobile-drawer-gesture-hint">
+                    <DragHandleRoundedIcon className="text-[1rem]" />
+                    拖曳調整
+                  </span>
+                </div>
               </div>
               <div
                 className={`min-h-0 flex-1 overflow-hidden ${

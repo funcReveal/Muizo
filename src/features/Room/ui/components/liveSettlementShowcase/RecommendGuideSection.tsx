@@ -374,7 +374,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
           )}
           {!isMobileView && showRecommendControlsHint && (
             <span className="rounded-full border border-cyan-300/45 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-100">
-              可切換分類、啟用自動導覽，並在回顧中快速查看答題詳情
+              可切換分類、啟用自動導覽，並在回顧中快速查看玩家回顧
             </span>
           )}
         </div>
@@ -448,7 +448,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <GroupsRoundedIcon fontSize="small" className="text-[1rem]" />
-                    答題詳情
+                    玩家回顧
                   </span>
                   <span className="rounded-full border border-current/40 px-2 py-0.5 text-[10px] leading-none">
                     {reviewDrawerOpen ? "顯示中" : "已收合"}
@@ -560,7 +560,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                             fontSize="small"
                             className="text-[0.95rem]"
                           />
-                          答題詳情
+                          玩家回顧
                           <span className="rounded-full border border-current/40 px-1.5 py-0 text-[10px] leading-5">
                             {reviewDrawerOpen ? "顯示中" : "已收合"}
                           </span>
@@ -867,8 +867,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                     className="inline-flex min-w-[152px] items-center justify-center gap-1.5 rounded-full border border-cyan-300/50 bg-cyan-500/12 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-200/70"
                     onClick={() => setMobileListExpanded((prev) => !prev)}
                   >
-                    <SubjectRoundedIcon className="text-[1rem]" />
-                    {mobileListExpanded ? "收合答題詳情" : "答題詳情"}
+                  <SubjectRoundedIcon className="text-[1rem]" />
+                  {mobileListExpanded ? "收合題目清單" : "題目清單"}
                     {mobileListExpanded ? (
                       <KeyboardArrowDownRoundedIcon className="text-[1rem]" />
                     ) : (
@@ -889,7 +889,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
-                  {isMobileView ? "答題詳情" : "推薦清單"}
+                  {isMobileView ? "題目清單" : "推薦清單"}
                 </p>
                 <span className="text-xs text-slate-300">
                   {recommendationCards.length === 0
@@ -928,7 +928,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
             >
               {recommendationCards.length === 0 ? (
                 <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-700/70 bg-slate-900/55 px-3 text-sm text-slate-400">
-                  目前沒有可顯示的答題詳情
+                  目前沒有可顯示的題目清單
                 </div>
               ) : (
                 <VirtualList
