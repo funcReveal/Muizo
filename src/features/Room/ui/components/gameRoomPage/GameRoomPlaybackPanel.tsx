@@ -4,6 +4,10 @@ import { Button, Switch } from "@mui/material";
 import type { DanmuItem } from "./gameRoomPageTypes";
 
 interface GameRoomPlaybackPanelProps {
+  isMobileView?: boolean;
+  isOverlayMode?: boolean;
+  isRevealPhase?: boolean;
+  revealAnswerTitle?: string | null;
   roomName: string;
   boundedCursor: number;
   trackOrderLength: number;
@@ -28,6 +32,10 @@ interface GameRoomPlaybackPanelProps {
 }
 
 const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
+  isMobileView = false,
+  isOverlayMode = false,
+  isRevealPhase = false,
+  revealAnswerTitle = null,
   roomName,
   boundedCursor,
   trackOrderLength,
@@ -51,7 +59,15 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   onGameVolumeChange,
 }) => {
   return (
-    <div className="game-room-panel game-room-panel--accent flex-none p-3 text-slate-50">
+    <div
+      className={`game-room-panel game-room-panel--accent flex-none p-3 text-slate-50 ${
+        isMobileView
+          ? isOverlayMode
+            ? "game-room-playback-panel--mobile game-room-playback-panel--mobile-overlay"
+            : "game-room-playback-panel--mobile"
+          : ""
+      }`}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div>
@@ -61,20 +77,39 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
               題目 {boundedCursor + 1}/{trackOrderLength || "?"}
             </div>
+            {isMobileView && isRevealPhase && revealAnswerTitle && (
+              <div
+                className="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
+                title={`答案：${revealAnswerTitle}`}
+              >
+                <span className="shrink-0 rounded-full border border-emerald-200/50 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]">
+                  答案
+                </span>
+                <span className="text-xs font-semibold leading-5 sm:text-sm">
+                  {revealAnswerTitle}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-        <Button
-          variant="outlined"
-          color="inherit"
-          size="small"
-          onClick={onOpenExitConfirm}
-          className="max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
-        >
-          退出遊戲
-        </Button>
+        {!isOverlayMode && (
+          <Button
+            variant="outlined"
+            color="inherit"
+            size="small"
+            onClick={onOpenExitConfirm}
+            className="max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+          >
+            退出遊戲
+          </Button>
+        )}
       </div>
 
-      <div className="game-room-media-frame relative h-[140px] w-full overflow-hidden sm:h-[188px] md:h-[214px] xl:h-[236px]">
+      <div
+        className={`game-room-media-frame relative w-full overflow-hidden sm:h-[188px] md:h-[214px] xl:h-[236px] ${
+          isMobileView ? "h-[182px]" : "h-[140px]"
+        }`}
+      >
         {iframeSrc ? (
           <iframe
             src={iframeSrc}
@@ -149,29 +184,31 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         )}
       </div>
 
-      <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <Switch
-            color="info"
-            checked={showVideo}
-            onChange={(e) => onShowVideoChange(e.target.checked)}
-          />
-          <span className="text-xs text-slate-300 max-[760px]:text-[11px]">
-            公布階段顯示影片（猜歌時自動隱藏）
-          </span>
+      {!isOverlayMode && (
+        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <Switch
+              color="info"
+              checked={showVideo}
+              onChange={(e) => onShowVideoChange(e.target.checked)}
+            />
+            <span className="text-xs text-slate-300 max-[760px]:text-[11px]">
+              公布階段顯示影片（猜歌時自動隱藏）
+            </span>
+          </div>
+          <div className="flex items-center gap-2 md:min-w-[200px] max-[760px]:w-full">
+            <span className="text-xs text-slate-300">音量</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={gameVolume}
+              onChange={(e) => onGameVolumeChange(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-2 md:min-w-[200px] max-[760px]:w-full">
-          <span className="text-xs text-slate-300">音量</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={gameVolume}
-            onChange={(e) => onGameVolumeChange(Number(e.target.value))}
-            className="w-full"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 };

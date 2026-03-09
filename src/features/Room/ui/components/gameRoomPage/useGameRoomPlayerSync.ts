@@ -91,6 +91,7 @@ const useGameRoomPlayerSync = ({
   const revealReplayRef = useRef(false);
   const lastRevealStartKeyRef = useRef<string | null>(null);
   const lastAutoResumeAttemptAtMsRef = useRef<number>(0);
+  const listeningRetryTimerRef = useRef<number | null>(null);
 
   const markAudioUnlocked = useCallback(() => {
     if (audioUnlockedRef.current) return;
@@ -101,6 +102,15 @@ const useGameRoomPlayerSync = ({
   useEffect(() => {
     lastSyncMsRef.current = Date.now() + serverOffsetMs;
   }, [serverOffsetMs]);
+
+  useEffect(() => {
+    return () => {
+      if (listeningRetryTimerRef.current !== null) {
+        window.clearTimeout(listeningRetryTimerRef.current);
+        listeningRetryTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const postPlayerMessage = useCallback(
     (payload: Record<string, unknown>, logLabel: string) => {
@@ -629,6 +639,10 @@ const useGameRoomPlayerSync = ({
       if (data.id && data.id !== PLAYER_ID) return;
 
       if (data.event === "onReady") {
+        if (listeningRetryTimerRef.current !== null) {
+          window.clearTimeout(listeningRetryTimerRef.current);
+          listeningRetryTimerRef.current = null;
+        }
         playerReadyRef.current = true;
         setIsPlayerReady(true);
         const currentId = videoId;
@@ -902,7 +916,29 @@ const useGameRoomPlayerSync = ({
     if (videoId) {
       setPlayerVideoId((prev) => prev ?? videoId);
     }
-    postPlayerMessage({ event: "listening", id: PLAYER_ID }, "player event binding");
+    let attempts = 0;
+    const bindPlayerEvents = () => {
+      postPlayerMessage({ event: "listening", id: PLAYER_ID }, "player event binding");
+    };
+    const retryBind = () => {
+      if (playerReadyRef.current) {
+        listeningRetryTimerRef.current = null;
+        return;
+      }
+      if (attempts >= 10) {
+        listeningRetryTimerRef.current = null;
+        return;
+      }
+      attempts += 1;
+      bindPlayerEvents();
+      listeningRetryTimerRef.current = window.setTimeout(retryBind, 350);
+    };
+    if (listeningRetryTimerRef.current !== null) {
+      window.clearTimeout(listeningRetryTimerRef.current);
+      listeningRetryTimerRef.current = null;
+    }
+    bindPlayerEvents();
+    listeningRetryTimerRef.current = window.setTimeout(retryBind, 220);
     applyVolume(gameVolume);
   }, [applyVolume, gameVolume, postPlayerMessage, videoId]);
 
