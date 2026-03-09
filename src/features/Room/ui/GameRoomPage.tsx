@@ -1177,6 +1177,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   onGameVolumeChange={setGameVolume}
                 />
               </div>
+              <div
+                className="game-room-mobile-drawer-foot game-room-mobile-drawer-foot--playback"
+                role="presentation"
+                aria-label="由下往上拖曳收合影片視窗"
+                {...mobilePlaybackDragDismiss.dragHandleProps}
+              >
+                <div
+                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
+                  aria-hidden="true"
+                >
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                  <span className="game-room-mobile-drawer-handle-direction">
+                    由下往上拖曳收合
+                  </span>
+                </div>
+              </div>
             </SwipeableDrawer>
             <SwipeableDrawer
               className="game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden"
@@ -1255,22 +1271,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   mobileOverlayMode
                   swapAnimationEnabled={mobileScoreboardOpen}
                 />
-              </div>
-              <div
-                className="game-room-mobile-drawer-foot game-room-mobile-drawer-foot--playback"
-                role="presentation"
-                aria-label="由下往上拖曳收合影片視窗"
-                {...mobilePlaybackDragDismiss.dragHandleProps}
-              >
-                <div
-                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
-                  aria-hidden="true"
-                >
-                  <span className="game-room-mobile-drawer-handle-bar" />
-                  <span className="game-room-mobile-drawer-handle-direction">
-                    由下往上拖曳收合
-                  </span>
-                </div>
               </div>
             </SwipeableDrawer>
             <GameRoomMobileChatPopover
