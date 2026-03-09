@@ -62,7 +62,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   const shouldShowRoomName = !(isMobileView && isOverlayMode);
   const revealAnswerLabel = revealAnswerTitle?.trim() ?? "";
   const revealAnswerWrapperClass = isMobileOverlay
-    ? "mt-2.5 flex w-fit max-w-full items-center gap-1.5 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-2.5 py-1 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
+    ? "mt-3.5 flex w-fit max-w-full items-center gap-1.5 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-2.5 py-1 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
     : "mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]";
   const revealAnswerTextClass = isMobileOverlay
     ? "min-w-0 truncate text-[11px] font-semibold leading-4"

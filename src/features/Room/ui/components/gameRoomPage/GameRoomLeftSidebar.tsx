@@ -31,7 +31,9 @@ interface GameRoomLeftSidebarProps {
   onOpenMobileChat?: () => void;
   mobileChatUnread?: number;
   mobileOverlayMode?: boolean;
+  mobileMinimalHeader?: boolean;
   swapAnimationEnabled?: boolean;
+  swapReplayToken?: number;
 }
 
 const RANK_SWAP_DURATION_MS = 760;
@@ -71,7 +73,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   onOpenMobileChat,
   mobileChatUnread = 0,
   mobileOverlayMode = false,
+  mobileMinimalHeader = false,
   swapAnimationEnabled = true,
+  swapReplayToken = 0,
 }) => {
   const displayedPlayerOrder = React.useMemo(
     () => resolveScoreboardPlayerOrder(scoreboardRows),
@@ -142,16 +146,16 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
       1,
     );
     const releaseDelayMs = Math.min(
-      260,
-      80 + Math.max(0, farthestOffsetRows - 1) * 40,
+      220,
+      70 + Math.max(0, farthestOffsetRows - 1) * 36,
     );
     rankSwapTimerRef.current = window.setTimeout(() => {
       setRankSwapState((current) =>
         current?.key === animationKey ? null : current,
       );
       rankSwapTimerRef.current = null;
-    }, RANK_SWAP_DURATION_MS + releaseDelayMs + 220);
-  }, [displayedPlayerOrder, swapAnimationEnabled]);
+    }, RANK_SWAP_DURATION_MS + releaseDelayMs + 160);
+  }, [displayedPlayerOrder, swapAnimationEnabled, swapReplayToken]);
 
   React.useEffect(
     () => () => {
@@ -167,50 +171,56 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     <aside
       className={`game-room-panel game-room-panel--left game-room-panel--blaze flex h-full w-full flex-col gap-3 overflow-hidden p-3 text-slate-50 ${
         mobileOverlayMode ? "game-room-left-sidebar--mobile-overlay" : ""
-      } ${className ?? ""}`}
+      } ${mobileMinimalHeader ? "game-room-left-sidebar--mobile-minimal-header" : ""} ${
+        className ?? ""
+      }`}
     >
-      <div className="flex items-center gap-3">
-        <div className="min-w-0">
-          <p className="game-room-kicker">排行榜</p>
-          <p className="game-room-title">分數榜</p>
-        </div>
-        {!mobileOverlayMode && (
-          <span className="ml-2 text-[11px] text-slate-400">(前五名 + 自己)</span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {!showChat && onOpenMobileChat && (
-            <button
-              type="button"
-              onClick={onOpenMobileChat}
-              className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
-            >
-              <Badge
-                color="error"
-                badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
-                invisible={mobileChatUnread <= 0}
-              >
-                <ChatBubbleRoundedIcon className="text-[0.9rem]" />
-              </Badge>
-              聊天
-            </button>
-          )}
-          <Chip
-            label={`已答 ${answeredCount}/${participantCount || 0}`}
-            size="small"
-            color="success"
-            variant="outlined"
-            className="game-room-chip"
-          />
-        </div>
-      </div>
+      {!mobileMinimalHeader && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="min-w-0">
+              <p className="game-room-kicker">排行榜</p>
+              <p className="game-room-title">分數榜</p>
+            </div>
+            {!mobileOverlayMode && (
+              <span className="ml-2 text-[11px] text-slate-400">(前五名 + 自己)</span>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {!showChat && onOpenMobileChat && (
+                <button
+                  type="button"
+                  onClick={onOpenMobileChat}
+                  className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
+                >
+                  <Badge
+                    color="error"
+                    badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
+                    invisible={mobileChatUnread <= 0}
+                  >
+                    <ChatBubbleRoundedIcon className="text-[0.9rem]" />
+                  </Badge>
+                  聊天
+                </button>
+              )}
+              <Chip
+                label={`已答 ${answeredCount}/${participantCount || 0}`}
+                size="small"
+                color="success"
+                variant="outlined"
+                className="game-room-chip"
+              />
+            </div>
+          </div>
 
-      {mobileOverlayMode && (
-        <p className="-mt-1 text-[11px] text-slate-400">(前五名 + 自己)</p>
+          {mobileOverlayMode && (
+            <p className="-mt-1 text-[11px] text-slate-400">(前五名 + 自己)</p>
+          )}
+        </>
       )}
 
       <div className="game-room-scoreboard-stack space-y-1.5">
         {scoreboardRows.length === 0 ? (
-          <div className="text-xs text-slate-500">目前沒有玩家</div>
+          <div className="text-xs text-slate-500">尚無玩家資料</div>
         ) : (
           scoreboardRows.map((row, idx) => {
             if (row.type === "placeholder") {
@@ -258,7 +268,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                 : rowAnswerState === "wrong"
                   ? "本題答錯"
                   : rowAnswerState === "answered"
-                    ? "已送出答案"
+                    ? "已作答"
                     : "尚未作答";
             const answerChipColor: "default" | "success" | "error" | "warning" =
               rowAnswerState === "correct"
@@ -280,21 +290,21 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
             const rowSwapDistanceRows = Math.abs(rowSwapOffsetRows);
             const swapRowHeightPx = mobileOverlayMode ? 58 : 44;
             const rowSwapStartPx = rowSwapOffsetRows * swapRowHeightPx;
-            const rowSwapMidPx = Math.round(rowSwapStartPx * 0.34);
+            const rowSwapMidPx = Math.round(rowSwapStartPx * 0.36);
             const rowSwapOvershootPx =
               rowSwapOffsetRows > 0
-                ? -Math.min(14, 6 + rowSwapDistanceRows * 1.6)
-                : Math.min(14, 6 + rowSwapDistanceRows * 1.6);
+                ? -Math.min(8, 4 + rowSwapDistanceRows * 1.2)
+                : Math.min(8, 4 + rowSwapDistanceRows * 1.2);
             const rowSwapDurationMs = Math.min(
-              1520,
+              1360,
               RANK_SWAP_DURATION_MS +
-                Math.max(0, rowSwapDistanceRows - 1) * 120,
+                Math.max(0, rowSwapDistanceRows - 1) * 96,
             );
             const rowSwapDelayMs =
               rowSwapOffsetRows < 0
                 ? Math.min(
-                    260,
-                    90 + Math.max(0, rowSwapDistanceRows - 1) * 42,
+                    200,
+                    60 + Math.max(0, rowSwapDistanceRows - 1) * 34,
                   )
                 : 0;
             const rowSwapStyle = hasRowSwapAnimation
@@ -312,6 +322,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
               rowComboTier > 0 ? `game-room-score-row--combo-tier-${rowComboTier}` : "";
             const shouldShowComboFlare = rowComboTier > 0 && !mobileOverlayMode;
             const isMeRow = p.clientId === meClientId;
+            const username = isMeRow ? `${p.username}（我）` : p.username;
 
             return (
               <div
@@ -349,10 +360,10 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                     />
                   )}
                   <span className="truncate">
-                    {idx + 1}. {isMeRow ? `${p.username}（我）` : p.username}
+                    {idx + 1}. {username}
                   </span>
                   {isMeRow && (
-                    <span className="game-room-score-row-you-badge" title="你的位置">
+                    <span className="game-room-score-row-you-badge" title="你">
                       YOU
                     </span>
                   )}

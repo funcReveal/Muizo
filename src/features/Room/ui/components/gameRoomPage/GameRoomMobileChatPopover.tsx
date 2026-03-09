@@ -1,7 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { Badge, SwipeableDrawer } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
-import DragHandleRoundedIcon from "@mui/icons-material/DragHandleRounded";
 
 import type { ChatMessage } from "../../../model/types";
 import GameRoomChatPanel from "./GameRoomChatPanel";
@@ -13,6 +12,10 @@ interface GameRoomMobileChatPopoverProps {
   onOpen: () => void;
   onClose: () => void;
   showFab?: boolean;
+  heightVh: number;
+  minHeightVh: number;
+  maxHeightVh: number;
+  onHeightChange: (nextHeight: number) => void;
   danmuEnabled: boolean;
   onDanmuEnabledChange: (enabled: boolean) => void;
   messagesLength: number;
@@ -29,6 +32,10 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
   onOpen,
   onClose,
   showFab = true,
+  heightVh,
+  minHeightVh,
+  maxHeightVh,
+  onHeightChange,
   danmuEnabled,
   onDanmuEnabledChange,
   messagesLength,
@@ -42,6 +49,11 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
     open,
     direction: "down",
     onDismiss: onClose,
+    height: heightVh,
+    minHeight: minHeightVh,
+    maxHeight: maxHeightVh,
+    onHeightChange,
+    threshold: 46,
   });
 
   return (
@@ -107,9 +119,8 @@ const GameRoomMobileChatPopover: React.FC<GameRoomMobileChatPopoverProps> = ({
               </p>
               <p className="truncate text-sm font-semibold text-slate-100">房間聊天室</p>
             </div>
-            <span className="game-room-mobile-drawer-gesture-hint">
-              <DragHandleRoundedIcon className="text-[1rem]" />
-              拖曳調整
+            <span className="game-room-mobile-drawer-gesture-hint game-room-mobile-drawer-gesture-hint--minimal">
+              {messagesLength} 則訊息
             </span>
           </div>
         </div>

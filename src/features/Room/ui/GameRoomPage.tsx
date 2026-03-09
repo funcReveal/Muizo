@@ -11,7 +11,6 @@ import LeaderboardRoundedIcon from "@mui/icons-material/LeaderboardRounded";
 import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
-import DragHandleRoundedIcon from "@mui/icons-material/DragHandleRounded";
 import type {
   ChatMessage,
   GameState,
@@ -82,6 +81,59 @@ interface GameRoomPageProps {
   onSettlementRecapChange?: (recaps: SettlementQuestionRecap[]) => void;
 }
 
+type MobileBottomPanel = "scoreboard" | "chat" | null;
+
+const MOBILE_PLAYBACK_MIN_HEIGHT_VH = 26;
+const MOBILE_PLAYBACK_MAX_HEIGHT_VH = 62;
+const MOBILE_PLAYBACK_DEFAULT_HEIGHT_VH = 40;
+
+const MOBILE_SCOREBOARD_MIN_HEIGHT_VH = 42;
+const MOBILE_SCOREBOARD_MAX_HEIGHT_VH = 72;
+const MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH = 60;
+
+const MOBILE_CHAT_MIN_HEIGHT_VH = 42;
+const MOBILE_CHAT_MAX_HEIGHT_VH = 68;
+const MOBILE_CHAT_DEFAULT_HEIGHT_VH = 50;
+
+const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 94;
+
+const clampMobileVh = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const normalizeMobileSplitHeights = (
+  playbackHeight: number,
+  scoreboardHeight: number,
+) => {
+  let nextPlaybackHeight = clampMobileVh(
+    playbackHeight,
+    MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+    MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+  );
+  let nextScoreboardHeight = clampMobileVh(
+    scoreboardHeight,
+    MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+    MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+  );
+  const totalHeight = nextPlaybackHeight + nextScoreboardHeight;
+  if (totalHeight > MOBILE_SPLIT_STACK_MAX_TOTAL_VH) {
+    const scale = MOBILE_SPLIT_STACK_MAX_TOTAL_VH / totalHeight;
+    nextPlaybackHeight = clampMobileVh(
+      nextPlaybackHeight * scale,
+      MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+      MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    );
+    nextScoreboardHeight = clampMobileVh(
+      nextScoreboardHeight * scale,
+      MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+      MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    );
+  }
+  return {
+    playbackHeight: Number(nextPlaybackHeight.toFixed(2)),
+    scoreboardHeight: Number(nextScoreboardHeight.toFixed(2)),
+  };
+};
+
 const GameRoomPage: React.FC<GameRoomPageProps> = ({
   room,
   gameState,
@@ -114,10 +166,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const isMobileGameViewport = useMediaQuery("(max-width: 1023.95px)");
-  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [mobileBottomPanel, setMobileBottomPanel] =
+    useState<MobileBottomPanel>(null);
   const [mobileChatUnread, setMobileChatUnread] = useState(0);
   const [mobilePlaybackOpen, setMobilePlaybackOpen] = useState(false);
-  const [mobileScoreboardOpen, setMobileScoreboardOpen] = useState(false);
+  const [mobilePlaybackHeight, setMobilePlaybackHeight] = useState(
+    MOBILE_PLAYBACK_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileScoreboardHeight, setMobileScoreboardHeight] = useState(
+    MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileChatHeight, setMobileChatHeight] = useState(
+    MOBILE_CHAT_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileScoreboardSwapReplayToken, setMobileScoreboardSwapReplayToken] =
+    useState(0);
+  const [mobileScoreboardSwapArmed, setMobileScoreboardSwapArmed] =
+    useState(false);
   const [mobileRevealAutoOverlayEnabled, setMobileRevealAutoOverlayEnabled] =
     useState(true);
   const { keyBindings } = useKeyBindings();
@@ -145,46 +210,141 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => Date.now() + serverOffsetMs,
     [serverOffsetMs],
   );
+  const mobileScoreboardOpen = mobileBottomPanel === "scoreboard";
+  const mobileChatOpen = mobileBottomPanel === "chat";
+  const mobileRevealSplitMode =
+    isMobileGameViewport &&
+    gameState.phase === "reveal" &&
+    mobilePlaybackOpen &&
+    mobileScoreboardOpen;
+  const normalizedSplitHeights = useMemo(
+    () => normalizeMobileSplitHeights(mobilePlaybackHeight, mobileScoreboardHeight),
+    [mobilePlaybackHeight, mobileScoreboardHeight],
+  );
+  const handlePlaybackHeightChange = useCallback((nextHeight: number) => {
+    const clampedNext = clampMobileVh(
+      nextHeight,
+      MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+      MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    );
+    if (mobileRevealSplitMode) {
+      const normalized = normalizeMobileSplitHeights(
+        clampedNext,
+        mobileScoreboardHeight,
+      );
+      setMobilePlaybackHeight(normalized.playbackHeight);
+      setMobileScoreboardHeight(normalized.scoreboardHeight);
+      return;
+    }
+    setMobilePlaybackHeight(clampedNext);
+  }, [mobileRevealSplitMode, mobileScoreboardHeight]);
+  const handleScoreboardHeightChange = useCallback((nextHeight: number) => {
+    const clampedNext = clampMobileVh(
+      nextHeight,
+      MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+      MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    );
+    if (mobileRevealSplitMode) {
+      const normalized = normalizeMobileSplitHeights(
+        mobilePlaybackHeight,
+        clampedNext,
+      );
+      setMobilePlaybackHeight(normalized.playbackHeight);
+      setMobileScoreboardHeight(normalized.scoreboardHeight);
+      return;
+    }
+    setMobileScoreboardHeight(clampedNext);
+  }, [mobilePlaybackHeight, mobileRevealSplitMode]);
+  const handleChatHeightChange = useCallback((nextHeight: number) => {
+    setMobileChatHeight(
+      clampMobileVh(
+        nextHeight,
+        MOBILE_CHAT_MIN_HEIGHT_VH,
+        MOBILE_CHAT_MAX_HEIGHT_VH,
+      ),
+    );
+  }, []);
   const handleToggleMobilePlayback = useCallback(() => {
-    setMobileChatOpen(false);
     setMobilePlaybackOpen((current) => !current);
   }, []);
   const handleCloseMobilePlayback = useCallback(() => {
     setMobilePlaybackOpen(false);
   }, []);
   const handleOpenMobilePlayback = useCallback(() => {
-    setMobileChatOpen(false);
     setMobilePlaybackOpen(true);
   }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
-    setMobileChatOpen(false);
-    setMobileScoreboardOpen((current) => !current);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) =>
+      current === "scoreboard" ? null : "scoreboard",
+    );
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
-    setMobileScoreboardOpen(false);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) =>
+      current === "scoreboard" ? null : current,
+    );
   }, []);
   const handleOpenMobileScoreboard = useCallback(() => {
-    setMobileChatOpen(false);
-    setMobileScoreboardOpen(true);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel("scoreboard");
+  }, []);
+  const handleToggleMobileChat = useCallback(() => {
+    setMobileChatUnread(0);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) => (current === "chat" ? null : "chat"));
   }, []);
   const handleOpenMobileChat = useCallback(() => {
-    setMobilePlaybackOpen(false);
-    setMobileScoreboardOpen(false);
     setMobileChatUnread(0);
-    setMobileChatOpen(true);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel("chat");
   }, []);
   const handleCloseMobileChat = useCallback(() => {
-    setMobileChatOpen(false);
+    setMobileBottomPanel((current) => (current === "chat" ? null : current));
   }, []);
+  const effectiveMobilePlaybackHeight = mobileRevealSplitMode
+    ? normalizedSplitHeights.playbackHeight
+    : clampMobileVh(
+        mobilePlaybackHeight,
+        MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+        MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+      );
+  const effectiveMobileScoreboardHeight = mobileRevealSplitMode
+    ? normalizedSplitHeights.scoreboardHeight
+    : clampMobileVh(
+        mobileScoreboardHeight,
+        MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+        MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+      );
+  useEffect(() => {
+    if (!mobileScoreboardOpen || mobileScoreboardSwapArmed) return;
+    const replayTimer = window.setTimeout(() => {
+      setMobileScoreboardSwapReplayToken((current) => current + 1);
+      setMobileScoreboardSwapArmed(true);
+    }, 180);
+    return () => {
+      window.clearTimeout(replayTimer);
+    };
+  }, [mobileScoreboardOpen, mobileScoreboardSwapArmed]);
   const mobilePlaybackDragDismiss = useMobileDrawerDragDismiss({
     open: mobilePlaybackOpen,
     direction: "up",
     onDismiss: handleCloseMobilePlayback,
+    height: effectiveMobilePlaybackHeight,
+    minHeight: MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+    maxHeight: MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    onHeightChange: handlePlaybackHeightChange,
+    threshold: 46,
   });
   const mobileScoreboardDragDismiss = useMobileDrawerDragDismiss({
     open: mobileScoreboardOpen,
     direction: "down",
     onDismiss: handleCloseMobileScoreboard,
+    height: effectiveMobileScoreboardHeight,
+    minHeight: MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+    maxHeight: MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    onHeightChange: handleScoreboardHeightChange,
+    threshold: 46,
   });
 
   useGameRoomAnswerPanelAutoScroll({
@@ -844,8 +1004,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!isMobileGameViewport) {
       const clearId = window.setTimeout(() => {
         setMobilePlaybackOpen(false);
-        setMobileScoreboardOpen(false);
-        setMobileChatOpen(false);
+        setMobileBottomPanel(null);
+        setMobileScoreboardSwapArmed(false);
         setMobileChatUnread(0);
       }, 0);
       return () => {
@@ -870,13 +1030,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       if (shouldOpenRevealOverlay || shouldCloseRevealOverlay) {
         phaseTransitionTimer = window.setTimeout(() => {
           if (shouldOpenRevealOverlay) {
-            setMobileChatOpen(false);
+            setMobileScoreboardSwapArmed(false);
             setMobilePlaybackOpen(true);
-            setMobileScoreboardOpen(true);
+            setMobileBottomPanel("scoreboard");
           }
           if (shouldCloseRevealOverlay) {
             setMobilePlaybackOpen(false);
-            setMobileScoreboardOpen(false);
+            setMobileBottomPanel(null);
+            setMobileScoreboardSwapArmed(false);
           }
         }, 0);
       }
@@ -888,11 +1049,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       }
     };
   }, [gameState.phase, isMobileGameViewport, mobileRevealAutoOverlayEnabled]);
-  const mobileRevealSplitMode =
-    isMobileGameViewport &&
-    gameState.phase === "reveal" &&
-    mobilePlaybackOpen &&
-    mobileScoreboardOpen;
 
   const exitGameDialog = (
     <GameRoomExitDialog
@@ -1045,19 +1201,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               <button
                 type="button"
                 className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
-                onClick={handleToggleMobileScoreboard}
-              >
-                <span className="game-room-mobile-action-icon" aria-hidden>
-                  <LeaderboardRoundedIcon fontSize="inherit" />
-                </span>
-                <span className="game-room-mobile-action-label">分數榜</span>
-                <span className="game-room-mobile-action-meta">
-                  {answeredCount}/{participants.length || 0}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
                 onClick={handleToggleMobilePlayback}
               >
                 <span className="game-room-mobile-action-icon" aria-hidden>
@@ -1070,10 +1213,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </button>
               <button
                 type="button"
+                className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
+                onClick={handleToggleMobileScoreboard}
+              >
+                <span className="game-room-mobile-action-icon" aria-hidden>
+                  <LeaderboardRoundedIcon fontSize="inherit" />
+                </span>
+                <span className="game-room-mobile-action-label">分數榜</span>
+                <span className="game-room-mobile-action-meta">
+                  已答 {answeredCount}/{participants.length || 0}
+                </span>
+              </button>
+              <button
+                type="button"
                 className={`game-room-mobile-action-btn game-room-mobile-action-btn--icon ${
+                  mobileChatOpen ? "game-room-mobile-action-btn--active" : ""
+                } ${
                   mobileChatUnread > 0 ? "game-room-mobile-action-btn--unread" : ""
                 }`}
-                onClick={handleOpenMobileChat}
+                onClick={handleToggleMobileChat}
               >
                 <span className="game-room-mobile-action-icon" aria-hidden>
                   <ForumRoundedIcon fontSize="inherit" />
@@ -1107,6 +1265,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         </section>
         {isMobileGameViewport && (
           <>
+            {(mobilePlaybackOpen || mobileBottomPanel !== null) && (
+              <div
+                className="game-room-mobile-overlay-blocker"
+                aria-hidden="true"
+              />
+            )}
             <SwipeableDrawer
               className="game-room-mobile-drawer-root game-room-mobile-drawer-root--playback lg:!hidden"
               anchor="top"
@@ -1133,17 +1297,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 style: mobilePlaybackDragDismiss.paperStyle,
               }}
             >
-              <div
-                className="game-room-mobile-drawer-head game-room-mobile-drawer-head--playback"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="game-room-mobile-drawer-title">影片視窗</span>
-                  <span className="game-room-mobile-drawer-gesture-hint">
-                    <DragHandleRoundedIcon className="text-[1rem]" />
-                    下方向上拖曳收合
-                  </span>
-                </div>
-              </div>
               <div
                 className={`min-h-0 flex-1 overflow-hidden ${
                   mobileRevealSplitMode ? "p-1.5 pt-1" : "p-2"
@@ -1236,10 +1389,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="game-room-mobile-drawer-title">分數榜</span>
-                  <span className="game-room-mobile-drawer-gesture-hint">
-                    <DragHandleRoundedIcon className="text-[1rem]" />
-                    拖曳調整
+                  <span className="game-room-mobile-drawer-title">已答 {answeredCount}/{participants.length || 0}</span>
+                  <span className="game-room-mobile-drawer-gesture-hint game-room-mobile-drawer-gesture-hint--minimal">
+                    向下收合
                   </span>
                 </div>
               </div>
@@ -1269,7 +1421,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   className="game-room-mobile-scoreboard-shell !h-full"
                   showChat={false}
                   mobileOverlayMode
-                  swapAnimationEnabled={mobileScoreboardOpen}
+                  mobileMinimalHeader
+                  swapAnimationEnabled={
+                    mobileScoreboardOpen && mobileScoreboardSwapArmed
+                  }
+                  swapReplayToken={mobileScoreboardSwapReplayToken}
                 />
               </div>
             </SwipeableDrawer>
@@ -1279,6 +1435,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               onOpen={handleOpenMobileChat}
               onClose={handleCloseMobileChat}
               showFab={false}
+              heightVh={clampMobileVh(
+                mobileChatHeight,
+                MOBILE_CHAT_MIN_HEIGHT_VH,
+                MOBILE_CHAT_MAX_HEIGHT_VH,
+              )}
+              minHeightVh={MOBILE_CHAT_MIN_HEIGHT_VH}
+              maxHeightVh={MOBILE_CHAT_MAX_HEIGHT_VH}
+              onHeightChange={handleChatHeightChange}
               danmuEnabled={danmuEnabled}
               onDanmuEnabledChange={setDanmuEnabled}
               messagesLength={messages.length}

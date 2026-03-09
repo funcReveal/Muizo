@@ -8,21 +8,26 @@ interface UseMobileDrawerDragDismissOptions {
   direction: DrawerDragDirection;
   onDismiss: () => void;
   threshold?: number;
-  maxOffset?: number;
   velocityThreshold?: number;
+  height?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  onHeightChange?: (nextHeight: number) => void;
 }
 
 interface DragState {
   active: boolean;
   startY: number;
+  startHeight: number;
+  latestHeight: number;
+  dismissStretch: number;
   lastY: number;
   lastTs: number;
   velocity: number;
   pointerId: number | null;
 }
 
-const DEFAULT_THRESHOLD = 68;
-const DEFAULT_MAX_OFFSET = 180;
+const DEFAULT_THRESHOLD = 42;
 const DEFAULT_VELOCITY_THRESHOLD = 0.55;
 const SNAP_BACK_TRANSITION = "transform 220ms cubic-bezier(0.2, 0.82, 0.24, 1)";
 
@@ -34,12 +39,18 @@ const useMobileDrawerDragDismiss = ({
   direction,
   onDismiss,
   threshold = DEFAULT_THRESHOLD,
-  maxOffset = DEFAULT_MAX_OFFSET,
   velocityThreshold = DEFAULT_VELOCITY_THRESHOLD,
+  height = 0,
+  minHeight,
+  maxHeight,
+  onHeightChange,
 }: UseMobileDrawerDragDismissOptions) => {
   const dragStateRef = useRef<DragState>({
     active: false,
     startY: 0,
+    startHeight: height,
+    latestHeight: height,
+    dismissStretch: 0,
     lastY: 0,
     lastTs: 0,
     velocity: 0,
@@ -48,40 +59,56 @@ const useMobileDrawerDragDismiss = ({
   const [offset, setOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  const projectOffset = useCallback(
-    (rawDelta: number): number => {
-      if (direction === "up") {
-        return clamp(rawDelta, -maxOffset, 0);
-      }
-      return clamp(rawDelta, 0, maxOffset);
-    },
-    [direction, maxOffset],
+  const canResize =
+    typeof onHeightChange === "function" &&
+    typeof minHeight === "number" &&
+    typeof maxHeight === "number" &&
+    maxHeight > minHeight;
+
+  const resolveDirectionalDistance = useCallback(
+    (rawDelta: number) => (direction === "up" ? -rawDelta : rawDelta),
+    [direction],
   );
 
   const beginDrag = useCallback((clientY: number) => {
     const now = performance.now();
     dragStateRef.current.active = true;
     dragStateRef.current.startY = clientY;
+    dragStateRef.current.startHeight = height;
+    dragStateRef.current.latestHeight = height;
+    dragStateRef.current.dismissStretch = 0;
     dragStateRef.current.lastY = clientY;
     dragStateRef.current.lastTs = now;
     dragStateRef.current.velocity = 0;
     setIsDragging(true);
-  }, []);
+  }, [height]);
 
   const updateDrag = useCallback(
     (clientY: number) => {
       if (!dragStateRef.current.active) return;
       const now = performance.now();
-      const delta = clientY - dragStateRef.current.startY;
-      const nextOffset = projectOffset(delta);
-      setOffset(nextOffset);
+      const rawDelta = clientY - dragStateRef.current.startY;
+      const directionalDistance = resolveDirectionalDistance(rawDelta);
+
+      if (canResize && typeof minHeight === "number" && typeof maxHeight === "number") {
+        const rawHeight = dragStateRef.current.startHeight - directionalDistance;
+        const clampedHeight = clamp(rawHeight, minHeight, maxHeight);
+        dragStateRef.current.latestHeight = clampedHeight;
+        dragStateRef.current.dismissStretch = Math.max(0, minHeight - rawHeight);
+        onHeightChange(clampedHeight);
+      } else {
+        const fallbackOffset = direction === "up"
+          ? clamp(rawDelta, -180, 0)
+          : clamp(rawDelta, 0, 180);
+        setOffset(fallbackOffset);
+      }
 
       const dt = Math.max(now - dragStateRef.current.lastTs, 16);
       dragStateRef.current.velocity = (clientY - dragStateRef.current.lastY) / dt;
       dragStateRef.current.lastY = clientY;
       dragStateRef.current.lastTs = now;
     },
-    [projectOffset],
+    [canResize, direction, maxHeight, minHeight, onHeightChange, resolveDirectionalDistance],
   );
 
   const endDrag = useCallback(() => {
@@ -90,26 +117,52 @@ const useMobileDrawerDragDismiss = ({
     dragStateRef.current.pointerId = null;
     setIsDragging(false);
 
-    const directionalDistance = direction === "up" ? -offset : offset;
     const directionalVelocity =
       direction === "up"
         ? -dragStateRef.current.velocity
         : dragStateRef.current.velocity;
-    const shouldDismiss =
-      directionalDistance >= threshold || directionalVelocity >= velocityThreshold;
+    let shouldDismiss = false;
 
-    setOffset(0);
+    if (canResize && typeof minHeight === "number" && typeof maxHeight === "number") {
+      const latestHeight = clamp(dragStateRef.current.latestHeight, minHeight, maxHeight);
+      const reachedCloseZone = latestHeight <= minHeight + 3;
+      shouldDismiss =
+        reachedCloseZone &&
+        (dragStateRef.current.dismissStretch >= threshold ||
+          directionalVelocity >= velocityThreshold);
+      onHeightChange(latestHeight);
+    } else {
+      const directionalDistance = direction === "up" ? -offset : offset;
+      shouldDismiss =
+        directionalDistance >= threshold || directionalVelocity >= velocityThreshold;
+      setOffset(0);
+    }
+
     if (shouldDismiss) {
       onDismiss();
     }
-  }, [direction, offset, onDismiss, threshold, velocityThreshold]);
+  }, [
+    canResize,
+    direction,
+    maxHeight,
+    minHeight,
+    offset,
+    onDismiss,
+    onHeightChange,
+    threshold,
+    velocityThreshold,
+  ]);
 
   const cancelDrag = useCallback(() => {
     dragStateRef.current.active = false;
     dragStateRef.current.pointerId = null;
     setIsDragging(false);
+    if (canResize && typeof onHeightChange === "function") {
+      onHeightChange(height);
+      return;
+    }
     setOffset(0);
-  }, []);
+  }, [canResize, height, onHeightChange]);
 
   const onTouchStart = useCallback(
     (event: TouchEvent<HTMLElement>) => {
@@ -217,8 +270,10 @@ const useMobileDrawerDragDismiss = ({
       onPointerMove,
       onPointerUp,
       onPointerCancel,
+      "data-dragging": isDragging ? "true" : "false",
     }),
     [
+      isDragging,
       onPointerCancel,
       onPointerDown,
       onPointerMove,
@@ -230,12 +285,33 @@ const useMobileDrawerDragDismiss = ({
     ],
   );
 
+  const resizePaperStyle = useMemo<CSSProperties>(
+    () =>
+      canResize && typeof minHeight === "number" && typeof maxHeight === "number"
+        ? {
+            height: `${clamp(height, minHeight, maxHeight)}vh`,
+            minHeight: `${minHeight}vh`,
+            maxHeight: `${maxHeight}vh`,
+            transition: isDragging
+              ? "none"
+              : "height 200ms cubic-bezier(0.2, 0.82, 0.24, 1)",
+          }
+        : {},
+    [canResize, height, isDragging, maxHeight, minHeight],
+  );
+
   const paperStyle = useMemo<CSSProperties>(
     () => ({
+      ...resizePaperStyle,
       transform: offset === 0 ? undefined : `translate3d(0, ${offset}px, 0)`,
-      transition: isDragging ? "none" : SNAP_BACK_TRANSITION,
+      transition:
+        offset === 0
+          ? resizePaperStyle.transition
+          : isDragging
+            ? "none"
+            : SNAP_BACK_TRANSITION,
     }),
-    [isDragging, offset],
+    [isDragging, offset, resizePaperStyle],
   );
 
   return {
