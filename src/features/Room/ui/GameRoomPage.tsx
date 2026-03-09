@@ -1089,7 +1089,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         {isMobileGameViewport && (
           <>
             <Drawer
-              className="game-room-mobile-drawer-root lg:!hidden"
+              className="game-room-mobile-drawer-root game-room-mobile-drawer-root--playback lg:!hidden"
               anchor="top"
               open={mobilePlaybackOpen}
               onClose={handleCloseMobilePlayback}
@@ -1120,7 +1120,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <CloseRoundedIcon fontSize="inherit" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div
+                className={`min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pt-1" : "p-2"
+                }`}
+              >
                 <GameRoomPlaybackPanel
                   isMobileView
                   isOverlayMode
@@ -1151,7 +1155,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </div>
             </Drawer>
             <Drawer
-              className="game-room-mobile-drawer-root lg:!hidden"
+              className="game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden"
               anchor="bottom"
               open={mobileScoreboardOpen}
               onClose={handleCloseMobileScoreboard}
@@ -1182,7 +1186,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <CloseRoundedIcon fontSize="inherit" />
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div
+                className={`min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pb-1" : "p-2"
+                }`}
+              >
                 <GameRoomLeftSidebar
                   answeredCount={answeredCount}
                   participantCount={participants.length}

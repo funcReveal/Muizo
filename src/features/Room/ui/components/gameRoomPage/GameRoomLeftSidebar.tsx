@@ -34,7 +34,7 @@ interface GameRoomLeftSidebarProps {
   swapAnimationEnabled?: boolean;
 }
 
-const RANK_SWAP_DURATION_MS = 1180;
+const RANK_SWAP_DURATION_MS = 760;
 const MAX_RANK_SWAP_OFFSET_ROWS = 6;
 
 type RankSwapState = {
@@ -84,7 +84,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const rankSwapTimerRef = React.useRef<number | null>(null);
   const rankSwapKeyRef = React.useRef(0);
 
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     if (displayedPlayerOrder.length === 0) {
       lastDisplayedPlayerOrderRef.current = [];
       if (rankSwapTimerRef.current !== null) {
@@ -110,10 +110,13 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
       return;
     }
 
+    const previousOrderIndexByClientId = new Map<string, number>(
+      previousOrder.map((clientId, index) => [clientId, index]),
+    );
     const offsetByClientId: Record<string, number> = {};
     displayedPlayerOrder.forEach((clientId, nextIndex) => {
-      const previousIndex = previousOrder.indexOf(clientId);
-      if (previousIndex < 0 || previousIndex === nextIndex) return;
+      const previousIndex = previousOrderIndexByClientId.get(clientId);
+      if (typeof previousIndex !== "number" || previousIndex === nextIndex) return;
       const offsetRows = clampRankSwapOffsetRows(previousIndex - nextIndex);
       if (offsetRows !== 0) {
         offsetByClientId[clientId] = offsetRows;
@@ -307,6 +310,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
             const rowComboTier = resolveComboTier(p.combo ?? 0);
             const rowComboTierClass =
               rowComboTier > 0 ? `game-room-score-row--combo-tier-${rowComboTier}` : "";
+            const shouldShowComboFlare = rowComboTier > 0 && !mobileOverlayMode;
             const isMeRow = p.clientId === meClientId;
 
             return (
@@ -333,7 +337,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                     ? "game-room-score-row--rank-swap-focus"
                     : ""
                 } ${rowComboTierClass} ${
-                  rowComboTier > 0 ? "game-room-score-row--combo-flare" : ""
+                  shouldShowComboFlare ? "game-room-score-row--combo-flare" : ""
                 }`}
                 style={rowSwapStyle}
               >
