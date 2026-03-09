@@ -1,17 +1,17 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { Drawer } from "@mui/material";
+import { SwipeableDrawer } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import LeaderboardRoundedIcon from "@mui/icons-material/LeaderboardRounded";
 import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import DragHandleRoundedIcon from "@mui/icons-material/DragHandleRounded";
 import type {
   ChatMessage,
   GameState,
@@ -61,6 +61,7 @@ import useTopTwoSwapState from "./components/gameRoomPage/useTopTwoSwapState";
 import useGameRoomDanmu from "./components/gameRoomPage/useGameRoomDanmu";
 import useGameRoomChoiceHotkeys from "./components/gameRoomPage/useGameRoomChoiceHotkeys";
 import useGameRoomAnswerPanelAutoScroll from "./components/gameRoomPage/useGameRoomAnswerPanelAutoScroll";
+import useMobileDrawerDragDismiss from "./components/gameRoomPage/useMobileDrawerDragDismiss";
 import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
 
 interface GameRoomPageProps {
@@ -151,12 +152,20 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const handleCloseMobilePlayback = useCallback(() => {
     setMobilePlaybackOpen(false);
   }, []);
+  const handleOpenMobilePlayback = useCallback(() => {
+    setMobileChatOpen(false);
+    setMobilePlaybackOpen(true);
+  }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
     setMobileChatOpen(false);
     setMobileScoreboardOpen((current) => !current);
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
     setMobileScoreboardOpen(false);
+  }, []);
+  const handleOpenMobileScoreboard = useCallback(() => {
+    setMobileChatOpen(false);
+    setMobileScoreboardOpen(true);
   }, []);
   const handleOpenMobileChat = useCallback(() => {
     setMobilePlaybackOpen(false);
@@ -167,6 +176,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const handleCloseMobileChat = useCallback(() => {
     setMobileChatOpen(false);
   }, []);
+  const mobilePlaybackDragDismiss = useMobileDrawerDragDismiss({
+    open: mobilePlaybackOpen,
+    direction: "up",
+    onDismiss: handleCloseMobilePlayback,
+  });
+  const mobileScoreboardDragDismiss = useMobileDrawerDragDismiss({
+    open: mobileScoreboardOpen,
+    direction: "down",
+    onDismiss: handleCloseMobileScoreboard,
+  });
 
   useGameRoomAnswerPanelAutoScroll({
     roomId: room.id,
@@ -214,7 +233,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.answerTitle?.trim() ||
     item?.answerText?.trim() ||
     item?.title?.trim() ||
-    "（未提供名稱）";
+    "未命名答案";
 
   const roomPlayDurationSec = Math.max(
     1,
@@ -1088,10 +1107,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         </section>
         {isMobileGameViewport && (
           <>
-            <Drawer
+            <SwipeableDrawer
+              className="game-room-mobile-drawer-root game-room-mobile-drawer-root--playback lg:!hidden"
               anchor="top"
               open={mobilePlaybackOpen}
+              onOpen={handleOpenMobilePlayback}
               onClose={handleCloseMobilePlayback}
+              disableSwipeToOpen={false}
+              allowSwipeInChildren
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1105,21 +1129,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   mobileRevealSplitMode
                     ? "game-room-mobile-playback-drawer--split"
                     : "game-room-mobile-playback-drawer--single"
-                } lg:!hidden`,
+                }`,
+                style: mobilePlaybackDragDismiss.paperStyle,
               }}
             >
-              <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--playback">
-                <span className="game-room-mobile-drawer-title">影片視窗</span>
-                <button
-                  type="button"
-                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                  onClick={handleCloseMobilePlayback}
-                  aria-label="關閉影片視窗"
-                >
-                  <CloseRoundedIcon fontSize="inherit" />
-                </button>
+              <div
+                className="game-room-mobile-drawer-head game-room-mobile-drawer-head--playback"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="game-room-mobile-drawer-title">影片視窗</span>
+                  <span className="game-room-mobile-drawer-gesture-hint">
+                    <DragHandleRoundedIcon className="text-[1rem]" />
+                    下方向上拖曳收合
+                  </span>
+                </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div
+                className={`min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pt-1" : "p-2"
+                }`}
+              >
                 <GameRoomPlaybackPanel
                   isMobileView
                   isOverlayMode
@@ -1148,11 +1177,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   onGameVolumeChange={setGameVolume}
                 />
               </div>
-            </Drawer>
-            <Drawer
+            </SwipeableDrawer>
+            <SwipeableDrawer
+              className="game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden"
               anchor="bottom"
               open={mobileScoreboardOpen}
+              onOpen={handleOpenMobileScoreboard}
               onClose={handleCloseMobileScoreboard}
+              disableSwipeToOpen={false}
+              allowSwipeInChildren
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1166,21 +1200,38 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   mobileRevealSplitMode
                     ? "game-room-mobile-scoreboard-drawer--split"
                     : "game-room-mobile-scoreboard-drawer--single"
-                } lg:!hidden`,
+                }`,
+                style: mobileScoreboardDragDismiss.paperStyle,
               }}
             >
-              <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard">
-                <span className="game-room-mobile-drawer-title">分數榜</span>
-                <button
-                  type="button"
-                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                  onClick={handleCloseMobileScoreboard}
-                  aria-label="關閉分數榜"
+              <div
+                className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard"
+                role="presentation"
+                aria-label="向下拖曳收合分數榜"
+                {...mobileScoreboardDragDismiss.dragHandleProps}
+              >
+                <div
+                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
+                  aria-hidden="true"
                 >
-                  <CloseRoundedIcon fontSize="inherit" />
-                </button>
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                  <span className="game-room-mobile-drawer-handle-direction">
+                    向下拖曳收合
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="game-room-mobile-drawer-title">分數榜</span>
+                  <span className="game-room-mobile-drawer-gesture-hint">
+                    <DragHandleRoundedIcon className="text-[1rem]" />
+                    拖曳調整
+                  </span>
+                </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div
+                className={`min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pb-1" : "p-2"
+                }`}
+              >
                 <GameRoomLeftSidebar
                   answeredCount={answeredCount}
                   participantCount={participants.length}
@@ -1201,9 +1252,27 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   chatScrollRef={mobileChatScrollRef}
                   className="game-room-mobile-scoreboard-shell !h-full"
                   showChat={false}
+                  mobileOverlayMode
+                  swapAnimationEnabled={mobileScoreboardOpen}
                 />
               </div>
-            </Drawer>
+              <div
+                className="game-room-mobile-drawer-foot game-room-mobile-drawer-foot--playback"
+                role="presentation"
+                aria-label="由下往上拖曳收合影片視窗"
+                {...mobilePlaybackDragDismiss.dragHandleProps}
+              >
+                <div
+                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
+                  aria-hidden="true"
+                >
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                  <span className="game-room-mobile-drawer-handle-direction">
+                    由下往上拖曳收合
+                  </span>
+                </div>
+              </div>
+            </SwipeableDrawer>
             <GameRoomMobileChatPopover
               open={mobileChatOpen}
               unreadCount={mobileChatUnread}

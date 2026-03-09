@@ -58,9 +58,26 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   gameVolume,
   onGameVolumeChange,
 }) => {
+  const isMobileOverlay = isMobileView && isOverlayMode;
+  const shouldShowRoomName = !(isMobileView && isOverlayMode);
+  const revealAnswerLabel = revealAnswerTitle?.trim() ?? "";
+  const revealAnswerWrapperClass = isMobileOverlay
+    ? "mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-2.5 py-1 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
+    : "mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]";
+  const revealAnswerTextClass = isMobileOverlay
+    ? "min-w-0 truncate text-[11px] font-semibold leading-4"
+    : "text-xs font-semibold leading-5 sm:text-sm";
+  const mediaFrameHeightClass = isMobileOverlay
+    ? "h-full min-h-0 flex-1"
+    : isMobileView
+      ? "h-[182px]"
+      : "h-[140px] sm:h-[188px] md:h-[214px] xl:h-[236px]";
+
   return (
     <div
-      className={`game-room-panel game-room-panel--accent flex-none p-3 text-slate-50 ${
+      className={`game-room-panel game-room-panel--accent p-3 text-slate-50 ${
+        isMobileOverlay ? "game-room-playback-panel--mobile-overlay-fill flex h-full min-h-0 flex-col" : "flex-none"
+      } ${
         isMobileView
           ? isOverlayMode
             ? "game-room-playback-panel--mobile game-room-playback-panel--mobile-overlay"
@@ -68,25 +85,25 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
           : ""
       }`}
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className={`${isMobileOverlay ? "mb-2" : "mb-3"} flex flex-wrap items-center justify-between gap-2`}>
         <div className="flex items-center gap-2">
           <div>
             <p className="game-room-kicker">正在播放</p>
-            <p className="game-room-title">{roomName}</p>
+            {shouldShowRoomName && <p className="game-room-title">{roomName}</p>}
             <div className="game-room-track-counter mt-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black tracking-[0.14em] text-amber-100">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
               題目 {boundedCursor + 1}/{trackOrderLength || "?"}
             </div>
-            {isMobileView && isRevealPhase && revealAnswerTitle && (
+            {isMobileView && isRevealPhase && revealAnswerLabel && (
               <div
-                className="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
-                title={`答案：${revealAnswerTitle}`}
+                className={revealAnswerWrapperClass}
+                title={`答案：${revealAnswerLabel}`}
               >
                 <span className="shrink-0 rounded-full border border-emerald-200/50 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]">
                   答案
                 </span>
-                <span className="text-xs font-semibold leading-5 sm:text-sm">
-                  {revealAnswerTitle}
+                <span className={revealAnswerTextClass}>
+                  {revealAnswerLabel}
                 </span>
               </div>
             )}
@@ -106,9 +123,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       </div>
 
       <div
-        className={`game-room-media-frame relative w-full overflow-hidden sm:h-[188px] md:h-[214px] xl:h-[236px] ${
-          isMobileView ? "h-[182px]" : "h-[140px]"
-        }`}
+        className={`game-room-media-frame relative w-full overflow-hidden ${mediaFrameHeightClass}`}
       >
         {iframeSrc ? (
           <iframe
