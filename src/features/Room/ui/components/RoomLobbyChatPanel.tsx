@@ -20,7 +20,9 @@ interface RoomLobbyChatPanelProps {
   messageInput: string;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  latestSettlementRoundKey?: string | null;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
+  onOpenHistoryDrawer?: () => void;
 }
 
 const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
@@ -28,7 +30,9 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
   messageInput,
   onInputChange,
   onSend,
+  latestSettlementRoundKey,
   onOpenSettlementByRoundKey,
+  onOpenHistoryDrawer,
 }) => {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,7 +61,7 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
       >
         {messages.length === 0 ? (
           <Typography variant="body2" className="text-slate-500" align="center">
-            尚無聊天訊息，輸入訊息開始互動吧。
+            目前還沒有訊息，和房間成員打個招呼吧。
           </Typography>
         ) : (
           <MUIList dense disablePadding>
@@ -68,9 +72,17 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                 msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
                   ? msg.id.slice(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX.length)
                   : null;
+              const isLatestSettlement =
+                settlementRoundKey !== null &&
+                latestSettlementRoundKey !== null &&
+                settlementRoundKey === latestSettlementRoundKey;
               const canOpenSettlementReview = Boolean(
-                settlementRoundKey && onOpenSettlementByRoundKey,
+                settlementRoundKey &&
+                  onOpenSettlementByRoundKey &&
+                  isLatestSettlement,
               );
+              const isHistoricalSettlement =
+                settlementRoundKey !== null && !isLatestSettlement;
 
               if (isPresenceSystemMessage) {
                 return (
@@ -110,6 +122,8 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                 <ListItem key={msg.id}>
                   <Box
                     className="room-lobby-chat-message"
+                    data-settlement={settlementRoundKey ? "true" : "false"}
+                    data-archived={isHistoricalSettlement ? "true" : "false"}
                     sx={{
                       maxWidth: "100%",
                       borderRadius: 1,
@@ -124,7 +138,7 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                   >
                     <Stack direction="row" spacing={1}>
                       <Typography variant="caption" fontWeight={600}>
-                        {normalizeDisplayText(msg.username, "玩家")}
+                        {normalizeDisplayText(msg.username, "系統")}
                       </Typography>
                       <Typography variant="caption" color="rgba(255,255,255,0.7)">
                         {formatTime(msg.timestamp)}
@@ -151,8 +165,43 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                           onOpenSettlementByRoundKey?.(settlementRoundKey)
                         }
                       >
-                        查看結算
+                        查看上一局結算
                       </Button>
+                    )}
+                    {isHistoricalSettlement && (
+                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          disabled
+                          sx={{ borderColor: "rgba(71,85,105,0.55)" }}
+                        >
+                          已封存紀錄
+                        </Button>
+                        {onOpenHistoryDrawer && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="inherit"
+                            onClick={onOpenHistoryDrawer}
+                          >
+                            從右側歷史查看
+                          </Button>
+                        )}
+                      </Stack>
+                    )}
+                    {settlementRoundKey && !isHistoricalSettlement && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          mt: 0.8,
+                          color: "rgba(148,163,184,0.88)",
+                        }}
+                      >
+                        僅上一局可快速點開，舊局請從右側歷史抽屜查看。
+                      </Typography>
                     )}
                   </Box>
                 </ListItem>
@@ -167,7 +216,7 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
           autoComplete="off"
           fullWidth
           size="small"
-          placeholder="輸入聊天訊息，按 Enter 送出"
+          placeholder="輸入訊息，按 Enter 送出"
           value={messageInput}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {

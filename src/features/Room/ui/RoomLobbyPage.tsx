@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
+import {
+  Button,
+  Chip,
+  Drawer,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import GameRoomPage from "./GameRoomPage";
 import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
@@ -18,6 +29,58 @@ const SETTLEMENT_SESSION_CACHE_KEY_PREFIX = "mq:settlement-cache:v1:";
 const SETTLEMENT_SUMMARY_CACHE_LIMIT = 10;
 const SETTLEMENT_REPLAY_CACHE_LIMIT = 1;
 const SETTLEMENT_RECAP_CACHE_LIMIT = 1;
+
+type SelfSettlementStats = {
+  rank: number | null;
+  score: number | null;
+  maxCombo: number | null;
+  correctCount: number | null;
+  playerCount: number;
+};
+
+const sortSettlementParticipants = (
+  participants: RoomSettlementSnapshot["participants"],
+) =>
+  [...participants].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const comboA = a.maxCombo ?? a.combo ?? 0;
+    const comboB = b.maxCombo ?? b.combo ?? 0;
+    if (comboB !== comboA) return comboB - comboA;
+    return a.joinedAt - b.joinedAt;
+  });
+
+const formatSettlementNarrative = (
+  summary: RoomSettlementHistorySummary,
+  stats: SelfSettlementStats | undefined,
+) => {
+  const rankText =
+    stats?.rank && stats.rank > 0 ? `第 ${stats.rank} 名` : "排名待同步";
+  const scoreText =
+    typeof stats?.score === "number"
+      ? `${stats.score.toLocaleString()} 分`
+      : "分數待同步";
+  const comboText =
+    typeof stats?.maxCombo === "number"
+      ? `最高連擊 x${Math.max(0, Math.round(stats.maxCombo))}`
+      : "連擊待同步";
+  const accuracyText =
+    typeof stats?.correctCount === "number"
+      ? `答對 ${Math.max(0, Math.round(stats.correctCount))}/${Math.max(1, summary.questionCount)} 題`
+      : null;
+  const insight =
+    typeof stats?.rank === "number"
+      ? stats.rank === 1
+        ? "這局你是節奏核心，穩定壓制全場。"
+        : stats.rank <= 3
+          ? "保持在領先群，下一局有機會衝頂。"
+          : typeof stats.score === "number" && stats.score <= 0
+            ? "這局先暖機，下一局把節奏拉回來。"
+            : "本局資料已記錄，建議用回放找追分點。"
+      : "本局資料已記錄，可到右側抽屜查看詳細歷史。";
+  return `第 ${summary.roundNo} 局｜${rankText}｜${scoreText}｜${comboText}${
+    accuracyText ? `｜${accuracyText}` : ""
+  }。${insight}`;
+};
 
 const cloneSettlementRecaps = (recaps: SettlementQuestionRecap[]) =>
   recaps.map((item) => ({
@@ -378,7 +441,9 @@ const RoomLobbyPage: React.FC = () => {
   const [settlementRecapsByRoundKey, setSettlementRecapsByRoundKey] = useState<
     Record<string, SettlementQuestionRecap[]>
   >({});
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [uiNowMs, setUiNowMs] = useState(() => Date.now() + serverOffsetMs);
+  const isTabletOrMobileLobby = useMediaQuery("(max-width:1024px)");
   const autoOpenedEndedRoundRef = useRef<string | null>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
   const latestLiveRecapsRef = useRef<SettlementQuestionRecap[]>([]);
@@ -487,6 +552,7 @@ const RoomLobbyPage: React.FC = () => {
       setSettlementRecapsByRoundKey({});
       setSettlementCacheHydrated(false);
       setSettlementSummaryListLoaded(false);
+      setHistoryDrawerOpen(false);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [currentRoom?.id]);
@@ -674,6 +740,7 @@ const RoomLobbyPage: React.FC = () => {
 
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
+      setHistoryDrawerOpen(false);
       setActiveSettlementRoundKey(roundKey);
       const cachedReplaySnapshot =
         roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
@@ -984,17 +1051,92 @@ const RoomLobbyPage: React.FC = () => {
     );
   }, [latestSettlementSummary, roomScopedSettlementHistorySummaries]);
 
+  const latestSettlementRoundKey = useMemo(() => {
+    if (mergedSettlementSummaries.length === 0) return null;
+    return mergedSettlementSummaries[mergedSettlementSummaries.length - 1]
+      ?.roundKey ?? null;
+  }, [mergedSettlementSummaries]);
+
+  const historyDrawerSummaries = useMemo(
+    () =>
+      [...mergedSettlementSummaries].sort(
+        (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+      ),
+    [mergedSettlementSummaries],
+  );
+
+  const roomSnapshotByRoundKey = useMemo(() => {
+    const next: Record<string, RoomSettlementSnapshot> = {};
+    roomScopedSettlementHistory.forEach((snapshot) => {
+      next[snapshot.roundKey] = snapshot;
+    });
+    Object.entries(roomScopedSettlementReplayByRoundKey).forEach(
+      ([roundKey, snapshot]) => {
+        if (!next[roundKey]) {
+          next[roundKey] = snapshot;
+        }
+      },
+    );
+    return next;
+  }, [roomScopedSettlementHistory, roomScopedSettlementReplayByRoundKey]);
+
+  const selfStatsByRoundKey = useMemo(() => {
+    const next: Record<string, SelfSettlementStats> = {};
+    mergedSettlementSummaries.forEach((summary) => {
+      const snapshot = roomSnapshotByRoundKey[summary.roundKey] ?? null;
+      let rank = summary.selfRank ?? null;
+      let score = summary.selfPlayer?.finalScore ?? null;
+      let maxCombo = summary.selfPlayer?.maxCombo ?? null;
+      let correctCount = summary.selfPlayer?.correctCount ?? null;
+
+      if (snapshot && clientId) {
+        const sortedParticipants = sortSettlementParticipants(
+          snapshot.participants,
+        );
+        const selfParticipant =
+          sortedParticipants.find((item) => item.clientId === clientId) ?? null;
+        if (selfParticipant) {
+          if (rank === null) {
+            rank =
+              sortedParticipants.findIndex(
+                (item) => item.clientId === selfParticipant.clientId,
+              ) + 1;
+          }
+          if (score === null) score = selfParticipant.score;
+          if (maxCombo === null) {
+            maxCombo = selfParticipant.maxCombo ?? selfParticipant.combo ?? 0;
+          }
+          if (correctCount === null) {
+            correctCount = selfParticipant.correctCount ?? null;
+          }
+        }
+      }
+
+      next[summary.roundKey] = {
+        rank,
+        score,
+        maxCombo,
+        correctCount,
+        playerCount: summary.playerCount,
+      };
+    });
+    return next;
+  }, [clientId, mergedSettlementSummaries, roomSnapshotByRoundKey]);
+
   const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
     if (!currentRoom?.id) return [];
-    return mergedSettlementSummaries.map((snapshot) => ({
-      id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
+    return mergedSettlementSummaries.map((summary) => ({
+      id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${summary.roundKey}`,
       roomId: currentRoom.id,
       userId: "system:settlement-review",
-      username: "系統",
-      content: `對戰回顧：第 ${snapshot.roundNo} 局`,
-      timestamp: snapshot.endedAt,
+      username: "對戰紀錄",
+      content: formatSettlementNarrative(
+        summary,
+        selfStatsByRoundKey[summary.roundKey],
+      ),
+      timestamp: summary.endedAt,
     }));
-  }, [currentRoom, mergedSettlementSummaries]);
+  }, [currentRoom, mergedSettlementSummaries, selfStatsByRoundKey]);
 
   const lobbyMessages = useMemo(() => {
     if (settlementReviewMessages.length === 0) return messages;
@@ -1066,6 +1208,12 @@ const RoomLobbyPage: React.FC = () => {
     removeSettlementCacheForRoom,
     roomId,
   ]);
+  const openHistoryDrawer = useCallback(() => {
+    setHistoryDrawerOpen(true);
+  }, []);
+  const closeHistoryDrawer = useCallback(() => {
+    setHistoryDrawerOpen(false);
+  }, []);
 
   const settlementStartBroadcastRemainingSec =
     gameState?.status === "playing"
@@ -1099,6 +1247,135 @@ const RoomLobbyPage: React.FC = () => {
         document.body,
       )
     : null;
+  const battleHistoryDrawer = (
+    <Drawer
+      anchor="right"
+      open={historyDrawerOpen}
+      onClose={closeHistoryDrawer}
+      ModalProps={{
+        keepMounted: true,
+      }}
+      PaperProps={{
+        className: "room-battle-history-drawer",
+        sx: {
+          width: isTabletOrMobileLobby ? "100%" : 440,
+          maxWidth: "100vw",
+        },
+      }}
+    >
+      <div className="room-battle-history-shell">
+        <div className="room-battle-history-head">
+          <div className="room-battle-history-title-wrap">
+            <span className="room-battle-history-kicker">BATTLE ARCHIVE</span>
+            <h2 className="room-battle-history-title">對戰歷史</h2>
+            <p className="room-battle-history-subtitle">
+              右側抽屜可回看所有局數，聊天室僅保留上一局快速入口。
+            </p>
+          </div>
+          <IconButton
+            size="small"
+            color="inherit"
+            className="room-battle-history-close"
+            onClick={closeHistoryDrawer}
+            aria-label="關閉對戰歷史"
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </div>
+
+        <div className="room-battle-history-list">
+          {historyDrawerSummaries.length === 0 ? (
+            <div className="room-battle-history-empty">
+              <HistoryEduRoundedIcon fontSize="small" />
+              <span>目前還沒有可查看的對戰紀錄。</span>
+            </div>
+          ) : (
+            historyDrawerSummaries.map((summary) => {
+              const stats = selfStatsByRoundKey[summary.roundKey];
+              const isLatest = summary.roundKey === latestSettlementRoundKey;
+              const isLoading = loadingSettlementRoundKey === summary.roundKey;
+              return (
+                <div
+                  key={summary.roundKey}
+                  className={`room-battle-history-item ${
+                    isLatest ? "is-latest" : ""
+                  }`}
+                >
+                  <div className="room-battle-history-item-head">
+                    <div>
+                      <Typography variant="subtitle2" className="room-battle-history-round">
+                        Round {summary.roundNo}
+                      </Typography>
+                      <Typography variant="caption" className="room-battle-history-time">
+                        {new Date(summary.endedAt).toLocaleString("zh-TW", {
+                          hour12: false,
+                        })}
+                      </Typography>
+                    </div>
+                    <Chip
+                      size="small"
+                      color={isLatest ? "info" : "default"}
+                      variant={isLatest ? "filled" : "outlined"}
+                      label={isLatest ? "上一局" : "歷史局"}
+                    />
+                  </div>
+
+                  <div className="room-battle-history-metrics">
+                    <span>
+                      Rank
+                      <strong>{stats?.rank ?? "-"}</strong>
+                    </span>
+                    <span>
+                      Score
+                      <strong>
+                        {typeof stats?.score === "number"
+                          ? stats.score.toLocaleString()
+                          : "-"}
+                      </strong>
+                    </span>
+                    <span>
+                      Max Combo
+                      <strong>
+                        {typeof stats?.maxCombo === "number"
+                          ? `x${Math.max(0, Math.round(stats.maxCombo))}`
+                          : "-"}
+                      </strong>
+                    </span>
+                  </div>
+
+                  <Typography variant="caption" className="room-battle-history-copy">
+                    {formatSettlementNarrative(summary, stats)}
+                  </Typography>
+
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      disabled={isLoading}
+                      onClick={() => {
+                        void openSettlementReviewByRoundKey(summary.roundKey);
+                      }}
+                    >
+                      {isLoading ? "讀取中..." : "查看結算"}
+                    </Button>
+                    {isLatest && (
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        color="info"
+                        label="聊天室可快速開啟"
+                      />
+                    )}
+                  </Stack>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Drawer>
+  );
 
   useEffect(() => {
     if (currentRoom) return;
@@ -1448,8 +1725,11 @@ const RoomLobbyPage: React.FC = () => {
             username={username}
             serverOffsetMs={serverOffsetMs}
             onSettlementRecapChange={handleSettlementRecapChange}
+            onOpenHistoryDrawer={openHistoryDrawer}
+            historySummaryCount={mergedSettlementSummaries.length}
           />
-        </div>{" "}
+        </div>
+        {battleHistoryDrawer}
       </>
     );
   }
@@ -1539,6 +1819,8 @@ const RoomLobbyPage: React.FC = () => {
             hasLastSettlement={Boolean(
               latestSettlementSnapshot || mergedSettlementSummaries.length > 0,
             )}
+            latestSettlementRoundKey={latestSettlementRoundKey}
+            historySummaryCount={mergedSettlementSummaries.length}
             onOpenLastSettlement={() => {
               if (latestSettlementSnapshot) {
                 setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey);
@@ -1568,6 +1850,7 @@ const RoomLobbyPage: React.FC = () => {
             onOpenSettlementByRoundKey={(roundKey) => {
               void openSettlementReviewByRoundKey(roundKey);
             }}
+            onOpenHistoryDrawer={openHistoryDrawer}
             onOpenGame={() => {
               setActiveSettlementRoundKey(null);
               setIsGameView(true);
@@ -1602,7 +1885,8 @@ const RoomLobbyPage: React.FC = () => {
             }}
           />
         )}
-      </div>{" "}
+      </div>
+      {battleHistoryDrawer}
     </>
   );
 };

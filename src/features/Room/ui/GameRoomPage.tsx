@@ -23,6 +23,7 @@ import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
+import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
@@ -97,6 +98,8 @@ interface GameRoomPageProps {
   username?: string | null;
   serverOffsetMs?: number;
   onSettlementRecapChange?: (recaps: SettlementQuestionRecap[]) => void;
+  onOpenHistoryDrawer?: () => void;
+  historySummaryCount?: number;
 }
 
 type MobileBottomPanel = "scoreboard" | "chat" | null;
@@ -176,6 +179,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   onSendMessage,
   serverOffsetMs = 0,
   onSettlementRecapChange,
+  onOpenHistoryDrawer,
+  historySummaryCount = 0,
 }) => {
   const { danmuEnabled, setDanmuEnabled, danmuItems } = useGameRoomDanmu({
     roomId: room.id,
@@ -348,6 +353,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!isHostInGame) return;
     setHostManagementOpen(true);
   }, [isHostInGame]);
+  const handleOpenHistoryDrawer = useCallback(() => {
+    onOpenHistoryDrawer?.();
+  }, [onOpenHistoryDrawer]);
   const handleCloseHostManagement = useCallback(() => {
     setHostManagementOpen(false);
   }, []);
@@ -1174,19 +1182,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       startCountdownSec={startCountdownSec}
     />
   );
-  const playbackHeaderActions = isHostInGame ? (
-    <Button
-      type="button"
-      variant="outlined"
-      color="info"
-      size="small"
-      startIcon={<ManageAccountsRoundedIcon />}
-      className="game-room-host-manage-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
-      onClick={handleOpenHostManagement}
-    >
-      房主管理
-    </Button>
-  ) : null;
+  const hasHistoryDrawerEntry = Boolean(
+    onOpenHistoryDrawer && historySummaryCount > 0,
+  );
+  const playbackHeaderActions =
+    hasHistoryDrawerEntry || isHostInGame ? (
+      <Stack
+        direction="row"
+        spacing={1}
+        className="max-[760px]:w-full max-[760px]:grid max-[760px]:grid-cols-1"
+      >
+        {hasHistoryDrawerEntry && (
+          <Button
+            type="button"
+            variant="outlined"
+            color="info"
+            size="small"
+            startIcon={<HistoryEduRoundedIcon />}
+            className="game-room-host-manage-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+            onClick={handleOpenHistoryDrawer}
+          >
+            對戰歷史 {historySummaryCount}
+          </Button>
+        )}
+        {isHostInGame && (
+          <Button
+            type="button"
+            variant="outlined"
+            color="info"
+            size="small"
+            startIcon={<ManageAccountsRoundedIcon />}
+            className="game-room-host-manage-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+            onClick={handleOpenHostManagement}
+          >
+            房主管理
+          </Button>
+        )}
+      </Stack>
+    ) : null;
   const hostManagementPanelContent = (
     <Stack spacing={1.1} className="game-room-host-manage-list">
       {hostManageParticipants.length === 0 ? (
@@ -1406,6 +1439,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           {isMobileGameViewport && (
             <div
               className={`game-room-mobile-action-dock lg:hidden ${
+                hasHistoryDrawerEntry ? "game-room-mobile-action-dock--with-history" : ""
+              } ${
                 mobileRevealSplitMode ? "game-room-mobile-action-dock--hidden" : ""
               }`}
             >
@@ -1454,7 +1489,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     : "開啟"}
                 </span>
               </button>
-              <div className="game-room-mobile-action-subdock col-span-3">
+              {hasHistoryDrawerEntry && (
+                <button
+                  type="button"
+                  className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
+                  onClick={handleOpenHistoryDrawer}
+                >
+                  <span className="game-room-mobile-action-icon" aria-hidden>
+                    <HistoryEduRoundedIcon fontSize="inherit" />
+                  </span>
+                  <span className="game-room-mobile-action-label">歷史</span>
+                  <span className="game-room-mobile-action-meta">
+                    {historySummaryCount} 局
+                  </span>
+                </button>
+              )}
+              <div
+                className={`game-room-mobile-action-subdock ${
+                  hasHistoryDrawerEntry ? "col-span-4" : "col-span-3"
+                }`}
+              >
                 {isHostInGame && (
                   <button
                     type="button"

@@ -105,7 +105,10 @@ interface RoomLobbyPanelProps {
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   onOpenLastSettlement?: () => void;
+  latestSettlementRoundKey?: string | null;
+  historySummaryCount?: number;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
+  onOpenHistoryDrawer?: () => void;
   onOpenGame?: () => void;
   /** Invite handler that returns Promise<void>; surface errors via throw or status text */
   onInvite: () => Promise<void>;
@@ -167,7 +170,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onStartGame,
   onUpdateRoomSettings,
   onOpenLastSettlement,
+  latestSettlementRoundKey,
+  historySummaryCount = 0,
   onOpenSettlementByRoundKey,
+  onOpenHistoryDrawer,
   onOpenGame,
   onInvite,
   onKickPlayer,
@@ -1137,7 +1143,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       messageInput={messageInput}
       onInputChange={onInputChange}
       onSend={onSend}
+      latestSettlementRoundKey={latestSettlementRoundKey}
       onOpenSettlementByRoundKey={onOpenSettlementByRoundKey}
+      onOpenHistoryDrawer={onOpenHistoryDrawer}
     />
   );
 
@@ -1272,6 +1280,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 查看上一輪結算
               </Button>
             )}
+            {historySummaryCount > 0 && (
+              <Button
+                variant="outlined"
+                color="info"
+                size="small"
+                onClick={onOpenHistoryDrawer}
+              >
+                對戰歷史 {historySummaryCount}
+              </Button>
+            )}
             {gameState?.status === "playing" && (
               <Button
                 variant="contained"
@@ -1377,6 +1395,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       onClick={() => onOpenLastSettlement?.()}
                     >
                       上輪結算
+                    </Button>
+                  )}
+                  {historySummaryCount > 0 && (
+                    <Button
+                      variant="outlined"
+                      color="info"
+                      size="small"
+                      onClick={onOpenHistoryDrawer}
+                    >
+                      對戰歷史
                     </Button>
                   )}
                   {gameState?.status === "playing" && (
