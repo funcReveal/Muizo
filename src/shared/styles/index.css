@@ -7056,6 +7056,15 @@ body {
   padding-bottom: 4px;
 }
 
+.room-lobby-chat-empty-copy {
+  width: min(100%, 19ch);
+  min-height: calc(1.7em * 3);
+  margin-inline: auto;
+  line-height: 1.7;
+  white-space: pre-line;
+  text-wrap: pretty;
+}
+
 .room-lobby-chat-message {
   position: relative;
   overflow: visible;
@@ -10532,22 +10541,95 @@ body {
   .room-lobby-content--mobile-redesign {
     display: flex !important;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
     min-height: 0;
-    padding: 10px !important;
+    padding: 12px !important;
   }
 
   .room-lobby-mobile-shell {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
     min-height: 0;
     flex: 1;
   }
 
   .room-lobby-mobile-top-actions {
     display: grid;
-    gap: 8px;
+    gap: 12px;
+  }
+
+  .room-lobby-mobile-actions-card {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    background:
+      radial-gradient(
+        280px 160px at 0% 0%,
+        rgba(245, 158, 11, 0.08),
+        transparent 72%
+      ),
+      linear-gradient(180deg, rgba(8, 13, 24, 0.94), rgba(5, 9, 17, 0.98));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 22px 42px -34px rgba(2, 6, 23, 0.94);
+  }
+
+  .room-lobby-mobile-actions-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .room-lobby-mobile-actions-kicker {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(251, 191, 36, 0.84);
+  }
+
+  .room-lobby-mobile-actions-caption {
+    font-size: 11px;
+    color: rgba(148, 163, 184, 0.9);
+  }
+
+  .room-lobby-mobile-primary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .room-lobby-mobile-primary-actions--single {
+    grid-template-columns: 1fr;
+  }
+
+  .room-lobby-mobile-primary-action.MuiButton-root {
+    min-height: 56px;
+    border-radius: 18px;
+    justify-content: flex-start;
+    padding-inline: 16px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .room-lobby-mobile-primary-action--history.MuiButton-root {
+    border-color: rgba(148, 163, 184, 0.22);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(10, 16, 29, 0.84),
+        rgba(5, 10, 20, 0.9)
+      );
+    color: rgba(226, 232, 240, 0.94);
+  }
+
+  .room-lobby-mobile-primary-action--resume.MuiButton-root {
+    box-shadow: 0 18px 30px -24px rgba(34, 197, 94, 0.62);
   }
 
   .room-lobby-mobile-start-btn.MuiButton-root {
@@ -10585,12 +10667,52 @@ body {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+    padding: 4px;
+    border-radius: 18px;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(7, 13, 24, 0.82),
+        rgba(4, 8, 16, 0.9)
+      );
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .room-lobby-mobile-utility-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .room-lobby-mobile-secondary-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .room-lobby-mobile-secondary-action.MuiButton-root {
+    min-height: 74px;
+    border-radius: 18px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .room-lobby-mobile-secondary-action__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+  }
+
+  .room-lobby-mobile-secondary-action__label {
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.03em;
   }
 
   .room-lobby-action-deck {
@@ -10629,7 +10751,7 @@ body {
   }
 
   .room-lobby-mobile-tab {
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid rgba(71, 85, 105, 0.68);
     background:
       linear-gradient(
@@ -10638,7 +10760,7 @@ body {
         rgba(8, 13, 24, 0.84)
       );
     color: rgba(186, 230, 253, 0.92);
-    min-height: 42px;
+    min-height: 46px;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -10668,6 +10790,19 @@ body {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background:
+      radial-gradient(
+        320px 180px at 100% 0%,
+        rgba(56, 189, 248, 0.08),
+        transparent 72%
+      ),
+      linear-gradient(180deg, rgba(7, 12, 22, 0.94), rgba(4, 8, 16, 0.98));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 22px 40px -34px rgba(2, 6, 23, 0.9);
+    padding: 12px;
   }
 
   .room-lobby-mobile-panel > .room-lobby-participants,
@@ -10675,17 +10810,55 @@ body {
   .room-lobby-mobile-panel > .room-lobby-host-accordion,
   .room-lobby-mobile-panel > .room-lobby-suggestion-accordion {
     height: 100%;
-    min-height: min(42vh, 360px);
+    min-height: min(44vh, 380px);
     max-height: min(68vh, 720px);
     overflow-y: auto;
+    padding-right: 2px;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
-  .room-lobby-mobile-panel > .room-lobby-host-accordion .MuiAccordionSummary-root {
+  .room-lobby-mobile-panel > .room-lobby-playlist-panel,
+  .room-lobby-mobile-panel > .room-lobby-participants {
+    padding: 0;
+  }
+
+  .room-lobby-mobile-panel > .room-lobby-host-accordion .MuiAccordionSummary-root,
+  .room-lobby-mobile-panel > .room-lobby-suggestion-accordion .MuiAccordionSummary-root {
     display: none;
   }
 
-  .room-lobby-mobile-panel > .room-lobby-host-accordion .MuiAccordionDetails-root {
-    padding-top: 0 !important;
+  .room-lobby-mobile-panel > .room-lobby-host-accordion .MuiAccordionDetails-root,
+  .room-lobby-mobile-panel > .room-lobby-suggestion-accordion .MuiAccordionDetails-root {
+    padding: 6px 0 0 !important;
+  }
+
+  .room-lobby-mobile-panel .room-lobby-mode-row {
+    row-gap: 10px;
+    column-gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .room-lobby-mobile-panel .room-lobby-source-view {
+    gap: 14px;
+    padding-top: 4px;
+  }
+
+  .room-lobby-mobile-panel .room-lobby-source-panel {
+    border-radius: 18px;
+    padding: 0;
+    border-color: rgba(148, 163, 184, 0.12);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(7, 12, 21, 0.72),
+        rgba(4, 8, 14, 0.84)
+      );
+  }
+
+  .room-lobby-mobile-panel .room-lobby-source-footer {
+    padding-top: 10px;
   }
 
   .room-lobby-mobile-empty-panel {

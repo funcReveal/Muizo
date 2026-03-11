@@ -921,6 +921,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       {
         key: "settings",
         label: "房主設定",
+        compactLabel: "設定",
         icon: <SettingsOutlinedIcon fontSize="small" />,
         onClick: openSettingsModal,
         disabled: Boolean(settingsActionDisabledReason),
@@ -930,6 +931,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       {
         key: "invite",
         label: inviteSuccess ? "已複製" : "邀請",
+        compactLabel: inviteSuccess ? "已複製" : "邀請",
         icon: <PersonAddAlt1RoundedIcon fontSize="small" />,
         onClick: runInvite,
         disabled: Boolean(inviteActionDisabledReason),
@@ -939,6 +941,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       {
         key: "leave",
         label: "離開",
+        compactLabel: "離開",
         icon: <LogoutRoundedIcon fontSize="small" />,
         onClick: requestLeaveRoom,
         disabled: false,
@@ -954,6 +957,59 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       requestLeaveRoom,
       runInvite,
       settingsActionDisabledReason,
+    ],
+  );
+  const mobilePrimaryActions = useMemo(
+    () => [
+      ...(isHost && gameState?.status !== "playing"
+        ? [
+            {
+              key: "start",
+              label: isStartBroadcastActive
+                ? `即將開始 ${startBroadcastRemainingSec}s`
+                : "開始遊戲",
+              icon: <PlayArrowRoundedIcon fontSize="small" />,
+              onClick: onStartGame,
+              disabled: Boolean(startActionDisabledReason),
+              tone: "start" as const,
+            },
+          ]
+        : []),
+      ...(hasLastSettlement
+        ? [
+            {
+              key: "history",
+              label: "查看上一局",
+              icon: <HistoryEduRoundedIcon fontSize="small" />,
+              onClick: () => onOpenLastSettlement?.(),
+              disabled: false,
+              tone: "history" as const,
+            },
+          ]
+        : []),
+      ...(gameState?.status === "playing"
+        ? [
+            {
+              key: "resume",
+              label: "返回遊戲",
+              icon: <SportsEsportsRoundedIcon fontSize="small" />,
+              onClick: () => onOpenGame?.(),
+              disabled: false,
+              tone: "resume" as const,
+            },
+          ]
+        : []),
+    ],
+    [
+      gameState?.status,
+      hasLastSettlement,
+      isHost,
+      isStartBroadcastActive,
+      onOpenGame,
+      onOpenLastSettlement,
+      onStartGame,
+      startActionDisabledReason,
+      startBroadcastRemainingSec,
     ],
   );
   const desktopUtilityActions = useMemo(
@@ -1534,80 +1590,73 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           <>
             <div className="room-lobby-mobile-shell">
               <div className="room-lobby-mobile-top-actions">
-                <div className="room-lobby-mobile-utility-actions">
-                  {isHost && gameState?.status !== "playing" && (
-                    <Button
-                      variant="contained"
-                      color="inherit"
-                      size="small"
-                      startIcon={<PlayArrowRoundedIcon fontSize="small" />}
-                      className="room-lobby-action-btn room-lobby-action-btn--mobile room-lobby-action-btn--start"
-                      onClick={onStartGame}
-                      disabled={Boolean(startActionDisabledReason)}
-                    >
-                      {isStartBroadcastActive
-                        ? `即將開始 ${startBroadcastRemainingSec}s`
-                        : "開始遊戲"}
-                    </Button>
-                  )}
-                  {hasLastSettlement && (
-                    <Button
-                      variant="outlined"
-                      color="inherit"
-                      size="small"
-                      startIcon={<HistoryEduRoundedIcon fontSize="small" />}
-                      onClick={() => onOpenLastSettlement?.()}
-                    >
-                      查看上一局
-                    </Button>
-                  )}
-                  {gameState?.status === "playing" && (
-                    <Button
-                      variant="contained"
-                      color="success"
-                      size="small"
-                      startIcon={<SportsEsportsRoundedIcon fontSize="small" />}
-                      onClick={() => onOpenGame?.()}
-                    >
-                      返回遊戲
-                    </Button>
-                  )}
-                </div>
-                <div className="room-lobby-action-deck room-lobby-action-deck--mobile">
-                  {mobileActionButtons.map((action) => (
-                    <Button
-                      key={`mobile-${action.key}`}
-                      variant={action.key === "leave" ? "outlined" : "contained"}
-                      color={
-                        action.key === "invite"
-                          ? "inherit"
-                          : action.tone === "warning"
-                          ? "warning"
-                          : action.tone === "info"
-                            ? "info"
-                            : action.tone === "success"
-                              ? "success"
-                              : "inherit"
-                      }
-                      className={`room-lobby-action-btn room-lobby-action-btn--mobile ${
-                        action.key === "invite"
-                          ? action.tone === "success"
-                            ? "room-lobby-action-btn--invite-success"
-                            : "room-lobby-action-btn--invite"
-                          : ""
-                      } ${
-                        action.tone === "exitPrimary"
-                          ? "room-lobby-action-btn--leave-primary"
+                <div className="room-lobby-mobile-actions-card">
+                  <div className="room-lobby-mobile-actions-head">
+                    <span className="room-lobby-mobile-actions-kicker">Quick Access</span>
+                    <span className="room-lobby-mobile-actions-caption">
+                      {isHost ? "房主操作" : "房間操作"}
+                    </span>
+                  </div>
+                  {mobilePrimaryActions.length > 0 && (
+                    <div
+                      className={`room-lobby-mobile-primary-actions ${
+                        mobilePrimaryActions.length === 1
+                          ? "room-lobby-mobile-primary-actions--single"
                           : ""
                       }`}
-                      disabled={action.disabled}
-                      title={action.title}
-                      startIcon={action.icon}
-                      onClick={action.onClick}
                     >
-                      {action.label}
-                    </Button>
-                  ))}
+                      {mobilePrimaryActions.map((action) => (
+                        <Button
+                          key={action.key}
+                          variant={action.tone === "history" ? "outlined" : "contained"}
+                          color={action.tone === "resume" ? "success" : "inherit"}
+                          size="small"
+                          startIcon={action.icon}
+                          className={`room-lobby-action-btn room-lobby-action-btn--mobile room-lobby-mobile-primary-action ${
+                            action.tone === "start"
+                              ? "room-lobby-action-btn--start"
+                              : action.tone === "history"
+                                ? "room-lobby-mobile-primary-action--history"
+                                : "room-lobby-mobile-primary-action--resume"
+                          }`}
+                          onClick={action.onClick}
+                          disabled={action.disabled}
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="room-lobby-mobile-secondary-actions">
+                    {mobileActionButtons.map((action) => (
+                      <Button
+                        key={`mobile-${action.key}`}
+                        variant={action.key === "leave" ? "outlined" : "contained"}
+                        color="inherit"
+                        className={`room-lobby-action-btn room-lobby-action-btn--mobile room-lobby-mobile-secondary-action ${
+                          action.key === "invite"
+                            ? action.tone === "success"
+                              ? "room-lobby-action-btn--invite-success"
+                              : "room-lobby-action-btn--invite"
+                            : ""
+                        } ${
+                          action.tone === "exitPrimary"
+                            ? "room-lobby-action-btn--leave-primary"
+                            : ""
+                        }`}
+                        disabled={action.disabled}
+                        title={action.title}
+                        onClick={action.onClick}
+                      >
+                        <span className="room-lobby-mobile-secondary-action__icon">
+                          {action.icon}
+                        </span>
+                        <span className="room-lobby-mobile-secondary-action__label">
+                          {action.compactLabel}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="room-lobby-mobile-tabs" role="tablist" aria-label="房間分頁">

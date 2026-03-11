@@ -36,6 +36,8 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
   onOpenSettlementByRoundKey,
 }) => {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const emptyChatMessage =
+    "目前還沒有訊息。\n可以先和房間成員打聲招呼，\n或先整理歌單、準備開始遊戲。";
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -59,10 +61,14 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
           overflowY: "auto",
           overflowX: "hidden",
         }}
-      >
-        {messages.length === 0 ? (
-          <Typography variant="body2" className="text-slate-500" align="center">
-            目前還沒有訊息，和房間成員打個招呼吧。
+        >
+          {messages.length === 0 ? (
+          <Typography
+            variant="body2"
+            className="room-lobby-chat-empty-copy text-slate-500"
+            align="center"
+          >
+            {emptyChatMessage}
           </Typography>
         ) : (
           <MUIList dense disablePadding>
