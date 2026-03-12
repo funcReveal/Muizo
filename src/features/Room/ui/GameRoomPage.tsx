@@ -5,12 +5,27 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Drawer } from "@mui/material";
+import {
+  Avatar,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  SwipeableDrawer,
+  Typography,
+} from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import LeaderboardRoundedIcon from "@mui/icons-material/LeaderboardRounded";
 import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import ForumRoundedIcon from "@mui/icons-material/ForumRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import ManageAccountsRoundedIcon from "@mui/icons-material/ManageAccountsRounded";
+import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
+import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
+import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import type {
   ChatMessage,
@@ -61,7 +76,9 @@ import useTopTwoSwapState from "./components/gameRoomPage/useTopTwoSwapState";
 import useGameRoomDanmu from "./components/gameRoomPage/useGameRoomDanmu";
 import useGameRoomChoiceHotkeys from "./components/gameRoomPage/useGameRoomChoiceHotkeys";
 import useGameRoomAnswerPanelAutoScroll from "./components/gameRoomPage/useGameRoomAnswerPanelAutoScroll";
+import useMobileDrawerDragDismiss from "./components/gameRoomPage/useMobileDrawerDragDismiss";
 import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
+import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -70,6 +87,8 @@ interface GameRoomPageProps {
   onExitGame: () => void;
   onBackToLobby?: () => void;
   onSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
+  onKickPlayer?: (clientId: string, durationMs?: number | null) => void;
+  onTransferHost?: (clientId: string) => void;
   participants?: RoomState["participants"];
   meClientId?: string;
   messages?: ChatMessage[];
@@ -81,6 +100,66 @@ interface GameRoomPageProps {
   onSettlementRecapChange?: (recaps: SettlementQuestionRecap[]) => void;
 }
 
+type MobileBottomPanel = "scoreboard" | "chat" | null;
+type HostManagementActionType = "transfer" | "kick" | "ban";
+type HostManagementAction = {
+  type: HostManagementActionType;
+  targetClientId: string;
+  targetName: string;
+  targetOnline: boolean;
+};
+
+const MOBILE_PLAYBACK_MIN_HEIGHT_VH = 26;
+const MOBILE_PLAYBACK_MAX_HEIGHT_VH = 62;
+const MOBILE_PLAYBACK_DEFAULT_HEIGHT_VH = 40;
+
+const MOBILE_SCOREBOARD_MIN_HEIGHT_VH = 42;
+const MOBILE_SCOREBOARD_MAX_HEIGHT_VH = 72;
+const MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH = 60;
+
+const MOBILE_CHAT_MIN_HEIGHT_VH = 42;
+const MOBILE_CHAT_MAX_HEIGHT_VH = 68;
+const MOBILE_CHAT_DEFAULT_HEIGHT_VH = 50;
+
+const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
+
+const clampMobileVh = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const normalizeMobileSplitHeights = (
+  playbackHeight: number,
+  scoreboardHeight: number,
+) => {
+  let nextPlaybackHeight = clampMobileVh(
+    playbackHeight,
+    MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+    MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+  );
+  let nextScoreboardHeight = clampMobileVh(
+    scoreboardHeight,
+    MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+    MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+  );
+  const totalHeight = nextPlaybackHeight + nextScoreboardHeight;
+  if (totalHeight > MOBILE_SPLIT_STACK_MAX_TOTAL_VH) {
+    const scale = MOBILE_SPLIT_STACK_MAX_TOTAL_VH / totalHeight;
+    nextPlaybackHeight = clampMobileVh(
+      nextPlaybackHeight * scale,
+      MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+      MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    );
+    nextScoreboardHeight = clampMobileVh(
+      nextScoreboardHeight * scale,
+      MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+      MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    );
+  }
+  return {
+    playbackHeight: Number(nextPlaybackHeight.toFixed(2)),
+    scoreboardHeight: Number(nextScoreboardHeight.toFixed(2)),
+  };
+};
+
 const GameRoomPage: React.FC<GameRoomPageProps> = ({
   room,
   gameState,
@@ -88,6 +167,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   onExitGame,
   onBackToLobby,
   onSubmitChoice,
+  onKickPlayer,
+  onTransferHost,
   participants = [],
   meClientId,
   messages = [],
@@ -113,12 +194,31 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const isMobileGameViewport = useMediaQuery("(max-width: 1023.95px)");
-  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [mobileBottomPanel, setMobileBottomPanel] =
+    useState<MobileBottomPanel>(null);
   const [mobileChatUnread, setMobileChatUnread] = useState(0);
   const [mobilePlaybackOpen, setMobilePlaybackOpen] = useState(false);
-  const [mobileScoreboardOpen, setMobileScoreboardOpen] = useState(false);
+  const [mobilePlaybackHeight, setMobilePlaybackHeight] = useState(
+    MOBILE_PLAYBACK_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileScoreboardHeight, setMobileScoreboardHeight] = useState(
+    MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileChatHeight, setMobileChatHeight] = useState(
+    MOBILE_CHAT_DEFAULT_HEIGHT_VH,
+  );
+  const [mobileScoreboardSwapReplayToken, setMobileScoreboardSwapReplayToken] =
+    useState(0);
+  const [mobileScoreboardSwapArmed, setMobileScoreboardSwapArmed] =
+    useState(false);
   const [mobileRevealAutoOverlayEnabled, setMobileRevealAutoOverlayEnabled] =
     useState(true);
+  const [mobileAutoOverlayTransition, setMobileAutoOverlayTransition] =
+    useState<"idle" | "opening" | "closing">("idle");
+  const [mobileChatDragging, setMobileChatDragging] = useState(false);
+  const [hostManagementOpen, setHostManagementOpen] = useState(false);
+  const [hostManagementConfirm, setHostManagementConfirm] =
+    useState<HostManagementAction | null>(null);
   const { keyBindings } = useKeyBindings();
   const legacyClipWarningShownRef = useRef(false);
   const lastPreStartCountdownSfxKeyRef = useRef<string | null>(null);
@@ -127,12 +227,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastRevealResultSfxKeyRef = useRef<string | null>(null);
   const lastComboStateSfxKeyRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
+  const lastAutoOverlayTransitionAtRef = useRef(0);
   const answerPanelRef = useRef<HTMLDivElement | null>(null);
   const { primeSfxAudio, playGameSfx } = useGameSfx({
     enabled: sfxEnabled,
     volume: Math.round((sfxVolume * gameVolume) / 100),
     preset: sfxPreset,
   });
+  const isHostInGame = room.hostClientId === meClientId;
+  const hostManageParticipants = useMemo(
+    () =>
+      sortParticipantsByScore(participants).filter(
+        (participant) => participant.clientId !== meClientId,
+      ),
+    [meClientId, participants],
+  );
 
   const openExitConfirm = () => setExitConfirmOpen(true);
   const closeExitConfirm = () => setExitConfirmOpen(false);
@@ -144,29 +253,207 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => Date.now() + serverOffsetMs,
     [serverOffsetMs],
   );
+  const mobileScoreboardOpen = mobileBottomPanel === "scoreboard";
+  const mobileChatOpen = mobileBottomPanel === "chat";
+  const mobileRevealSplitMode =
+    isMobileGameViewport &&
+    gameState.phase === "reveal" &&
+    mobilePlaybackOpen &&
+    mobileScoreboardOpen;
+  const normalizedSplitHeights = useMemo(
+    () => normalizeMobileSplitHeights(mobilePlaybackHeight, mobileScoreboardHeight),
+    [mobilePlaybackHeight, mobileScoreboardHeight],
+  );
+  const handlePlaybackHeightChange = useCallback((nextHeight: number) => {
+    const clampedNext = clampMobileVh(
+      nextHeight,
+      MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+      MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    );
+    if (mobileRevealSplitMode) {
+      const normalized = normalizeMobileSplitHeights(
+        clampedNext,
+        mobileScoreboardHeight,
+      );
+      setMobilePlaybackHeight(normalized.playbackHeight);
+      setMobileScoreboardHeight(normalized.scoreboardHeight);
+      return;
+    }
+    setMobilePlaybackHeight(clampedNext);
+  }, [mobileRevealSplitMode, mobileScoreboardHeight]);
+  const handleScoreboardHeightChange = useCallback((nextHeight: number) => {
+    const clampedNext = clampMobileVh(
+      nextHeight,
+      MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+      MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    );
+    if (mobileRevealSplitMode) {
+      const normalized = normalizeMobileSplitHeights(
+        mobilePlaybackHeight,
+        clampedNext,
+      );
+      setMobilePlaybackHeight(normalized.playbackHeight);
+      setMobileScoreboardHeight(normalized.scoreboardHeight);
+      return;
+    }
+    setMobileScoreboardHeight(clampedNext);
+  }, [mobilePlaybackHeight, mobileRevealSplitMode]);
+  const handleChatHeightChange = useCallback((nextHeight: number) => {
+    setMobileChatHeight(
+      clampMobileVh(
+        nextHeight,
+        MOBILE_CHAT_MIN_HEIGHT_VH,
+        MOBILE_CHAT_MAX_HEIGHT_VH,
+      ),
+    );
+  }, []);
   const handleToggleMobilePlayback = useCallback(() => {
-    setMobileChatOpen(false);
     setMobilePlaybackOpen((current) => !current);
   }, []);
   const handleCloseMobilePlayback = useCallback(() => {
     setMobilePlaybackOpen(false);
   }, []);
+  const handleOpenMobilePlayback = useCallback(() => {
+    setMobilePlaybackOpen(true);
+  }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
-    setMobileChatOpen(false);
-    setMobileScoreboardOpen((current) => !current);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) =>
+      current === "scoreboard" ? null : "scoreboard",
+    );
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
-    setMobileScoreboardOpen(false);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) =>
+      current === "scoreboard" ? null : current,
+    );
+  }, []);
+  const handleOpenMobileScoreboard = useCallback(() => {
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel("scoreboard");
+  }, []);
+  const handleToggleMobileChat = useCallback(() => {
+    setMobileChatUnread(0);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel((current) => (current === "chat" ? null : "chat"));
   }, []);
   const handleOpenMobileChat = useCallback(() => {
-    setMobilePlaybackOpen(false);
-    setMobileScoreboardOpen(false);
     setMobileChatUnread(0);
-    setMobileChatOpen(true);
+    setMobileScoreboardSwapArmed(false);
+    setMobileBottomPanel("chat");
   }, []);
   const handleCloseMobileChat = useCallback(() => {
-    setMobileChatOpen(false);
+    setMobileBottomPanel((current) => (current === "chat" ? null : current));
   }, []);
+  const handleMobileChatDraggingChange = useCallback((isDragging: boolean) => {
+    setMobileChatDragging(isDragging);
+  }, []);
+  const handleOpenHostManagement = useCallback(() => {
+    if (!isHostInGame) return;
+    setHostManagementOpen(true);
+  }, [isHostInGame]);
+  const handleCloseHostManagement = useCallback(() => {
+    setHostManagementOpen(false);
+  }, []);
+  const requestHostManagementAction = useCallback(
+    (type: HostManagementActionType, participant: RoomState["participants"][number]) => {
+      if (!isHostInGame) return;
+      setHostManagementConfirm({
+        type,
+        targetClientId: participant.clientId,
+        targetName: participant.username,
+        targetOnline: participant.isOnline,
+      });
+    },
+    [isHostInGame],
+  );
+  const hostManagementConfirmText = useMemo(() => {
+    if (!hostManagementConfirm) return null;
+    const target = hostManagementConfirm.targetName || "此玩家";
+    if (hostManagementConfirm.type === "transfer") {
+      return {
+        title: `轉移房主給 ${target}？`,
+        description:
+          "轉移後你會變成一般玩家。若要重新取得房主權限，需由新房主再轉移回來。",
+        confirmLabel: "確認轉移",
+      };
+    }
+    if (hostManagementConfirm.type === "ban") {
+      return {
+        title: `踢出並封鎖 ${target}？`,
+        description: "此操作會立刻將玩家移出房間，並套用伺服器預設的封鎖時長。",
+        confirmLabel: "確認踢出並封鎖",
+      };
+    }
+    return {
+      title: `踢出 ${target}？`,
+      description: "此操作會立刻將玩家移出房間，但不會額外封鎖。",
+      confirmLabel: "確認踢出",
+    };
+  }, [hostManagementConfirm]);
+  const handleConfirmHostManagementAction = useCallback(() => {
+    if (!hostManagementConfirm) return;
+    if (!isHostInGame) {
+      setHostManagementConfirm(null);
+      return;
+    }
+    if (hostManagementConfirm.type === "transfer") {
+      onTransferHost?.(hostManagementConfirm.targetClientId);
+    } else if (hostManagementConfirm.type === "kick") {
+      onKickPlayer?.(hostManagementConfirm.targetClientId, null);
+    } else {
+      onKickPlayer?.(hostManagementConfirm.targetClientId);
+    }
+    setHostManagementConfirm(null);
+  }, [hostManagementConfirm, isHostInGame, onKickPlayer, onTransferHost]);
+  const effectiveMobilePlaybackHeight = mobileRevealSplitMode
+    ? normalizedSplitHeights.playbackHeight
+    : clampMobileVh(
+        mobilePlaybackHeight,
+        MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+        MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+      );
+  const effectiveMobileScoreboardHeight = mobileRevealSplitMode
+    ? normalizedSplitHeights.scoreboardHeight
+    : clampMobileVh(
+        mobileScoreboardHeight,
+        MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+        MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+      );
+  useEffect(() => {
+    if (!mobileScoreboardOpen || mobileScoreboardSwapArmed) return;
+    const replayTimer = window.setTimeout(() => {
+      setMobileScoreboardSwapReplayToken((current) => current + 1);
+      setMobileScoreboardSwapArmed(true);
+    }, 180);
+    return () => {
+      window.clearTimeout(replayTimer);
+    };
+  }, [mobileScoreboardOpen, mobileScoreboardSwapArmed]);
+  const mobilePlaybackDragDismiss = useMobileDrawerDragDismiss({
+    open: mobilePlaybackOpen,
+    direction: "up",
+    onDismiss: handleCloseMobilePlayback,
+    height: effectiveMobilePlaybackHeight,
+    minHeight: MOBILE_PLAYBACK_MIN_HEIGHT_VH,
+    maxHeight: MOBILE_PLAYBACK_MAX_HEIGHT_VH,
+    onHeightChange: handlePlaybackHeightChange,
+    threshold: 34,
+  });
+  const mobileScoreboardDragDismiss = useMobileDrawerDragDismiss({
+    open: mobileScoreboardOpen,
+    direction: "down",
+    onDismiss: handleCloseMobileScoreboard,
+    height: effectiveMobileScoreboardHeight,
+    minHeight: MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
+    maxHeight: MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
+    onHeightChange: handleScoreboardHeightChange,
+    threshold: 34,
+  });
+  const isMobileDrawerGestureActive =
+    mobilePlaybackDragDismiss.isDragging ||
+    mobileScoreboardDragDismiss.isDragging ||
+    mobileChatDragging;
 
   useGameRoomAnswerPanelAutoScroll({
     roomId: room.id,
@@ -214,7 +501,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.answerTitle?.trim() ||
     item?.answerText?.trim() ||
     item?.title?.trim() ||
-    "（未提供名稱）";
+    "未命名答案";
 
   const roomPlayDurationSec = Math.max(
     1,
@@ -825,8 +1112,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!isMobileGameViewport) {
       const clearId = window.setTimeout(() => {
         setMobilePlaybackOpen(false);
-        setMobileScoreboardOpen(false);
-        setMobileChatOpen(false);
+        setMobileBottomPanel(null);
+        setMobileScoreboardSwapArmed(false);
         setMobileChatUnread(0);
       }, 0);
       return () => {
@@ -836,44 +1123,77 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [isMobileGameViewport]);
 
   useEffect(() => {
+    let desktopResetTimer: number | null = null;
     if (!isMobileGameViewport) {
       previousPhaseRef.current = gameState.phase;
-      return;
+      desktopResetTimer = window.setTimeout(() => {
+        setMobileAutoOverlayTransition("idle");
+      }, 0);
+      return () => {
+        if (desktopResetTimer !== null) {
+          window.clearTimeout(desktopResetTimer);
+        }
+      };
     }
     const previousPhase = previousPhaseRef.current;
     const currentPhase = gameState.phase;
     let phaseTransitionTimer: number | null = null;
+    let transitionResetTimer: number | null = null;
     if (previousPhase !== currentPhase) {
       const shouldOpenRevealOverlay =
         currentPhase === "reveal" && mobileRevealAutoOverlayEnabled;
       const shouldCloseRevealOverlay =
         currentPhase === "guess" && previousPhase === "reveal";
-      if (shouldOpenRevealOverlay || shouldCloseRevealOverlay) {
+      if (
+        (shouldOpenRevealOverlay || shouldCloseRevealOverlay) &&
+        !isMobileDrawerGestureActive
+      ) {
+        const now = Date.now();
+        const throttleMs = Math.max(
+          0,
+          180 - (now - lastAutoOverlayTransitionAtRef.current),
+        );
         phaseTransitionTimer = window.setTimeout(() => {
+          setMobileAutoOverlayTransition(
+            shouldOpenRevealOverlay ? "opening" : "closing",
+          );
           if (shouldOpenRevealOverlay) {
-            setMobileChatOpen(false);
+            setMobileScoreboardSwapArmed(false);
             setMobilePlaybackOpen(true);
-            setMobileScoreboardOpen(true);
+            setMobileBottomPanel("scoreboard");
           }
           if (shouldCloseRevealOverlay) {
             setMobilePlaybackOpen(false);
-            setMobileScoreboardOpen(false);
+            setMobileBottomPanel(null);
+            setMobileScoreboardSwapArmed(false);
           }
-        }, 0);
+          lastAutoOverlayTransitionAtRef.current = Date.now();
+          transitionResetTimer = window.setTimeout(() => {
+            setMobileAutoOverlayTransition("idle");
+          }, 260);
+        }, throttleMs);
       }
     }
-    previousPhaseRef.current = currentPhase;
+    if (!isMobileDrawerGestureActive) {
+      previousPhaseRef.current = currentPhase;
+    }
     return () => {
+      if (desktopResetTimer !== null) {
+        window.clearTimeout(desktopResetTimer);
+      }
       if (phaseTransitionTimer !== null) {
         window.clearTimeout(phaseTransitionTimer);
       }
+      if (transitionResetTimer !== null) {
+        window.clearTimeout(transitionResetTimer);
+      }
     };
-  }, [gameState.phase, isMobileGameViewport, mobileRevealAutoOverlayEnabled]);
-  const mobileRevealSplitMode =
-    isMobileGameViewport &&
-    gameState.phase === "reveal" &&
-    mobilePlaybackOpen &&
-    mobileScoreboardOpen;
+  }, [
+    gameState.phase,
+    isMobileDrawerGestureActive,
+    isMobileGameViewport,
+    mobileRevealAutoOverlayEnabled,
+  ]);
 
   const exitGameDialog = (
     <GameRoomExitDialog
@@ -894,6 +1214,121 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       visible={isInitialCountdown}
       startCountdownSec={startCountdownSec}
     />
+  );
+  const playbackHeaderActions =
+    isHostInGame ? (
+      <Stack
+        direction="row"
+        spacing={1}
+        className="max-[760px]:w-full max-[760px]:grid max-[760px]:grid-cols-1"
+      >
+        {isHostInGame && (
+          <Button
+            type="button"
+            variant="outlined"
+            color="info"
+            size="small"
+            startIcon={<ManageAccountsRoundedIcon />}
+            className="game-room-host-manage-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+            onClick={handleOpenHostManagement}
+          >
+            房主管理
+          </Button>
+        )}
+      </Stack>
+    ) : null;
+  const hostManagementPanelContent = (
+    <Stack spacing={1.1} className="game-room-host-manage-list">
+      {hostManageParticipants.length === 0 ? (
+        <Typography variant="body2" className="text-slate-300">
+          目前沒有可管理的玩家。
+        </Typography>
+      ) : (
+        hostManageParticipants.map((participant, index) => {
+          const participantPingText =
+            typeof participant.pingMs === "number"
+              ? `${Math.max(0, Math.round(participant.pingMs))} ms`
+              : participant.isOnline
+                ? "在線"
+                : "離線";
+          return (
+            <Stack
+              key={participant.clientId}
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", sm: "center" }}
+              className="game-room-host-manage-item"
+            >
+              <Stack direction="row" spacing={1} alignItems="center" className="min-w-0 flex-1">
+                <Avatar
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    fontSize: 12,
+                    bgcolor: "rgba(30,41,59,0.75)",
+                    color: "rgba(226,232,240,0.95)",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                  }}
+                >
+                  {index + 1}
+                </Avatar>
+                <div className="min-w-0">
+                  <Typography variant="body2" className="truncate text-slate-100">
+                    {participant.username}
+                  </Typography>
+                  <Typography variant="caption" className="text-slate-400">
+                    分數 {participant.score.toLocaleString()} · {participantPingText}
+                  </Typography>
+                </div>
+                <Chip
+                  size="small"
+                  label={participant.isOnline ? "在線" : "離線"}
+                  color={participant.isOnline ? "success" : "default"}
+                  variant="outlined"
+                />
+              </Stack>
+              <Stack
+                direction="row"
+                spacing={0.7}
+                alignItems="center"
+                className="game-room-host-manage-actions"
+              >
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="info"
+                  startIcon={<SwapHorizRoundedIcon />}
+                  disabled={!participant.isOnline}
+                  onClick={() =>
+                    requestHostManagementAction("transfer", participant)
+                  }
+                >
+                  轉移
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="warning"
+                  startIcon={<PersonRemoveRoundedIcon />}
+                  onClick={() => requestHostManagementAction("kick", participant)}
+                >
+                  踢出
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="error"
+                  startIcon={<BlockRoundedIcon />}
+                  onClick={() => requestHostManagementAction("ban", participant)}
+                >
+                  封鎖
+                </Button>
+              </Stack>
+            </Stack>
+          );
+        })
+      )}
+    </Stack>
   );
 
   if (isEnded) {
@@ -954,6 +1389,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               boundedCursor={boundedCursor}
               trackOrderLength={trackOrderLength}
               onOpenExitConfirm={openExitConfirm}
+              headerActions={playbackHeaderActions}
               iframeSrc={iframeSrc}
               shouldHideVideoFrame={shouldHideVideoFrame}
               shouldShowVideo={shouldShowVideo}
@@ -1021,21 +1457,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <div
               className={`game-room-mobile-action-dock lg:hidden ${
                 mobileRevealSplitMode ? "game-room-mobile-action-dock--hidden" : ""
+              } ${
+                mobileAutoOverlayTransition !== "idle"
+                  ? `game-room-mobile-action-dock--${mobileAutoOverlayTransition}`
+                  : ""
               }`}
             >
-              <button
-                type="button"
-                className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
-                onClick={handleToggleMobileScoreboard}
-              >
-                <span className="game-room-mobile-action-icon" aria-hidden>
-                  <LeaderboardRoundedIcon fontSize="inherit" />
-                </span>
-                <span className="game-room-mobile-action-label">分數榜</span>
-                <span className="game-room-mobile-action-meta">
-                  {answeredCount}/{participants.length || 0}
-                </span>
-              </button>
               <button
                 type="button"
                 className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
@@ -1051,10 +1478,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </button>
               <button
                 type="button"
+                className="game-room-mobile-action-btn game-room-mobile-action-btn--icon"
+                onClick={handleToggleMobileScoreboard}
+              >
+                <span className="game-room-mobile-action-icon" aria-hidden>
+                  <LeaderboardRoundedIcon fontSize="inherit" />
+                </span>
+                <span className="game-room-mobile-action-label">分數榜</span>
+                <span className="game-room-mobile-action-meta">
+                  已答 {answeredCount}/{participants.length || 0}
+                </span>
+              </button>
+              <button
+                type="button"
                 className={`game-room-mobile-action-btn game-room-mobile-action-btn--icon ${
+                  mobileChatOpen ? "game-room-mobile-action-btn--active" : ""
+                } ${
                   mobileChatUnread > 0 ? "game-room-mobile-action-btn--unread" : ""
                 }`}
-                onClick={handleOpenMobileChat}
+                onClick={handleToggleMobileChat}
               >
                 <span className="game-room-mobile-action-icon" aria-hidden>
                   <ForumRoundedIcon fontSize="inherit" />
@@ -1066,18 +1508,44 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     : "開啟"}
                 </span>
               </button>
-              <div className="game-room-mobile-action-subdock col-span-3">
+              <div
+                className="game-room-mobile-action-subdock col-span-3"
+              >
+                {isHostInGame && (
+                  <button
+                    type="button"
+                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--half ${
+                      hostManagementOpen ? "game-room-mobile-toggle-chip--active" : ""
+                    }`}
+                    onClick={handleOpenHostManagement}
+                  >
+                    <span className="game-room-mobile-action-icon" aria-hidden>
+                      <ManageAccountsRoundedIcon fontSize="inherit" />
+                    </span>
+                    <span>房主管理</span>
+                    <span className="game-room-mobile-action-meta">
+                      {hostManageParticipants.length} 人
+                    </span>
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="game-room-mobile-toggle-chip"
+                  className={`game-room-mobile-toggle-chip ${
+                    isHostInGame ? "game-room-mobile-toggle-chip--half " : ""
+                  }${
+                    mobileRevealAutoOverlayEnabled
+                      ? "game-room-mobile-toggle-chip--active"
+                      : ""
+                  }`}
                   onClick={() =>
                     setMobileRevealAutoOverlayEnabled((current) => !current)
                   }
+                  aria-pressed={mobileRevealAutoOverlayEnabled}
                 >
                   <span className="game-room-mobile-action-icon" aria-hidden>
                     <AutoAwesomeRoundedIcon fontSize="inherit" />
                   </span>
-                  <span>公布答案自動分割</span>
+                  <span>公布答案自動彈出影片與分數榜</span>
                   <span className="game-room-mobile-action-meta">
                     {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
                   </span>
@@ -1088,10 +1556,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         </section>
         {isMobileGameViewport && (
           <>
-            <Drawer
+            {(mobilePlaybackOpen || mobileBottomPanel !== null) &&
+              isMobileDrawerGestureActive && (
+              <div
+                className="game-room-mobile-overlay-blocker"
+                aria-hidden="true"
+              />
+            )}
+            <SwipeableDrawer
+              className={`game-room-mobile-drawer-root game-room-mobile-drawer-root--playback lg:!hidden ${
+                mobileAutoOverlayTransition !== "idle"
+                  ? `game-room-mobile-drawer-root--${mobileAutoOverlayTransition}`
+                  : ""
+              }`}
               anchor="top"
               open={mobilePlaybackOpen}
+              onOpen={handleOpenMobilePlayback}
               onClose={handleCloseMobilePlayback}
+              disableSwipeToOpen={false}
+              allowSwipeInChildren
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1099,27 +1583,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 disableAutoFocus: true,
                 disableEnforceFocus: true,
                 disableRestoreFocus: true,
+                disableScrollLock: true,
               }}
               PaperProps={{
                 className: `game-room-mobile-playback-drawer ${
                   mobileRevealSplitMode
                     ? "game-room-mobile-playback-drawer--split"
                     : "game-room-mobile-playback-drawer--single"
-                } lg:!hidden`,
+                }`,
+                style: mobilePlaybackDragDismiss.paperStyle,
               }}
             >
-              <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--playback">
-                <span className="game-room-mobile-drawer-title">影片視窗</span>
+              <div
+                className={`relative min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pt-1" : "p-2"
+                }`}
+              >
                 <button
                   type="button"
-                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
+                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon game-room-mobile-drawer-close-fab"
                   onClick={handleCloseMobilePlayback}
                   aria-label="關閉影片視窗"
                 >
                   <CloseRoundedIcon fontSize="inherit" />
                 </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
                 <GameRoomPlaybackPanel
                   isMobileView
                   isOverlayMode
@@ -1129,6 +1616,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   boundedCursor={boundedCursor}
                   trackOrderLength={trackOrderLength}
                   onOpenExitConfirm={openExitConfirm}
+                  headerActions={playbackHeaderActions}
                   iframeSrc={iframeSrc}
                   shouldHideVideoFrame={shouldHideVideoFrame}
                   shouldShowVideo={shouldShowVideo}
@@ -1148,11 +1636,36 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   onGameVolumeChange={setGameVolume}
                 />
               </div>
-            </Drawer>
-            <Drawer
+              <div
+                className="game-room-mobile-drawer-foot game-room-mobile-drawer-foot--playback"
+                role="presentation"
+                aria-label="由下往上拖曳收合影片視窗"
+                {...mobilePlaybackDragDismiss.dragHandleProps}
+              >
+                <div
+                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
+                  aria-hidden="true"
+                >
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                  <span className="game-room-mobile-drawer-handle-direction">
+                    由下往上拖曳收合
+                  </span>
+                </div>
+              </div>
+            </SwipeableDrawer>
+            <SwipeableDrawer
+              className={`game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden ${
+                mobileAutoOverlayTransition !== "idle"
+                  ? `game-room-mobile-drawer-root--${mobileAutoOverlayTransition}`
+                  : ""
+              }`}
               anchor="bottom"
               open={mobileScoreboardOpen}
+              onOpen={handleOpenMobileScoreboard}
               onClose={handleCloseMobileScoreboard}
+              disableSwipeToOpen={false}
+              allowSwipeInChildren
+              swipeAreaWidth={26}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -1160,27 +1673,57 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 disableAutoFocus: true,
                 disableEnforceFocus: true,
                 disableRestoreFocus: true,
+                disableScrollLock: true,
               }}
               PaperProps={{
                 className: `game-room-mobile-scoreboard-drawer ${
                   mobileRevealSplitMode
                     ? "game-room-mobile-scoreboard-drawer--split"
                     : "game-room-mobile-scoreboard-drawer--single"
-                } lg:!hidden`,
+                }`,
+                style: mobileScoreboardDragDismiss.paperStyle,
               }}
             >
-              <div className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard">
-                <span className="game-room-mobile-drawer-title">分數榜</span>
-                <button
-                  type="button"
-                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                  onClick={handleCloseMobileScoreboard}
-                  aria-label="關閉分數榜"
+              <div
+                className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard"
+                role="presentation"
+                aria-label="向下拖曳收合分數榜"
+                {...mobileScoreboardDragDismiss.dragHandleProps}
+              >
+                <div
+                  className="game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable"
+                  aria-hidden="true"
                 >
-                  <CloseRoundedIcon fontSize="inherit" />
-                </button>
+                  <span className="game-room-mobile-drawer-handle-bar" />
+                  <span className="game-room-mobile-drawer-handle-direction">
+                    向下拖曳收合
+                  </span>
+                </div>
+                <div className="game-room-mobile-scoreboard-headline">
+                  <div className="game-room-mobile-scoreboard-title-group">
+                    <span className="game-room-mobile-scoreboard-kicker">SCOREBOARD</span>
+                    <span className="game-room-mobile-scoreboard-title">分數榜</span>
+                  </div>
+                  <div className="game-room-mobile-scoreboard-actions">
+                    <button
+                      type="button"
+                      className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon game-room-mobile-drawer-close--scoreboard-inline"
+                      onClick={handleCloseMobileScoreboard}
+                      aria-label="關閉分數榜"
+                    >
+                      <CloseRoundedIcon fontSize="inherit" />
+                    </button>
+                    <span className="game-room-mobile-scoreboard-answered-pill">
+                      已答 {answeredCount}/{participants.length || 0}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div
+                className={`relative min-h-0 flex-1 overflow-hidden ${
+                  mobileRevealSplitMode ? "p-1.5 pb-1" : "p-2"
+                }`}
+              >
                 <GameRoomLeftSidebar
                   answeredCount={answeredCount}
                   participantCount={participants.length}
@@ -1201,15 +1744,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   chatScrollRef={mobileChatScrollRef}
                   className="game-room-mobile-scoreboard-shell !h-full"
                   showChat={false}
+                  mobileOverlayMode
+                  mobileMinimalHeader
+                  swapAnimationEnabled={
+                    mobileScoreboardOpen && mobileScoreboardSwapArmed
+                  }
+                  swapReplayToken={mobileScoreboardSwapReplayToken}
                 />
               </div>
-            </Drawer>
+            </SwipeableDrawer>
             <GameRoomMobileChatPopover
               open={mobileChatOpen}
               unreadCount={mobileChatUnread}
               onOpen={handleOpenMobileChat}
               onClose={handleCloseMobileChat}
               showFab={false}
+              heightVh={clampMobileVh(
+                mobileChatHeight,
+                MOBILE_CHAT_MIN_HEIGHT_VH,
+                MOBILE_CHAT_MAX_HEIGHT_VH,
+              )}
+              minHeightVh={MOBILE_CHAT_MIN_HEIGHT_VH}
+              maxHeightVh={MOBILE_CHAT_MAX_HEIGHT_VH}
+              onHeightChange={handleChatHeightChange}
+              onDraggingChange={handleMobileChatDraggingChange}
               danmuEnabled={danmuEnabled}
               onDanmuEnabledChange={setDanmuEnabled}
               messagesLength={messages.length}
@@ -1221,6 +1779,78 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             />
           </>
         )}
+        {isHostInGame && !isMobileGameViewport && (
+          <Dialog
+            open={hostManagementOpen}
+            onClose={handleCloseHostManagement}
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{
+              className: "game-room-host-manage-dialog",
+            }}
+          >
+            <DialogTitle>房主管理面板</DialogTitle>
+            <DialogContent dividers>{hostManagementPanelContent}</DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseHostManagement} variant="outlined" color="inherit">
+                關閉
+              </Button>
+            </DialogActions>
+          </Dialog>
+        )}
+        {isHostInGame && isMobileGameViewport && (
+          <SwipeableDrawer
+            className="game-room-mobile-drawer-root game-room-mobile-drawer-root--host-manage lg:!hidden"
+            anchor="bottom"
+            open={hostManagementOpen}
+            onOpen={handleOpenHostManagement}
+            onClose={handleCloseHostManagement}
+            disableSwipeToOpen={false}
+            swipeAreaWidth={26}
+            keepMounted
+            ModalProps={{
+              keepMounted: true,
+              hideBackdrop: true,
+              disableAutoFocus: true,
+              disableEnforceFocus: true,
+              disableRestoreFocus: true,
+              disableScrollLock: true,
+            }}
+            PaperProps={{
+              className: "game-room-mobile-host-manage-drawer",
+            }}
+          >
+            <div className="game-room-mobile-host-manage-head">
+              <span className="game-room-mobile-drawer-handle-bar" />
+              <Typography variant="subtitle2">房主管理</Typography>
+              <Typography variant="caption" className="text-slate-400">
+                可操作 {hostManageParticipants.length} 位玩家
+              </Typography>
+            </div>
+            <div className="game-room-mobile-host-manage-body">
+              {hostManagementPanelContent}
+            </div>
+            <div className="game-room-mobile-host-manage-foot">
+              <Button
+                fullWidth
+                variant="outlined"
+                color="inherit"
+                onClick={handleCloseHostManagement}
+              >
+                完成
+              </Button>
+            </div>
+          </SwipeableDrawer>
+        )}
+        <ConfirmDialog
+          open={isHostInGame && Boolean(hostManagementConfirm)}
+          title={hostManagementConfirmText?.title ?? ""}
+          description={hostManagementConfirmText?.description ?? ""}
+          confirmLabel={hostManagementConfirmText?.confirmLabel ?? "確認"}
+          cancelLabel="取消"
+          onConfirm={handleConfirmHostManagementAction}
+          onCancel={() => setHostManagementConfirm(null)}
+        />
         {audioGestureOverlay}
         {startBroadcastOverlay}
         {exitGameDialog}

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Button, Chip } from "@mui/material";
 
 type LiveSettlementTab = "overview" | "recommend";
@@ -59,10 +59,9 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   }, [isMobileView]);
 
   const activeTabButtonClass = (tab: LiveSettlementTab) =>
-    `rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${
-      activeTab === tab
-        ? "border-amber-300/60 bg-amber-300/15 text-amber-100"
-        : "border-slate-500/60 bg-slate-900/60 text-slate-300"
+    `rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${activeTab === tab
+      ? "border-amber-300/60 bg-amber-300/15 text-amber-100"
+      : "border-slate-500/60 bg-slate-900/60 text-slate-300"
     }`;
 
   return (
@@ -77,7 +76,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
           </h2>
           <p className="mt-1 truncate text-sm text-slate-300">
             {roomName}
-            {playlistTitle ? ` · ${playlistTitle}` : ""}
+            {playlistTitle ? ` ・ ${playlistTitle}` : ""}
           </p>
         </div>
         {isMobileView ? (
@@ -99,7 +98,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
             </div>
             {mobileMetaExpanded && (
               <div className="w-full max-w-[300px] rounded-xl bg-slate-900/55 px-2.5 py-2 text-[11px] text-slate-200">
-                {elapsedLabel && <p>局長 {elapsedLabel}</p>}
+                {elapsedLabel && <p>局長：{elapsedLabel}</p>}
                 {settlementTimeChipLabel && (
                   <p className="mt-0.5 text-slate-300">{settlementTimeChipLabel}</p>
                 )}
@@ -144,19 +143,15 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
       <div className="game-settlement-stage-progress rounded-2xl border border-slate-700/70 bg-slate-900/60 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-              結算導覽
-            </p>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">結算導覽</p>
             <p className="text-sm font-semibold text-slate-100">
-              Step {stepIndex + 1}/{totalSteps} ·{" "}
+              Step {stepIndex + 1}/{totalSteps} ・{" "}
               {isMobileView && !mobileMetaExpanded
                 ? tabLabels[activeTab]
                 : tabHints[activeTab]}
             </p>
           </div>
-          <div className="text-xs font-semibold text-amber-100">
-            {progressPercent}%
-          </div>
+          <div className="text-xs font-semibold text-amber-100">{progressPercent}%</div>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
           <div

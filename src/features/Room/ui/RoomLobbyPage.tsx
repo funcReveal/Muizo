@@ -1,11 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
+import {
+  Button,
+  CircularProgress,
+  Chip,
+  Dialog,
+  DialogContent,
+  Drawer,
+  IconButton,
+  Stack,
+  Typography,
+} from "@mui/material";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import GameRoomPage from "./GameRoomPage";
 import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
 import LiveSettlementShowcase from "./components/LiveSettlementShowcase";
+import HistoryReplayCompactView from "./components/HistoryReplayCompactView";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
+import {
+  formatLobbySettlementSummary,
+  SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX,
+  type LobbySettlementStats,
+} from "./components/roomLobbyPanelUtils";
 import type {
   ChatMessage,
   RoomSettlementHistorySummary,
@@ -13,11 +33,29 @@ import type {
 } from "../model/types";
 import { useRoom } from "../model/useRoom";
 
-const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
 const SETTLEMENT_SESSION_CACHE_KEY_PREFIX = "mq:settlement-cache:v1:";
-const SETTLEMENT_SUMMARY_CACHE_LIMIT = 10;
+const SETTLEMENT_SUMMARY_CACHE_LIMIT = 80;
 const SETTLEMENT_REPLAY_CACHE_LIMIT = 1;
 const SETTLEMENT_RECAP_CACHE_LIMIT = 1;
+const HISTORY_DRAWER_PAGE_SIZE = 24;
+type RoomHistoryLocationState = {
+  roomHistoryDrawerKey?: number;
+};
+
+type SelfSettlementStats = LobbySettlementStats & {
+  maxCombo: number | null;
+};
+
+const sortSettlementParticipants = (
+  participants: RoomSettlementSnapshot["participants"],
+) =>
+  [...participants].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const comboA = a.maxCombo ?? a.combo ?? 0;
+    const comboB = b.maxCombo ?? b.combo ?? 0;
+    if (comboB !== comboA) return comboB - comboA;
+    return a.joinedAt - b.joinedAt;
+  });
 
 const cloneSettlementRecaps = (recaps: SettlementQuestionRecap[]) =>
   recaps.map((item) => ({
@@ -296,6 +334,7 @@ const clearSettlementSessionCacheForClient = (clientId: string) => {
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const {
     username,
@@ -336,6 +375,8 @@ const RoomLobbyPage: React.FC = () => {
     routeRoomResolved,
     sessionProgress,
     setStatusText,
+    kickedNotice,
+    setKickedNotice,
     hostRoomPassword,
     serverOffsetMs,
     setRouteRoomId,
@@ -376,7 +417,20 @@ const RoomLobbyPage: React.FC = () => {
   const [settlementRecapsByRoundKey, setSettlementRecapsByRoundKey] = useState<
     Record<string, SettlementQuestionRecap[]>
   >({});
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [historyDrawerLoading, setHistoryDrawerLoading] = useState(false);
+  const [historyDrawerLoadingMore, setHistoryDrawerLoadingMore] =
+    useState(false);
+  const [historyDrawerCursor, setHistoryDrawerCursor] = useState<number | null>(
+    null,
+  );
+  const [historyDrawerHasMore, setHistoryDrawerHasMore] = useState(false);
+  const [historyReplaySummary, setHistoryReplaySummary] =
+    useState<RoomSettlementHistorySummary | null>(null);
+  const [historyReplayLoadingRoundKey, setHistoryReplayLoadingRoundKey] =
+    useState<string | null>(null);
   const [uiNowMs, setUiNowMs] = useState(() => Date.now() + serverOffsetMs);
+  const isTabletOrMobileLobby = useMediaQuery("(max-width:1024px)");
   const autoOpenedEndedRoundRef = useRef<string | null>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
   const latestLiveRecapsRef = useRef<SettlementQuestionRecap[]>([]);
@@ -389,6 +443,9 @@ const RoomLobbyPage: React.FC = () => {
   const settlementSummaryListRequestRef = useRef<Promise<
     RoomSettlementHistorySummary[]
   > | null>(null);
+  const historyDrawerRequestRef = useRef<
+    Promise<RoomSettlementHistorySummary[]> | null
+  >(null);
   const waitingChecklist = useMemo(() => {
     const backendOrder = [
       "server_validating",
@@ -417,7 +474,7 @@ const RoomLobbyPage: React.FC = () => {
         state = "done";
       }
       const labels: Record<(typeof backendOrder)[number], string> = {
-        server_validating: "驗證連線與身份",
+        server_validating: "驗證連線與身分",
         room_lookup: "查找目標房間",
         membership_restore: "恢復房間成員狀態",
         state_build: "建立房間畫面資料",
@@ -445,14 +502,24 @@ const RoomLobbyPage: React.FC = () => {
       rows,
       doneCount,
       ratio: rows.length > 0 ? doneCount / rows.length : 0,
-      activeLabel: activeRow?.label ?? "等待切換畫面",
+      activeLabel: activeRow?.label ?? "等待同步中",
       isError: Boolean(sessionProgress && sessionProgress.status === "error"),
       errorMessage:
         sessionProgress?.status === "error"
-          ? (sessionProgress.message ?? "連線流程發生錯誤")
+          ? (sessionProgress.message ?? "同步流程發生錯誤")
           : null,
     };
   }, [isConnected, sessionProgress]);
+
+  const isKickedFromActiveRoom = Boolean(
+    roomId && !currentRoom && kickedNotice?.roomId === roomId,
+  );
+  const kickedBannedUntilLabel = useMemo(() => {
+    if (typeof kickedNotice?.bannedUntil !== "number") return null;
+    return new Date(kickedNotice.bannedUntil).toLocaleString("zh-TW", {
+      hour12: false,
+    });
+  }, [kickedNotice?.bannedUntil]);
 
   const settlementSessionCacheKey =
     currentRoom?.id && clientId
@@ -475,6 +542,13 @@ const RoomLobbyPage: React.FC = () => {
       setSettlementRecapsByRoundKey({});
       setSettlementCacheHydrated(false);
       setSettlementSummaryListLoaded(false);
+      setHistoryDrawerOpen(false);
+      setHistoryDrawerLoading(false);
+      setHistoryDrawerLoadingMore(false);
+      setHistoryDrawerCursor(null);
+      setHistoryDrawerHasMore(false);
+      setHistoryReplaySummary(null);
+      setHistoryReplayLoadingRoundKey(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [currentRoom?.id]);
@@ -620,6 +694,63 @@ const RoomLobbyPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [activeSettlementRoundKey, currentRoom?.id, roomScopedSettlementHistory]);
 
+  const loadHistoryDrawerPage = useCallback(
+    async (options?: { reset?: boolean }) => {
+      if (!currentRoom?.id) return [] as RoomSettlementHistorySummary[];
+      const reset = options?.reset ?? false;
+      const beforeEndedAt = reset ? null : historyDrawerCursor;
+      if (!reset && !historyDrawerHasMore)
+        return [] as RoomSettlementHistorySummary[];
+      if (historyDrawerRequestRef.current) {
+        await historyDrawerRequestRef.current;
+        return await historyDrawerRequestRef.current;
+      }
+      const request = (async () => {
+        let fetchedItems: RoomSettlementHistorySummary[] = [];
+        if (reset) {
+          setHistoryDrawerLoading(true);
+        } else {
+          setHistoryDrawerLoadingMore(true);
+        }
+        try {
+          const { items, nextCursor } = await fetchSettlementHistorySummaries({
+            limit: HISTORY_DRAWER_PAGE_SIZE,
+            beforeEndedAt,
+          });
+          fetchedItems = items.filter((item) => item.roomId === currentRoom.id);
+          setSettlementSummaryListLoaded(true);
+          setSettlementHistorySummaries((prev) => {
+            const merged = new Map<string, RoomSettlementHistorySummary>();
+            prev.forEach((item) => merged.set(item.roundKey, item));
+            fetchedItems.forEach((item) => merged.set(item.roundKey, item));
+            return limitSettlementSummaries(Array.from(merged.values()));
+          });
+          setHistoryDrawerCursor(nextCursor ?? null);
+          setHistoryDrawerHasMore(Boolean(nextCursor));
+        } catch (error) {
+          setStatusText(
+            error instanceof Error ? error.message : "載入對戰歷史失敗",
+          );
+        } finally {
+          setHistoryDrawerLoading(false);
+          setHistoryDrawerLoadingMore(false);
+        }
+        return fetchedItems;
+      })();
+      historyDrawerRequestRef.current = request.finally(() => {
+        historyDrawerRequestRef.current = null;
+      });
+      return await historyDrawerRequestRef.current;
+    },
+    [
+      currentRoom?.id,
+      fetchSettlementHistorySummaries,
+      historyDrawerCursor,
+      historyDrawerHasMore,
+      setStatusText,
+    ],
+  );
+
   const ensureSettlementSummaryListLoaded = useCallback(async () => {
     if (!currentRoom?.id) return [] as RoomSettlementHistorySummary[];
     if (roomScopedSettlementHistorySummaries.length > 0)
@@ -630,19 +761,8 @@ const RoomLobbyPage: React.FC = () => {
       return await settlementSummaryListRequestRef.current;
     }
 
-    const request = fetchSettlementHistorySummaries({ limit: 50 })
-      .then(({ items }) => {
-        setSettlementSummaryListLoaded(true);
-        if (items.length > 0) {
-          setSettlementHistorySummaries((prev) => {
-            const merged = new Map<string, RoomSettlementHistorySummary>();
-            prev.forEach((item) => merged.set(item.roundKey, item));
-            items.forEach((item) => merged.set(item.roundKey, item));
-            return limitSettlementSummaries(Array.from(merged.values()));
-          });
-        }
-        return items;
-      })
+    const request = loadHistoryDrawerPage({ reset: true })
+      .then((items) => items)
       .catch((error) => {
         setSettlementSummaryListLoaded(true);
         throw error;
@@ -655,13 +775,14 @@ const RoomLobbyPage: React.FC = () => {
     return await request;
   }, [
     currentRoom?.id,
-    fetchSettlementHistorySummaries,
+    loadHistoryDrawerPage,
     roomScopedSettlementHistorySummaries,
     settlementSummaryListLoaded,
   ]);
 
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
+      setHistoryDrawerOpen(false);
       setActiveSettlementRoundKey(roundKey);
       const cachedReplaySnapshot =
         roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
@@ -692,7 +813,7 @@ const RoomLobbyPage: React.FC = () => {
           setStatusText(
             error instanceof Error
               ? error.message
-              : "讀取對戰回顧失敗，請稍後再試",
+              : "讀取對戰資料失敗，請稍後再試",
           );
           setActiveSettlementRoundKey(null);
           return;
@@ -700,7 +821,7 @@ const RoomLobbyPage: React.FC = () => {
       }
 
       if (!summary) {
-        setStatusText("找不到對戰回顧");
+        setStatusText("找不到該場次資料");
         setActiveSettlementRoundKey(null);
         return;
       }
@@ -729,7 +850,7 @@ const RoomLobbyPage: React.FC = () => {
         }
       } catch (error) {
         setStatusText(
-          error instanceof Error ? error.message : "讀取對戰回顧失敗",
+          error instanceof Error ? error.message : "載入回放失敗",
         );
         setActiveSettlementRoundKey(null);
       } finally {
@@ -858,7 +979,7 @@ const RoomLobbyPage: React.FC = () => {
     if (isGameView) {
       setIsGameView(false);
     }
-    setStatusText("遊戲已結束，正在開啟結算頁面");
+    setStatusText("已自動切換到最新對戰結算");
   }, [
     currentRoom,
     gameState?.status,
@@ -972,17 +1093,177 @@ const RoomLobbyPage: React.FC = () => {
     );
   }, [latestSettlementSummary, roomScopedSettlementHistorySummaries]);
 
+  const latestSettlementRoundKey = useMemo(() => {
+    if (mergedSettlementSummaries.length === 0) return null;
+    return mergedSettlementSummaries[mergedSettlementSummaries.length - 1]
+      ?.roundKey ?? null;
+  }, [mergedSettlementSummaries]);
+
+  const historyDrawerSummaries = useMemo(
+    () =>
+      [...mergedSettlementSummaries].sort(
+        (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+      ),
+    [mergedSettlementSummaries],
+  );
+  const showHistoryDrawerInitialLoading =
+    historyDrawerLoading && historyDrawerSummaries.length === 0;
+  const showHistoryDrawerRefreshing =
+    historyDrawerLoading && historyDrawerSummaries.length > 0;
+  const isSettlementReviewLoading = Boolean(
+    resolvedActiveSettlementRoundKey &&
+      loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
+      !activeSettlementSnapshot,
+  );
+
+  const roomSnapshotByRoundKey = useMemo(() => {
+    const next: Record<string, RoomSettlementSnapshot> = {};
+    roomScopedSettlementHistory.forEach((snapshot) => {
+      next[snapshot.roundKey] = snapshot;
+    });
+    Object.entries(roomScopedSettlementReplayByRoundKey).forEach(
+      ([roundKey, snapshot]) => {
+        if (!next[roundKey]) {
+          next[roundKey] = snapshot;
+        }
+      },
+    );
+    return next;
+  }, [roomScopedSettlementHistory, roomScopedSettlementReplayByRoundKey]);
+
+  const selfStatsByRoundKey = useMemo(() => {
+    const next: Record<string, SelfSettlementStats> = {};
+    mergedSettlementSummaries.forEach((summary) => {
+      const snapshot = roomSnapshotByRoundKey[summary.roundKey] ?? null;
+      let rank = summary.selfRank ?? null;
+      let score = summary.selfPlayer?.finalScore ?? null;
+      let maxCombo = summary.selfPlayer?.maxCombo ?? null;
+      let correctCount = summary.selfPlayer?.correctCount ?? null;
+
+      if (snapshot && clientId) {
+        const sortedParticipants = sortSettlementParticipants(
+          snapshot.participants,
+        );
+        const selfParticipant =
+          sortedParticipants.find((item) => item.clientId === clientId) ?? null;
+        if (selfParticipant) {
+          if (rank === null) {
+            rank =
+              sortedParticipants.findIndex(
+                (item) => item.clientId === selfParticipant.clientId,
+              ) + 1;
+          }
+          if (score === null) score = selfParticipant.score;
+          if (maxCombo === null) {
+            maxCombo = selfParticipant.maxCombo ?? selfParticipant.combo ?? 0;
+          }
+          if (correctCount === null) {
+            correctCount = selfParticipant.correctCount ?? null;
+          }
+        }
+      }
+
+      next[summary.roundKey] = {
+        rank,
+        score,
+        maxCombo,
+        correctCount,
+        playerCount: summary.playerCount,
+      };
+    });
+    return next;
+  }, [clientId, mergedSettlementSummaries, roomSnapshotByRoundKey]);
+
+  const historyReplaySnapshot = useMemo(() => {
+    if (!historyReplaySummary) return null;
+    return (
+      roomSnapshotByRoundKey[historyReplaySummary.roundKey] ??
+      roomScopedSettlementHistory.find(
+        (item) => item.roundKey === historyReplaySummary.roundKey,
+      ) ??
+      null
+    );
+  }, [historyReplaySummary, roomScopedSettlementHistory, roomSnapshotByRoundKey]);
+
+  const openHistoryReplayModal = useCallback(
+    async (summary: RoomSettlementHistorySummary) => {
+      setHistoryReplaySummary(summary);
+      const cached =
+        roomSnapshotByRoundKey[summary.roundKey] ??
+        roomScopedSettlementHistory.find(
+          (item) => item.roundKey === summary.roundKey,
+        ) ??
+        null;
+      if (cached) return;
+      setHistoryReplayLoadingRoundKey(summary.roundKey);
+      try {
+        const snapshot = await fetchSettlementReplay(summary.matchId);
+        setSettlementReplayByRoundKey((prev) =>
+          pruneSettlementReplayByRoundKey(
+            {
+              ...prev,
+              [snapshot.roundKey]: snapshot,
+            },
+            {
+              roomId: currentRoom?.id ?? null,
+              pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
+            },
+          ),
+        );
+      } catch (error) {
+        setStatusText(
+          error instanceof Error ? error.message : "載入歷史回放失敗",
+        );
+      } finally {
+        setHistoryReplayLoadingRoundKey((prev) =>
+          prev === summary.roundKey ? null : prev,
+        );
+      }
+    },
+    [
+      activeSettlementRoundKey,
+      currentRoom?.id,
+      fetchSettlementReplay,
+      roomScopedSettlementHistory,
+      roomSnapshotByRoundKey,
+      setStatusText,
+    ],
+  );
+
+  const closeHistoryReplayModal = useCallback(() => {
+    setHistoryReplaySummary(null);
+    setHistoryReplayLoadingRoundKey(null);
+  }, []);
+
+  const formatHistoryDateTime = useCallback((timestamp: number) => {
+    return new Date(timestamp).toLocaleString("zh-TW", { hour12: false });
+  }, []);
+
+  const formatHistoryDuration = useCallback(
+    (startedAt: number, endedAt: number) => {
+      const totalMs = Math.max(0, endedAt - startedAt);
+      const totalSec = Math.floor(totalMs / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      return `${min}:${String(sec).padStart(2, "0")}`;
+    },
+    [],
+  );
+
   const settlementReviewMessages = useMemo<ChatMessage[]>(() => {
     if (!currentRoom?.id) return [];
-    return mergedSettlementSummaries.map((snapshot) => ({
-      id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${snapshot.roundKey}`,
+    return mergedSettlementSummaries.map((summary) => ({
+      id: `${SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX}${summary.roundKey}`,
       roomId: currentRoom.id,
       userId: "system:settlement-review",
-      username: "系統",
-      content: `對戰回顧：第 ${snapshot.roundNo} 局`,
-      timestamp: snapshot.endedAt,
+      username: "對戰紀錄",
+      content: formatLobbySettlementSummary(
+        summary,
+        selfStatsByRoundKey[summary.roundKey],
+      ),
+      timestamp: summary.endedAt,
     }));
-  }, [currentRoom, mergedSettlementSummaries]);
+  }, [currentRoom, mergedSettlementSummaries, selfStatsByRoundKey]);
 
   const lobbyMessages = useMemo(() => {
     if (settlementReviewMessages.length === 0) return messages;
@@ -990,6 +1271,7 @@ const RoomLobbyPage: React.FC = () => {
       (a, b) => a.timestamp - b.timestamp,
     );
   }, [messages, settlementReviewMessages]);
+  const isHost = currentRoom?.hostClientId === clientId;
 
   useEffect(() => {
     if (!activeSettlementSnapshot) {
@@ -1037,8 +1319,8 @@ const RoomLobbyPage: React.FC = () => {
   const leaveRoomAndNavigate = useCallback(() => {
     const targetRoomId =
       currentRoom?.id ?? roomId ?? lastJoinedRoomIdRef.current;
-    setActiveSettlementRoundKey(null);
     handleLeaveRoom(() => {
+      setActiveSettlementRoundKey(null);
       if (clientId) {
         clearSettlementSessionCacheForClient(clientId);
       } else {
@@ -1054,6 +1336,24 @@ const RoomLobbyPage: React.FC = () => {
     removeSettlementCacheForRoom,
     roomId,
   ]);
+  const openHistoryDrawer = useCallback(() => {
+    setHistoryDrawerOpen(true);
+    void loadHistoryDrawerPage({ reset: true });
+  }, [loadHistoryDrawerPage]);
+  const closeHistoryDrawer = useCallback(() => {
+    setHistoryDrawerOpen(false);
+  }, []);
+  const lastHistoryDrawerRequestKeyRef = useRef<number | null>(null);
+  const roomHistoryDrawerKey =
+    (location.state as RoomHistoryLocationState | null)?.roomHistoryDrawerKey ??
+    null;
+
+  useEffect(() => {
+    if (!currentRoom || roomHistoryDrawerKey === null) return;
+    if (lastHistoryDrawerRequestKeyRef.current === roomHistoryDrawerKey) return;
+    lastHistoryDrawerRequestKeyRef.current = roomHistoryDrawerKey;
+    openHistoryDrawer();
+  }, [currentRoom, openHistoryDrawer, roomHistoryDrawerKey]);
 
   const settlementStartBroadcastRemainingSec =
     gameState?.status === "playing"
@@ -1068,11 +1368,10 @@ const RoomLobbyPage: React.FC = () => {
         <div className="fixed inset-0 z-[2200] flex items-center justify-center bg-slate-950/82 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-md rounded-2xl border border-amber-300/45 bg-slate-950/90 px-6 py-6 text-center shadow-[0_24px_70px_-30px_rgba(251,191,36,0.8)]">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/55 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100">
-              全員同步中
+              Match Settlement
             </div>
             <p className="mt-3 text-sm text-slate-200">
-              房主已按下開始，{settlementStartBroadcastRemainingSec}{" "}
-              秒後切入開局倒數
+              對戰即將開始結算，{settlementStartBroadcastRemainingSec} 秒後自動切換。
             </p>
             <div className="mt-4 flex items-center justify-center">
               <div className="flex h-24 w-24 items-center justify-center rounded-full border border-amber-300/60 bg-amber-500/12 text-5xl font-black text-amber-100 shadow-[0_0_30px_rgba(251,191,36,0.45)]">
@@ -1080,13 +1379,299 @@ const RoomLobbyPage: React.FC = () => {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-300">
-              倒數結束後會自動切入遊戲
+              倒數期間會暫時鎖定操作，避免切換畫面時發生誤觸。
             </p>
           </div>
         </div>,
         document.body,
       )
     : null;
+  const battleHistoryDrawer = (
+    <Drawer
+      anchor="right"
+      open={historyDrawerOpen}
+      onClose={closeHistoryDrawer}
+      ModalProps={{
+        keepMounted: true,
+      }}
+      PaperProps={{
+        className: "room-battle-history-drawer",
+        sx: {
+          width: isTabletOrMobileLobby ? "100%" : 440,
+          maxWidth: "100vw",
+        },
+      }}
+    >
+      <div className="room-battle-history-shell">
+        <div className="room-battle-history-head">
+          <div className="room-battle-history-title-wrap">
+            <span className="room-battle-history-kicker">BATTLE ARCHIVE</span>
+            <h2 className="room-battle-history-title">對戰歷史</h2>
+            <p className="room-battle-history-subtitle">
+              可從右上 MENU 開啟，這裡可回看完整局數與結算。
+            </p>
+          </div>
+          <IconButton
+            size="small"
+            color="inherit"
+            className="room-battle-history-close"
+            onClick={closeHistoryDrawer}
+            aria-label="關閉對戰歷史"
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </div>
+        {showHistoryDrawerRefreshing ? (
+          <div className="room-battle-history-sync-strip" role="status" aria-live="polite">
+            <span className="room-battle-history-sync-strip__dot" aria-hidden="true" />
+            <span>同步房間歷史中...</span>
+          </div>
+        ) : null}
+
+        <div className="room-battle-history-list">
+          {showHistoryDrawerInitialLoading ? (
+            <div className="room-battle-history-empty room-battle-history-empty--loading">
+              <div className="room-battle-history-loader" role="status" aria-live="polite">
+                <span className="room-battle-history-loader__kicker">
+                  ARCHIVE SYNC
+                </span>
+                <div className="room-battle-history-loader__headline">
+                  <span
+                    className="room-battle-history-sync-strip__dot"
+                    aria-hidden="true"
+                  />
+                  <span>讀取房間歷史中...</span>
+                </div>
+                <span className="room-battle-history-loader__rail" aria-hidden="true">
+                  <span className="room-battle-history-loader__rail-fill" />
+                </span>
+                <div className="room-battle-history-loader__chips" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div className="room-battle-history-loader__ghosts" aria-hidden="true">
+                  <span />
+                  <span />
+                </div>
+              </div>
+            </div>
+          ) : historyDrawerSummaries.length === 0 ? (
+            <div className="room-battle-history-empty">
+              <HistoryEduRoundedIcon fontSize="small" />
+              <span>目前沒有可查看的房間歷史。</span>
+            </div>
+          ) : (
+            historyDrawerSummaries.map((summary) => {
+              const stats = selfStatsByRoundKey[summary.roundKey];
+              const isLatest = summary.roundKey === latestSettlementRoundKey;
+              const isLoading = loadingSettlementRoundKey === summary.roundKey;
+              return (
+                <div
+                  key={summary.roundKey}
+                  className={`room-battle-history-item ${
+                    isLatest ? "is-latest" : ""
+                  }`}
+                >
+                  <div className="room-battle-history-item-head">
+                    <div>
+                      <Typography variant="subtitle2" className="room-battle-history-round">
+                        Round {summary.roundNo}
+                      </Typography>
+                      <Typography variant="caption" className="room-battle-history-time">
+                        {new Date(summary.endedAt).toLocaleString("zh-TW", {
+                          hour12: false,
+                        })}
+                      </Typography>
+                    </div>
+                    <Chip
+                      size="small"
+                      color={isLatest ? "info" : "default"}
+                      variant={isLatest ? "filled" : "outlined"}
+                      label={isLatest ? "上一局" : "歷史紀錄"}
+                    />
+                  </div>
+
+                  <div className="room-battle-history-metrics">
+                    <span>
+                      Rank
+                      <strong>{stats?.rank ?? "-"}</strong>
+                    </span>
+                    <span>
+                      Score
+                      <strong>
+                        {typeof stats?.score === "number"
+                          ? stats.score.toLocaleString()
+                          : "-"}
+                      </strong>
+                    </span>
+                    <span>
+                      Max Combo
+                      <strong>
+                        {typeof stats?.maxCombo === "number"
+                          ? `x${Math.max(0, Math.round(stats.maxCombo))}`
+                          : "-"}
+                      </strong>
+                    </span>
+                  </div>
+
+                  <Typography variant="caption" className="room-battle-history-copy">
+                    {formatLobbySettlementSummary(summary, stats)}
+                  </Typography>
+
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      disabled={historyReplayLoadingRoundKey === summary.roundKey}
+                      onClick={() => {
+                        void openHistoryReplayModal(summary);
+                      }}
+                    >
+                      {historyReplayLoadingRoundKey === summary.roundKey
+                        ? "載入詳情..."
+                        : "查看詳情"}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      disabled={isLoading || !isLatest}
+                      onClick={() => {
+                        void openSettlementReviewByRoundKey(summary.roundKey);
+                      }}
+                    >
+                      {isLoading ? "載入中..." : "上一局快速回放"}
+                    </Button>
+                  </Stack>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {historyDrawerHasMore && (
+          <div className="flex justify-center pb-1">
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              disabled={historyDrawerLoadingMore}
+              onClick={() => {
+                void loadHistoryDrawerPage();
+              }}
+            >
+              {historyDrawerLoadingMore ? "載入更多中..." : "載入更多"}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Drawer>
+  );
+
+  const battleHistoryReplayDialog = (
+    <Dialog
+      open={Boolean(historyReplaySummary)}
+      onClose={closeHistoryReplayModal}
+      maxWidth="xl"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: { xs: 0, sm: 2.5 },
+          background:
+            "linear-gradient(180deg, rgba(2,6,23,0.98), rgba(2,6,23,0.94))",
+          border: "1px solid rgba(56, 189, 248, 0.28)",
+        },
+      }}
+    >
+      <DialogContent
+        sx={{
+          p: { xs: 1.25, sm: 2 },
+          minHeight: { xs: "72dvh", sm: "66dvh" },
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.5,
+        }}
+      >
+        {historyReplaySummary && (
+          <div className="rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
+                  Match Replay
+                </p>
+                <p className="mt-1 truncate text-base font-semibold text-[var(--mc-text)]">
+                  {historyReplaySummary.roomName || historyReplaySummary.roomId}
+                </p>
+                <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                  第 {historyReplaySummary.roundNo} 局 · {historyReplaySummary.playerCount} 人 ·{" "}
+                  {historyReplaySummary.questionCount} 題 ·{" "}
+                  {formatHistoryDateTime(historyReplaySummary.startedAt)} ~{" "}
+                  {formatHistoryDateTime(historyReplaySummary.endedAt)} ·{" "}
+                  {formatHistoryDuration(
+                    historyReplaySummary.startedAt,
+                    historyReplaySummary.endedAt,
+                  )}
+                </p>
+              </div>
+              <Button
+                variant="outlined"
+                size="small"
+                color="inherit"
+                onClick={closeHistoryReplayModal}
+              >
+                關閉
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {historyReplaySummary &&
+          historyReplayLoadingRoundKey === historyReplaySummary.roundKey &&
+          !historyReplaySnapshot ? (
+            <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/55">
+              <div className="inline-flex items-center gap-3 text-sm text-[var(--mc-text-muted)]">
+                <CircularProgress size={18} thickness={4.8} sx={{ color: "#38bdf8" }} />
+                正在載入回放內容...
+              </div>
+            </div>
+          ) : historyReplaySnapshot ? (
+            <HistoryReplayCompactView
+              room={historyReplaySnapshot.room}
+              participants={historyReplaySnapshot.participants}
+              messages={historyReplaySnapshot.messages}
+              playlistItems={historyReplaySnapshot.playlistItems ?? []}
+              trackOrder={historyReplaySnapshot.trackOrder}
+              playedQuestionCount={historyReplaySnapshot.playedQuestionCount}
+              startedAt={historyReplaySnapshot.startedAt}
+              endedAt={historyReplaySnapshot.endedAt}
+              meClientId={clientId}
+              questionRecaps={
+                settlementRecapsByRoundKey[historyReplaySnapshot.roundKey] ??
+                historyReplaySnapshot.questionRecaps ??
+                []
+              }
+            />
+          ) : (
+            <div className="rounded-xl border border-amber-300/20 bg-amber-400/6 px-4 py-5 text-sm text-amber-100/90">
+              找不到可顯示的回放資料。
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+  const settlementReviewLoadingBanner = isSettlementReviewLoading ? (
+    <div className="room-lobby-floating-progress" role="status" aria-live="polite">
+      <div className="room-lobby-floating-progress__label">
+        <span className="room-lobby-floating-progress__kicker">Replay Sync</span>
+        <span>正在準備對戰回放...</span>
+      </div>
+      <span className="room-lobby-floating-progress__rail" aria-hidden="true">
+        <span className="room-lobby-floating-progress__rail-fill" />
+      </span>
+    </div>
+  ) : null;
 
   useEffect(() => {
     if (currentRoom) return;
@@ -1098,6 +1683,98 @@ const RoomLobbyPage: React.FC = () => {
     }
     lastJoinedRoomIdRef.current = null;
   }, [clientId, currentRoom, removeSettlementCacheForRoom, routeRoomResolved]);
+
+  if (roomId && username && !currentRoom && isKickedFromActiveRoom) {
+    return (
+      <div className="mx-auto mt-6 w-full max-w-[980px] min-w-0">
+        <div className="relative overflow-hidden rounded-[26px] border border-rose-300/30 bg-[radial-gradient(circle_at_12%_12%,rgba(244,63,94,0.22),transparent_44%),radial-gradient(circle_at_86%_12%,rgba(251,191,36,0.16),transparent_48%),linear-gradient(180deg,rgba(16,10,14,0.97),rgba(8,6,10,0.99))] p-6 text-[var(--mc-text)] shadow-[0_36px_90px_-58px_rgba(244,63,94,0.6)] sm:p-8">
+          <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(244,63,94,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(244,63,94,0.05)_1px,transparent_1px)] [background-size:20px_20px]" />
+          <div className="relative grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-3 rounded-2xl border border-rose-300/35 bg-rose-300/10 px-4 py-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200/45 bg-rose-400/10 text-lg text-rose-100">
+                  !
+                </span>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.28em] text-rose-100/80">
+                    Room Access
+                  </div>
+                  <div className="text-sm font-semibold text-rose-50 sm:text-base">
+                    Access Updated
+                  </div>
+                </div>
+              </div>
+
+              <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
+                你已離開這個房間
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
+                {kickedNotice?.reason ?? "你已被房主移出房間。"}
+              </p>
+              {kickedBannedUntilLabel ? (
+                <p className="mt-2 text-xs leading-5 text-amber-100/85">
+                  封鎖至：{kickedBannedUntilLabel}
+                </p>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+                  房間
+                  <span className="ml-1 truncate text-[var(--mc-text)]">
+                    {roomId}
+                  </span>
+                </span>
+                <span className="inline-flex max-w-full items-center rounded-full border border-rose-300/22 bg-rose-400/10 px-3 py-1 text-xs text-rose-100/90">
+                  玩家
+                  <span className="ml-1 truncate text-rose-50">{username}</span>
+                </span>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300/65 bg-rose-500/20 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-rose-50 transition hover:border-rose-200 hover:bg-rose-500/30"
+                  onClick={() => {
+                    setKickedNotice(null);
+                    navigate("/rooms", { replace: true });
+                  }}
+                >
+                  返回房間列表
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:border-amber-200/25 hover:bg-[var(--mc-surface-strong)]/88"
+                  onClick={() => {
+                    setKickedNotice(null);
+                    navigate("/rooms/create");
+                  }}
+                >
+                  建立新房間
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4 sm:p-5">
+              <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
+                Next Steps
+              </div>
+              <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  可返回房間列表，重新加入其他對戰。
+                </li>
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  若你是房主，可直接建立新房並重新邀請玩家。
+                </li>
+                <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
+                  若這不是預期行為，請稍後重新整理並再試一次。
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (roomId && username && !currentRoom && !routeRoomResolved) {
     return (
@@ -1117,24 +1794,24 @@ const RoomLobbyPage: React.FC = () => {
                       Room Connect
                     </div>
                     <div className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-lg">
-                      正在進入房間，請稍後
+                      正在進入房間，請稍候
                     </div>
                   </div>
                 </div>
 
                 <p className="mt-4 text-sm leading-6 text-[var(--mc-text-muted)]">
-                  正在同步房間狀態、播放清單與目前對戰資訊。完成後會自動切換到房間畫面。
+                  目前正在同步房間狀態、聊天室與歌單資料，完成後會自動切換到房間畫面。
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/75 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
-                    房號：
+                    房號
                     <span className="ml-1 truncate text-[var(--mc-text)]">
                       {roomId}
                     </span>
                   </span>
                   <span className="inline-flex min-w-0 max-w-full items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-                    玩家：
+                    玩家
                     <span className="ml-1 truncate text-amber-50">
                       {username}
                     </span>
@@ -1161,7 +1838,7 @@ const RoomLobbyPage: React.FC = () => {
                           : "animate-pulse bg-emerald-300"
                       }`}
                     />
-                    {waitingChecklist.isError ? "需要重試" : "同步中"}
+                    {waitingChecklist.isError ? "同步失敗" : "同步中"}
                   </div>
                 </div>
 
@@ -1254,27 +1931,27 @@ const RoomLobbyPage: React.FC = () => {
                       Room Check
                     </div>
                     <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
-                      找不到這個房間
+                      Room Check
                     </div>
                   </div>
                 </div>
 
                 <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
-                  房間不存在或已關閉
+                  找不到這個房間
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-                  可能是房間已結束、連結過期，或房主已關閉房間。你可以返回房間列表重新加入，或建立新房間。
+                  房間可能已關閉、你已被移出，或邀請連結已失效。你可以回到列表重新加入，或直接建立新房間。
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="inline-flex max-w-full items-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 px-3 py-1 text-xs text-[var(--mc-text-muted)]">
-                    房間 ID：
+                    房間 ID
                     <span className="ml-1 truncate text-[var(--mc-text)]">
                       {roomId}
                     </span>
                   </span>
                   <span className="inline-flex items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-                    你可以返回房間列表重新加入
+                    請確認房號與邀請狀態
                   </span>
                 </div>
 
@@ -1298,21 +1975,21 @@ const RoomLobbyPage: React.FC = () => {
 
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_86%,black_14%)] p-4 sm:p-5">
                 <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                  可能原因
+                  Helpful Hints
                 </div>
                 <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
                   <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                    房主已離開並關閉房間
+                    確認邀請連結是否仍有效。
                   </li>
                   <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                    邀請連結對應的房號已過期
+                    若房主重新建立房間，請索取新的邀請連結。
                   </li>
                   <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
-                    複製連結時房號被截斷或修改
+                    若仍無法加入，可嘗試重新整理後再試。
                   </li>
                 </ul>
                 <div className="mt-4 rounded-xl border border-amber-300/18 bg-amber-300/8 px-3 py-2 text-xs leading-5 text-amber-100/85">
-                  建議從「房間大廳」重新整理列表後再加入，避免使用已失效的舊連結。
+                  如果你是房主，請確認房間尚未被關閉，且目前仍允許新的玩家加入。
                 </div>
               </div>
             </div>
@@ -1333,6 +2010,8 @@ const RoomLobbyPage: React.FC = () => {
             onBackToLobby={() => setIsGameView(false)}
             onExitGame={() => leaveRoomAndNavigate()}
             onSubmitChoice={handleSubmitChoice}
+            onKickPlayer={handleKickPlayer}
+            onTransferHost={handleTransferHost}
             participants={participants}
             meClientId={clientId}
             messages={messages}
@@ -1343,7 +2022,9 @@ const RoomLobbyPage: React.FC = () => {
             serverOffsetMs={serverOffsetMs}
             onSettlementRecapChange={handleSettlementRecapChange}
           />
-        </div>{" "}
+        </div>
+        {battleHistoryDrawer}
+        {battleHistoryReplayDialog}
       </>
     );
   }
@@ -1372,21 +2053,6 @@ const RoomLobbyPage: React.FC = () => {
           />
         </div>
         {settlementStartBroadcastOverlay}
-      </>
-    );
-  }
-
-  if (
-    resolvedActiveSettlementRoundKey &&
-    loadingSettlementRoundKey === resolvedActiveSettlementRoundKey
-  ) {
-    return (
-      <>
-        <div className="flex w-full min-w-0 justify-center">
-          <div className="w-full max-w-[1200px] rounded-[24px] border border-slate-700/80 bg-slate-950/90 px-6 py-10 text-center text-slate-200">
-            正在讀取對戰回顧...
-          </div>
-        </div>
       </>
     );
   }
@@ -1421,7 +2087,7 @@ const RoomLobbyPage: React.FC = () => {
             youtubePlaylists={youtubePlaylists}
             youtubePlaylistsLoading={youtubePlaylistsLoading}
             youtubePlaylistsError={youtubePlaylistsError}
-            isHost={currentRoom.hostClientId === clientId}
+            isHost={isHost}
             gameState={gameState}
             canStartGame={playlistProgress.ready}
             onLeave={() => leaveRoomAndNavigate()}
@@ -1433,6 +2099,7 @@ const RoomLobbyPage: React.FC = () => {
             hasLastSettlement={Boolean(
               latestSettlementSnapshot || mergedSettlementSummaries.length > 0,
             )}
+            latestSettlementRoundKey={latestSettlementRoundKey}
             onOpenLastSettlement={() => {
               if (latestSettlementSnapshot) {
                 setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey);
@@ -1447,7 +2114,7 @@ const RoomLobbyPage: React.FC = () => {
                   (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
                 )[0];
                 if (!latest) {
-                  setStatusText("目前沒有可檢視的結算紀錄");
+                  setStatusText("目前沒有可查看的對戰紀錄");
                   return;
                 }
                 await openSettlementReviewByRoundKey(latest.roundKey);
@@ -1455,10 +2122,11 @@ const RoomLobbyPage: React.FC = () => {
                 setStatusText(
                   error instanceof Error
                     ? error.message
-                    : "載入結算資料失敗，請稍後再試",
+                    : "開啟最新結算失敗，請稍後再試",
                 );
               });
             }}
+            onOpenHistoryDrawer={openHistoryDrawer}
             onOpenSettlementByRoundKey={(roundKey) => {
               void openSettlementReviewByRoundKey(roundKey);
             }}
@@ -1488,7 +2156,7 @@ const RoomLobbyPage: React.FC = () => {
                   await navigator.clipboard.writeText(inviteText);
                   setStatusText("邀請連結已複製");
                 } catch {
-                  setStatusText("無法複製邀請連結");
+                  setStatusText("複製失敗，請手動複製連結");
                 }
               } else {
                 setStatusText(inviteText);
@@ -1496,9 +2164,13 @@ const RoomLobbyPage: React.FC = () => {
             }}
           />
         )}
-      </div>{" "}
+      </div>
+      {battleHistoryDrawer}
+      {battleHistoryReplayDialog}
+      {settlementReviewLoadingBanner}
     </>
   );
 };
 
 export default RoomLobbyPage;
+

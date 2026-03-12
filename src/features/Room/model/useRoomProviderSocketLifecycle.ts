@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -45,6 +46,14 @@ interface SocketLifecycleSetters {
   setIsConnected: Dispatch<SetStateAction<boolean>>;
   setRouteRoomResolved: Dispatch<SetStateAction<boolean>>;
   setStatusText: (value: string | null) => void;
+  setKickedNotice: Dispatch<
+    SetStateAction<{
+      roomId: string;
+      reason: string;
+      bannedUntil: number | null;
+      kickedAt: number;
+    } | null>
+  >;
   setSessionProgress: Dispatch<SetStateAction<SessionProgressPayload | null>>;
   setCurrentRoom: Dispatch<SetStateAction<RoomState["room"] | null>>;
   setParticipants: Dispatch<SetStateAction<RoomParticipant[]>>;
@@ -125,6 +134,7 @@ export const useRoomProviderSocketLifecycle = ({
   setters,
   handlers,
 }: UseRoomProviderSocketLifecycleParams) => {
+  const shouldAnnounceReconnectRef = useRef(false);
   const {
     socketRef,
     socketSuspendedRef,
@@ -140,6 +150,7 @@ export const useRoomProviderSocketLifecycle = ({
     setIsConnected,
     setRouteRoomResolved,
     setStatusText,
+    setKickedNotice,
     setSessionProgress,
     setCurrentRoom,
     setParticipants,
@@ -190,7 +201,7 @@ export const useRoomProviderSocketLifecycle = ({
         });
         if (!token) {
           if (!cancelled) {
-            setStatusText("嚙緯嚙皚嚙緩嚙盤嚙踝蕭嚙璀嚙請哨蕭嚙編嚙緯嚙皚");
+            setStatusText("登入狀態已失效，請重新登入。");
           }
           return;
         }
@@ -201,10 +212,12 @@ export const useRoomProviderSocketLifecycle = ({
         onConnect: (socket) => {
           setIsConnected(true);
           setSessionProgress(null);
-          setStatusText("嚙緩嚙編嚙線嚙踝蕭嚙璀嚙踝蕭");
-          void fetchRooms();
-
           const storedRoomId = currentRoomIdRef.current;
+          if (shouldAnnounceReconnectRef.current && !storedRoomId) {
+            setStatusText("已重新連線到房間伺服器");
+          }
+          shouldAnnounceReconnectRef.current = false;
+          void fetchRooms();
           if (storedRoomId) {
             socket.emit(
               "resumeSession",
@@ -212,6 +225,7 @@ export const useRoomProviderSocketLifecycle = ({
               (ack: Ack<RoomState>) => {
                 if (ack?.ok) {
                   const state = ack.data;
+                  setKickedNotice(null);
                   syncServerOffset(state.serverNow);
                   setCurrentRoom(applyGameSettingsPatch(state.room, {}));
                   setParticipants((prev) =>
@@ -243,11 +257,11 @@ export const useRoomProviderSocketLifecycle = ({
                   );
                   lockSessionClientId(clientId);
                   persistRoomId(state.room.id);
-                  setStatusText(`嚙踝蕭_嚙請塚蕭嚙瘦${state.room.name}`);
+                  setStatusText(`已恢復房間：${state.room.name}`);
                   setRouteRoomResolved(true);
                 } else {
                   if (ack?.error) {
-                    setStatusText(formatAckError("嚙踝蕭_嚙請塚蕭嚙踝蕭嚙踝蕭", ack.error));
+                    setStatusText(formatAckError("恢復房間失敗", ack.error));
                   }
                   persistRoomId(null);
                   resetSessionClientId();
@@ -263,7 +277,7 @@ export const useRoomProviderSocketLifecycle = ({
           setSessionProgress(null);
           if (createRoomInFlightRef.current) {
             releaseCreateRoomLockRef.current?.();
-            setStatusText("嚙諍立房塚蕭嚙踝蕭嚙踝蕭嚙編嚙線嚙踝蕭嚙稻嚙璀嚙請哨蕭嚙調或稍嚙諂自動恬蕭_");
+            setStatusText("建立房間失敗，連線已中斷，請稍後再試。");
           }
           if (socketSuspendedRef.current) {
             setIsConnected(false);
@@ -271,7 +285,8 @@ export const useRoomProviderSocketLifecycle = ({
             return;
           }
           setIsConnected(false);
-          setStatusText("嚙瞑嚙踝蕭嚙璀嚙踝蕭嚙稻嚙線嚙璀嚙瞇嚙踝蕭嚙調自動恬蕭_");
+          shouldAnnounceReconnectRef.current = true;
+          setStatusText("房間連線已中斷，正在等待重新連線。");
           setRouteRoomResolved(false);
           setCurrentRoom(null);
           setParticipants([]);
@@ -295,7 +310,7 @@ export const useRoomProviderSocketLifecycle = ({
             const found = updatedRooms.some((r) => r.id === inviteRoomId);
             setInviteNotFound(!found);
             if (!found) {
-              setStatusText("嚙踝蕭嚙豌房塚蕭嚙踝蕭嚙編嚙箭嚙諄已嚙踝蕭嚙踝蕭");
+              setStatusText("找不到邀請房間，可能已關閉或邀請失效。");
             }
           }
         },
@@ -304,6 +319,7 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onJoinedRoom: (state) => {
           setSessionProgress(null);
+          setKickedNotice(null);
           releaseCreateRoomLockRef.current?.();
           syncServerOffset(state.serverNow);
           setCurrentRoom(applyGameSettingsPatch(state.room, {}));
@@ -332,7 +348,7 @@ export const useRoomProviderSocketLifecycle = ({
           });
           lockSessionClientId(clientId);
           persistRoomId(state.room.id);
-          setStatusText(`嚙緩嚙稼嚙皚嚙請塚蕭嚙瘦${state.room.name}`);
+          setStatusText(`已加入房間：${state.room.name}`);
           setRouteRoomResolved(true);
         },
         onParticipantsUpdated: ({ roomId, participants, hostClientId }) => {
@@ -412,7 +428,7 @@ export const useRoomProviderSocketLifecycle = ({
             Math.ceil((gameState.startedAt - serverNow) / 1000),
           );
           if (preStartRemainingSec > 0) {
-            setStatusText(`嚙請主嚙緩嚙罷嚙締嚙璀${preStartRemainingSec} 嚙踝蕭嚙罷嚙踝蕭`);
+            setStatusText(`遊戲將在 ${preStartRemainingSec} 秒後開始`);
           }
           setIsGameView(true);
           void fetchCompletePlaylist(roomId).then(setGamePlaylist);
@@ -432,11 +448,19 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onKicked: ({ roomId, reason, bannedUntil }) => {
           if (roomId !== currentRoomIdRef.current) return;
-          const suffix =
+          setKickedNotice({
+            roomId,
+            reason,
+            bannedUntil,
+            kickedAt: Date.now(),
+          });
+          setStatusText(
             typeof bannedUntil === "number"
-              ? `嚙璀嚙箠嚙踝蕭嚙編嚙稼嚙皚嚙褕塚蕭嚙瘦${new Date(bannedUntil).toLocaleTimeString()}`
-              : "嚙璀嚙緩嚙衛久嚙確嚙踝蕭[嚙皚";
-          setStatusText(`${reason}${suffix}`);
+              ? `${reason} 封鎖至 ${new Date(bannedUntil).toLocaleTimeString("zh-TW", {
+                  hour12: false,
+                })}`
+              : reason,
+          );
           setCurrentRoom(null);
           setParticipants([]);
           resetPresenceParticipants();
@@ -445,6 +469,7 @@ export const useRoomProviderSocketLifecycle = ({
           setGameState(null);
           setGamePlaylist([]);
           setIsGameView(false);
+          setRouteRoomResolved(true);
           setPlaylistViewItems([]);
           setPlaylistHasMore(false);
           setPlaylistLoadingMore(false);
@@ -500,6 +525,7 @@ export const useRoomProviderSocketLifecycle = ({
     lockSessionClientId,
     persistRoomId,
     setStatusText,
+    setKickedNotice,
     setRouteRoomResolved,
     resetSessionClientId,
     setSessionProgress,
@@ -562,4 +588,3 @@ export const useRoomProviderSocketLifecycle = ({
 };
 
 export default useRoomProviderSocketLifecycle;
-

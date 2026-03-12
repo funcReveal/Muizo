@@ -8,6 +8,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+
 import type { ChatMessage } from "../../model/types";
 import {
   formatTime,
@@ -20,6 +21,8 @@ interface RoomLobbyChatPanelProps {
   messageInput: string;
   onInputChange: (value: string) => void;
   onSend: () => void;
+  latestSettlementRoundKey?: string | null;
+  onOpenHistoryDrawer?: () => void;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
 }
 
@@ -28,6 +31,8 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
   messageInput,
   onInputChange,
   onSend,
+  latestSettlementRoundKey,
+  onOpenHistoryDrawer,
   onOpenSettlementByRoundKey,
 }) => {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -56,9 +61,17 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
         }}
       >
         {messages.length === 0 ? (
-          <Typography variant="body2" className="text-slate-500" align="center">
-            尚無聊天訊息，輸入訊息開始互動吧。
-          </Typography>
+          <div className="room-lobby-chat-empty-state">
+            <div className="room-chat-empty-note room-chat-empty-note--lobby">
+              <span className="room-chat-empty-meta">
+                <span className="room-chat-empty-dot" aria-hidden="true" />
+                聊天室
+              </span>
+              <Typography component="p" variant="body2" className="room-chat-empty-copy">
+                目前還沒有新訊息，先和房間成員打聲招呼吧。
+              </Typography>
+            </div>
+          </div>
         ) : (
           <MUIList dense disablePadding>
             {messages.map((msg) => {
@@ -68,8 +81,19 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                 msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
                   ? msg.id.slice(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX.length)
                   : null;
+              const isLatestSettlement =
+                settlementRoundKey !== null &&
+                latestSettlementRoundKey !== null &&
+                settlementRoundKey === latestSettlementRoundKey;
               const canOpenSettlementReview = Boolean(
-                settlementRoundKey && onOpenSettlementByRoundKey,
+                settlementRoundKey &&
+                  onOpenSettlementByRoundKey &&
+                  isLatestSettlement,
+              );
+              const canOpenHistoryDrawer = Boolean(
+                settlementRoundKey &&
+                  !isLatestSettlement &&
+                  onOpenHistoryDrawer,
               );
 
               if (isPresenceSystemMessage) {
@@ -110,21 +134,27 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                 <ListItem key={msg.id}>
                   <Box
                     className="room-lobby-chat-message"
+                    data-settlement={settlementRoundKey ? "true" : "false"}
+                    data-archived={canOpenHistoryDrawer ? "true" : "false"}
                     sx={{
                       maxWidth: "100%",
-                      borderRadius: 1,
-                      px: 1,
-                      py: 0.75,
+                      borderRadius: 1.5,
+                      px: 1.15,
+                      py: 0.85,
                       border: "none",
-                      borderLeft: "2px solid rgba(148,163,184,0.16)",
-                      background: "transparent",
-                      boxShadow: "none",
+                      borderLeft: "2px solid rgba(56,189,248,0.18)",
+                      background:
+                        "linear-gradient(180deg, rgba(10,15,24,0.34), rgba(7,11,18,0.16))",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
                       color: "white",
                     }}
                   >
                     <Stack direction="row" spacing={1}>
                       <Typography variant="caption" fontWeight={600}>
-                        {normalizeDisplayText(msg.username, "玩家")}
+                        {normalizeDisplayText(
+                          msg.username,
+                          msg.userId.startsWith("system:") ? "對戰紀錄" : "玩家",
+                        )}
                       </Typography>
                       <Typography variant="caption" color="rgba(255,255,255,0.7)">
                         {formatTime(msg.timestamp)}
@@ -151,7 +181,18 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
                           onOpenSettlementByRoundKey?.(settlementRoundKey)
                         }
                       >
-                        查看結算
+                        查看上一局
+                      </Button>
+                    )}
+                    {canOpenHistoryDrawer && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        color="inherit"
+                        sx={{ mt: 1, color: "rgba(191,219,254,0.92)" }}
+                        onClick={() => onOpenHistoryDrawer?.()}
+                      >
+                        查看歷史
                       </Button>
                     )}
                   </Box>
@@ -167,7 +208,7 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
           autoComplete="off"
           fullWidth
           size="small"
-          placeholder="輸入聊天訊息，按 Enter 送出"
+          placeholder="輸入訊息，按 Enter 送出"
           value={messageInput}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {

@@ -25,6 +25,7 @@ import type {
 import {
   RoomContext,
   type RoomContextValue,
+  type RoomKickedNotice,
   type RoomCreateSourceMode,
 } from "./RoomContext";
 import {
@@ -160,6 +161,9 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
   const [messageInput, setMessageInput] = useState("");
   const [statusText, setStatusTextState] = useState<string | null>(null);
+  const [kickedNotice, setKickedNotice] = useState<RoomKickedNotice | null>(
+    null,
+  );
   const setStatusText = useCallback((value: string | null) => {
     if (typeof value !== "string") {
       setStatusTextState(value);
@@ -547,6 +551,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setIsConnected,
       setRouteRoomResolved,
       setStatusText,
+      setKickedNotice,
       setSessionProgress,
       setCurrentRoom,
       setParticipants,
@@ -645,6 +650,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     messageInput,
     setMessageInput,
     setStatusText,
+    setKickedNotice,
     syncServerOffset,
     mergeCachedParticipantPing,
     seedPresenceParticipants,
@@ -824,6 +830,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const setRouteRoomId = useCallback((value: string | null) => {
     currentRoomIdRef.current = value;
     setCurrentRoomId(value);
+    setKickedNotice((previous) => {
+      if (!previous) return previous;
+      if (!value) return null;
+      return previous.roomId === value ? previous : null;
+    });
     if (value) {
       setRouteRoomResolved(false);
     }
@@ -893,6 +904,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       setMessageInput,
       statusText,
       setStatusText,
+      kickedNotice,
+      setKickedNotice,
       sessionProgress,
       playlistUrl,
       setPlaylistUrl,
@@ -1017,6 +1030,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       messageInput,
       statusText,
       setStatusText,
+      kickedNotice,
+      setKickedNotice,
       sessionProgress,
       playlistUrl,
       playlistItems,

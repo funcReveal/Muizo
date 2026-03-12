@@ -1,5 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { Button, Switch } from "@mui/material";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 
 import type { DanmuItem } from "./gameRoomPageTypes";
 
@@ -12,6 +13,7 @@ interface GameRoomPlaybackPanelProps {
   boundedCursor: number;
   trackOrderLength: number;
   onOpenExitConfirm: () => void;
+  headerActions?: React.ReactNode;
   iframeSrc: string | null;
   shouldHideVideoFrame: boolean;
   shouldShowVideo: boolean;
@@ -40,6 +42,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   boundedCursor,
   trackOrderLength,
   onOpenExitConfirm,
+  headerActions,
   iframeSrc,
   shouldHideVideoFrame,
   shouldShowVideo,
@@ -58,9 +61,51 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   gameVolume,
   onGameVolumeChange,
 }) => {
+  const isMobileOverlay = isMobileView && isOverlayMode;
+  const shouldShowRoomName = !(isMobileView && isOverlayMode);
+  const revealAnswerLabel = revealAnswerTitle?.trim() ?? "";
+  const revealAnswerWrapperClass = isMobileOverlay
+    ? "flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-2.5 py-[0.34rem] text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
+    : "mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]";
+  const revealAnswerTextClass = isMobileOverlay
+    ? "min-w-0 flex-1 truncate text-[11px] font-semibold leading-4"
+    : "text-xs font-semibold leading-5 sm:text-sm";
+  const shouldUseRevealMarquee =
+    isMobileView &&
+    isRevealPhase &&
+    revealAnswerLabel.length >= (isMobileOverlay ? 14 : 18);
+  const mediaFrameHeightClass = isMobileOverlay
+    ? "h-full min-h-0 flex-1"
+    : isMobileView
+      ? "h-[182px]"
+      : "h-[140px] sm:h-[188px] md:h-[214px] xl:h-[236px]";
+  const revealAnswerNode =
+    isMobileView && isRevealPhase && revealAnswerLabel ? (
+      <div
+        className={revealAnswerWrapperClass}
+        title={`答案：${revealAnswerLabel}`}
+      >
+        <span className="shrink-0 rounded-full border border-emerald-200/50 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]">
+          答案
+        </span>
+        {shouldUseRevealMarquee ? (
+          <span className="game-room-reveal-title-marquee">
+            <span className="game-room-reveal-title-marquee-track game-room-reveal-title-marquee-track--run">
+              <span>{revealAnswerLabel}</span>
+              <span aria-hidden="true">{revealAnswerLabel}</span>
+            </span>
+          </span>
+        ) : (
+          <span className={revealAnswerTextClass}>{revealAnswerLabel}</span>
+        )}
+      </div>
+    ) : null;
+
   return (
     <div
-      className={`game-room-panel game-room-panel--accent flex-none p-3 text-slate-50 ${
+      className={`game-room-panel game-room-panel--accent p-3 text-slate-50 ${
+        isMobileOverlay ? "game-room-playback-panel--mobile-overlay-fill flex h-full min-h-0 flex-col" : "flex-none"
+      } ${
         isMobileView
           ? isOverlayMode
             ? "game-room-playback-panel--mobile game-room-playback-panel--mobile-overlay"
@@ -68,47 +113,51 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
           : ""
       }`}
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div>
-            <p className="game-room-kicker">正在播放</p>
-            <p className="game-room-title">{roomName}</p>
-            <div className="game-room-track-counter mt-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black tracking-[0.14em] text-amber-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
-              題目 {boundedCursor + 1}/{trackOrderLength || "?"}
-            </div>
-            {isMobileView && isRevealPhase && revealAnswerTitle && (
+      <div className={`${isMobileOverlay ? "mb-1" : "mb-3"} flex flex-wrap items-center justify-between gap-2`}>
+        <div className={isMobileOverlay ? "game-room-mobile-overlay-meta-row" : "flex items-center gap-2"}>
+          <div className={isMobileOverlay ? "game-room-mobile-overlay-meta-main" : undefined}>
+            {!isMobileOverlay && <p className="game-room-kicker">正在播放</p>}
+            {shouldShowRoomName && <p className="game-room-title">{roomName}</p>}
+            {isMobileOverlay ? (
+              <div className="game-room-mobile-overlay-meta-badges">
+                <div className="game-room-track-counter inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-xs font-black tracking-[0.14em] text-amber-100">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
+                  題目 {boundedCursor + 1}/{trackOrderLength || "?"}
+                </div>
+                {revealAnswerNode}
+              </div>
+            ) : (
               <div
-                className="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-emerald-50 shadow-[0_10px_20px_-16px_rgba(16,185,129,0.72)]"
-                title={`答案：${revealAnswerTitle}`}
+                className={`game-room-track-counter inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black tracking-[0.14em] text-amber-100 ${
+                  isMobileOverlay ? "mt-0" : "mt-1"
+                }`}
               >
-                <span className="shrink-0 rounded-full border border-emerald-200/50 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-[0.12em]">
-                  答案
-                </span>
-                <span className="text-xs font-semibold leading-5 sm:text-sm">
-                  {revealAnswerTitle}
-                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
+                題目 {boundedCursor + 1}/{trackOrderLength || "?"}
               </div>
             )}
+            {!isMobileOverlay && revealAnswerNode}
           </div>
         </div>
         {!isOverlayMode && (
-          <Button
-            variant="outlined"
-            color="inherit"
-            size="small"
-            onClick={onOpenExitConfirm}
-            className="max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
-          >
-            退出遊戲
-          </Button>
+          <div className="flex items-center gap-2 max-[760px]:w-full max-[760px]:flex-col max-[760px]:items-stretch">
+            {headerActions}
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              startIcon={<LogoutRoundedIcon fontSize="small" />}
+              onClick={onOpenExitConfirm}
+              className="max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+            >
+              退出遊戲
+            </Button>
+          </div>
         )}
       </div>
 
       <div
-        className={`game-room-media-frame relative w-full overflow-hidden sm:h-[188px] md:h-[214px] xl:h-[236px] ${
-          isMobileView ? "h-[182px]" : "h-[140px]"
-        }`}
+        className={`game-room-media-frame relative w-full overflow-hidden ${mediaFrameHeightClass}`}
       >
         {iframeSrc ? (
           <iframe
