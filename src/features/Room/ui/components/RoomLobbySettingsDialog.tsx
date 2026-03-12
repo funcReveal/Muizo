@@ -31,6 +31,7 @@ import RoomAccessSettingsFields from "./RoomAccessSettingsFields";
 interface RoomLobbySettingsDialogProps {
   open: boolean;
   settingsDisabled: boolean;
+  settingsSaving: boolean;
   settingsName: string;
   onSettingsNameChange: (value: string) => void;
   settingsVisibility: "public" | "private";
@@ -62,6 +63,7 @@ interface RoomLobbySettingsDialogProps {
 const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   open,
   settingsDisabled,
+  settingsSaving,
   settingsName,
   onSettingsNameChange,
   settingsVisibility,
@@ -91,6 +93,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
 }) => {
   const isMobileDialog = useMediaQuery("(max-width:900px)");
   const isWideDialog = useMediaQuery("(min-width:1180px)");
+  const settingsLocked = settingsDisabled || settingsSaving;
   const timingSummary = useCollectionTimingForSettings
     ? `揭曉 ${settingsRevealDurationSec}s（收藏庫）`
     : `作答 ${settingsPlayDurationSec}s / 起始 ${settingsStartOffsetSec}s / 揭曉 ${settingsRevealDurationSec}s`;
@@ -101,11 +104,15 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
     ? `${settingsMaxPlayers} 人`
     : "不限制";
   const visibilityLabel = settingsVisibility === "public" ? "公開房間" : "私人房間";
+  const handleDialogClose = () => {
+    if (settingsSaving) return;
+    onClose();
+  };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleDialogClose}
       fullScreen={isMobileDialog}
       fullWidth
       maxWidth="lg"
@@ -262,13 +269,13 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                   className="room-lobby-settings-field"
                   value={settingsName}
                   onChange={(event) => onSettingsNameChange(event.target.value)}
-                  disabled={settingsDisabled}
+                  disabled={settingsLocked}
                   fullWidth
                 />
                 <RoomAccessSettingsFields
                   visibility={settingsVisibility}
                   password={settingsPassword}
-                  disabled={settingsDisabled}
+                  disabled={settingsLocked}
                   allowPasswordWhenPublic
                   onVisibilityChange={onSettingsVisibilityChange}
                   onPasswordChange={onSettingsPasswordChange}
@@ -294,7 +301,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       inputMode: "numeric",
                     }}
                     placeholder="留空代表不限制"
-                    disabled={settingsDisabled}
+                    disabled={settingsLocked}
                     fullWidth
                   />
                   <Typography variant="caption" className="text-slate-400">
@@ -330,7 +337,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     step={QUESTION_STEP}
                     compact={!isWideDialog}
                     showRangeHint={!isWideDialog}
-                    disabled={settingsDisabled}
+                    disabled={settingsLocked}
                     onChange={onSettingsQuestionCountChange}
                   />
                 </Stack>
@@ -369,7 +376,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       max: REVEAL_DURATION_MAX,
                       inputMode: "numeric",
                     }}
-                    disabled={settingsDisabled}
+                    disabled={settingsLocked}
                     fullWidth
                   />
 
@@ -382,7 +389,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                           onChange={(_event, checked) =>
                             onSettingsAllowCollectionClipTimingChange(checked)
                           }
-                          disabled={settingsDisabled}
+                          disabled={settingsLocked}
                         />
                       }
                       label="使用收藏庫時間設定"
@@ -412,7 +419,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                             max: PLAY_DURATION_MAX,
                             inputMode: "numeric",
                           }}
-                          disabled={settingsDisabled}
+                          disabled={settingsLocked}
                           fullWidth
                         />
                         <TextField
@@ -430,7 +437,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                             max: START_OFFSET_MAX,
                             inputMode: "numeric",
                           }}
-                          disabled={settingsDisabled}
+                          disabled={settingsLocked}
                           fullWidth
                         />
                       </Stack>
@@ -460,16 +467,36 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
           py: { xs: 1, sm: 1.5 },
         }}
       >
-        <Button onClick={onClose} variant="text" className="room-lobby-settings-secondary-btn">
+        <Button
+          onClick={handleDialogClose}
+          variant="text"
+          disabled={settingsSaving}
+          className="room-lobby-settings-secondary-btn"
+        >
           取消
         </Button>
         <Button
           onClick={onSave}
           variant="contained"
-          disabled={settingsDisabled}
-          className="room-lobby-settings-primary-btn"
+          disabled={settingsLocked}
+          className={`room-lobby-settings-primary-btn ${
+            settingsSaving ? "is-saving" : ""
+          }`}
         >
-          儲存設定
+          <span className="room-lobby-settings-primary-btn__content">
+            {settingsSaving ? (
+              <>
+                <span className="room-lobby-settings-primary-btn__loader" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span>儲存中...</span>
+              </>
+            ) : (
+              <span>儲存設定</span>
+            )}
+          </span>
         </Button>
       </DialogActions>
     </Dialog>

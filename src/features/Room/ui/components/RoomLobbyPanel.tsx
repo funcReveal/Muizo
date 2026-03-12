@@ -258,18 +258,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     useState(true);
   const [settingsMaxPlayers, setSettingsMaxPlayers] = useState("");
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [mobileLobbyTab, setMobileLobbyTab] =
     useState<MobileLobbyTab>("members");
   const [mobileChatDrawerOpen, setMobileChatDrawerOpen] = useState(false);
   const [mobileChatUnread, setMobileChatUnread] = useState(0);
-  const [mobileChatPreview, setMobileChatPreview] = useState<{
-    username: string;
-    content: string;
-  } | null>(null);
   const [mobileChatHeight, setMobileChatHeight] = useState(
     MOBILE_LOBBY_CHAT_DEFAULT_HEIGHT_VH,
   );
   const lastMobileChatMessageCountRef = useRef(messages.length);
+  const mobileChatUnreadSeededRoomRef = useRef<string | null>(null);
   const maskedRoomPassword = roomPassword
     ? "*".repeat(roomPassword.length)
     : "";
@@ -603,6 +601,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
 
   const openSettingsModal = React.useCallback(() => {
     if (!currentRoom) return;
+    setSettingsSaving(false);
     setSettingsName(currentRoom.name);
     setSettingsVisibility(currentRoom.visibility ?? "public");
     setSettingsPassword(roomPassword ?? "");
@@ -634,12 +633,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   }, [currentRoom, questionMaxLimit, roomPassword]);
 
   const closeSettingsModal = () => {
+    if (settingsSaving) return;
     setSettingsOpen(false);
     setSettingsError(null);
   };
 
   const handleSaveSettings = async () => {
-    if (settingsDisabled) return;
+    if (settingsDisabled || settingsSaving) return;
     const trimmedName = settingsName.trim();
     if (!trimmedName) {
       setSettingsError("房間名稱不能為空");
@@ -685,9 +685,15 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       maxPlayers: nextMaxPlayers,
       ...(settingsPasswordDirty ? { password: settingsPassword } : {}),
     };
-    const success = await onUpdateRoomSettings(payload);
-    if (success) {
-      closeSettingsModal();
+    setSettingsSaving(true);
+    try {
+      const success = await onUpdateRoomSettings(payload);
+      if (success) {
+        setSettingsOpen(false);
+        setSettingsError(null);
+      }
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -883,6 +889,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     }
   }, [isMobileTabletLobbyLayout]);
 
+  useEffect(() => {
+    mobileChatUnreadSeededRoomRef.current = null;
+    lastMobileChatMessageCountRef.current = messages.length;
+    setMobileChatUnread(0);
+  }, [currentRoom?.id, messages.length]);
+
   const isUnreadMobileChatMessage = React.useCallback(
     (message: ChatMessage) =>
       !message.userId.startsWith("system:") && message.userId !== selfClientId,
@@ -893,7 +905,21 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     const previousCount = lastMobileChatMessageCountRef.current;
     if (messages.length < previousCount) {
       setMobileChatUnread(0);
-      setMobileChatPreview(null);
+      mobileChatUnreadSeededRoomRef.current = currentRoom?.id ?? null;
+    }
+    const roomId = currentRoom?.id ?? null;
+    const shouldSeedUnread =
+      isMobileTabletLobbyLayout &&
+      !mobileChatDrawerOpen &&
+      roomId !== null &&
+      mobileChatUnreadSeededRoomRef.current !== roomId &&
+      messages.length > 0;
+    if (shouldSeedUnread) {
+      const initialUnreadCount = messages.filter(isUnreadMobileChatMessage).length;
+      if (initialUnreadCount > 0) {
+        setMobileChatUnread(initialUnreadCount);
+      }
+      mobileChatUnreadSeededRoomRef.current = roomId;
     }
     if (
       isMobileTabletLobbyLayout &&
@@ -904,17 +930,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         .slice(previousCount)
         .filter(isUnreadMobileChatMessage);
       if (unreadMessages.length > 0) {
-        const latestMessage = unreadMessages[unreadMessages.length - 1];
         setMobileChatUnread((current) => current + unreadMessages.length);
-        setMobileChatPreview({
-          username: normalizeDisplayText(latestMessage.username, "玩家"),
-          content:
-            latestMessage.content.replace(/\s+/g, " ").trim() || "有新訊息",
-        });
       }
     }
     lastMobileChatMessageCountRef.current = messages.length;
   }, [
+    currentRoom?.id,
     isMobileTabletLobbyLayout,
     isUnreadMobileChatMessage,
     messages,
@@ -925,7 +946,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   useEffect(() => {
     if (!isMobileTabletLobbyLayout || mobileChatDrawerOpen) {
       setMobileChatUnread(0);
-      setMobileChatPreview(null);
     }
   }, [isMobileTabletLobbyLayout, mobileChatDrawerOpen]);
 
@@ -1831,22 +1851,26 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 </div>
               </div>
             </SwipeableDrawer>
-            {!mobileChatDrawerOpen && mobileChatUnread > 0 && mobileChatPreview ? (
+            {!mobileChatDrawerOpen && mobileChatUnread > 0 ? (
               <button
                 type="button"
                 className="room-lobby-mobile-chat-fab"
                 onClick={() => setMobileChatDrawerOpen(true)}
                 aria-label={`開啟聊天室，目前有 ${mobileChatUnread} 則未讀訊息`}
               >
-                <span className="room-lobby-mobile-chat-fab__badge">
-                  未讀 {mobileChatUnread > 99 ? "99+" : mobileChatUnread}
-                </span>
-                <span className="room-lobby-mobile-chat-fab__sender">
+                <span className="room-lobby-mobile-chat-fab__icon">
                   <ChatBubbleRoundedIcon fontSize="inherit" />
-                  {mobileChatPreview.username}
                 </span>
-                <span className="room-lobby-mobile-chat-fab__message">
-                  {mobileChatPreview.content}
+                <span className="room-lobby-mobile-chat-fab__content">
+                  <span className="room-lobby-mobile-chat-fab__label">聊天室</span>
+                  <span className="room-lobby-mobile-chat-fab__hint">
+                    {mobileChatUnread === 1
+                      ? "有 1 則未讀訊息"
+                      : `有 ${mobileChatUnread > 99 ? "99+" : mobileChatUnread} 則未讀訊息`}
+                  </span>
+                </span>
+                <span className="room-lobby-mobile-chat-fab__count">
+                  {mobileChatUnread > 99 ? "99+" : mobileChatUnread}
                 </span>
               </button>
             ) : null}
@@ -1869,6 +1893,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       <RoomLobbySettingsDialog
         open={settingsOpen}
         settingsDisabled={settingsDisabled}
+        settingsSaving={settingsSaving}
         settingsName={settingsName}
         onSettingsNameChange={(value) => {
           setSettingsName(value);
