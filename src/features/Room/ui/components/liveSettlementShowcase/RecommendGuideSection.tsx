@@ -305,6 +305,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
         ["--settlement-title-duration" as const]: `${marqueeDurationSec.toFixed(2)}s`,
       } as React.CSSProperties)
     : undefined;
+  const youtubeSupportCtaLabel = "前往 YouTube 收聽並支持創作者";
+  const youtubeOverlayTitle = "如果喜歡這首音樂，別忘了到 YouTube 支持創作者喲！";
   const isCurrentRecommendationLegendFastest =
     currentRecommendationFastestBadgeText.includes("全場") &&
     currentRecommendationFastestBadgeText.includes("最快");
@@ -754,9 +756,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                 onClick={onSupportArtistClick}
                 disabled={!currentRecommendation.link?.href}
               >
-                {isMobileView
-                  ? "前往 YouTube 支持作者"
-                  : "如果喜歡這首歌曲，請至 YouTube 支持作者"}
+                {youtubeSupportCtaLabel}
               </button>
               {canAutoGuideLoop && !isPreviewFrozen && (
                 <span
@@ -824,8 +824,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                       className="absolute inset-0 z-20 flex items-center justify-center px-4 text-center"
                       onClick={onQuickPlayStart}
                     >
-                      <span className="text-xs font-semibold text-slate-100 sm:text-sm">
-                        點擊畫面後前往 YouTube 開始播放
+                      <span className="max-w-[28rem] text-xs font-semibold text-slate-100 sm:text-sm">
+                        {youtubeOverlayTitle}
                       </span>
                     </button>
                   )
