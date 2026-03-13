@@ -136,7 +136,7 @@ export const useRoomProviderRoomActions = ({
   serverOffsetRef,
 }: UseRoomProviderRoomActionsParams) => {
   const handleJoinRoom = useCallback(
-    (roomId: string, hasPassword: boolean) => {
+    (roomId: string, hasPassword: boolean, passwordOverride?: string) => {
       const socket = getSocket();
       if (!socket || !username) {
         setStatusText("嚙罵嚙踝蕭嚙稽嚙緩嚙誕用者名嚙踝蕭");
@@ -149,7 +149,9 @@ export const useRoomProviderRoomActions = ({
         {
           roomId,
           username,
-          password: hasPassword ? joinPasswordInput.trim() || "" : undefined,
+          password: hasPassword
+            ? (passwordOverride ?? joinPasswordInput).trim() || ""
+            : undefined,
         },
         (ack: Ack<RoomState>) => {
           if (!ack) return;

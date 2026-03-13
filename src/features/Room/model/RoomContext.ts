@@ -79,6 +79,8 @@ export interface RoomContextValue {
     is_favorited?: boolean;
   }>;
   collectionsLoading: boolean;
+  collectionsLoadingMore: boolean;
+  collectionsHasMore: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
   publicCollectionsSort: "popular" | "favorites_first";
@@ -89,6 +91,7 @@ export interface RoomContextValue {
   collectionItemsLoading: boolean;
   collectionItemsError: string | null;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  loadMoreCollections: () => Promise<void>;
   toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   selectCollection: (collectionId: string | null) => void;
   loadCollectionItems: (
@@ -176,7 +179,11 @@ export interface RoomContextValue {
   handleSetUsername: () => void;
   isCreatingRoom: boolean;
   handleCreateRoom: () => Promise<void>;
-  handleJoinRoom: (roomId: string, hasPassword: boolean) => void;
+  handleJoinRoom: (
+    roomId: string,
+    hasPassword: boolean,
+    passwordOverride?: string,
+  ) => void;
   handleLeaveRoom: (onLeft?: () => void) => void;
   handleSendMessage: () => void;
   handleStartGame: () => void;

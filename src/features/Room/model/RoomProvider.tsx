@@ -82,13 +82,18 @@ import { useRoomProviderPlaylistPaging } from "./useRoomProviderPlaylistPaging";
 export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const getDefaultRoomName = useCallback(
+    (nextUsername: string | null) =>
+      nextUsername ? `${nextUsername}'s room` : "新房間",
+    [],
+  );
   const { pathname } = useLocation();
   const shouldConnectSocket =
     pathname.startsWith("/rooms") || pathname.startsWith("/invited");
   const socketSuspendedRef = useRef(false);
 
-  const [usernameInput, setUsernameInputState] = useState(
-    () => (getStoredUsername() ?? "").slice(0, USERNAME_MAX),
+  const [usernameInput, setUsernameInputState] = useState(() =>
+    (getStoredUsername() ?? "").slice(0, USERNAME_MAX),
   );
   const [username, setUsername] = useState<string | null>(
     () => getStoredUsername() ?? null,
@@ -103,7 +108,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [roomNameInput, setRoomNameInput] = useState(() =>
-    username ? `${username}'s room` : "新房間",
+    getDefaultRoomName(username),
   );
   const [roomVisibilityInput, setRoomVisibilityInput] = useState<
     "public" | "private"
@@ -152,9 +157,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setSettlementHistory((previous) => {
       const next =
         typeof value === "function"
-          ? (value as (
-              prevState: RoomSettlementSnapshot[],
-            ) => RoomSettlementSnapshot[])(previous)
+          ? (
+              value as (
+                prevState: RoomSettlementSnapshot[],
+              ) => RoomSettlementSnapshot[]
+            )(previous)
           : value;
       return capSettlementHistory(next);
     });
@@ -172,9 +179,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setStatusTextState(sanitizePossibleGarbledText(value, "系統訊息"));
   }, []);
 
-  const [sessionProgress, setSessionProgress] = useState<SessionProgressPayload | null>(
-    null,
-  );
+  const [sessionProgress, setSessionProgress] =
+    useState<SessionProgressPayload | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [playlistProgress, setPlaylistProgress] = useState<{
     received: number;
@@ -208,6 +214,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const currentRoomIdRef = useRef<string | null>(
     currentRoomId ?? getStoredRoomId(),
   );
+  const previousUsernameRef = useRef<string | null>(username);
   const answerSubmitRequestSeqRef = useRef(0);
   const serverOffsetRef = useRef(0);
   const {
@@ -240,7 +247,26 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setUsernameInputState(value.slice(0, USERNAME_MAX));
   }, []);
 
+  useEffect(() => {
+    const previousUsername = previousUsernameRef.current;
+    const previousDefaultName = getDefaultRoomName(previousUsername);
+    const nextDefaultName = getDefaultRoomName(username);
+
+    setRoomNameInput((currentValue) => {
+      const trimmed = currentValue.trim();
+      if (!trimmed || trimmed === previousDefaultName || trimmed === "新房間") {
+        return nextDefaultName;
+      }
+      return currentValue;
+    });
+
+    previousUsernameRef.current = username;
+  }, [getDefaultRoomName, username]);
+
   const onResetCollectionRef = useRef<() => void>(() => {});
+  const handlePlaylistCollectionReset = useCallback(() => {
+    onResetCollectionRef.current();
+  }, []);
 
   const {
     authToken,
@@ -268,9 +294,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const authClientId = authUser?.id ?? null;
   const clientId = useMemo(
     () =>
-      sessionClientIdLocked
-        ? sessionClientId
-        : authClientId ?? localClientId,
+      sessionClientIdLocked ? sessionClientId : (authClientId ?? localClientId),
     [authClientId, localClientId, sessionClientId, sessionClientIdLocked],
   );
   const lockSessionClientId = useCallback((nextClientId: string) => {
@@ -316,7 +340,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     authToken,
     refreshAuthToken,
     setStatusText,
-    onResetCollection: () => onResetCollectionRef.current(),
+    onResetCollection: handlePlaylistCollectionReset,
   });
 
   const { fetchYoutubeSnapshot, fetchPublicPlaylistSnapshot } =
@@ -354,14 +378,19 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     return clamped;
   }, []);
 
-  const handleUpdateAllowCollectionClipTiming = useCallback((value: boolean) => {
-    setAllowCollectionClipTiming(Boolean(value));
-    return Boolean(value);
-  }, []);
+  const handleUpdateAllowCollectionClipTiming = useCallback(
+    (value: boolean) => {
+      setAllowCollectionClipTiming(Boolean(value));
+      return Boolean(value);
+    },
+    [],
+  );
 
   const {
     collections,
     collectionsLoading,
+    collectionsLoadingMore,
+    collectionsHasMore,
     collectionsError,
     collectionScope,
     publicCollectionsSort,
@@ -373,6 +402,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     collectionItemsError,
     selectCollection,
     fetchCollections,
+    loadMoreCollections,
     toggleCollectionFavorite,
     loadCollectionItems,
     resetCollectionsState,
@@ -402,9 +432,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     resetYoutubePlaylists();
     resetCollectionsState();
     resetPlaylistState();
-  }, [authToken, resetCollectionsState, resetPlaylistState, resetYoutubePlaylists]);
-
- 
+  }, [
+    authToken,
+    resetCollectionsState,
+    resetPlaylistState,
+    resetYoutubePlaylists,
+  ]);
 
   const persistRoomId = useCallback((id: string | null) => {
     currentRoomIdRef.current = id;
@@ -416,13 +449,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  const saveRoomPassword = useCallback((roomId: string, password: string | null) => {
-    if (password) {
-      setRoomPassword(roomId, password);
-    } else {
-      clearRoomPassword(roomId);
-    }
-  }, []);
+  const saveRoomPassword = useCallback(
+    (roomId: string, password: string | null) => {
+      if (password) {
+        setRoomPassword(roomId, password);
+      } else {
+        clearRoomPassword(roomId);
+      }
+    },
+    [],
+  );
 
   const readRoomPassword = (roomId: string) => getRoomPassword(roomId);
 
@@ -439,7 +475,6 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     persistUsername(trimmed);
     setStatusText(null);
   }, [persistUsername, setStatusText, usernameInput]);
-
 
   const getSocket = useCallback(() => socketRef.current, []);
 
@@ -713,7 +748,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   });
 
   const resetCreateState = useCallback(() => {
-    setRoomNameInput(username ? `${username}'s room` : "新房間");
+    setRoomNameInput(getDefaultRoomName(username));
     setRoomVisibilityInput("public");
     setRoomCreateSourceMode("link");
     setRoomPasswordInput("");
@@ -729,6 +764,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistProgress({ received: 0, total: 0, ready: false });
   }, [
     clearCollectionsError,
+    getDefaultRoomName,
     resetCollectionSelection,
     resetPlaylistPagingState,
     resetPlaylistState,
@@ -753,7 +789,12 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     if (questionCount > questionMaxLimit) {
       handleUpdateQuestionCount(questionMaxLimit);
     }
-  }, [handleUpdateQuestionCount, playlistItems.length, questionCount, questionMaxLimit]);
+  }, [
+    handleUpdateQuestionCount,
+    playlistItems.length,
+    questionCount,
+    questionMaxLimit,
+  ]);
 
   useEffect(() => {
     if (!currentRoom) return;
@@ -775,14 +816,16 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       typeof firstRoomSettingsItem.endSec === "number" &&
         firstRoomSettingsItem.endSec > inferredStartOffsetSec
         ? firstRoomSettingsItem.endSec - inferredStartOffsetSec
-        : currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+        : (currentRoom.gameSettings?.playDurationSec ??
+            DEFAULT_PLAY_DURATION_SEC),
     );
     const inferredAllowCollectionClipTiming = playlistViewItems.some(
       (item) => item.timingSource === "track_clip",
     );
     const inferredRevealDurationSec = clampRevealDurationSec(
       currentRoom.gameSettings?.revealDurationSec ??
-        (typeof gameState?.revealDurationMs === "number" && gameState.revealDurationMs > 0
+        (typeof gameState?.revealDurationMs === "number" &&
+        gameState.revealDurationMs > 0
           ? gameState.revealDurationMs / 1000
           : DEFAULT_REVEAL_DURATION_SEC),
     );
@@ -797,7 +840,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       });
       if (
         prev.gameSettings?.playDurationSec === mergedSettings.playDurationSec &&
-        prev.gameSettings?.revealDurationSec === mergedSettings.revealDurationSec &&
+        prev.gameSettings?.revealDurationSec ===
+          mergedSettings.revealDurationSec &&
         prev.gameSettings?.startOffsetSec === mergedSettings.startOffsetSec &&
         prev.gameSettings?.allowCollectionClipTiming ===
           mergedSettings.allowCollectionClipTiming
@@ -863,6 +907,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       importYoutubePlaylist,
       collections,
       collectionsLoading,
+      collectionsLoadingMore,
+      collectionsHasMore,
       collectionsError,
       collectionScope,
       publicCollectionsSort,
@@ -873,6 +919,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       collectionItemsLoading,
       collectionItemsError,
       fetchCollections,
+      loadMoreCollections,
       toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
@@ -997,6 +1044,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       importYoutubePlaylist,
       collections,
       collectionsLoading,
+      collectionsLoadingMore,
+      collectionsHasMore,
       collectionsError,
       collectionScope,
       publicCollectionsSort,
@@ -1007,6 +1056,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       collectionItemsLoading,
       collectionItemsError,
       fetchCollections,
+      loadMoreCollections,
       toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
@@ -1104,4 +1154,3 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
 
   return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>;
 };
-

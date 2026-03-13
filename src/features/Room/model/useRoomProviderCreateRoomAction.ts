@@ -1,4 +1,9 @@
-import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  useCallback,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 
 import { trackEvent } from "../../../shared/analytics/track";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
@@ -88,7 +93,9 @@ interface UseRoomProviderCreateRoomActionParams {
   setCurrentRoom: Dispatch<SetStateAction<RoomState["room"] | null>>;
   setParticipants: Dispatch<SetStateAction<RoomParticipant[]>>;
   setMessages: Dispatch<SetStateAction<RoomState["messages"]>>;
-  setSettlementHistory: Dispatch<SetStateAction<RoomState["settlementHistory"]>>;
+  setSettlementHistory: Dispatch<
+    SetStateAction<RoomState["settlementHistory"]>
+  >;
   setPlaylistProgress: Dispatch<SetStateAction<PlaylistProgressState>>;
   setGameState: Dispatch<SetStateAction<GameState | null>>;
   setIsGameView: Dispatch<SetStateAction<boolean>>;
@@ -144,6 +151,9 @@ export const useRoomProviderCreateRoomAction = ({
   setRoomNameInput,
   setRoomMaxPlayersInput,
 }: UseRoomProviderCreateRoomActionParams) => {
+  const getDefaultRoomName = (nextUsername: string | null) =>
+    nextUsername ? `${nextUsername}'s room` : "新房間";
+
   const handleCreateRoom = useCallback(async () => {
     const socket = getSocket();
     if (!socket || !username) {
@@ -199,7 +209,9 @@ export const useRoomProviderCreateRoomAction = ({
       desiredMaxPlayers !== null &&
       (desiredMaxPlayers < PLAYER_MIN || desiredMaxPlayers > PLAYER_MAX)
     ) {
-      setStatusText(`嚙瘡嚙複哨蕭嚙踝蕭搕嚙踝蕭嚙?${PLAYER_MIN} 嚙踝蕭 ${PLAYER_MAX} 嚙瘡`);
+      setStatusText(
+        `嚙瘡嚙複哨蕭嚙踝蕭搕嚙踝蕭嚙?${PLAYER_MIN} 嚙踝蕭 ${PLAYER_MAX} 嚙瘡`,
+      );
       releaseCreateRoomLock();
       return;
     }
@@ -343,7 +355,9 @@ export const useRoomProviderCreateRoomAction = ({
       void uploadRemainingPlaylistChunks(roomId).catch((error) => {
         console.error(error);
         if (currentRoomIdRef.current === roomId) {
-          setStatusText("嚙緩嚙箠嚙皚嚙請塚蕭嚙璀嚙踝蕭嚙諸餘嚙緬嚙踝蕭P嚙畿嚙踝蕭嚙踝蕭");
+          setStatusText(
+            "嚙緩嚙箠嚙皚嚙請塚蕭嚙璀嚙踝蕭嚙諸餘嚙緬嚙踝蕭P嚙畿嚙踝蕭嚙踝蕭",
+          );
         }
       });
     };
@@ -432,9 +446,11 @@ export const useRoomProviderCreateRoomAction = ({
                 applyJoinedStateForCreatedRoom(state);
                 saveRoomPassword(state.room.id, desiredPassword);
                 setHostRoomPassword(desiredPassword);
-                setRoomNameInput("");
+                setRoomNameInput(getDefaultRoomName(username));
                 setRoomMaxPlayersInput("");
-                setStatusText(`嚙諍立回嚙踝蕭嚙踝蕭嚙踝蕭A嚙緩嚙諛動進嚙皚嚙瘦${state.room.name}`);
+                setStatusText(
+                  `嚙諍立回嚙踝蕭嚙踝蕭嚙踝蕭A嚙緩嚙諛動進嚙皚嚙瘦${state.room.name}`,
+                );
                 finalizeCreate();
                 continueUploadRemainingPlaylistChunks(state.room.id);
                 resolve(true);
@@ -443,7 +459,11 @@ export const useRoomProviderCreateRoomAction = ({
           });
 
         const retryIntervalsMs = [0, 350, 800];
-        for (let joinAttempt = 0; joinAttempt < retryIntervalsMs.length; joinAttempt += 1) {
+        for (
+          let joinAttempt = 0;
+          joinAttempt < retryIntervalsMs.length;
+          joinAttempt += 1
+        ) {
           if (createResolved || !createRoomInFlightRef.current) return false;
           if (joinAttempt === 0) {
             setStatusText("嚙諍立佗蕭嚙穀嚙璀嚙踝蕭嚙箭嚙箠嚙皚嚙請塚蕭嚙皺");
@@ -473,17 +493,23 @@ export const useRoomProviderCreateRoomAction = ({
       const ackTimeout = window.setTimeout(() => {
         if (createResolved || !createRoomInFlightRef.current) return;
         if (attempt === 0) {
-          setStatusText("嚙諍立房塚蕭嚙稷嚙踝蕭嚙踝蕭嚙踝蕭A嚙踝蕭嚙箭嚙踝蕭嚙調自動進嚙皚嚙皺");
+          setStatusText(
+            "嚙諍立房塚蕭嚙稷嚙踝蕭嚙踝蕭嚙踝蕭A嚙踝蕭嚙箭嚙踝蕭嚙調自動進嚙皚嚙皺",
+          );
           void tryRecoverCreatedRoomFromList().then((recovered) => {
             if (recovered || createResolved || !createRoomInFlightRef.current) {
               return;
             }
-            setStatusText("嚙諍立房塚蕭嚙瞌嚙褕，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺");
+            setStatusText(
+              "嚙諍立房塚蕭嚙瞌嚙褕，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺",
+            );
             submitCreateRoom(1);
           });
           return;
         }
-        setStatusText("嚙諍立房塚蕭嚙踝蕭嚙踝蕭嚙稷嚙踝蕭嚙璀嚙諒恬蕭A嚙踝蕭嚙調自動進嚙皚嚙皺");
+        setStatusText(
+          "嚙諍立房塚蕭嚙踝蕭嚙踝蕭嚙稷嚙踝蕭嚙璀嚙諒恬蕭A嚙踝蕭嚙調自動進嚙皚嚙皺",
+        );
         void tryRecoverCreatedRoomFromList().then((recovered) => {
           if (recovered || createResolved || !createRoomInFlightRef.current) {
             return;
@@ -498,11 +524,15 @@ export const useRoomProviderCreateRoomAction = ({
         if (createResolved) return;
         if (!ack) {
           if (attempt === 0) {
-            setStatusText("嚙諍立房塚蕭嚙稷嚙踝蕭嚙踩失，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺");
+            setStatusText(
+              "嚙諍立房塚蕭嚙稷嚙踝蕭嚙踩失，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺",
+            );
             submitCreateRoom(1);
             return;
           }
-          setStatusText("嚙諍立房塚蕭嚙踝蕭嚙諸：嚙踝蕭嚙璀嚙踝蕭嚙盤嚙稷嚙踝蕭");
+          setStatusText(
+            "嚙諍立房塚蕭嚙踝蕭嚙諸：嚙踝蕭嚙璀嚙踝蕭嚙盤嚙稷嚙踝蕭",
+          );
           finalizeCreate();
           return;
         }
@@ -542,7 +572,8 @@ export const useRoomProviderCreateRoomAction = ({
                 settled = true;
                 window.clearTimeout(settingsAckTimeout);
                 if (!settingsAck) {
-                  accessSettingsWarning = "嚙請塚蕭嚙緞嚙踝蕭嚙瞑嚙畿嚙瞌嚙踝蕭";
+                  accessSettingsWarning =
+                    "嚙請塚蕭嚙緞嚙踝蕭嚙瞑嚙畿嚙瞌嚙踝蕭";
                   resolve();
                   return;
                 }
@@ -578,7 +609,7 @@ export const useRoomProviderCreateRoomAction = ({
         }
         saveRoomPassword(state.room.id, desiredPassword);
         setHostRoomPassword(desiredPassword);
-        setRoomNameInput("");
+        setRoomNameInput(getDefaultRoomName(username));
         setRoomMaxPlayersInput("");
         trackEvent("room_create_success", {
           room_id: state.room.id,

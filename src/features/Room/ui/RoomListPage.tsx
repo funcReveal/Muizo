@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type UIEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { List, type RowComponentProps } from "react-window";
 import {
@@ -116,7 +117,127 @@ const PlaylistPreviewRow = ({
 };
 
 const skeletonWaveClass =
-  "rounded-xl border border-cyan-300/20 bg-[linear-gradient(110deg,rgba(15,23,42,0.28)_8%,rgba(56,189,248,0.2)_28%,rgba(15,23,42,0.28)_44%)] bg-[length:260%_100%] animate-[skeleton-wave_1.85s_ease-in-out_infinite]";
+  "relative overflow-hidden rounded-xl border border-cyan-300/18 bg-[linear-gradient(180deg,rgba(8,15,28,0.94),rgba(15,23,42,0.78))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_12px_30px_-24px_rgba(6,182,212,0.6)]";
+
+const skeletonPulseClass =
+  "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_18%_22%,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_78%_12%,rgba(34,197,94,0.08),transparent_24%),linear-gradient(90deg,rgba(148,163,184,0.08),rgba(148,163,184,0.02))] before:animate-[skeleton-breathe_3.4s_ease-in-out_infinite]";
+
+const skeletonShimmerClass =
+  "after:pointer-events-none after:absolute after:inset-y-0 after:left-[-35%] after:w-[42%] after:-skew-x-[22deg] after:bg-[linear-gradient(90deg,transparent,rgba(125,211,252,0.18),rgba(255,255,255,0.34),rgba(125,211,252,0.18),transparent)] after:blur-[1px] after:animate-[skeleton-sheen_1.9s_cubic-bezier(0.22,1,0.36,1)_infinite]";
+
+const buildSkeletonClassName = (shapeClassName: string) =>
+  `${skeletonWaveClass} ${skeletonPulseClass} ${skeletonShimmerClass} ${shapeClassName}`;
+
+const skeletonLineClass =
+  "rounded-full bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]";
+
+const renderYoutubeSkeletonCard = (
+  idx: number,
+  view: "grid" | "list",
+) => {
+  if (view === "grid") {
+    return (
+      <div key={`yt-skeleton-${idx}`} className={buildSkeletonClassName("p-3")}>
+        <div className="mb-3 h-28 w-full rounded-md bg-white/8" />
+        <div className="space-y-2">
+          <div className={`${skeletonLineClass} h-4 w-[72%]`} />
+          <div className={`${skeletonLineClass} h-3 w-[44%]`} />
+          <div className={`${skeletonLineClass} h-3 w-[24%]`} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      key={`yt-skeleton-${idx}`}
+      className={buildSkeletonClassName("flex items-center gap-3 px-3 py-2")}
+    >
+      <div className="h-10 w-16 shrink-0 rounded-md bg-white/8" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className={`${skeletonLineClass} h-4 w-[68%]`} />
+        <div className={`${skeletonLineClass} h-3 w-[38%]`} />
+      </div>
+      <div className={`${skeletonLineClass} h-3 w-10 shrink-0`} />
+    </div>
+  );
+};
+
+const renderCollectionSkeletonCard = (
+  idx: number,
+  view: "grid" | "list",
+) => {
+  if (view === "grid") {
+    return (
+      <div key={`collection-skeleton-${idx}`} className={buildSkeletonClassName("p-3")}>
+        <div className="mb-3 h-28 w-full rounded-md bg-white/8" />
+        <div className="space-y-2">
+          <div className={`${skeletonLineClass} h-4 w-[76%]`} />
+          <div className={`${skeletonLineClass} h-3 w-[52%]`} />
+          <div className={`${skeletonLineClass} h-3 w-[48%]`} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      key={`collection-skeleton-${idx}`}
+      className={buildSkeletonClassName("flex items-center gap-3 px-3 py-2")}
+    >
+      <div className="h-11 w-16 shrink-0 rounded-md bg-white/8" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className={`${skeletonLineClass} h-4 w-[72%]`} />
+        <div className={`${skeletonLineClass} h-3 w-[46%]`} />
+        <div className={`${skeletonLineClass} h-3 w-[54%]`} />
+      </div>
+    </div>
+  );
+};
+
+type VirtualLibraryListRowProps = {
+  items: unknown[];
+  renderItem: (item: unknown, itemIndex: number, view: "list") => ReactNode;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  renderLoader?: () => ReactNode;
+};
+
+const VirtualLibraryListRow = ({
+  index,
+  style,
+  items,
+  renderItem,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  renderLoader,
+}: RowComponentProps<VirtualLibraryListRowProps>) => {
+  const item = items[index];
+  const isLoaderRow = typeof item === "undefined" && (hasMore || isLoadingMore);
+
+  useEffect(() => {
+    if (!isLoaderRow || !hasMore || isLoadingMore || !onLoadMore) return;
+    onLoadMore();
+  }, [hasMore, isLoaderRow, isLoadingMore, onLoadMore]);
+
+  if (isLoaderRow) {
+    return (
+      <div style={style} className="pr-1">
+        {renderLoader ? renderLoader() : null}
+      </div>
+    );
+  }
+
+  return (
+    <div style={style} className="pr-1">
+      {item ? renderItem(item, index, "list") : null}
+    </div>
+  );
+};
+
+const GUIDE_MODE_STORAGE_KEY = "mq_room_guide_mode";
 
 const formatDurationLabel = (durationSec?: number | null) => {
   if (!durationSec || durationSec <= 0) return null;
@@ -124,6 +245,34 @@ const formatDurationLabel = (durationSec?: number | null) => {
   const seconds = durationSec % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 };
+
+const getRoomPlaylistLabel = (room: RoomSummary) => {
+  const source = room as RoomSummary &
+    Record<string, unknown> & {
+      playlist?: { title?: unknown } | null;
+    };
+
+  const candidates = [
+    room.playlistTitle,
+    source.playlist_title,
+    source.sourceTitle,
+    source.source_title,
+    source.collectionTitle,
+    source.collection_title,
+    source.playlist?.title,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return room.playlistCount > 0 ? `共 ${room.playlistCount} 首題目` : "題庫資訊未提供";
+};
+
+const getRoomStatusLabel = (room: RoomSummary) =>
+  isRoomCurrentlyPlaying(room) ? "遊玩中" : "待機中";
 
 const RoomListPage: React.FC = () => {
   const navigate = useNavigate();
@@ -138,8 +287,11 @@ const RoomListPage: React.FC = () => {
     rooms,
     collections,
     collectionsLoading,
+    collectionsLoadingMore,
+    collectionsHasMore,
     collectionsError,
     fetchCollections,
+    loadMoreCollections,
     loadCollectionItems,
     youtubePlaylists,
     youtubePlaylistsLoading,
@@ -180,6 +332,7 @@ const RoomListPage: React.FC = () => {
     setJoinPasswordInput,
     handleJoinRoom,
   } = useRoom();
+  const isLibraryGridWide = useMediaQuery("(min-width:640px)");
   const [passwordDialog, setPasswordDialog] = useState<{
     roomId: string;
     roomName: string;
@@ -188,6 +341,7 @@ const RoomListPage: React.FC = () => {
     roomId: string;
     roomName: string;
     hasPassword: boolean;
+    playlistTitle: string;
     playerCount: number;
     maxPlayers?: number | null;
     questionCount?: number;
@@ -200,7 +354,11 @@ const RoomListPage: React.FC = () => {
   const [directJoinLoading, setDirectJoinLoading] = useState(false);
   const [directJoinError, setDirectJoinError] = useState<string | null>(null);
   const [directJoinNeedsPassword, setDirectJoinNeedsPassword] = useState(false);
-  const [guideMode, setGuideMode] = useState<"create" | "join">("create");
+  const [guideMode, setGuideMode] = useState<"create" | "join">(() => {
+    if (typeof window === "undefined") return "create";
+    const stored = window.sessionStorage.getItem(GUIDE_MODE_STORAGE_KEY);
+    return stored === "join" ? "join" : "create";
+  });
   const [createLibraryTab, setCreateLibraryTab] = useState<
     "public" | "personal" | "youtube" | "link"
   >("public");
@@ -231,12 +389,19 @@ const RoomListPage: React.FC = () => {
     string | null
   >(null);
   const lastAutoPreviewUrlRef = useRef("");
+  const hasRequestedYoutubePlaylistsRef = useRef(false);
+  const createLibraryScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (currentRoom?.id) {
       navigate(`/rooms/${currentRoom.id}`, { replace: true });
     }
   }, [currentRoom?.id, navigate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(GUIDE_MODE_STORAGE_KEY, guideMode);
+  }, [guideMode]);
 
   const canUseGoogleLibraries = Boolean(authUser);
   const selectedJoinRoom = useMemo(
@@ -437,6 +602,139 @@ const RoomListPage: React.FC = () => {
     selectedYoutubePlaylist?.thumbnail,
     selectedYoutubePlaylist?.title,
   ]);
+  const createLibraryColumns = isLibraryGridWide ? 2 : 1;
+  const youtubeListRowHeight = 80;
+  const youtubeListHeight = Math.min(
+    640,
+    Math.max(youtubeListRowHeight, youtubePlaylists.length * youtubeListRowHeight),
+  );
+  const collectionListRowHeight = 92;
+  const collectionListRowCount =
+    collections.length + (collectionsHasMore || collectionsLoadingMore ? 1 : 0);
+  const collectionListHeight = Math.min(
+    640,
+    Math.max(collectionListRowHeight, collectionListRowCount * collectionListRowHeight),
+  );
+
+  const renderYoutubeCard = (playlistValue: unknown, _itemIndex: number, view: "grid" | "list") => {
+    const playlist = playlistValue as (typeof youtubePlaylists)[number];
+    return (
+      <button
+        key={playlist.id}
+        type="button"
+        onClick={() => {
+          void handlePickYoutubeSource(playlist.id);
+        }}
+        className={`rounded-xl border text-left transition ${
+          selectedCreateYoutubeId === playlist.id
+            ? "border-cyan-300/55 bg-cyan-500/10"
+            : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
+        } ${
+          view === "grid" ? "h-full p-3" : "flex w-full items-center gap-3 px-3 py-2"
+        }`}
+      >
+        <div
+          className={`overflow-hidden rounded-md border border-cyan-300/20 bg-slate-900/40 ${
+            view === "grid" ? "mb-3 h-28 w-full" : "h-10 w-16 shrink-0"
+          }`}
+        >
+          {playlist.thumbnail ? (
+            <img
+              src={playlist.thumbnail}
+              alt={playlist.title}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--mc-text-muted)]">
+              無縮圖
+            </div>
+          )}
+        </div>
+        <div className={`min-w-0 ${view === "grid" ? "space-y-1" : "flex-1"}`}>
+          <span className="block truncate text-sm font-semibold text-[var(--mc-text)]">
+            {playlist.title}
+          </span>
+          <span className="mt-1 block text-xs text-[var(--mc-text-muted)]">
+            YouTube 播放清單
+          </span>
+          <span className="block text-xs text-[var(--mc-text-muted)]">
+            {playlist.itemCount} 首
+          </span>
+        </div>
+      </button>
+    );
+  };
+
+  const renderCollectionCard = (
+    collectionValue: unknown,
+    _itemIndex: number,
+    view: "grid" | "list",
+  ) => {
+    const collection = collectionValue as (typeof collections)[number];
+    const previewThumbnail =
+      collection.cover_thumbnail_url ||
+      (collection.cover_provider === "youtube" && collection.cover_source_id
+        ? `https://i.ytimg.com/vi/${collection.cover_source_id}/hqdefault.jpg`
+        : "");
+
+    return (
+      <button
+        key={collection.id}
+        type="button"
+        onClick={() => {
+          const scope = createLibraryTab === "public" ? "public" : "owner";
+          void handlePickCollectionSource(collection.id, scope);
+        }}
+        className={`rounded-xl border px-3 py-2 text-left transition ${
+          selectedCreateCollectionId === collection.id
+            ? "border-cyan-300/55 bg-cyan-500/10"
+            : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
+        } ${view === "grid" ? "h-full p-3" : "w-full"}`}
+      >
+        <div className={`${view === "grid" ? "space-y-3" : "flex items-center gap-3"}`}>
+          <div
+            className={`overflow-hidden rounded-md border border-[var(--mc-border)]/70 bg-slate-900/40 ${
+              view === "grid" ? "h-28 w-full" : "h-11 w-16 shrink-0"
+            }`}
+          >
+            {previewThumbnail ? (
+              <img
+                src={previewThumbnail}
+                alt={collection.cover_title ?? collection.title}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--mc-text-muted)]">
+                無縮圖
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
+              {collection.title}
+            </p>
+            <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
+              {collection.cover_title ||
+                ((collection.visibility ?? "private") === "public"
+                  ? "公開收藏庫"
+                  : "私人收藏庫")}
+            </p>
+            <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+              {(collection.visibility ?? "private") === "public" ? "公開" : "私人"}
+              {typeof collection.favorite_count === "number"
+                ? ` · 收藏 ${collection.favorite_count}`
+                : ""}
+              {collection.cover_duration_sec
+                ? ` · ${formatDurationLabel(collection.cover_duration_sec)}`
+                : ""}
+            </p>
+          </div>
+        </div>
+      </button>
+    );
+  };
 
   useEffect(() => {
     if (!canUseGoogleLibraries) return;
@@ -448,7 +746,13 @@ const RoomListPage: React.FC = () => {
       void fetchCollections("owner");
       return;
     }
-    if (createLibraryTab === "youtube") {
+    if (
+      createLibraryTab === "youtube" &&
+      youtubePlaylists.length === 0 &&
+      !youtubePlaylistsLoading &&
+      !hasRequestedYoutubePlaylistsRef.current
+    ) {
+      hasRequestedYoutubePlaylistsRef.current = true;
       void fetchYoutubePlaylists();
     }
   }, [
@@ -456,6 +760,37 @@ const RoomListPage: React.FC = () => {
     createLibraryTab,
     fetchCollections,
     fetchYoutubePlaylists,
+    youtubePlaylists.length,
+    youtubePlaylistsLoading,
+  ]);
+
+  useEffect(() => {
+    if (authUser) return;
+    hasRequestedYoutubePlaylistsRef.current = false;
+  }, [authUser]);
+  useEffect(() => {
+    if (
+      createLibraryView !== "grid" ||
+      (createLibraryTab !== "public" && createLibraryTab !== "personal") ||
+      collectionsLoading ||
+      collectionsLoadingMore ||
+      !collectionsHasMore
+    ) {
+      return;
+    }
+    const container = createLibraryScrollRef.current;
+    if (!container) return;
+    if (container.scrollHeight <= container.clientHeight + 24) {
+      void loadMoreCollections();
+    }
+  }, [
+    collections.length,
+    collectionsHasMore,
+    collectionsLoading,
+    collectionsLoadingMore,
+    createLibraryTab,
+    createLibraryView,
+    loadMoreCollections,
   ]);
   const handlePreviewPlaylistByUrl = async () => {
     const trimmed = playlistUrlDraft.trim();
@@ -549,6 +884,7 @@ const RoomListPage: React.FC = () => {
       roomId: room.id,
       roomName: room.name,
       hasPassword: room.hasPassword,
+      playlistTitle: getRoomPlaylistLabel(room),
       playerCount: room.playerCount,
       maxPlayers: room.maxPlayers,
       questionCount: room.gameSettings?.questionCount,
@@ -579,8 +915,19 @@ const RoomListPage: React.FC = () => {
     if (!trimmed) return;
     if (!/^[a-zA-Z0-9]*$/.test(trimmed)) return;
     setJoinPasswordInput(trimmed);
-    handleJoinRoom(passwordDialog.roomId, true);
+    handleJoinRoom(passwordDialog.roomId, true, trimmed);
     closePasswordDialog();
+  };
+  const handleJoinRoomEntry = (room: RoomSummary) => {
+    setSelectedJoinRoomId(room.id);
+    setDirectRoomIdInput(room.id);
+    setDirectJoinNeedsPassword(Boolean(room.hasPassword));
+    setDirectJoinError(null);
+    if (isRoomCurrentlyPlaying(room)) {
+      openInProgressJoinDialog(room);
+      return;
+    }
+    proceedJoinRoom(room.id, room.name || `房間 ${room.id.slice(0, 6)}`, room.hasPassword);
   };
   const handleDirectJoinById = async () => {
     if (directJoinLoading) return;
@@ -619,6 +966,21 @@ const RoomListPage: React.FC = () => {
       setDirectJoinError("加入失敗，請稍後再試。");
     } finally {
       setDirectJoinLoading(false);
+    }
+  };
+  const handleCollectionGridScroll = (event: UIEvent<HTMLDivElement>) => {
+    if (
+      collectionsLoading ||
+      collectionsLoadingMore ||
+      !collectionsHasMore ||
+      createLibraryView !== "grid"
+    ) {
+      return;
+    }
+    const target = event.currentTarget;
+    const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (remaining <= 180) {
+      void loadMoreCollections();
     }
   };
 
@@ -1323,67 +1685,55 @@ const RoomListPage: React.FC = () => {
                         </div>
                       </div>
                     ) : createLibraryTab === "youtube" ? (
-                      <div className="mt-3 space-y-2">
-                        {youtubePlaylistsLoading ? (
-                          <div className="space-y-2">
-                            {Array.from({ length: 4 }).map((_, idx) => (
-                              <div
-                                key={`yt-skeleton-${idx}`}
-                                className={`h-11 ${skeletonWaveClass}`}
-                              />
-                            ))}
-                          </div>
-                        ) : youtubePlaylists.length === 0 ? (
-                          <p className="text-sm text-[var(--mc-text-muted)]">
+                        <div className="mt-3">
+                          {youtubePlaylistsLoading ? (
+                            <div
+                              className={
+                                createLibraryView === "grid"
+                                  ? "grid gap-2 sm:grid-cols-2"
+                                  : "space-y-2"
+                              }
+                            >
+                              {Array.from({ length: createLibraryView === "grid" ? 6 : 4 }).map((_, idx) =>
+                                renderYoutubeSkeletonCard(idx, createLibraryView),
+                              )}
+                            </div>
+                          ) : youtubePlaylists.length === 0 ? (
+                            <p className="text-sm text-[var(--mc-text-muted)]">
                             目前沒有可用清單，先到收藏建立頁匯入。
                           </p>
                         ) : (
-                          youtubePlaylists.slice(0, 6).map((playlist) => (
-                            <button
-                              key={playlist.id}
-                              type="button"
-                              onClick={() => {
-                                void handlePickYoutubeSource(playlist.id);
-                              }}
-                              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
-                                selectedCreateYoutubeId === playlist.id
-                                  ? "border-cyan-300/55 bg-cyan-500/10"
-                                  : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
-                              }`}
-                            >
-                              <div className="h-10 w-16 shrink-0 overflow-hidden rounded-md border border-cyan-300/20 bg-slate-900/40">
-                                {playlist.thumbnail ? (
-                                  <img
-                                    src={playlist.thumbnail}
-                                    alt={playlist.title}
-                                    className="h-full w-full object-cover"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--mc-text-muted)]">
-                                    無縮圖
-                                  </div>
-                                )}
+                          <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
+                            {createLibraryView === "grid" ? (
+                              <div className="max-h-[640px] overflow-y-auto pr-1">
+                                <div
+                                  className="grid gap-2"
+                                  style={{
+                                    gridTemplateColumns: `repeat(${createLibraryColumns}, minmax(0, 1fr))`,
+                                  }}
+                                >
+                                  {youtubePlaylists.map((playlist, index) =>
+                                    renderYoutubeCard(playlist, index, "grid"),
+                                  )}
+                                </div>
                               </div>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold text-[var(--mc-text)]">
-                                  {playlist.title}
-                                </span>
-                                <span className="mt-1 block text-xs text-[var(--mc-text-muted)]">
-                                  YouTube 播放清單
-                                </span>
-                              </span>
-                              <span className="text-xs text-[var(--mc-text-muted)]">
-                                {playlist.itemCount} 首
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
+                            ) : (
+                              <List<VirtualLibraryListRowProps>
+                                style={{ height: youtubeListHeight, width: "100%" }}
+                                rowCount={youtubePlaylists.length}
+                                rowHeight={youtubeListRowHeight}
+                                rowProps={{
+                                  items: youtubePlaylists,
+                                  renderItem: renderYoutubeCard,
+                                }}
+                                rowComponent={VirtualLibraryListRow}
+                              />
+                            )}
+                          </div>
+                          )}
+                        </div>
                     ) : (
-                      <div
-                        className={`mt-3 ${createLibraryView === "grid" ? "grid gap-2 sm:grid-cols-2" : "space-y-2"}`}
-                      >
+                      <div className="mt-3">
                         {collectionsLoading ? (
                           <div
                             className={
@@ -1393,12 +1743,7 @@ const RoomListPage: React.FC = () => {
                             }
                           >
                             {Array.from({ length: createLibraryView === "grid" ? 6 : 4 }).map(
-                              (_, idx) => (
-                                <div
-                                  key={`collection-skeleton-${idx}`}
-                                  className={`h-16 ${skeletonWaveClass}`}
-                                />
-                              ),
+                              (_, idx) => renderCollectionSkeletonCard(idx, createLibraryView),
                             )}
                           </div>
                         ) : collectionsError ? (
@@ -1408,71 +1753,52 @@ const RoomListPage: React.FC = () => {
                             目前沒有可用題庫，先使用推薦題庫快速開局。
                           </p>
                         ) : (
-                          collections.slice(0, 8).map((collection) => {
-                            const previewThumbnail =
-                              collection.cover_thumbnail_url ||
-                              (collection.cover_provider === "youtube" &&
-                              collection.cover_source_id
-                                ? `https://i.ytimg.com/vi/${collection.cover_source_id}/hqdefault.jpg`
-                                : "");
-                            return (
-                              <button
-                                key={collection.id}
-                                type="button"
-                                onClick={() => {
-                                  const scope =
-                                    createLibraryTab === "public" ? "public" : "owner";
-                                  void handlePickCollectionSource(collection.id, scope);
-                                }}
-                                className={`rounded-xl border px-3 py-2 text-left transition ${
-                                  selectedCreateCollectionId === collection.id
-                                    ? "border-cyan-300/55 bg-cyan-500/10"
-                                    : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
-                                } ${
-                                  createLibraryView === "grid" ? "h-full" : "w-full"
-                                }`}
+                          <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
+                            {createLibraryView === "grid" ? (
+                              <div
+                                ref={createLibraryScrollRef}
+                                className="max-h-[640px] overflow-y-auto pr-1"
+                                onScroll={handleCollectionGridScroll}
                               >
-                                <div className="flex items-center gap-3">
-                                  <div className="h-11 w-16 shrink-0 overflow-hidden rounded-md border border-[var(--mc-border)]/70 bg-slate-900/40">
-                                    {previewThumbnail ? (
-                                      <img
-                                        src={previewThumbnail}
-                                        alt={collection.cover_title ?? collection.title}
-                                        className="h-full w-full object-cover"
-                                        loading="lazy"
-                                      />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--mc-text-muted)]">
-                                        無縮圖
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                                      {collection.title}
-                                    </p>
-                                    <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
-                                      {collection.cover_title ||
-                                        ((collection.visibility ?? "private") === "public"
-                                          ? "公開收藏庫"
-                                          : "私人收藏庫")}
-                                    </p>
-                                    <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
-                                      {(collection.visibility ?? "private") === "public"
-                                        ? "公開"
-                                        : "私人"}
-                                      {typeof collection.favorite_count === "number"
-                                        ? ` · 收藏 ${collection.favorite_count}`
-                                        : ""}
-                                      {collection.cover_duration_sec
-                                        ? ` · ${formatDurationLabel(collection.cover_duration_sec)}`
-                                        : ""}
-                                    </p>
-                                  </div>
+                                <div
+                                  className="grid gap-2"
+                                  style={{
+                                    gridTemplateColumns: `repeat(${createLibraryColumns}, minmax(0, 1fr))`,
+                                  }}
+                                >
+                                  {collections.map((collection, index) =>
+                                    renderCollectionCard(collection, index, "grid"),
+                                  )}
+                                  {collectionsLoadingMore
+                                    ? Array.from({ length: createLibraryColumns }).map((_, idx) =>
+                                        renderCollectionSkeletonCard(idx + 1000, "grid"),
+                                      )
+                                    : null}
                                 </div>
-                              </button>
-                            );
-                          })
+                              </div>
+                            ) : (
+                              <List<VirtualLibraryListRowProps>
+                                style={{ height: collectionListHeight, width: "100%" }}
+                                rowCount={collectionListRowCount}
+                                rowHeight={collectionListRowHeight}
+                                rowProps={{
+                                  items: collections,
+                                  renderItem: renderCollectionCard,
+                                  hasMore: collectionsHasMore,
+                                  isLoadingMore: collectionsLoadingMore,
+                                  onLoadMore: () => {
+                                    void loadMoreCollections();
+                                  },
+                                  renderLoader: () => (
+                                    <div className="space-y-2">
+                                      {renderCollectionSkeletonCard(1000, "list")}
+                                    </div>
+                                  ),
+                                }}
+                                rowComponent={VirtualLibraryListRow}
+                              />
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1609,6 +1935,20 @@ const RoomListPage: React.FC = () => {
                             <p className="text-lg font-semibold text-[var(--mc-text)]">
                               {joinPreviewRoom.name}
                             </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                  isRoomCurrentlyPlaying(joinPreviewRoom)
+                                    ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                                    : "border-slate-300/20 bg-slate-400/10 text-slate-200"
+                                }`}
+                              >
+                                {getRoomStatusLabel(joinPreviewRoom)}
+                              </span>
+                              <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
+                                {joinPreviewRoom.hasPassword ? "需密碼" : "免密碼"}
+                              </span>
+                            </div>
                             <p className="text-[var(--mc-text-muted)]">
                               ID：{joinPreviewRoom.id}
                             </p>
@@ -1620,8 +1960,17 @@ const RoomListPage: React.FC = () => {
                             </p>
                             <p className="text-[var(--mc-text-muted)]">
                               題數 {joinPreviewRoom.gameSettings?.questionCount ?? "-"} ·
-                              {joinPreviewRoom.hasPassword ? " 需密碼" : " 免密碼"}
+                              題庫 {getRoomPlaylistLabel(joinPreviewRoom)}
                             </p>
+                            <div className="pt-1">
+                              <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => handleJoinRoomEntry(joinPreviewRoom)}
+                              >
+                                直接加入
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
@@ -1675,30 +2024,110 @@ const RoomListPage: React.FC = () => {
                           }`}
                         >
                           {filteredJoinRooms.slice(0, 12).map((room) => (
-                            <button
+                            <div
                               key={room.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedJoinRoomId(room.id);
-                                setDirectRoomIdInput(room.id);
-                                setDirectJoinNeedsPassword(Boolean(room.hasPassword));
-                                setDirectJoinError(null);
-                              }}
-                              className={`rounded-xl border px-3 py-2 text-left transition ${
+                              className={`rounded-xl border px-3 py-3 transition ${
                                 selectedJoinRoomId === room.id
                                   ? "border-amber-300/55 bg-amber-300/12"
                                   : "border-[var(--mc-border)] bg-slate-950/25 hover:border-amber-300/35"
                               }`}
                             >
-                              <p className="text-sm font-semibold text-[var(--mc-text)]">
-                                {room.name}
-                              </p>
-                              <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                                {room.playerCount}
-                                {room.maxPlayers ? `/${room.maxPlayers}` : ""} 人 ·
-                                {room.hasPassword ? " 需密碼" : " 免密碼"}
-                              </p>
-                            </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJoinRoomId(room.id);
+                                    setDirectRoomIdInput(room.id);
+                                    setDirectJoinNeedsPassword(Boolean(room.hasPassword));
+                                    setDirectJoinError(null);
+                                  }}
+                                  className="w-full text-left"
+                                >
+                                {joinRoomsView === "grid" ? (
+                                  <div className="space-y-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-[var(--mc-text)]">
+                                          {room.name}
+                                        </p>
+                                        <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                                          {room.playerCount}
+                                          {room.maxPlayers ? `/${room.maxPlayers}` : ""} 人
+                                        </p>
+                                      </div>
+                                      <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleJoinRoomEntry(room);
+                                        }}
+                                      >
+                                        加入
+                                      </Button>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                      <span
+                                        className={`rounded-full border px-2 py-0.5 ${
+                                          isRoomCurrentlyPlaying(room)
+                                            ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                                            : "border-slate-300/20 bg-slate-400/10 text-slate-200"
+                                        }`}
+                                      >
+                                        {getRoomStatusLabel(room)}
+                                      </span>
+                                      <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[var(--mc-text-muted)]">
+                                        {room.hasPassword ? "需密碼" : "免密碼"}
+                                      </span>
+                                    </div>
+                                    <p className="truncate text-xs text-[var(--mc-text-muted)]">
+                                      題庫：{getRoomPlaylistLabel(room)}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-[var(--mc-text)]">
+                                          {room.name}
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                          <span
+                                            className={`rounded-full border px-2 py-0.5 ${
+                                              isRoomCurrentlyPlaying(room)
+                                                ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                                                : "border-slate-300/20 bg-slate-400/10 text-slate-200"
+                                            }`}
+                                          >
+                                            {getRoomStatusLabel(room)}
+                                          </span>
+                                          <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[var(--mc-text-muted)]">
+                                            {room.hasPassword ? "需密碼" : "免密碼"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleJoinRoomEntry(room);
+                                        }}
+                                      >
+                                        加入
+                                      </Button>
+                                    </div>
+                                    <p className="mt-2 text-xs text-[var(--mc-text-muted)]">
+                                      {room.playerCount}
+                                      {room.maxPlayers ? `/${room.maxPlayers}` : ""} 人 ·
+                                      題數 {room.gameSettings?.questionCount ?? "-"}
+                                    </p>
+                                    <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
+                                      題庫：{getRoomPlaylistLabel(room)}
+                                    </p>
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -1716,9 +2145,38 @@ const RoomListPage: React.FC = () => {
                 0% { opacity: 0; transform: translateY(8px) scale(0.995); }
                 100% { opacity: 1; transform: translateY(0) scale(1); }
               }
-              @keyframes skeleton-wave {
-                0% { background-position: 200% 0; }
-                100% { background-position: -80% 0; }
+              @keyframes skeleton-breathe {
+                0% {
+                  opacity: 0.52;
+                  transform: scale(1);
+                  filter: saturate(0.92);
+                }
+                50% {
+                  opacity: 0.92;
+                  transform: scale(1.015);
+                  filter: saturate(1.08);
+                }
+                100% {
+                  opacity: 0.58;
+                  transform: scale(1);
+                  filter: saturate(0.96);
+                }
+              }
+              @keyframes skeleton-sheen {
+                0% {
+                  transform: translate3d(0, 0, 0) skewX(-22deg);
+                  opacity: 0;
+                }
+                12% {
+                  opacity: 0.28;
+                }
+                48% {
+                  opacity: 0.82;
+                }
+                100% {
+                  transform: translate3d(320%, 0, 0) skewX(-22deg);
+                  opacity: 0;
+                }
               }
             `}
           </style>
@@ -1746,6 +2204,9 @@ const RoomListPage: React.FC = () => {
                     {typeof joinConfirmDialog.questionCount === "number"
                       ? ` · 本局題數 ${joinConfirmDialog.questionCount}`
                       : ""}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", color: "text.secondary" }}>
+                    題庫 {joinConfirmDialog.playlistTitle}
                   </Typography>
                   {(typeof joinConfirmDialog.currentQuestionNo === "number" ||
                     typeof joinConfirmDialog.completedQuestionCount === "number") && (
