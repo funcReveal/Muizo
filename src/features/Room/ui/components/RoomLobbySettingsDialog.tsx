@@ -67,6 +67,8 @@ interface RoomLobbySettingsDialogProps {
   onSave: () => void;
 }
 
+type SettingsSectionKey = "room" | "question" | "playback" | "timing";
+
 const PLAYBACK_MODE_ORDER: PlaybackExtensionMode[] = [
   "manual_vote",
   "auto_once",
@@ -167,35 +169,43 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
       key: "room",
       label: "房間資訊",
       note: "名稱、公開狀態與人數",
-      ref: roomInfoRef,
     },
     {
       key: "question",
       label: "題數設定",
       note: "題數捷徑與增減控制",
-      ref: questionCountRef,
     },
     {
       key: "playback",
       label: "延長模式",
       note: "即時投票、自動延長或關閉",
-      ref: playbackModeRef,
     },
     {
       key: "timing",
       label: "時間設定",
       note: "揭曉、播放與起始秒數",
-      ref: timingRef,
     },
-  ] as const;
+  ] as const satisfies ReadonlyArray<{
+    key: SettingsSectionKey;
+    label: string;
+    note: string;
+  }>;
 
   const handleDialogClose = () => {
     if (settingsSaving) return;
     onClose();
   };
 
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const scrollToSection = (sectionKey: SettingsSectionKey) => {
+    const targetRef =
+      sectionKey === "room"
+        ? roomInfoRef
+        : sectionKey === "question"
+          ? questionCountRef
+          : sectionKey === "playback"
+            ? playbackModeRef
+            : timingRef;
+    targetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -254,19 +264,35 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             ) : null}
           </Stack>
 
-          <div className="room-lobby-settings-summary-rail">
-            {summaryItems.map((item) => (
-              <div
-                key={item.label}
-                className={`room-lobby-settings-summary-pill ${
-                  item.accent ? "is-accent" : ""
-                }`}
-              >
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
+          {isMobileDialog ? (
+            <div className="room-lobby-settings-mobile-summary">
+              {summaryItems.map((item) => (
+                <div
+                  key={item.label}
+                  className={`room-lobby-settings-mobile-summary-item ${
+                    item.accent ? "is-accent" : ""
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="room-lobby-settings-summary-rail">
+              {summaryItems.map((item) => (
+                <div
+                  key={item.label}
+                  className={`room-lobby-settings-summary-pill ${
+                    item.accent ? "is-accent" : ""
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          )}
         </Stack>
       </DialogTitle>
 
@@ -279,17 +305,10 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
           px: { xs: 1.5, sm: 2.5 },
           maxHeight: { xs: "none", md: "82vh" },
           overflowY: "auto",
+          overflowX: "hidden",
         }}
       >
-        <Stack spacing={2}>
-          {isMobileDialog ? (
-            <Box className="room-lobby-settings-mobile-tip">
-              <Typography variant="caption" className="text-slate-300">
-                建議先完成房間資訊，再調整題數、答題節奏與延長模式。
-              </Typography>
-            </Box>
-          ) : null}
-
+        <Stack spacing={isMobileDialog ? 1.5 : 2}>
           {settingsDisabled && isMobileDialog ? (
             <Box className="room-lobby-settings-warning">
               <Typography variant="caption" className="text-amber-200">
@@ -298,29 +317,52 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             </Box>
           ) : null}
 
-          <Box className="room-lobby-settings-layout">
-            <Box className="room-lobby-settings-sidebar">
-              <div className="room-lobby-settings-anchor-list">
-                {settingsSections.map((section, index) => (
-                  <button
-                    key={section.key}
-                    type="button"
-                    className="room-lobby-settings-anchor"
-                    onClick={() => scrollToSection(section.ref)}
-                  >
-                    <span className="room-lobby-settings-anchor__index">
-                      {(index + 1).toString().padStart(2, "0")}
-                    </span>
-                    <span className="room-lobby-settings-anchor__body">
-                      <strong>{section.label}</strong>
-                      <small>{section.note}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </Box>
+          {isMobileDialog ? (
+            <div className="room-lobby-settings-mobile-jump-grid">
+              {settingsSections.map((section, index) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  className="room-lobby-settings-mobile-jump-chip"
+                  onClick={() => scrollToSection(section.key)}
+                >
+                  <span className="room-lobby-settings-mobile-jump-chip__index">
+                    {(index + 1).toString().padStart(2, "0")}
+                  </span>
+                  <span className="room-lobby-settings-mobile-jump-chip__body">
+                    <strong>{section.label}</strong>
+                    <small>{section.note}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-            <Stack spacing={1.75} className="min-w-0">
+          <Box className="room-lobby-settings-layout">
+            {!isMobileDialog ? (
+              <Box className="room-lobby-settings-sidebar">
+                <div className="room-lobby-settings-anchor-list">
+                  {settingsSections.map((section, index) => (
+                    <button
+                      key={section.key}
+                      type="button"
+                      className="room-lobby-settings-anchor"
+                      onClick={() => scrollToSection(section.key)}
+                    >
+                      <span className="room-lobby-settings-anchor__index">
+                        {(index + 1).toString().padStart(2, "0")}
+                      </span>
+                      <span className="room-lobby-settings-anchor__body">
+                        <strong>{section.label}</strong>
+                        <small>{section.note}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </Box>
+            ) : null}
+
+            <Stack spacing={isMobileDialog ? 1.5 : 1.75} className="min-w-0">
               <Box
                 ref={roomInfoRef}
                 className="room-lobby-settings-card room-lobby-settings-section-card"

@@ -6505,9 +6505,45 @@ body {
 }
 
 .room-lobby-settings-mobile-summary {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.room-lobby-settings-mobile-summary-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 15px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(7, 12, 18, 0.58);
+  padding: 11px 12px;
+}
+
+.room-lobby-settings-mobile-summary-item.is-accent {
+  border-color: rgba(34, 211, 238, 0.22);
+  background:
+    radial-gradient(
+      180px 90px at 100% 0%,
+      rgba(34, 211, 238, 0.08),
+      transparent 72%
+    ),
+    rgba(7, 13, 20, 0.74);
+}
+
+.room-lobby-settings-mobile-summary-item > span {
+  color: rgba(148, 163, 184, 0.82);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.room-lobby-settings-mobile-summary-item > strong {
+  color: rgba(248, 250, 252, 0.98);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .room-lobby-settings-overview {
@@ -6553,6 +6589,7 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     0 22px 40px -36px rgba(0, 0, 0, 0.9);
+  min-width: 0;
 }
 
 .room-lobby-settings-layout {
@@ -6560,12 +6597,14 @@ body {
   grid-template-columns: minmax(196px, 220px) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+  min-width: 0;
 }
 
 .room-lobby-settings-sidebar {
   position: sticky;
   top: 0;
   align-self: start;
+  min-width: 0;
 }
 
 .room-lobby-settings-anchor-list {
@@ -6583,6 +6622,7 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.02),
     0 20px 36px -34px rgba(0, 0, 0, 0.88);
+  min-width: 0;
 }
 
 .room-lobby-settings-anchor {
@@ -6599,6 +6639,8 @@ body {
     background 180ms ease,
     transform 180ms ease,
     box-shadow 180ms ease;
+  min-width: 0;
+  width: 100%;
 }
 
 .room-lobby-settings-anchor:hover,
@@ -6745,6 +6787,73 @@ body {
   border: 1px solid rgba(56, 189, 248, 0.14);
   background: rgba(7, 12, 18, 0.48);
   padding: 10px 12px;
+}
+
+.room-lobby-settings-mobile-jump-grid {
+  display: none;
+}
+
+.room-lobby-settings-mobile-jump-chip {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  background:
+    radial-gradient(
+      180px 84px at 100% 0%,
+      rgba(34, 211, 238, 0.08),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgba(8, 13, 20, 0.92), rgba(5, 9, 15, 0.95));
+  padding: 12px 13px;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.room-lobby-settings-mobile-jump-chip:hover,
+.room-lobby-settings-mobile-jump-chip:focus-visible {
+  border-color: rgba(34, 211, 238, 0.28);
+  box-shadow: 0 16px 28px -26px rgba(34, 211, 238, 0.42);
+  transform: translateY(-1px);
+}
+
+.room-lobby-settings-mobile-jump-chip__index {
+  display: inline-flex;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+  color: rgba(254, 243, 199, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.room-lobby-settings-mobile-jump-chip__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.room-lobby-settings-mobile-jump-chip__body > strong {
+  color: rgba(248, 250, 252, 0.98);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.room-lobby-settings-mobile-jump-chip__body > small {
+  color: rgba(148, 163, 184, 0.76);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .room-lobby-settings-mode-info.MuiIconButton-root {
@@ -7021,31 +7130,48 @@ body {
 }
 
 @media (max-width: 960px) {
-  .room-lobby-settings-summary-rail {
-    grid-template-columns: 1fr;
-  }
-
   .room-lobby-settings-layout {
     grid-template-columns: 1fr;
+    gap: 0;
   }
 
   .room-lobby-settings-sidebar {
     position: static;
   }
 
-  .room-lobby-settings-anchor-list {
-    display: flex;
+  .room-lobby-settings-mobile-jump-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-    overflow-x: auto;
-    padding: 0 0 2px;
+  }
+
+  .room-lobby-settings-anchor-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    overflow: visible;
+    padding: 0;
     border: 0;
     background: transparent;
     box-shadow: none;
   }
 
   .room-lobby-settings-anchor {
-    min-width: 180px;
-    flex: 0 0 auto;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .room-lobby-settings-anchor__index {
+    min-width: 30px;
+    height: 30px;
+    font-size: 10px;
+  }
+
+  .room-lobby-settings-anchor__body {
+    gap: 2px;
+  }
+
+  .room-lobby-settings-anchor__body > small {
+    display: none;
   }
 
   .room-lobby-settings-overview {
@@ -7062,11 +7188,46 @@ body {
 
   .room-lobby-settings-preset-strip {
     justify-content: flex-start;
+    width: 100%;
   }
 
   .room-lobby-settings-card {
     border-radius: 18px;
-    padding: 15px;
+    padding: 14px;
+  }
+
+  .room-lobby-settings-chip.MuiChip-root,
+  .room-lobby-settings-chip--accent.MuiChip-root {
+    height: auto;
+    align-items: flex-start;
+  }
+
+  .room-lobby-settings-chip.MuiChip-root .MuiChip-label,
+  .room-lobby-settings-chip--accent.MuiChip-root .MuiChip-label {
+    white-space: normal;
+    line-height: 1.4;
+    padding-block: 7px;
+  }
+
+  .room-lobby-settings-dialog__actions {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    backdrop-filter: blur(16px);
+  }
+}
+
+@media (max-width: 380px) {
+  .room-lobby-settings-mobile-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .room-lobby-settings-mobile-jump-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .room-question-inline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

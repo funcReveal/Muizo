@@ -42,7 +42,10 @@ import {
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
-import { normalizePlaybackExtensionMode } from "../model/roomProviderUtils";
+import {
+  normalizePlaybackExtensionMode,
+  normalizeRoomDisplayText,
+} from "../model/roomProviderUtils";
 import {
   resolveCorrectResultSfxEvent,
   resolveCountdownSfxEvent,
@@ -405,7 +408,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
   const hostManagementConfirmText = useMemo(() => {
     if (!hostManagementConfirm) return null;
-    const target = hostManagementConfirm.targetName || "\u9019\u4f4d\u73a9\u5bb6";
+    const target = normalizeRoomDisplayText(
+      hostManagementConfirm.targetName,
+      "這位玩家",
+    );
     if (hostManagementConfirm.type === "transfer") {
       return {
         title: `\u8981\u5c07\u623f\u4e3b\u8f49\u79fb\u7d66 ${target} \u55ce\uff1f`,
@@ -479,7 +485,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return null;
   }, [meClientId, playbackExtensionVote]);
   const playbackVoteRequesterName =
-    playbackExtensionVote?.requestedByUsername?.trim() || "\u67d0\u4f4d\u73a9\u5bb6";
+    normalizeRoomDisplayText(playbackExtensionVote?.requestedByUsername, "某位玩家");
   const playbackVoteProposalSeconds = Math.max(
     0,
     Math.round((playbackExtensionVote?.extendMs ?? 0) / 1000),
@@ -596,11 +602,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const item = useMemo(() => {
     return playlist[currentTrackIndex] ?? playlist[0];
   }, [playlist, currentTrackIndex]);
-  const resolvedAnswerTitle =
+  const resolvedAnswerTitle = normalizeRoomDisplayText(
     gameState.answerTitle?.trim() ||
-    item?.answerText?.trim() ||
-    item?.title?.trim() ||
-    "\u672a\u77e5\u66f2\u76ee";
+      item?.answerText?.trim() ||
+      item?.title?.trim(),
+    "未知曲目",
+  );
+  const resolvedRoomName = normalizeRoomDisplayText(room.name, "未命名房間");
 
   const roomPlayDurationSec = Math.max(
     1,
@@ -1621,7 +1629,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </Avatar>
                 <div className="min-w-0">
                   <Typography variant="body2" className="truncate text-slate-100">
-                    {participant.username}
+                    {normalizeRoomDisplayText(
+                      participant.username,
+                      `玩家 ${index + 1}`,
+                    )}
                   </Typography>
                   <Typography variant="caption" className="text-slate-400">
                     {`\u5206\u6578 ${participant.score.toLocaleString()} \u00b7 ${participantPingText}`}
@@ -1732,7 +1743,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <GameRoomPlaybackPanel
               isRevealPhase={isReveal}
               revealAnswerTitle={resolvedAnswerTitle}
-              roomName={room.name}
+              roomName={resolvedRoomName}
               boundedCursor={boundedCursor}
               trackOrderLength={trackOrderLength}
               onOpenExitConfirm={openExitConfirm}
@@ -1818,9 +1829,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <span className="game-room-mobile-action-icon" aria-hidden>
                   <SmartDisplayRoundedIcon fontSize="inherit" />
                 </span>
-                <span className="game-room-mobile-action-label">\u5f71\u7247</span>
+                <span className="game-room-mobile-action-label">影片</span>
                 <span className="game-room-mobile-action-meta">
-                  {isReveal ? "\u516c\u5e03\u7b54\u6848" : `\u7b2c ${boundedCursor + 1} \u984c`}
+                  {isReveal ? "公布答案" : `第 ${boundedCursor + 1} 題`}
                 </span>
               </button>
               <button
@@ -1831,9 +1842,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <span className="game-room-mobile-action-icon" aria-hidden>
                   <LeaderboardRoundedIcon fontSize="inherit" />
                 </span>
-                <span className="game-room-mobile-action-label">\u5206\u6578\u699c</span>
+                <span className="game-room-mobile-action-label">分數榜</span>
                 <span className="game-room-mobile-action-meta">
-                  \u5df2\u7b54 {answeredCount}/{participants.length || 0}
+                  已答 {answeredCount}/{participants.length || 0}
                 </span>
               </button>
               <button
@@ -1848,11 +1859,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <span className="game-room-mobile-action-icon" aria-hidden>
                   <ForumRoundedIcon fontSize="inherit" />
                 </span>
-                <span className="game-room-mobile-action-label">\u804a\u5929\u5ba4</span>
+                <span className="game-room-mobile-action-label">聊天室</span>
                 <span className="game-room-mobile-action-meta">
                   {mobileChatUnread > 0
-                    ? `\u672a\u8b80 ${mobileChatUnread > 99 ? "99+" : mobileChatUnread}`
-                    : "\u958b\u555f"}
+                    ? `未讀 ${mobileChatUnread > 99 ? "99+" : mobileChatUnread}`
+                    : "開啟"}
                 </span>
               </button>
               <div
@@ -1982,7 +1993,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   isOverlayMode
                   isRevealPhase={isReveal}
                   revealAnswerTitle={resolvedAnswerTitle}
-                  roomName={room.name}
+                  roomName={resolvedRoomName}
                   boundedCursor={boundedCursor}
                   trackOrderLength={trackOrderLength}
                   onOpenExitConfirm={openExitConfirm}
@@ -2018,7 +2029,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 >
                   <span className="game-room-mobile-drawer-handle-bar" />
                   <span className="game-room-mobile-drawer-handle-direction">
-                    \u5411\u4e0a\u62d6\u66f3\u6536\u5408
+                    向上拖曳收合
                   </span>
                   </div>
               </div>
@@ -2066,7 +2077,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 >
                   <span className="game-room-mobile-drawer-handle-bar" />
                   <span className="game-room-mobile-drawer-handle-direction">
-                    \u5411\u4e0b\u62d6\u66f3\u6536\u5408
+                    向下拖曳收合
                   </span>
                 </div>
                 <button
@@ -2080,7 +2091,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <div className="game-room-mobile-scoreboard-headline">
                   <div className="game-room-mobile-scoreboard-title-group">
                     <span className="game-room-mobile-scoreboard-kicker">SCOREBOARD</span>
-                    <span className="game-room-mobile-scoreboard-title">\u5206\u6578\u699c</span>
+                    <span className="game-room-mobile-scoreboard-title">分數榜</span>
                   </div>
                   <div className="game-room-mobile-scoreboard-actions">
                     <button
@@ -2092,7 +2103,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       <CloseRoundedIcon fontSize="inherit" />
                     </button>
                     <span className="game-room-mobile-scoreboard-answered-pill">
-                      \u5df2\u7b54 {answeredCount}/{participants.length || 0}
+                      已答 {answeredCount}/{participants.length || 0}
                     </span>
                   </div>
                 </div>
@@ -2176,7 +2187,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             className: "game-room-playback-vote-dialog",
           }}
         >
-          <DialogTitle>\u5ef6\u9577\u64ad\u653e\u6295\u7968</DialogTitle>
+          <DialogTitle>延長播放投票</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={1.2}>
               <Typography variant="body2" className="text-slate-200">
@@ -2223,11 +2234,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               className: "game-room-host-manage-dialog",
             }}
           >
-            <DialogTitle>\u73a9\u5bb6\u7ba1\u7406</DialogTitle>
+            <DialogTitle>玩家管理</DialogTitle>
             <DialogContent dividers>{hostManagementPanelContent}</DialogContent>
             <DialogActions>
               <Button onClick={handleCloseHostManagement} variant="outlined" color="inherit">
-                \u95dc\u9589
+                關閉
               </Button>
             </DialogActions>
           </Dialog>
