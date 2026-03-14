@@ -77,7 +77,9 @@ const readStoredPreviewVolume = () => {
 
 const readStoredPreviewAutoplay = () => {
   if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(HISTORY_PREVIEW_AUTOPLAY_STORAGE_KEY) === "1";
+  const raw = window.localStorage.getItem(HISTORY_PREVIEW_AUTOPLAY_STORAGE_KEY);
+  if (raw === null) return true;
+  return raw === "1";
 };
 
 const formatDuration = (startedAt?: number, endedAt?: number) => {
@@ -195,7 +197,7 @@ const HoverMarqueeText: React.FC<{
       const overflow = track.scrollWidth - wrap.clientWidth;
       if (overflow > 10) {
         const shift = -(overflow + 22);
-        const durationSec = Math.min(18, Math.max(7, overflow / 30));
+        const durationSec = Math.min(11.5, Math.max(4.2, overflow / 48));
         setCanMarquee(true);
         setMarqueeStyle({
           ["--settlement-title-shift" as const]: `${shift}px`,
@@ -542,7 +544,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
   return (
     <div className="space-y-4">
       <section className="rounded-[24px] border border-slate-700/70 bg-[linear-gradient(180deg,rgba(8,14,24,0.9),rgba(4,8,16,0.96))] p-4 sm:p-5">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px] xl:items-start">
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(176px,208px)] sm:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-sky-300/28 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-sky-100">
@@ -568,7 +570,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+          <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100 sm:justify-self-end sm:w-full sm:max-w-[208px]">
             <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/85">
               你的本局表現
             </p>
@@ -596,13 +598,13 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[220px_250px_minmax(0,1fr)]">
+      <section className="space-y-3">
         <aside className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">玩家</p>
             <span className="text-xs text-slate-500">{rankedParticipants.length} 人</span>
           </div>
-          <div className="mt-3 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(220px,280px))] xl:justify-start">
             {rankedParticipants.map((participant, index) => {
               const active = selectedParticipantId === participant.clientId;
               const isMe = meClientId && meClientId === participant.clientId;
@@ -611,7 +613,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                   key={participant.clientId}
                   type="button"
                   onClick={() => setSelectedParticipantId(participant.clientId)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                  className={`w-full max-w-[280px] overflow-hidden rounded-xl border px-3 py-2.5 text-left transition ${
                     active
                       ? "border-cyan-300/45 bg-cyan-500/12"
                       : "border-slate-700/70 bg-slate-900/55 hover:border-slate-500/80"
@@ -634,55 +636,56 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
           </div>
         </aside>
 
-        <aside className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">題目</p>
-            <span className="text-xs text-slate-500">{recaps.length} 題</span>
-          </div>
-          <div className="mt-3 max-h-[620px] space-y-2 overflow-y-auto pr-1">
-            {recaps.map((recap) => {
-              const answer = getParticipantAnswer(recap, selectedParticipantId, meClientId);
-              const tone = RESULT_TONE[answer.result];
-              const active = selectedRecap?.key === recap.key;
-              return (
-                <button
-                  key={recap.key}
-                  type="button"
-                  onClick={() => {
-                    setSelectedRecapKey(recap.key);
-                    setPreviewPlayerState("idle");
-                  }}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                    active
-                      ? "border-amber-300/55 bg-amber-500/10"
-                      : "border-slate-700/70 bg-slate-900/55 hover:border-slate-500/80"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
-                        active
-                          ? "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.12)]"
-                          : "bg-slate-700"
-                      }`}
-                    />
-                    <HoverMarqueeText
-                      text={recap.title}
-                      className="min-w-0 flex-1 text-sm font-semibold text-slate-100"
-                    />
-                    <span
-                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone.className}`}
-                    >
-                      {tone.label}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
+        <div className="grid gap-3 xl:grid-cols-[minmax(255px,280px)_minmax(0,1fr)] xl:items-start">
+          <aside className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3 xl:w-[280px] xl:self-start">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">題目</p>
+              <span className="text-xs text-slate-500">{recaps.length} 題</span>
+            </div>
+            <div className="mt-3 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+              {recaps.map((recap) => {
+                const answer = getParticipantAnswer(recap, selectedParticipantId, meClientId);
+                const tone = RESULT_TONE[answer.result];
+                const active = selectedRecap?.key === recap.key;
+                return (
+                  <button
+                    key={recap.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRecapKey(recap.key);
+                      setPreviewPlayerState("idle");
+                    }}
+                    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                      active
+                        ? "border-amber-300/55 bg-amber-500/10"
+                        : "border-slate-700/70 bg-slate-900/55 hover:border-slate-500/80"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${
+                          active
+                            ? "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.12)]"
+                            : "bg-slate-700"
+                        }`}
+                      />
+                      <HoverMarqueeText
+                        text={recap.title}
+                        className="min-w-0 max-w-full flex-1 text-sm font-semibold text-slate-100"
+                      />
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone.className}`}
+                      >
+                        {tone.label}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
 
-        <article className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3 sm:p-4">
+          <article className="rounded-2xl border border-slate-700/70 bg-slate-950/55 p-3 sm:p-4 xl:self-start">
           {selectedRecap ? (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -690,11 +693,25 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
                     第 {selectedRecap.order} 題 · {selectedParticipant?.username ?? "玩家視角"}
                   </p>
-                  <HoverMarqueeText
-                    text={selectedRecap.title}
-                    className="mt-2 w-full text-base font-semibold leading-tight text-slate-100 sm:text-lg"
-                    trackClassName="underline-offset-4 hover:text-cyan-200"
-                  />
+                  {selectedRecapLink?.href ? (
+                    <button
+                      type="button"
+                      onClick={() => openLink(selectedRecapLink, selectedRecap)}
+                      className="mt-2 block w-full text-left"
+                    >
+                      <HoverMarqueeText
+                        text={selectedRecap.title}
+                        className="w-full text-base font-semibold leading-tight text-slate-100 sm:text-lg"
+                        trackClassName="underline-offset-4 hover:text-cyan-200"
+                      />
+                    </button>
+                  ) : (
+                    <HoverMarqueeText
+                      text={selectedRecap.title}
+                      className="mt-2 w-full text-base font-semibold leading-tight text-slate-100 sm:text-lg"
+                      trackClassName="underline-offset-4 hover:text-cyan-200"
+                    />
+                  )}
                   <p className="mt-1 text-sm text-slate-400">{selectedRecap.uploader}</p>
                 </div>
                 <span
@@ -779,7 +796,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                         return (
                           <div
                             key={`${selectedRecap.key}-${choice.index}`}
-                            className={`rounded-xl border px-3 py-3 ${
+                            className={`overflow-hidden rounded-xl border px-3 py-3 ${
                               isCorrect
                                 ? "border-emerald-300/35 bg-emerald-500/10"
                                 : isSelected
@@ -789,17 +806,17 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                           >
                             <div className="flex items-start gap-3">
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-start justify-between gap-2">
+                                <div className="flex min-w-0 items-start gap-2">
                                   <HoverMarqueeText
                                     text={choice.title}
-                                    className="min-w-0 flex-1 text-sm text-slate-100"
+                                    className="min-w-0 max-w-full flex-1 text-sm text-slate-100"
                                   />
                                   {count > 0 ? (
                                     <span className="shrink-0 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
                                       {count} 人
                                     </span>
                                   ) : (
-                                    <span className="shrink-0 text-[10px] font-semibold text-slate-500">
+                                    <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-slate-500">
                                       0 人
                                     </span>
                                   )}
@@ -836,34 +853,26 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                 )}
 
                 <div className="rounded-2xl border border-slate-700/75 bg-[linear-gradient(180deg,rgba(10,16,28,0.92),rgba(6,10,18,0.98))] p-3 sm:p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
                         歌曲預覽
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-100">
-                        {selectedRecapLink?.providerLabel || "來源頁面"}
-                      </p>
-                      <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
-                        可快速回看本題歌曲來源，並保留你的預覽設定。
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                       {selectedRecapLink?.providerLabel && (
                         <span className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2.5 py-1 text-[10px] font-semibold text-slate-200">
                           {selectedRecapLink.providerLabel}
                         </span>
                       )}
-                      {selectedRecapLink?.href && supportCtaLabel && (
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center rounded-full border border-sky-300/35 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20"
-                          onClick={() => openLink(selectedRecapLink, selectedRecap)}
-                        >
-                          {supportCtaLabel}
-                        </button>
-                      )}
                     </div>
+                    {selectedRecapLink?.href && supportCtaLabel && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-full border border-sky-300/35 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20"
+                        onClick={() => openLink(selectedRecapLink, selectedRecap)}
+                      >
+                        {supportCtaLabel}
+                      </button>
+                    )}
                   </div>
 
                   <div className="mt-3 overflow-hidden rounded-xl border border-slate-700/80 bg-black/45">
@@ -889,11 +898,6 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                                 <span className="block text-sm font-semibold text-slate-100">
                                   {PREVIEW_OVERLAY_COPY}
                                 </span>
-                                {previewAutoplayEnabled && (
-                                  <span className="mt-2 block text-xs text-slate-300">
-                                    已啟用自動播放；若瀏覽器阻擋，點擊畫面即可開始。
-                                  </span>
-                                )}
                               </span>
                             </button>
                           )}
@@ -916,7 +920,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                   </div>
 
                   {selectedRecapPreviewUrl && (
-                    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/62 px-3 py-3">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/62 px-3 py-3">
                       <button
                         type="button"
                         aria-pressed={previewAutoplayEnabled}
@@ -940,7 +944,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                         <PlayCircleOutlineRoundedIcon className="text-[1.2rem]" />
                       </button>
 
-                      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/55 px-3 py-2.5">
+                      <div className="flex min-w-[240px] flex-1 items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/55 px-3 py-2.5">
                         <span
                           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-600/70 bg-slate-950/80 text-slate-100"
                           aria-hidden="true"
@@ -993,6 +997,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
             </div>
           )}
         </article>
+        </div>
       </section>
     </div>
   );

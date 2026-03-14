@@ -63,18 +63,6 @@ const formatDateTime = (timestamp: number) => {
   return new Date(timestamp).toLocaleString();
 };
 
-const formatRelative = (timestamp: number) => {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return "";
-  const diffMs = Date.now() - timestamp;
-  const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "剛剛";
-  if (diffMin < 60) return `${diffMin} 分鐘前`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour} 小時前`;
-  const diffDay = Math.floor(diffHour / 24);
-  return `${diffDay} 天前`;
-};
-
 const buildHistoryHeaders = (token: string | null) => ({
   "Content-Type": "application/json",
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -787,11 +775,6 @@ const RoomHistoryPage: React.FC = () => {
     }
     return best;
   }, [recentItems]);
-  const recentRoomSpread = useMemo(
-    () => new Set(recentItems.map((item) => item.roomId)).size,
-    [recentItems],
-  );
-  const latestRecentEntry = recentItems[0] ?? null;
   const oldestRecentEntry =
     recentItems.length > 0 ? recentItems[recentItems.length - 1] : null;
 
@@ -1262,15 +1245,11 @@ const RoomHistoryPage: React.FC = () => {
         recentBestRankEntry={recentBestRankEntry}
         recentBestComboEntry={recentBestComboEntry}
         recentBestAccuracyEntry={recentBestAccuracyEntry}
-        latestRecentEntry={latestRecentEntry}
-        recentRoomSpread={recentRoomSpread}
         onOpenReplay={(summary) => {
           void openReplayDetail(summary);
         }}
         onBackToRooms={() => navigate("/rooms", { replace: true })}
         formatRankFraction={formatRankFraction}
-        formatRelative={formatRelative}
-        formatDateTime={formatDateTime}
       />
       {listView}
       <HistoryReplayDialog

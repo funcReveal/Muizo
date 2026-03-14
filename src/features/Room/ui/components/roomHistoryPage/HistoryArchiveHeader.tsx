@@ -1,3 +1,5 @@
+import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded";
+import ViewListRoundedIcon from "@mui/icons-material/ViewListRounded";
 import React from "react";
 
 import type { RoomSettlementHistorySummary } from "../../../model/types";
@@ -14,13 +16,9 @@ interface HistoryArchiveHeaderProps {
   recentBestRankEntry: { item: RoomSettlementHistorySummary; rank: number } | null;
   recentBestComboEntry: RoomSettlementHistorySummary | null;
   recentBestAccuracyEntry: { item: RoomSettlementHistorySummary; rate: number } | null;
-  latestRecentEntry: RoomSettlementHistorySummary | null;
-  recentRoomSpread: number;
   onOpenReplay: (summary: RoomSettlementHistorySummary) => void;
   onBackToRooms: () => void;
   formatRankFraction: (rank: number | null, playerCount: number | null | undefined) => string;
-  formatRelative: (timestamp: number) => string;
-  formatDateTime: (timestamp: number) => string;
 }
 
 const metricButtonBase =
@@ -36,18 +34,10 @@ const HistoryArchiveHeader: React.FC<HistoryArchiveHeaderProps> = ({
   recentBestRankEntry,
   recentBestComboEntry,
   recentBestAccuracyEntry,
-  latestRecentEntry,
-  recentRoomSpread,
   onOpenReplay,
   onBackToRooms,
   formatRankFraction,
-  formatRelative,
-  formatDateTime,
 }) => {
-  const latestLabel = latestRecentEntry
-    ? formatRelative(latestRecentEntry.endedAt) || formatDateTime(latestRecentEntry.endedAt)
-    : null;
-
   return (
     <section className="relative overflow-hidden rounded-[28px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.96),rgba(8,7,5,0.98))] p-4 shadow-[0_18px_38px_-28px_rgba(0,0,0,0.72)] sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -67,38 +57,6 @@ const HistoryArchiveHeader: React.FC<HistoryArchiveHeaderProps> = ({
             依房間整理最近 {historyPageLimit} 場對戰快照，展開房間後可直接切換局次並打開回放。
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-              已載入 {recentItemsLength} / {historyPageLimit} 場
-            </div>
-
-            <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/28 bg-amber-300/8 p-1">
-              <button
-                type="button"
-                aria-pressed={historyDisplayMode === "expanded"}
-                onClick={() => onHistoryDisplayModeChange("expanded")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold tracking-[0.08em] transition ${
-                  historyDisplayMode === "expanded"
-                    ? "border border-emerald-300/35 bg-emerald-300/14 text-emerald-100"
-                    : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
-                }`}
-              >
-                完整顯示
-              </button>
-              <button
-                type="button"
-                aria-pressed={historyDisplayMode === "collapsed"}
-                onClick={() => onHistoryDisplayModeChange("collapsed")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold tracking-[0.08em] transition ${
-                  historyDisplayMode === "collapsed"
-                    ? "border border-amber-300/40 bg-amber-300/16 text-amber-50"
-                    : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
-                }`}
-              >
-                摺疊顯示
-              </button>
-            </div>
-          </div>
         </div>
 
         <div className="flex items-center justify-end">
@@ -259,10 +217,44 @@ const HistoryArchiveHeader: React.FC<HistoryArchiveHeaderProps> = ({
         </button>
       </div>
 
-      <div className="mt-3 text-xs text-[var(--mc-text-muted)]/80">
-        {latestLabel
-          ? `近期資料涵蓋 ${recentRoomSpread} 個房間，最新一場結束於 ${latestLabel}。`
-          : "目前尚未取得可用的對戰紀錄。"}
+      <div className="mt-5 flex flex-col gap-2.5 border-t border-amber-300/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex items-center self-start rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
+          已載入 {recentItemsLength} / {historyPageLimit} 場
+        </div>
+
+        <div className="flex items-center justify-end gap-2 self-end sm:self-auto">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-[var(--mc-text-muted)]">
+            列表顯示
+          </span>
+          <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/28 bg-amber-300/8 p-1 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.05)]">
+            <button
+              type="button"
+              aria-pressed={historyDisplayMode === "expanded"}
+              onClick={() => onHistoryDisplayModeChange("expanded")}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold tracking-[0.06em] transition ${
+                historyDisplayMode === "expanded"
+                  ? "border border-emerald-300/35 bg-emerald-300/14 text-emerald-100"
+                  : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
+              }`}
+            >
+              <ViewAgendaRoundedIcon sx={{ fontSize: 15 }} />
+              完整顯示
+            </button>
+            <button
+              type="button"
+              aria-pressed={historyDisplayMode === "collapsed"}
+              onClick={() => onHistoryDisplayModeChange("collapsed")}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold tracking-[0.06em] transition ${
+                historyDisplayMode === "collapsed"
+                  ? "border border-amber-300/40 bg-amber-300/16 text-amber-50"
+                  : "border border-transparent text-amber-100/80 hover:border-amber-300/25 hover:bg-amber-300/10"
+              }`}
+            >
+              <ViewListRoundedIcon sx={{ fontSize: 15 }} />
+              摺疊顯示
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );
