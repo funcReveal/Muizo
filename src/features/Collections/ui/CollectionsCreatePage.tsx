@@ -20,6 +20,7 @@ type DbCollection = {
 };
 
 const DEFAULT_DURATION_SEC = 30;
+const COLLECTION_ITEMS_CHUNK_SIZE = 200;
 
 const parseDurationToSeconds = (duration?: string): number | null => {
   if (!duration) return null;
@@ -358,29 +359,35 @@ const CollectionsCreatePage = () => {
         };
       });
 
-      const insert = async (token: string, allowRetry: boolean) => {
+      const insertChunk = async (
+        token: string,
+        itemsChunk: typeof insertItems,
+        allowRetry: boolean,
+      ) => {
         const res = await fetch(
           `${API_URL}/api/collections/${created.id}/items`,
           {
             method: "POST",
             headers: buildJsonHeaders(token),
-            body: JSON.stringify({ items: insertItems }),
+            body: JSON.stringify({ items: itemsChunk }),
           },
         );
         if (res.status === 401 && allowRetry) {
           const refreshed = await refreshAuthToken();
           if (refreshed) {
-            return insert(refreshed, false);
+            return insertChunk(refreshed, itemsChunk, false);
           }
         }
         if (!res.ok) {
           const payload = await res.json().catch(() => null);
           throw new Error(payload?.error ?? "Failed to insert items");
         }
-        return null;
       };
 
-      await insert(token, true);
+      for (let index = 0; index < insertItems.length; index += COLLECTION_ITEMS_CHUNK_SIZE) {
+        const chunk = insertItems.slice(index, index + COLLECTION_ITEMS_CHUNK_SIZE);
+        await insertChunk(token, chunk, true);
+      }
       trackEvent("collection_create_success", {
         collection_id: created.id,
         collection_visibility: visibility,
