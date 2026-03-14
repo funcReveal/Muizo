@@ -261,6 +261,9 @@ export interface RoomSummary {
   createdAt: number;
   hasPassword: boolean;
   playlistCount: number;
+  playlistId?: string | null;
+  playlistTitle?: string | null;
+  playlistSourceType?: string | null;
   gameSettings?: {
     questionCount: number;
     playDurationSec?: number;

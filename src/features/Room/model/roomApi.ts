@@ -214,6 +214,7 @@ export const apiFetchCollections = (
     ownerId?: string;
     visibility?: "public" | "private";
     sort?: "updated" | "popular" | "favorites_first";
+    page?: number;
     pageSize?: number;
   },
 ) => {
@@ -226,6 +227,9 @@ export const apiFetchCollections = (
   }
   if (options.sort) {
     url.searchParams.set("sort", options.sort);
+  }
+  if (options.page !== undefined) {
+    url.searchParams.set("page", String(options.page));
   }
   if (options.pageSize !== undefined) {
     url.searchParams.set("pageSize", String(options.pageSize));

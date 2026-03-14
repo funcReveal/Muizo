@@ -50,6 +50,8 @@ export type UseRoomCollectionsResult = {
     is_favorited?: boolean;
   }>;
   collectionsLoading: boolean;
+  collectionsLoadingMore: boolean;
+  collectionsHasMore: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
   publicCollectionsSort: "popular" | "favorites_first";
@@ -61,6 +63,7 @@ export type UseRoomCollectionsResult = {
   collectionItemsError: string | null;
   selectCollection: (collectionId: string | null) => void;
   fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  loadMoreCollections: () => Promise<void>;
   toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   loadCollectionItems: (
     collectionId: string,
@@ -98,6 +101,8 @@ export const useRoomCollections = ({
     }>
   >([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [collectionsLoadingMore, setCollectionsLoadingMore] = useState(false);
+  const [collectionsHasMore, setCollectionsHasMore] = useState(false);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [collectionItemsLoading, setCollectionItemsLoading] = useState(false);
@@ -112,6 +117,8 @@ export const useRoomCollections = ({
   const [collectionsLastFetchedAt, setCollectionsLastFetchedAt] = useState<number | null>(
     null,
   );
+  const collectionPageRef = useRef(1);
+  const collectionRequestScopeRef = useRef<"owner" | "public" | null>(null);
   const collectionCacheRef = useRef<Record<string, PlaylistItem[]>>({});
   const inFlightCollectionIdRef = useRef<string | null>(null);
   const latestLoadRequestIdRef = useRef(0);
@@ -130,6 +137,8 @@ export const useRoomCollections = ({
         return;
       }
       const resolvedScope = scope ?? (authToken && ownerId ? "owner" : "public");
+      collectionRequestScopeRef.current = resolvedScope;
+      collectionPageRef.current = 1;
       setCollectionScope(resolvedScope);
       if (resolvedScope === "owner") {
         if (!authToken) {
@@ -142,6 +151,8 @@ export const useRoomCollections = ({
         }
       }
       setCollectionsLoading(true);
+      setCollectionsLoadingMore(false);
+      setCollectionsHasMore(false);
       setCollectionsError(null);
       try {
         const applyCollectionsResult = (
@@ -162,6 +173,7 @@ export const useRoomCollections = ({
           }>,
           emptyMessage: string,
         ) => {
+          collectionPageRef.current = 1;
           setCollections(
             items.map((item) => ({
               ...item,
@@ -170,6 +182,7 @@ export const useRoomCollections = ({
               is_favorited: Boolean(item.is_favorited),
             })),
           );
+          setCollectionsHasMore(items.length >= DEFAULT_PAGE_SIZE);
           setCollectionsLastFetchedAt(Date.now());
           setSelectedCollectionId((currentSelection) =>
             currentSelection && items.some((item) => item.id === currentSelection)
@@ -185,6 +198,7 @@ export const useRoomCollections = ({
           const { ok, payload } = await apiFetchCollections(apiUrl, {
             visibility: "public",
             sort: publicCollectionsSort,
+            page: 1,
             pageSize: DEFAULT_PAGE_SIZE,
           });
           if (!ok) {
@@ -203,6 +217,7 @@ export const useRoomCollections = ({
           const { ok, status, payload } = await apiFetchCollections(apiUrl, {
             token,
             ownerId: ownerId ?? undefined,
+            page: 1,
             pageSize: DEFAULT_PAGE_SIZE,
           });
           if (ok) {
@@ -229,6 +244,113 @@ export const useRoomCollections = ({
     },
     [authToken, ownerId, publicCollectionsSort, refreshAuthToken, apiUrl],
   );
+
+  const loadMoreCollections = useCallback(async () => {
+    if (!apiUrl) return;
+    const resolvedScope = collectionRequestScopeRef.current ?? collectionScope;
+    if (!resolvedScope || collectionsLoading || collectionsLoadingMore || !collectionsHasMore) {
+      return;
+    }
+    if (resolvedScope === "owner" && (!authToken || !ownerId)) {
+      return;
+    }
+
+    const nextPage = collectionPageRef.current + 1;
+    setCollectionsLoadingMore(true);
+
+    const appendCollections = (
+      items: Array<{
+        id: string;
+        title: string;
+        description?: string | null;
+        visibility?: "private" | "public";
+        cover_title?: string | null;
+        cover_channel_title?: string | null;
+        cover_thumbnail_url?: string | null;
+        cover_duration_sec?: number | null;
+        cover_source_id?: string | null;
+        cover_provider?: string | null;
+        use_count?: number;
+        favorite_count?: number;
+        is_favorited?: boolean | number;
+      }>,
+    ) => {
+      const normalizedItems = items.map((item) => ({
+        ...item,
+        use_count: Math.max(0, Number(item.use_count ?? 0)),
+        favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
+        is_favorited: Boolean(item.is_favorited),
+      }));
+      setCollections((prev) => {
+        const nextMap = new Map(prev.map((item) => [item.id, item]));
+        normalizedItems.forEach((item) => {
+          nextMap.set(item.id, item);
+        });
+        return Array.from(nextMap.values());
+      });
+      collectionPageRef.current = nextPage;
+      setCollectionsHasMore(items.length >= DEFAULT_PAGE_SIZE);
+      setCollectionsLastFetchedAt(Date.now());
+    };
+
+    try {
+      if (resolvedScope === "public") {
+        const { ok, payload } = await apiFetchCollections(apiUrl, {
+          visibility: "public",
+          sort: publicCollectionsSort,
+          page: nextPage,
+          pageSize: DEFAULT_PAGE_SIZE,
+        });
+        if (!ok) {
+          throw new Error(payload?.error ?? "載入公開收藏庫失敗");
+        }
+        appendCollections(payload?.data?.items ?? []);
+        return;
+      }
+
+      const token = await ensureFreshAuthToken({ token: authToken, refreshAuthToken });
+      if (!token) {
+        throw new Error("登入已過期，請重新登入");
+      }
+
+      const run = async (token: string, allowRetry: boolean) => {
+        const { ok, status, payload } = await apiFetchCollections(apiUrl, {
+          token,
+          ownerId: ownerId ?? undefined,
+          page: nextPage,
+          pageSize: DEFAULT_PAGE_SIZE,
+        });
+        if (ok) {
+          appendCollections(payload?.data?.items ?? []);
+          return;
+        }
+        if (status === 401 && allowRetry) {
+          const refreshed = await refreshAuthToken();
+          if (refreshed) {
+            await run(refreshed, false);
+            return;
+          }
+        }
+        throw new Error(payload?.error ?? "載入收藏庫失敗");
+      };
+
+      await run(token, true);
+    } catch (error) {
+      setCollectionsError(error instanceof Error ? error.message : "載入收藏庫失敗");
+    } finally {
+      setCollectionsLoadingMore(false);
+    }
+  }, [
+    apiUrl,
+    authToken,
+    collectionScope,
+    collectionsHasMore,
+    collectionsLoading,
+    collectionsLoadingMore,
+    ownerId,
+    publicCollectionsSort,
+    refreshAuthToken,
+  ]);
 
   const toggleCollectionFavorite = useCallback(
     async (collectionId: string) => {
@@ -513,11 +635,15 @@ export const useRoomCollections = ({
   const resetCollectionsState = useCallback(() => {
     setCollections([]);
     setCollectionsLoading(false);
+    setCollectionsLoadingMore(false);
+    setCollectionsHasMore(false);
     setCollectionsError(null);
     setCollectionScope(null);
     setPublicCollectionsSort("popular");
     setCollectionFavoriteUpdatingId(null);
     setCollectionsLastFetchedAt(null);
+    collectionPageRef.current = 1;
+    collectionRequestScopeRef.current = null;
     setSelectedCollectionId(null);
     setCollectionItemsLoading(false);
     setCollectionItemsError(null);
@@ -541,6 +667,8 @@ export const useRoomCollections = ({
   return {
     collections,
     collectionsLoading,
+    collectionsLoadingMore,
+    collectionsHasMore,
     collectionsError,
     collectionScope,
     publicCollectionsSort,
@@ -552,6 +680,7 @@ export const useRoomCollections = ({
     collectionItemsError,
     selectCollection,
     fetchCollections,
+    loadMoreCollections,
     toggleCollectionFavorite,
     loadCollectionItems,
     resetCollectionsState,
