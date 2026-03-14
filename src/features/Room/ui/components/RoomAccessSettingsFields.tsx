@@ -63,6 +63,7 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1}
+        alignItems={{ xs: "stretch", sm: "center" }}
         className={classes?.visibilityRow}
       >
         <Button
@@ -70,6 +71,7 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
           onClick={() => onVisibilityChange("public")}
           disabled={disabled}
           className={classes?.visibilityButton}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
         >
           公開
         </Button>
@@ -78,6 +80,7 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
           onClick={() => onVisibilityChange("private")}
           disabled={disabled}
           className={classes?.visibilityButton}
+          sx={{ width: { xs: "100%", sm: "auto" } }}
         >
           私人
         </Button>
@@ -102,7 +105,11 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
         className={classes?.passwordField}
       />
 
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        alignItems={{ xs: "stretch", sm: "center" }}
+      >
         {showClearButton && (
           <Button
             size="small"
@@ -113,7 +120,11 @@ const RoomAccessSettingsFields: React.FC<RoomAccessSettingsFieldsProps> = ({
             清除
           </Button>
         )}
-        <Typography variant="caption" className={classes?.noteText}>
+        <Typography
+          variant="caption"
+          className={classes?.noteText}
+          sx={{ minWidth: 0 }}
+        >
           {passwordHint}
         </Typography>
       </Stack>

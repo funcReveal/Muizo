@@ -12,6 +12,7 @@ import type { RoomCreateSourceMode } from "./RoomContext";
 import {
   CHUNK_SIZE,
   DEFAULT_PAGE_SIZE,
+  DEFAULT_PLAYBACK_EXTENSION_MODE,
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_REVEAL_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
@@ -266,6 +267,7 @@ export const useRoomProviderCreateRoomAction = ({
         revealDurationSec: nextRevealDurationSec,
         startOffsetSec: nextStartOffsetSec,
         allowCollectionClipTiming: nextAllowCollectionClipTiming,
+        playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
       },
       playlist: {
         uploadId,
@@ -296,6 +298,7 @@ export const useRoomProviderCreateRoomAction = ({
           revealDurationSec: nextRevealDurationSec,
           startOffsetSec: nextStartOffsetSec,
           allowCollectionClipTiming: nextAllowCollectionClipTiming,
+          playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
         }),
       );
       setParticipants((prev) =>
@@ -565,6 +568,7 @@ export const useRoomProviderCreateRoomAction = ({
                 playDurationSec: nextPlayDurationSec,
                 startOffsetSec: nextStartOffsetSec,
                 allowCollectionClipTiming: nextAllowCollectionClipTiming,
+                playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
                 maxPlayers: desiredMaxPlayers,
               },
               (settingsAck: Ack<{ room: RoomSummary }>) => {
@@ -598,6 +602,8 @@ export const useRoomProviderCreateRoomAction = ({
                           startOffsetSec: nextStartOffsetSec,
                           allowCollectionClipTiming:
                             nextAllowCollectionClipTiming,
+                          playbackExtensionMode:
+                            DEFAULT_PLAYBACK_EXTENSION_MODE,
                         },
                       )
                     : prev,

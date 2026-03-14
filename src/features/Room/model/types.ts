@@ -116,6 +116,11 @@ export interface PlaybackExtensionVoteState {
   resolvedAt?: number;
 }
 
+export type PlaybackExtensionMode =
+  | "manual_vote"
+  | "auto_once"
+  | "disabled";
+
 export interface PlaylistSuggestion {
   clientId: string;
   username: string;
@@ -265,6 +270,7 @@ export interface RoomSummary {
     revealDurationSec?: number;
     startOffsetSec?: number;
     allowCollectionClipTiming?: boolean;
+    playbackExtensionMode?: PlaybackExtensionMode;
   };
   visibility?: "public" | "private";
   maxPlayers?: number | null;
@@ -303,6 +309,7 @@ export interface ClientToServerEvents {
         revealDurationSec?: number;
         startOffsetSec?: number;
         allowCollectionClipTiming?: boolean;
+        playbackExtensionMode?: PlaybackExtensionMode;
       };
       playlist: {
         uploadId: string;
@@ -388,6 +395,7 @@ export interface ClientToServerEvents {
       revealDurationSec?: number;
       startOffsetSec?: number;
       allowCollectionClipTiming?: boolean;
+      playbackExtensionMode?: PlaybackExtensionMode;
       maxPlayers?: number | null;
     },
     callback?: (ack: Ack<{ room: RoomSummary }>) => void

@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   GameState,
   PlaylistItem,
+  PlaybackExtensionMode,
   PlaylistSuggestion,
   SessionProgressPayload,
   RoomSettlementHistorySummary,
@@ -201,6 +202,7 @@ export interface RoomContextValue {
     revealDurationSec?: number;
     startOffsetSec?: number;
     allowCollectionClipTiming?: boolean;
+    playbackExtensionMode?: PlaybackExtensionMode;
     maxPlayers?: number | null;
   }) => Promise<boolean>;
   handleKickPlayer: (targetClientId: string, durationMs?: number | null) => void;
