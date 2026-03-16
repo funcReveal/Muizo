@@ -5,6 +5,7 @@ type LiveSettlementTab = "overview" | "recommend";
 
 interface SettlementStageHeaderProps {
   isMobileView?: boolean;
+  headingRef?: React.RefObject<HTMLHeadingElement | null>;
   roomName: string;
   playlistTitle?: string | null;
   playedQuestionCount: number;
@@ -29,6 +30,7 @@ interface SettlementStageHeaderProps {
 
 const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   isMobileView = false,
+  headingRef,
   roomName,
   playlistTitle,
   playedQuestionCount,
@@ -68,10 +70,15 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
     <>
       <header className="game-settlement-stage-header flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="inline-flex items-center rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-200">
-            Match Settlement
-          </div>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-100 sm:text-3xl">
+          {!isMobileView && (
+            <div className="inline-flex items-center rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-200">
+              Match Settlement
+            </div>
+          )}
+          <h2
+            ref={headingRef}
+            className={`${isMobileView ? "mt-0 scroll-mt-4" : "mt-3"} text-2xl font-black tracking-tight text-slate-100 sm:text-3xl`}
+          >
             對戰結算
           </h2>
           <p className="mt-1 truncate text-sm text-slate-300">
@@ -80,31 +87,30 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
           </p>
         </div>
         {isMobileView ? (
-          <div className="game-settlement-mobile-meta flex flex-col items-end gap-1.5">
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              <span className="rounded-full bg-amber-400/14 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
-                題數 {playedQuestionCount}
+          <div className="game-settlement-mobile-meta flex w-full flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-amber-400/14 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
+              題數 {playedQuestionCount}
+            </span>
+            <span className="rounded-full bg-sky-400/14 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
+              玩家 {participantsLength}
+            </span>
+            {mobileMetaExpanded && elapsedLabel && (
+              <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
+                局長 {elapsedLabel}
               </span>
-              <span className="rounded-full bg-sky-400/14 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
-                玩家 {participantsLength}
-              </span>
-              <button
-                type="button"
-                className="rounded-full border border-slate-500/70 bg-slate-900/60 px-2 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
-                onClick={() => setMobileMetaExpanded((prev) => !prev)}
-              >
-                {mobileMetaExpanded ? "收合" : "更多"}
-              </button>
-            </div>
-            {mobileMetaExpanded && (
-              <div className="w-full max-w-[300px] rounded-xl bg-slate-900/55 px-2.5 py-2 text-[11px] text-slate-200">
-                {elapsedLabel && <p>局長：{elapsedLabel}</p>}
-                {settlementTimeChipLabel && (
-                  <p className="mt-0.5 text-slate-300">{settlementTimeChipLabel}</p>
-                )}
-                <p className="mt-1 text-slate-400">{tabHints[activeTab]}</p>
-              </div>
             )}
+            {mobileMetaExpanded && settlementTimeChipLabel && (
+              <span className="rounded-full border border-slate-500/50 bg-slate-900/65 px-2.5 py-1 text-[10.5px] font-semibold text-slate-200">
+                {settlementTimeChipLabel}
+              </span>
+            )}
+            <button
+              type="button"
+              className="rounded-full border border-slate-500/70 bg-slate-900/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
+              onClick={() => setMobileMetaExpanded((prev) => !prev)}
+            >
+              {mobileMetaExpanded ? "收合" : "更多"}
+            </button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
@@ -140,18 +146,18 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
         )}
       </header>
 
+      {!isMobileView && (
       <div className="game-settlement-stage-progress rounded-2xl border border-slate-700/70 bg-slate-900/60 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">結算導覽</p>
-            <p className="text-sm font-semibold text-slate-100">
-              Step {stepIndex + 1}/{totalSteps} ・{" "}
-              {isMobileView && !mobileMetaExpanded
-                ? tabLabels[activeTab]
-                : tabHints[activeTab]}
-            </p>
+            <>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">結算導覽</p>
+              <p className="text-sm font-semibold text-slate-100">
+                Step {stepIndex + 1}/{totalSteps} ・ {tabHints[activeTab]}
+              </p>
+            </>
           </div>
-          <div className="text-xs font-semibold text-amber-100">{progressPercent}%</div>
+          <div className="text-xs font-semibold text-amber-100">{`${progressPercent}%`}</div>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
           <div
@@ -160,6 +166,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
           />
         </div>
       </div>
+      )}
 
       <nav className="game-settlement-stage-tab-nav flex flex-wrap items-center justify-between gap-2">
         <div className="game-settlement-stage-tab-list flex min-w-0 flex-wrap items-center gap-2">
@@ -171,7 +178,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
               onClick={() => onGoToTab(tab)}
               title={tabHints[tab]}
             >
-              {index + 1}. {tabLabels[tab]}
+              {isMobileView ? tabLabels[tab] : `${index + 1}. ${tabLabels[tab]}`}
             </button>
           ))}
         </div>

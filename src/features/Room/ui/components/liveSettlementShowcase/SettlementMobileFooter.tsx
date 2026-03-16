@@ -73,7 +73,7 @@ const SettlementMobileFooter: React.FC<SettlementMobileFooterProps> = ({
             disabled
             className="!min-w-0 !flex-[1.1]"
           >
-            暫無操作
+            稍後可用
           </Button>
         )}
         {onOpenExitConfirm && hasNextStep && (
