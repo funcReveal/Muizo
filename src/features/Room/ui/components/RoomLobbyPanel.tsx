@@ -30,7 +30,7 @@ import SportsEsportsRoundedIcon from "@mui/icons-material/SportsEsportsRounded";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
-import QueueMusicRoundedIcon from "@mui/icons-material/QueueMusicRounded";
+import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
@@ -1617,7 +1617,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     <Box className="room-lobby-playlist-panel">
       <div className="room-lobby-panel-head room-lobby-playlist-head">
         <div className="room-lobby-panel-title">
-          <QueueMusicRoundedIcon fontSize="small" />
+          <LibraryMusicRoundedIcon fontSize="small" />
           <Typography variant="subtitle2" className="text-slate-200">
             播放清單
           </Typography>
@@ -1909,7 +1909,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   onClick={() => setMobileLobbyTab("playlist")}
                 >
                   <span className="room-lobby-mobile-tab__icon" aria-hidden="true">
-                    <QueueMusicRoundedIcon fontSize="inherit" />
+                    <LibraryMusicRoundedIcon fontSize="inherit" />
                   </span>
                   <span className="room-lobby-mobile-tab__label">播放清單</span>
                 </button>

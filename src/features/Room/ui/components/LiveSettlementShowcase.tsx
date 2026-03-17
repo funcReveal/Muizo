@@ -851,10 +851,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     return () => window.clearTimeout(timer);
   }, [endedAt, isMobileSettlementViewport, room.id, startedAt]);
 
-  const progressPercent = Math.round(
-    ((stepIndex + 1) / TAB_ORDER.length) * 100,
-  );
-
   return (
     <div className="game-settlement-mobile-shell mx-auto w-full max-w-6xl min-w-0 px-2 pb-28 sm:px-4 lg:pb-4">
       <section ref={settlementStageRef} className="game-settlement-mobile-stage relative min-w-0 overflow-hidden rounded-[30px] border border-amber-400/35 bg-slate-950/95 px-4 py-6 shadow-[0_30px_120px_-60px_rgba(245,158,11,0.6)] sm:px-6 sm:py-7">
@@ -871,13 +867,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
             participantsLength={participants.length}
             elapsedLabel={elapsedLabel}
             settlementTimeChipLabel={settlementTimeChipLabel}
-            stepIndex={stepIndex}
-            totalSteps={TAB_ORDER.length}
             activeTab={activeTab}
             tabOrder={TAB_ORDER}
             tabLabels={TAB_LABELS}
             tabHints={TAB_HINTS}
-            progressPercent={progressPercent}
             onGoToTab={goToTab}
             onGoPrevStep={goPrevStep}
             onGoNextStep={goNextStep}

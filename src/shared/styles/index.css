@@ -3100,33 +3100,7 @@ body {
 
 .game-room-score-row--me {
   border-color: rgba(56, 189, 248, 0.55);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25);
-}
-
-.game-room-score-row--me-locate {
-  box-shadow:
-    0 0 0 1px rgba(56, 189, 248, 0.4),
-    0 0 24px -14px rgba(56, 189, 248, 0.65);
-}
-
-.game-room-score-row--me-locate::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(125, 211, 252, 0.98),
-    rgba(14, 165, 233, 0.88)
-  );
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.62);
-}
-
-.game-room-score-row--me-locate.game-room-score-row--combo-flare::before {
-  opacity: 0.44;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
 }
 
 .game-room-score-row-you-badge {
@@ -3606,19 +3580,31 @@ body {
 }
 
 .game-room-choice-button--combo-live.MuiButton-root {
-  --gr-combo-border: rgba(52, 211, 153, 0.72);
-  --gr-combo-inner: rgba(16, 185, 129, 0.34);
-  --gr-combo-glow: rgba(52, 211, 153, 0.86);
-  --gr-combo-top: rgba(4, 78, 64, 0.46);
-  --gr-combo-bottom: rgba(6, 95, 70, 0.4);
-  --gr-combo-core: rgba(20, 184, 166, 0.26);
+  --gr-combo-border: rgba(52, 211, 153, 0.76);
+  --gr-combo-inner: rgba(16, 185, 129, 0.38);
+  --gr-combo-glow: rgba(45, 212, 191, 0.92);
+  --gr-combo-top: rgba(6, 78, 59, 0.52);
+  --gr-combo-bottom: rgba(7, 89, 133, 0.42);
+  --gr-combo-core: rgba(34, 211, 238, 0.32);
   --gr-combo-duration: 1.35s;
   border-color: var(--gr-combo-border) !important;
   background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--gr-combo-glow) 22%, transparent),
+      transparent 34%,
+      color-mix(in srgb, var(--gr-combo-border) 18%, transparent) 66%,
+      transparent 100%
+    ),
     radial-gradient(
       240px 150px at 14% 14%,
       var(--gr-combo-core),
       transparent 72%
+    ),
+    radial-gradient(
+      220px 140px at 92% 88%,
+      color-mix(in srgb, var(--gr-combo-border) 42%, transparent),
+      transparent 76%
     ),
     linear-gradient(180deg, var(--gr-combo-top), var(--gr-combo-bottom)) !important;
   box-shadow:
@@ -3631,53 +3617,103 @@ body {
 }
 
 .game-room-choice-button--combo-live-tier-1.MuiButton-root {
-  --gr-combo-border: rgba(45, 212, 191, 0.64);
-  --gr-combo-inner: rgba(20, 184, 166, 0.3);
-  --gr-combo-glow: rgba(45, 212, 191, 0.76);
-  --gr-combo-top: rgba(12, 74, 68, 0.44);
-  --gr-combo-bottom: rgba(8, 47, 73, 0.36);
-  --gr-combo-core: rgba(45, 212, 191, 0.22);
+  --gr-combo-border: rgba(34, 211, 238, 0.66);
+  --gr-combo-inner: rgba(34, 211, 238, 0.32);
+  --gr-combo-glow: rgba(103, 232, 249, 0.78);
+  --gr-combo-top: rgba(10, 74, 92, 0.44);
+  --gr-combo-bottom: rgba(14, 116, 144, 0.36);
+  --gr-combo-core: rgba(45, 212, 191, 0.24);
   --gr-combo-duration: 1.62s;
 }
 
 .game-room-choice-button--combo-live-tier-2.MuiButton-root {
-  --gr-combo-border: rgba(74, 222, 128, 0.74);
-  --gr-combo-inner: rgba(34, 197, 94, 0.34);
-  --gr-combo-glow: rgba(74, 222, 128, 0.9);
-  --gr-combo-top: rgba(6, 78, 59, 0.48);
-  --gr-combo-bottom: rgba(20, 83, 45, 0.4);
-  --gr-combo-core: rgba(74, 222, 128, 0.24);
+  --gr-combo-border: rgba(74, 222, 128, 0.78);
+  --gr-combo-inner: rgba(34, 197, 94, 0.38);
+  --gr-combo-glow: rgba(163, 230, 53, 0.92);
+  --gr-combo-top: rgba(5, 82, 58, 0.48);
+  --gr-combo-bottom: rgba(63, 98, 18, 0.42);
+  --gr-combo-core: rgba(110, 231, 183, 0.28);
   --gr-combo-duration: 1.48s;
 }
 
 .game-room-choice-button--combo-live-tier-3.MuiButton-root {
-  --gr-combo-border: rgba(251, 191, 36, 0.84);
-  --gr-combo-inner: rgba(245, 158, 11, 0.4);
-  --gr-combo-glow: rgba(251, 191, 36, 0.98);
-  --gr-combo-top: rgba(120, 53, 15, 0.54);
-  --gr-combo-bottom: rgba(146, 64, 14, 0.46);
-  --gr-combo-core: rgba(251, 191, 36, 0.28);
+  --gr-combo-border: rgba(250, 204, 21, 0.88);
+  --gr-combo-inner: rgba(245, 158, 11, 0.42);
+  --gr-combo-glow: rgba(253, 224, 71, 1);
+  --gr-combo-top: rgba(133, 77, 14, 0.56);
+  --gr-combo-bottom: rgba(180, 83, 9, 0.48);
+  --gr-combo-core: rgba(251, 191, 36, 0.34);
   --gr-combo-duration: 1.34s;
 }
 
 .game-room-choice-button--combo-live-tier-4.MuiButton-root {
-  --gr-combo-border: rgba(251, 146, 60, 0.9);
-  --gr-combo-inner: rgba(249, 115, 22, 0.44);
-  --gr-combo-glow: rgba(251, 146, 60, 1);
-  --gr-combo-top: rgba(127, 29, 29, 0.58);
-  --gr-combo-bottom: rgba(154, 52, 18, 0.5);
-  --gr-combo-core: rgba(251, 146, 60, 0.32);
+  --gr-combo-border: rgba(251, 146, 60, 0.94);
+  --gr-combo-inner: rgba(249, 115, 22, 0.48);
+  --gr-combo-glow: rgba(253, 186, 116, 1);
+  --gr-combo-top: rgba(127, 29, 29, 0.62);
+  --gr-combo-bottom: rgba(194, 65, 12, 0.54);
+  --gr-combo-core: rgba(251, 146, 60, 0.36);
   --gr-combo-duration: 1.2s;
 }
 
 .game-room-choice-button--combo-live-tier-5.MuiButton-root {
-  --gr-combo-border: rgba(244, 114, 182, 0.96);
-  --gr-combo-inner: rgba(225, 29, 72, 0.5);
-  --gr-combo-glow: rgba(244, 114, 182, 1);
-  --gr-combo-top: rgba(126, 34, 206, 0.58);
-  --gr-combo-bottom: rgba(157, 23, 77, 0.54);
-  --gr-combo-core: rgba(244, 114, 182, 0.35);
+  --gr-combo-border: rgba(244, 114, 182, 1);
+  --gr-combo-inner: rgba(225, 29, 72, 0.56);
+  --gr-combo-glow: rgba(216, 180, 254, 1);
+  --gr-combo-top: rgba(126, 34, 206, 0.64);
+  --gr-combo-bottom: rgba(190, 24, 93, 0.58);
+  --gr-combo-core: rgba(244, 114, 182, 0.4);
   --gr-combo-duration: 1.02s;
+}
+
+.game-room-choice-button--combo-live-tier-6.MuiButton-root {
+  --gr-combo-border: rgba(236, 72, 153, 1);
+  --gr-combo-inner: rgba(190, 24, 93, 0.62);
+  --gr-combo-glow: rgba(251, 113, 133, 1);
+  --gr-combo-top: rgba(131, 24, 67, 0.7);
+  --gr-combo-bottom: rgba(157, 23, 77, 0.62);
+  --gr-combo-core: rgba(251, 113, 133, 0.46);
+  --gr-combo-duration: 0.96s;
+}
+
+.game-room-choice-button--combo-live-tier-7.MuiButton-root {
+  --gr-combo-border: rgba(248, 113, 113, 1);
+  --gr-combo-inner: rgba(220, 38, 38, 0.64);
+  --gr-combo-glow: rgba(253, 186, 116, 1);
+  --gr-combo-top: rgba(127, 29, 29, 0.74);
+  --gr-combo-bottom: rgba(154, 52, 18, 0.66);
+  --gr-combo-core: rgba(251, 146, 60, 0.48);
+  --gr-combo-duration: 0.9s;
+}
+
+.game-room-choice-button--combo-live-tier-8.MuiButton-root {
+  --gr-combo-border: rgba(251, 191, 36, 1);
+  --gr-combo-inner: rgba(245, 158, 11, 0.66);
+  --gr-combo-glow: rgba(254, 240, 138, 1);
+  --gr-combo-top: rgba(133, 77, 14, 0.76);
+  --gr-combo-bottom: rgba(180, 83, 9, 0.68);
+  --gr-combo-core: rgba(253, 224, 71, 0.52);
+  --gr-combo-duration: 0.84s;
+}
+
+.game-room-choice-button--combo-live-tier-9.MuiButton-root {
+  --gr-combo-border: rgba(103, 232, 249, 1);
+  --gr-combo-inner: rgba(8, 145, 178, 0.68);
+  --gr-combo-glow: rgba(196, 181, 253, 1);
+  --gr-combo-top: rgba(22, 78, 99, 0.78);
+  --gr-combo-bottom: rgba(88, 28, 135, 0.7);
+  --gr-combo-core: rgba(125, 211, 252, 0.56);
+  --gr-combo-duration: 0.78s;
+}
+
+.game-room-choice-button--combo-live-tier-10.MuiButton-root {
+  --gr-combo-border: rgba(255, 236, 153, 1);
+  --gr-combo-inner: rgba(251, 191, 36, 0.74);
+  --gr-combo-glow: rgba(255, 120, 40, 1);
+  --gr-combo-top: rgba(69, 10, 10, 0.82);
+  --gr-combo-bottom: rgba(120, 53, 15, 0.76);
+  --gr-combo-core: rgba(255, 214, 10, 0.64);
+  --gr-combo-duration: 0.68s;
 }
 
 .game-room-choice-button--combo-overdrive.MuiButton-root {
@@ -3866,6 +3902,41 @@ body {
     radial-gradient(circle at 50% 50%, rgba(244, 114, 182, 0.56), transparent 70%),
     radial-gradient(circle at 28% 66%, rgba(251, 113, 133, 0.58), transparent 34%),
     radial-gradient(circle at 76% 32%, rgba(251, 191, 36, 0.48), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-6 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.58), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(244, 114, 182, 0.62), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(249, 168, 212, 0.54), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-7 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(251, 146, 60, 0.62), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(248, 113, 113, 0.64), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(253, 186, 116, 0.56), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-8 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(253, 224, 71, 0.66), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(251, 191, 36, 0.72), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(254, 240, 138, 0.6), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-9 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(125, 211, 252, 0.68), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(103, 232, 249, 0.72), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(196, 181, 253, 0.62), transparent 32%);
+}
+
+.game-room-choice-burst--combo-tier-10 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 214, 10, 0.8), transparent 70%),
+    radial-gradient(circle at 28% 66%, rgba(255, 140, 0, 0.76), transparent 34%),
+    radial-gradient(circle at 76% 32%, rgba(255, 245, 157, 0.66), transparent 32%);
 }
 
 .game-room-choice-button--combo-milestone.MuiButton-root {
@@ -4562,37 +4633,72 @@ body {
 
 .game-room-choice-tag--combo {
   border-width: 1px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 18px -14px rgba(15, 23, 42, 0.78);
 }
 
 .game-room-choice-tag--combo-tier-1 {
-  border-color: rgba(45, 212, 191, 0.55);
-  background: rgba(20, 184, 166, 0.18);
+  border-color: rgba(34, 211, 238, 0.58);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(20, 184, 166, 0.22));
   color: #ccfbf1;
 }
 
 .game-room-choice-tag--combo-tier-2 {
-  border-color: rgba(74, 222, 128, 0.58);
-  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(74, 222, 128, 0.62);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.18), rgba(132, 204, 22, 0.22));
   color: #dcfce7;
 }
 
 .game-room-choice-tag--combo-tier-3 {
-  border-color: rgba(251, 191, 36, 0.62);
-  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(250, 204, 21, 0.68);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.24));
   color: #fef3c7;
 }
 
 .game-room-choice-tag--combo-tier-4 {
-  border-color: rgba(251, 146, 60, 0.64);
-  background: rgba(249, 115, 22, 0.22);
+  border-color: rgba(251, 146, 60, 0.7);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.24), rgba(251, 191, 36, 0.2));
   color: #ffedd5;
 }
 
 .game-room-choice-tag--combo-tier-5 {
-  border-color: rgba(244, 114, 182, 0.66);
-  background: rgba(225, 29, 72, 0.24);
+  border-color: rgba(244, 114, 182, 0.72);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.26), rgba(168, 85, 247, 0.24));
   color: #ffe4e6;
+}
+
+.game-room-choice-tag--combo-tier-6 {
+  border-color: rgba(244, 114, 182, 0.78);
+  background: linear-gradient(135deg, rgba(190, 24, 93, 0.28), rgba(251, 113, 133, 0.26));
+  color: #ffe4e6;
+}
+
+.game-room-choice-tag--combo-tier-7 {
+  border-color: rgba(251, 146, 60, 0.78);
+  background: linear-gradient(135deg, rgba(153, 27, 27, 0.3), rgba(249, 115, 22, 0.28));
+  color: #ffedd5;
+}
+
+.game-room-choice-tag--combo-tier-8 {
+  border-color: rgba(251, 191, 36, 0.82);
+  background: linear-gradient(135deg, rgba(146, 64, 14, 0.32), rgba(251, 191, 36, 0.28));
+  color: #fef3c7;
+}
+
+.game-room-choice-tag--combo-tier-9 {
+  border-color: rgba(103, 232, 249, 0.82);
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.34), rgba(147, 51, 234, 0.28));
+  color: #ecfeff;
+}
+
+.game-room-choice-tag--combo-tier-10 {
+  border-color: rgba(255, 214, 10, 0.9);
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.42), rgba(251, 146, 60, 0.34));
+  color: #fff7ed;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 245, 157, 0.14),
+    0 0 16px -12px rgba(255, 196, 0, 0.88);
 }
 
 @keyframes game-room-choice-commit-sweep {
@@ -10954,32 +11060,21 @@ body {
 
 .game-settlement-review-list {
   position: relative;
+  scrollbar-gutter: auto;
+  background: transparent;
+  box-shadow: none;
 }
 
 .game-settlement-review-list::before,
 .game-settlement-review-list::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 20px;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.game-settlement-review-list::before {
-  top: 0;
-  background: linear-gradient(180deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0));
-}
-
-.game-settlement-review-list::after {
-  bottom: 0;
-  background: linear-gradient(0deg, rgba(2, 6, 23, 0.76), rgba(2, 6, 23, 0));
+  display: none;
 }
 
 .game-settlement-review-list > div {
   scrollbar-width: thin;
   scrollbar-color: rgba(56, 189, 248, 0.62) rgba(15, 23, 42, 0.52);
+  scrollbar-gutter: auto;
+  overflow-y: auto !important;
 }
 
 .game-settlement-review-list > div::-webkit-scrollbar {
@@ -11341,6 +11436,143 @@ body {
   }
 }
 
+.game-settlement-stage-tab-nav {
+  gap: 0.85rem;
+}
+
+.game-settlement-stage-tab-list {
+  gap: 0.7rem;
+}
+
+.game-settlement-stage-tab-btn {
+  min-height: 2.75rem;
+  padding-inline: 1.15rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 26px -18px rgba(2, 6, 23, 0.88);
+}
+
+.game-settlement-desktop-action.MuiButton-root,
+.game-settlement-mobile-footer__btn.MuiButton-root {
+  border-radius: 999px;
+  min-height: 2.9rem;
+  padding-inline: 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 24px -18px rgba(2, 6, 23, 0.92);
+  transition:
+    transform 180ms ease,
+    box-shadow 220ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.game-settlement-desktop-action.MuiButton-root:hover,
+.game-settlement-mobile-footer__btn.MuiButton-root:hover {
+  transform: translateY(-1px);
+}
+
+.game-settlement-desktop-action--ghost.MuiButton-root,
+.game-settlement-mobile-footer__btn--ghost.MuiButton-root {
+  border-color: rgba(125, 211, 252, 0.24);
+  background:
+    radial-gradient(circle at 14% 20%, rgba(56, 189, 248, 0.08), transparent 40%),
+    linear-gradient(180deg, rgba(12, 19, 34, 0.84), rgba(7, 11, 22, 0.96));
+  color: #dbeafe;
+}
+
+.game-settlement-desktop-action--next.MuiButton-root,
+.game-settlement-mobile-footer__btn--next.MuiButton-root {
+  border-color: rgba(251, 191, 36, 0.38);
+  background:
+    radial-gradient(circle at 18% 22%, rgba(251, 191, 36, 0.16), transparent 42%),
+    linear-gradient(135deg, rgba(118, 58, 14, 0.92), rgba(217, 119, 6, 0.9));
+  color: #fff7ed;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 237, 0.08),
+    0 12px 24px -18px rgba(120, 53, 15, 0.66);
+}
+
+.game-settlement-desktop-action--finish.MuiButton-root,
+.game-settlement-mobile-footer__btn--finish.MuiButton-root {
+  border-color: rgba(74, 222, 128, 0.34);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(134, 239, 172, 0.16), transparent 42%),
+    linear-gradient(135deg, rgba(30, 64, 44, 0.96), rgba(21, 50, 39, 0.98));
+  color: #dcfce7;
+  box-shadow:
+    inset 0 1px 0 rgba(220, 252, 231, 0.08),
+    0 12px 24px -18px rgba(20, 83, 45, 0.78);
+}
+
+.game-settlement-desktop-action--exit.MuiButton-root,
+.game-settlement-mobile-footer__btn--exit.MuiButton-root {
+  border-color: rgba(251, 146, 60, 0.28);
+  background:
+    radial-gradient(circle at 82% 22%, rgba(251, 146, 60, 0.14), transparent 40%),
+    linear-gradient(135deg, rgba(58, 23, 28, 0.96), rgba(37, 15, 22, 0.98));
+  color: #fed7aa;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 237, 213, 0.06),
+    0 12px 24px -18px rgba(67, 20, 7, 0.74);
+}
+
+.game-settlement-desktop-action--finish.MuiButton-root:hover,
+.game-settlement-mobile-footer__btn--finish.MuiButton-root:hover {
+  border-color: rgba(110, 231, 183, 0.42);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(167, 243, 208, 0.2), transparent 44%),
+    linear-gradient(135deg, rgba(34, 84, 56, 0.98), rgba(24, 60, 44, 0.99));
+  box-shadow:
+    inset 0 1px 0 rgba(220, 252, 231, 0.1),
+    0 16px 28px -20px rgba(22, 101, 52, 0.84);
+}
+
+.game-settlement-desktop-action--exit.MuiButton-root:hover,
+.game-settlement-mobile-footer__btn--exit.MuiButton-root:hover {
+  border-color: rgba(251, 146, 60, 0.36);
+  background:
+    radial-gradient(circle at 82% 22%, rgba(251, 146, 60, 0.16), transparent 42%),
+    linear-gradient(135deg, rgba(72, 28, 36, 0.98), rgba(51, 20, 28, 0.99));
+  color: #ffedd5;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 237, 213, 0.08),
+    0 16px 28px -20px rgba(88, 28, 8, 0.82);
+}
+
+.game-settlement-desktop-action--ghost.MuiButton-root:hover,
+.game-settlement-mobile-footer__btn--ghost.MuiButton-root:hover {
+  border-color: rgba(125, 211, 252, 0.38);
+  background:
+    radial-gradient(circle at 14% 20%, rgba(56, 189, 248, 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(14, 23, 39, 0.92), rgba(8, 14, 28, 0.99));
+  color: #f8fafc;
+}
+
+.game-settlement-desktop-action--next.MuiButton-root:hover,
+.game-settlement-mobile-footer__btn--next.MuiButton-root:hover {
+  border-color: rgba(252, 211, 77, 0.48);
+  background:
+    radial-gradient(circle at 18% 22%, rgba(251, 191, 36, 0.2), transparent 44%),
+    linear-gradient(135deg, rgba(146, 64, 14, 0.95), rgba(234, 88, 12, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 237, 0.1),
+    0 16px 28px -20px rgba(146, 64, 14, 0.8);
+}
+
+.game-settlement-mobile-footer__btn--disabled.MuiButton-root {
+  border-color: rgba(71, 85, 105, 0.5);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.88), rgba(15, 23, 42, 0.96));
+  color: rgba(226, 232, 240, 0.72);
+}
+
 @media (max-width: 420px) {
   .game-settlement-mobile-shell {
     padding-inline: 0.4rem;
@@ -11395,37 +11627,37 @@ body {
 }
 
 .game-room-score-row--combo-tier-1 {
-  --gr-score-combo-border: rgba(45, 212, 191, 0.56);
-  --gr-score-combo-glow: rgba(45, 212, 191, 0.44);
-  --gr-score-combo-core: rgba(20, 184, 166, 0.24);
+  --gr-score-combo-border: rgba(34, 211, 238, 0.6);
+  --gr-score-combo-glow: rgba(103, 232, 249, 0.48);
+  --gr-score-combo-core: rgba(6, 182, 212, 0.26);
   --gr-score-combo-speed: 2.2s;
 }
 
 .game-room-score-row--combo-tier-2 {
-  --gr-score-combo-border: rgba(74, 222, 128, 0.62);
-  --gr-score-combo-glow: rgba(74, 222, 128, 0.48);
-  --gr-score-combo-core: rgba(34, 197, 94, 0.28);
+  --gr-score-combo-border: rgba(74, 222, 128, 0.68);
+  --gr-score-combo-glow: rgba(163, 230, 53, 0.54);
+  --gr-score-combo-core: rgba(34, 197, 94, 0.3);
   --gr-score-combo-speed: 2s;
 }
 
 .game-room-score-row--combo-tier-3 {
-  --gr-score-combo-border: rgba(251, 191, 36, 0.72);
-  --gr-score-combo-glow: rgba(251, 191, 36, 0.54);
-  --gr-score-combo-core: rgba(245, 158, 11, 0.32);
+  --gr-score-combo-border: rgba(250, 204, 21, 0.78);
+  --gr-score-combo-glow: rgba(253, 224, 71, 0.62);
+  --gr-score-combo-core: rgba(245, 158, 11, 0.34);
   --gr-score-combo-speed: 1.86s;
 }
 
 .game-room-score-row--combo-tier-4 {
-  --gr-score-combo-border: rgba(251, 146, 60, 0.82);
-  --gr-score-combo-glow: rgba(251, 146, 60, 0.62);
-  --gr-score-combo-core: rgba(249, 115, 22, 0.36);
+  --gr-score-combo-border: rgba(251, 146, 60, 0.88);
+  --gr-score-combo-glow: rgba(253, 186, 116, 0.68);
+  --gr-score-combo-core: rgba(249, 115, 22, 0.4);
   --gr-score-combo-speed: 1.72s;
 }
 
 .game-room-score-row--combo-tier-5 {
-  --gr-score-combo-border: rgba(244, 114, 182, 0.88);
-  --gr-score-combo-glow: rgba(244, 114, 182, 0.68);
-  --gr-score-combo-core: rgba(225, 29, 72, 0.4);
+  --gr-score-combo-border: rgba(244, 114, 182, 0.94);
+  --gr-score-combo-glow: rgba(216, 180, 254, 0.74);
+  --gr-score-combo-core: rgba(225, 29, 72, 0.46);
   --gr-score-combo-speed: 1.58s;
 }
 
@@ -11507,8 +11739,41 @@ body {
 
 .game-room-answer-layout--combo-tier-3 .game-room-answer-head .game-room-title,
 .game-room-answer-layout--combo-tier-4 .game-room-answer-head .game-room-title,
-.game-room-answer-layout--combo-tier-5 .game-room-answer-head .game-room-title {
+.game-room-answer-layout--combo-tier-5 .game-room-answer-head .game-room-title,
+.game-room-answer-layout--combo-tier-6 .game-room-answer-head .game-room-title,
+.game-room-answer-layout--combo-tier-7 .game-room-answer-head .game-room-title,
+.game-room-answer-layout--combo-tier-8 .game-room-answer-head .game-room-title,
+.game-room-answer-layout--combo-tier-9 .game-room-answer-head .game-room-title,
+.game-room-answer-layout--combo-tier-10 .game-room-answer-head .game-room-title {
   text-shadow: 0 0 18px rgba(251, 191, 36, 0.3);
+}
+
+.game-room-answer-layout--combo-tier-6 .game-room-phase-progress-bar .MuiLinearProgress-bar {
+  background: linear-gradient(90deg, rgba(251, 113, 133, 0.96), rgba(249, 168, 212, 0.94));
+}
+
+.game-room-answer-layout--combo-tier-7 .game-room-phase-progress-bar .MuiLinearProgress-bar {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.98), rgba(251, 146, 60, 0.96));
+}
+
+.game-room-answer-layout--combo-tier-8 .game-room-phase-progress-bar .MuiLinearProgress-bar {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 1), rgba(253, 224, 71, 0.98));
+}
+
+.game-room-answer-layout--combo-tier-9 .game-room-phase-progress-bar .MuiLinearProgress-bar {
+  background: linear-gradient(90deg, rgba(103, 232, 249, 1), rgba(196, 181, 253, 0.98));
+}
+
+.game-room-answer-layout--combo-tier-10 .game-room-phase-progress-bar .MuiLinearProgress-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 214, 10, 1),
+    rgba(255, 140, 0, 0.98),
+    rgba(239, 68, 68, 0.96)
+  );
+  box-shadow:
+    0 0 18px rgba(255, 214, 10, 0.42),
+    0 0 32px rgba(239, 68, 68, 0.28);
 }
 
 /* Remove border-eating illusion from option-container overlay */
@@ -11706,6 +11971,41 @@ body {
   --gr-row-duration: 1.56s;
 }
 
+.game-room-score-row--combo-tier-6 {
+  --gr-row-hot: rgba(251, 113, 133, 1);
+  --gr-row-hot-soft: rgba(251, 113, 133, 0.46);
+  --gr-row-duration: 1.38s;
+}
+
+.game-room-score-row--combo-tier-7 {
+  --gr-row-hot: rgba(248, 113, 113, 1);
+  --gr-row-hot-soft: rgba(251, 146, 60, 0.52);
+  --gr-row-duration: 1.18s;
+}
+
+.game-room-score-row--combo-tier-8 {
+  --gr-row-hot: rgba(251, 191, 36, 1);
+  --gr-row-hot-soft: rgba(253, 224, 71, 0.58);
+  --gr-row-duration: 1.02s;
+}
+
+.game-room-score-row--combo-tier-9 {
+  --gr-row-hot: rgba(103, 232, 249, 1);
+  --gr-row-hot-soft: rgba(196, 181, 253, 0.62);
+  --gr-row-duration: 0.92s;
+}
+
+.game-room-score-row--combo-tier-10 {
+  --gr-row-hot: rgba(255, 214, 10, 1);
+  --gr-row-hot-soft: rgba(255, 140, 0, 0.74);
+  --gr-row-duration: 0.76s;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 214, 10, 0.44),
+    0 0 0 1px rgba(255, 173, 51, 0.32),
+    0 0 28px -10px rgba(255, 140, 0, 0.74),
+    0 0 52px -20px rgba(239, 68, 68, 0.46);
+}
+
 .game-room-panel--combo-live {
   --gr-panel-fire: rgba(45, 212, 191, 0.66);
   --gr-panel-ember: rgba(251, 191, 36, 0.18);
@@ -11761,6 +12061,41 @@ body {
   --gr-panel-fire: rgba(244, 114, 182, 0.92);
   --gr-panel-ember: rgba(225, 29, 72, 0.32);
   --gr-panel-duration: 1.68s;
+}
+
+.game-room-panel--combo-tier-6 {
+  --gr-panel-fire: rgba(251, 113, 133, 0.96);
+  --gr-panel-ember: rgba(244, 114, 182, 0.42);
+  --gr-panel-duration: 1.46s;
+}
+
+.game-room-panel--combo-tier-7 {
+  --gr-panel-fire: rgba(248, 113, 113, 0.98);
+  --gr-panel-ember: rgba(251, 146, 60, 0.5);
+  --gr-panel-duration: 1.24s;
+}
+
+.game-room-panel--combo-tier-8 {
+  --gr-panel-fire: rgba(251, 191, 36, 1);
+  --gr-panel-ember: rgba(253, 224, 71, 0.58);
+  --gr-panel-duration: 1.08s;
+}
+
+.game-room-panel--combo-tier-9 {
+  --gr-panel-fire: rgba(103, 232, 249, 1);
+  --gr-panel-ember: rgba(196, 181, 253, 0.62);
+  --gr-panel-duration: 0.96s;
+}
+
+.game-room-panel--combo-tier-10 {
+  --gr-panel-fire: rgba(255, 214, 10, 1);
+  --gr-panel-ember: rgba(255, 120, 40, 0.88);
+  --gr-panel-duration: 0.82s;
+  box-shadow:
+    0 0 0 1px rgba(255, 214, 10, 0.42),
+    0 24px 46px -36px rgba(2, 6, 23, 0.95),
+    0 0 74px -22px rgba(255, 140, 0, 0.72),
+    0 0 116px -52px rgba(239, 68, 68, 0.48);
 }
 
 .game-room-options-grid--blaze {
@@ -11983,6 +12318,66 @@ body {
     radial-gradient(circle at 34% 82%, rgba(253, 186, 116, 0.66), transparent 10%),
     radial-gradient(circle at 12% 62%, rgba(157, 23, 77, 0.7), transparent 9%);
   animation-duration: 960ms;
+}
+
+.game-room-choice-particle-burst--combo-tier-6 {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.84), transparent 9%),
+    radial-gradient(circle at 46% 12%, rgba(251, 113, 133, 0.88), transparent 8%),
+    radial-gradient(circle at 74% 18%, rgba(249, 168, 212, 0.82), transparent 8%),
+    radial-gradient(circle at 82% 46%, rgba(236, 72, 153, 0.78), transparent 10%),
+    radial-gradient(circle at 64% 76%, rgba(190, 24, 93, 0.76), transparent 10%),
+    radial-gradient(circle at 34% 82%, rgba(251, 113, 133, 0.72), transparent 10%),
+    radial-gradient(circle at 12% 62%, rgba(157, 23, 77, 0.72), transparent 9%);
+  animation-duration: 900ms;
+}
+
+.game-room-choice-particle-burst--combo-tier-7 {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.84), transparent 9%),
+    radial-gradient(circle at 46% 12%, rgba(251, 146, 60, 0.9), transparent 8%),
+    radial-gradient(circle at 74% 18%, rgba(248, 113, 113, 0.84), transparent 8%),
+    radial-gradient(circle at 82% 46%, rgba(234, 88, 12, 0.8), transparent 10%),
+    radial-gradient(circle at 64% 76%, rgba(194, 65, 12, 0.78), transparent 10%),
+    radial-gradient(circle at 34% 82%, rgba(253, 186, 116, 0.74), transparent 10%),
+    radial-gradient(circle at 12% 62%, rgba(127, 29, 29, 0.74), transparent 9%);
+  animation-duration: 860ms;
+}
+
+.game-room-choice-particle-burst--combo-tier-8 {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.86), transparent 9%),
+    radial-gradient(circle at 46% 12%, rgba(251, 191, 36, 0.94), transparent 8%),
+    radial-gradient(circle at 74% 18%, rgba(254, 240, 138, 0.88), transparent 8%),
+    radial-gradient(circle at 82% 46%, rgba(245, 158, 11, 0.82), transparent 10%),
+    radial-gradient(circle at 64% 76%, rgba(217, 119, 6, 0.78), transparent 10%),
+    radial-gradient(circle at 34% 82%, rgba(253, 224, 71, 0.76), transparent 10%),
+    radial-gradient(circle at 12% 62%, rgba(146, 64, 14, 0.74), transparent 9%);
+  animation-duration: 820ms;
+}
+
+.game-room-choice-particle-burst--combo-tier-9 {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.88), transparent 9%),
+    radial-gradient(circle at 46% 12%, rgba(103, 232, 249, 0.94), transparent 8%),
+    radial-gradient(circle at 74% 18%, rgba(196, 181, 253, 0.88), transparent 8%),
+    radial-gradient(circle at 82% 46%, rgba(45, 212, 191, 0.84), transparent 10%),
+    radial-gradient(circle at 64% 76%, rgba(79, 70, 229, 0.8), transparent 10%),
+    radial-gradient(circle at 34% 82%, rgba(125, 211, 252, 0.76), transparent 10%),
+    radial-gradient(circle at 12% 62%, rgba(67, 56, 202, 0.76), transparent 9%);
+  animation-duration: 780ms;
+}
+
+.game-room-choice-particle-burst--combo-tier-10 {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.92), transparent 9%),
+    radial-gradient(circle at 46% 12%, rgba(255, 214, 10, 0.98), transparent 8%),
+    radial-gradient(circle at 74% 18%, rgba(255, 245, 157, 0.92), transparent 8%),
+    radial-gradient(circle at 82% 46%, rgba(255, 140, 0, 0.9), transparent 10%),
+    radial-gradient(circle at 64% 76%, rgba(239, 68, 68, 0.84), transparent 10%),
+    radial-gradient(circle at 34% 82%, rgba(251, 191, 36, 0.82), transparent 10%),
+    radial-gradient(circle at 12% 62%, rgba(154, 52, 18, 0.8), transparent 9%);
+  animation-duration: 720ms;
 }
 
 @keyframes game-room-score-row-combo-pulse {
@@ -13116,8 +13511,7 @@ body {
 
   .game-room-mobile-scoreboard-shell .game-room-score-row--answered,
   .game-room-mobile-scoreboard-shell .game-room-score-row--correct,
-  .game-room-mobile-scoreboard-shell .game-room-score-row--wrong,
-  .game-room-mobile-scoreboard-shell .game-room-score-row--combo-flare {
+  .game-room-mobile-scoreboard-shell .game-room-score-row--wrong {
     background:
       radial-gradient(
         320px 84px at 0% 50%,
@@ -13167,7 +13561,8 @@ body {
   }
 
   .game-room-mobile-scoreboard-shell .game-room-score-row--combo-flare::before {
-    animation: none !important;
+    opacity: 0.38;
+    animation: game-room-score-row-combo-stream var(--gr-row-duration) ease-in-out infinite;
   }
 
   .game-room-mobile-scoreboard-shell .game-room-score-row--top-swap-first {

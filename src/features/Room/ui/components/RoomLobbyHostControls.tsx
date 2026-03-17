@@ -15,7 +15,7 @@ import TipsAndUpdatesRoundedIcon from "@mui/icons-material/TipsAndUpdatesRounded
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
 import PublicRoundedIcon from "@mui/icons-material/PublicRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
-import VideoLibraryRoundedIcon from "@mui/icons-material/VideoLibraryRounded";
+import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import PlaylistAddCheckRoundedIcon from "@mui/icons-material/PlaylistAddCheckRounded";
 import PublishedWithChangesRoundedIcon from "@mui/icons-material/PublishedWithChangesRounded";
 import { useState } from "react";
@@ -447,7 +447,7 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                     hostSourceType === "youtube" ? "contained" : "outlined"
                   }
                   className="room-lobby-mode-button room-lobby-mode-button--youtube"
-                  startIcon={<VideoLibraryRoundedIcon fontSize="small" />}
+                  startIcon={<LibraryMusicRoundedIcon fontSize="small" />}
                   onClick={() => switchSourceType("youtube")}
                 >
                   {"YouTube"}

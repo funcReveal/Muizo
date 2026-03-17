@@ -414,7 +414,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!hostManagementConfirm) return null;
     const target = normalizeRoomDisplayText(
       hostManagementConfirm.targetName,
-      "???拙振",
+      "玩家",
     );
     if (hostManagementConfirm.type === "transfer") {
       return {
@@ -489,7 +489,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return null;
   }, [meClientId, playbackExtensionVote]);
   const playbackVoteRequesterName =
-    normalizeRoomDisplayText(playbackExtensionVote?.requestedByUsername, "???拙振");
+    normalizeRoomDisplayText(playbackExtensionVote?.requestedByUsername, "玩家");
   const playbackVoteProposalSeconds = Math.max(
     0,
     Math.round((playbackExtensionVote?.extendMs ?? 0) / 1000),
@@ -1639,7 +1639,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <Typography variant="body2" className="truncate text-slate-100">
                     {normalizeRoomDisplayText(
                       participant.username,
-                      `?? ${index + 1}`,
+                      `玩家 ${index + 1}`,
                     )}
                   </Typography>
                   <Typography variant="caption" className="text-slate-400">
@@ -1726,8 +1726,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       <div className="game-room-grid grid w-full grid-cols-1 gap-3 pb-20 lg:grid-cols-[400px_1fr] lg:pb-0 xl:grid-cols-[440px_1fr] lg:h-[calc(100vh-140px)] lg:items-stretch">
         <div className="hidden lg:block lg:h-full">
           <GameRoomLeftSidebar
-            answeredCount={answeredCount}
-            participantCount={participants.length}
             scoreboardRows={scoreboardRows}
             answeredClientIdSet={answeredClientIdSet}
             answeredRankByClientId={answeredRankByClientId}
@@ -2041,7 +2039,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
                 <div className="game-room-mobile-scoreboard-headline">
                   <div className="game-room-mobile-scoreboard-title-group">
-                    <span className="game-room-mobile-scoreboard-kicker">SCOREBOARD</span>
+                    <span className="game-room-mobile-scoreboard-kicker">排行榜</span>
                     <span className="game-room-mobile-scoreboard-title">分數榜</span>
                   </div>
                   <div className="game-room-mobile-scoreboard-actions">
@@ -2061,8 +2059,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </div>
               <div className="relative min-h-0 flex-1 overflow-hidden p-2">
                 <GameRoomLeftSidebar
-                  answeredCount={answeredCount}
-                  participantCount={participants.length}
                   scoreboardRows={mobileScoreboardRows}
                   answeredClientIdSet={answeredClientIdSet}
                   answeredRankByClientId={answeredRankByClientId}
