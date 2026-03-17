@@ -21,14 +21,14 @@ import type {
   RoomState,
   RoomSummary,
 } from "./types";
-import type { WorkerCollectionItem } from "./roomApi";
+import type { CollectionItemRecord } from "./roomApi";
 
 export const MAX_ROOM_MESSAGE_COUNT = 1200;
 export const MAX_SETTLEMENT_HISTORY_COUNT = 30;
 
 export const mapCollectionItemsToPlaylist = (
   _collectionId: string,
-  items: WorkerCollectionItem[],
+  items: CollectionItemRecord[],
 ) =>
   items.map((item, index) => {
     const startSec = Math.max(0, item.start_sec ?? 0);

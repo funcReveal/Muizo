@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  InputAdornment,
   MenuItem,
   Slider,
   Tab,
@@ -27,6 +28,7 @@ import { List, type RowComponentProps } from "react-window";
 import {
   AddCircleOutlineRounded,
   AccessTimeRounded,
+  BarChartRounded,
   BookmarkBorderRounded,
   ChevronLeftRounded,
   ChevronRightRounded,
@@ -40,7 +42,9 @@ import {
   LockOutlined,
   PasswordRounded,
   PlayCircleOutlineRounded,
+  SearchRounded,
   ScheduleRounded,
+  StarBorderRounded,
   TimerRounded,
   TuneRounded,
   PublicOutlined,
@@ -219,6 +223,37 @@ const renderCollectionSkeletonCard = (idx: number, view: "grid" | "list") => {
   );
 };
 
+type LibraryEmptyStateProps = {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+};
+
+const LibraryEmptyState = ({
+  icon,
+  title,
+  description,
+  actions,
+}: LibraryEmptyStateProps) => (
+  <div className="rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(2,6,23,0.46),rgba(15,23,42,0.28))] px-5 py-8 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-100 shadow-[0_14px_30px_-24px_rgba(15,23,42,0.8)]">
+      {icon}
+    </div>
+    <p className="mt-4 text-base font-semibold text-[var(--mc-text)]">
+      {title}
+    </p>
+    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--mc-text-muted)]">
+      {description}
+    </p>
+    {actions ? (
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        {actions}
+      </div>
+    ) : null}
+  </div>
+);
+
 type VirtualLibraryListRowProps = {
   items: unknown[];
   renderItem: (item: unknown, itemIndex: number, view: "list") => ReactNode;
@@ -307,7 +342,10 @@ const roomRequiresPin = (room: RoomSummary) =>
   Boolean(room.hasPin ?? room.hasPassword);
 
 const normalizeRoomCodeInput = (value: string) =>
-  value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 6);
 
 const formatRoomCodeDisplay = (value: string) => {
   const normalized = normalizeRoomCodeInput(value);
@@ -331,6 +369,7 @@ const RoomListPage: React.FC = () => {
     collectionsLoadingMore,
     collectionsHasMore,
     collectionsError,
+    publicCollectionsSort,
     fetchCollections,
     loadMoreCollections,
     loadCollectionItems,
@@ -414,6 +453,7 @@ const RoomListPage: React.FC = () => {
   const [createLibraryView, setCreateLibraryView] = useState<"grid" | "list">(
     "grid",
   );
+  const [createLibrarySearch, setCreateLibrarySearch] = useState("");
   const [createLeftTab, setCreateLeftTab] = useState<"library" | "settings">(
     "library",
   );
@@ -425,6 +465,9 @@ const RoomListPage: React.FC = () => {
   const [playlistPreviewError, setPlaylistPreviewError] = useState<
     string | null
   >(null);
+  const [isPlaylistUrlFieldFocused, setIsPlaylistUrlFieldFocused] =
+    useState(false);
+  const previousCreateLibraryTabRef = useRef(createLibraryTab);
   const [joinPasswordFilter, setJoinPasswordFilter] = useState<
     "all" | "no_password" | "password_required"
   >("all");
@@ -498,7 +541,10 @@ const RoomListPage: React.FC = () => {
 
     void (async () => {
       try {
-        const result = await apiFetchRoomById(API_URL, normalizedDirectRoomCode);
+        const result = await apiFetchRoomById(
+          API_URL,
+          normalizedDirectRoomCode,
+        );
         const fetchedRoom = (result.payload as { room?: RoomSummary } | null)
           ?.room;
         if (!isActive) return;
@@ -531,7 +577,8 @@ const RoomListPage: React.FC = () => {
   const filteredJoinRooms = useMemo(() => {
     const next = [...rooms].filter((room) => {
       if (joinPasswordFilter === "no_password") return !roomRequiresPin(room);
-      if (joinPasswordFilter === "password_required") return roomRequiresPin(room);
+      if (joinPasswordFilter === "password_required")
+        return roomRequiresPin(room);
       return true;
     });
     if (joinSortMode === "players_desc") {
@@ -664,9 +711,9 @@ const RoomListPage: React.FC = () => {
     ? "請先填寫房間名稱。"
     : playlistItems.length === 0
       ? "請先選擇題庫來源並載入歌曲。"
-        : maxPlayersInvalid
-          ? `人數需介於 ${PLAYER_MIN}-${PLAYER_MAX}。`
-          : null;
+      : maxPlayersInvalid
+        ? `人數需介於 ${PLAYER_MIN}-${PLAYER_MAX}。`
+        : null;
   const canDecreaseQuestionCount = questionCount > questionMin;
   const canIncreaseQuestionCount = questionCount < questionMaxLimit;
   const createSettingsSummary = useMemo(
@@ -780,6 +827,32 @@ const RoomListPage: React.FC = () => {
         : null,
     [collections, selectedCreateCollectionId],
   );
+  const normalizedCreateLibrarySearch = createLibrarySearch
+    .trim()
+    .toLowerCase();
+  const filteredCreateYoutubePlaylists = useMemo(() => {
+    if (!normalizedCreateLibrarySearch) return youtubePlaylists;
+    return youtubePlaylists.filter((playlist) =>
+      playlist.title.toLowerCase().includes(normalizedCreateLibrarySearch),
+    );
+  }, [normalizedCreateLibrarySearch, youtubePlaylists]);
+  const filteredCreateCollections = useMemo(() => {
+    if (createLibraryTab === "public") return collections;
+    if (!normalizedCreateLibrarySearch) return collections;
+    return collections.filter((collection) => {
+      const haystacks = [
+        collection.title,
+        collection.cover_title,
+        collection.description,
+        collection.cover_channel_title,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      return haystacks.some((value) =>
+        value.includes(normalizedCreateLibrarySearch),
+      );
+    });
+  }, [collections, createLibraryTab, normalizedCreateLibrarySearch]);
   const selectedCollectionThumb =
     selectedCollection?.cover_thumbnail_url ||
     (selectedCollection?.cover_provider === "youtube" &&
@@ -1000,12 +1073,13 @@ const RoomListPage: React.FC = () => {
     640,
     Math.max(
       youtubeListRowHeight,
-      youtubePlaylists.length * youtubeListRowHeight,
+      filteredCreateYoutubePlaylists.length * youtubeListRowHeight,
     ),
   );
   const collectionListRowHeight = 92;
   const collectionListRowCount =
-    collections.length + (collectionsHasMore || collectionsLoadingMore ? 1 : 0);
+    filteredCreateCollections.length +
+    (collectionsHasMore || collectionsLoadingMore ? 1 : 0);
   const collectionListHeight = Math.min(
     640,
     Math.max(
@@ -1081,6 +1155,129 @@ const RoomListPage: React.FC = () => {
       (collection.cover_provider === "youtube" && collection.cover_source_id
         ? `https://i.ytimg.com/vi/${collection.cover_source_id}/hqdefault.jpg`
         : "");
+    const isPublicLibraryTab = createLibraryTab === "public";
+    const visibilityLabel =
+      (collection.visibility ?? "private") === "public" ? "公開" : "私人";
+    const coverMetaLabel = [
+      collection.cover_title ||
+        (isPublicLibraryTab ? "收藏庫題目預覽" : "私人收藏庫"),
+      collection.cover_duration_sec
+        ? formatDurationLabel(collection.cover_duration_sec)
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const itemCountLabel =
+      typeof collection.item_count === "number"
+        ? `${Math.max(0, Number(collection.item_count ?? 0))}`
+        : null;
+    const statsMeta = [
+      itemCountLabel
+        ? {
+            key: "questions",
+            icon: (
+              <QuizRounded
+                sx={{ fontSize: 17, color: "rgba(103, 232, 249, 0.94)" }}
+              />
+            ),
+            label: `${itemCountLabel} 題`,
+          }
+        : null,
+      typeof collection.use_count === "number"
+        ? {
+            key: "plays",
+            icon: (
+              <BarChartRounded
+                sx={{ fontSize: 18, color: "rgba(125, 211, 252, 0.92)" }}
+              />
+            ),
+            label: `${Math.max(0, Number(collection.use_count ?? 0))}`,
+          }
+        : null,
+      typeof collection.favorite_count === "number"
+        ? {
+            key: "favorites",
+            icon: (
+              <StarBorderRounded
+                sx={{ fontSize: 17, color: "rgba(250, 204, 21, 0.9)" }}
+              />
+            ),
+            label: `${collection.favorite_count}`,
+          }
+        : null,
+    ].filter(Boolean) as Array<{
+      key: string;
+      icon: ReactNode;
+      label: string;
+    }>;
+
+    if (view === "grid") {
+      return (
+        <button
+          key={collection.id}
+          type="button"
+          onClick={() => {
+            const scope = createLibraryTab === "public" ? "public" : "owner";
+            void handlePickCollectionSource(collection.id, scope);
+          }}
+          className={`group h-full overflow-hidden rounded-[22px] border text-left transition ${
+            selectedCreateCollectionId === collection.id
+              ? "border-cyan-300/55 bg-slate-950/70 shadow-[0_24px_44px_-28px_rgba(34,211,238,0.45)]"
+              : "border-cyan-300/18 bg-slate-950/55 hover:border-cyan-300/38 hover:bg-slate-950/72 hover:shadow-[0_22px_42px_-30px_rgba(34,211,238,0.32)]"
+          }`}
+        >
+          <div className="relative h-36 w-full overflow-hidden bg-slate-900/60">
+            {previewThumbnail ? (
+              <img
+                src={previewThumbnail}
+                alt={collection.cover_title ?? collection.title}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[11px] text-[var(--mc-text-muted)]">
+                無縮圖
+              </div>
+            )}
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04)_0%,rgba(2,6,23,0.16)_46%,rgba(2,6,23,0.82)_100%)]" />
+            {!isPublicLibraryTab ? (
+              <div className="absolute left-3 top-3">
+                <span className="rounded-full border border-white/12 bg-slate-950/55 px-2.5 py-1 text-[11px] font-medium text-slate-100 backdrop-blur-sm">
+                  {visibilityLabel}
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <div className="space-y-3 px-4 py-3.5">
+            <div className="space-y-1.5">
+              <p className="line-clamp-1 text-[15px] font-semibold leading-6 text-[var(--mc-text)]">
+                {collection.title}
+              </p>
+              <p className="line-clamp-2 min-h-[2.5rem] text-[12px] leading-5 text-slate-300/88">
+                {coverMetaLabel}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {statsMeta.length > 0 ? (
+                statsMeta.map((meta) => (
+                  <span
+                    key={`${collection.id}-${meta.key}`}
+                    className="inline-flex items-center gap-1.5 text-[14px] font-semibold leading-none text-slate-200/92"
+                  >
+                    {meta.icon}
+                    <span>{meta.label}</span>
+                  </span>
+                ))
+              ) : (
+                <span className="text-[11px] leading-none text-[var(--mc-text-muted)]">
+                  尚無統計資料
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
+      );
+    }
 
     return (
       <button
@@ -1094,15 +1291,11 @@ const RoomListPage: React.FC = () => {
           selectedCreateCollectionId === collection.id
             ? "border-cyan-300/55 bg-cyan-500/10"
             : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
-        } ${view === "grid" ? "h-full p-3" : "w-full"}`}
+        } w-full`}
       >
-        <div
-          className={`${view === "grid" ? "space-y-3" : "flex items-center gap-3"}`}
-        >
+        <div className="flex items-center gap-3">
           <div
-            className={`overflow-hidden rounded-md border border-[var(--mc-border)]/70 bg-slate-900/40 ${
-              view === "grid" ? "h-28 w-full" : "h-11 w-16 shrink-0"
-            }`}
+            className="h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900/40"
           >
             {previewThumbnail ? (
               <img
@@ -1117,27 +1310,31 @@ const RoomListPage: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
-              {collection.title}
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                {collection.title}
+              </p>
+              {!isPublicLibraryTab ? (
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] leading-none text-slate-200/88">
+                  {visibilityLabel}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
-              {collection.cover_title ||
-                ((collection.visibility ?? "private") === "public"
-                  ? "公開收藏庫"
-                  : "私人收藏庫")}
+              {coverMetaLabel}
             </p>
-            <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
-              {(collection.visibility ?? "private") === "public"
-                ? "公開"
-                : "私人"}
-              {typeof collection.favorite_count === "number"
-                ? ` · 收藏 ${collection.favorite_count}`
-                : ""}
-              {collection.cover_duration_sec
-                ? ` · ${formatDurationLabel(collection.cover_duration_sec)}`
-                : ""}
-            </p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {statsMeta.map((meta) => (
+                <span
+                  key={`${collection.id}-list-${meta.key}`}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold leading-none text-slate-200/90"
+                >
+                  {meta.icon}
+                  <span>{meta.label}</span>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </button>
@@ -1147,9 +1344,19 @@ const RoomListPage: React.FC = () => {
   useEffect(() => {
     if (!canUseGoogleLibraries) return;
     if (createLibraryTab === "public") {
-      void fetchCollections("public");
-      return;
+      const switchedIntoPublic =
+        previousCreateLibraryTabRef.current !== "public";
+      previousCreateLibraryTabRef.current = createLibraryTab;
+      if (switchedIntoPublic) {
+        void fetchCollections("public", { query: createLibrarySearch });
+        return;
+      }
+      const handle = window.setTimeout(() => {
+        void fetchCollections("public", { query: createLibrarySearch });
+      }, 350);
+      return () => window.clearTimeout(handle);
     }
+    previousCreateLibraryTabRef.current = createLibraryTab;
     if (createLibraryTab === "personal") {
       void fetchCollections("owner");
       return;
@@ -1166,8 +1373,10 @@ const RoomListPage: React.FC = () => {
   }, [
     canUseGoogleLibraries,
     createLibraryTab,
+    createLibrarySearch,
     fetchCollections,
     fetchYoutubePlaylists,
+    publicCollectionsSort,
     youtubePlaylists.length,
     youtubePlaylistsLoading,
   ]);
@@ -1200,10 +1409,23 @@ const RoomListPage: React.FC = () => {
     createLibraryView,
     loadMoreCollections,
   ]);
+  useEffect(() => {
+    setCreateLibrarySearch("");
+  }, [createLibraryTab]);
+  const canAttemptPlaylistPreview = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    try {
+      const parsed = new URL(trimmed);
+      return Boolean(parsed.searchParams.get("list"));
+    } catch {
+      return false;
+    }
+  };
   const handlePreviewPlaylistByUrl = async () => {
     const trimmed = playlistUrlDraft.trim();
-    if (!trimmed) {
-      setPlaylistPreviewError("請先貼上播放清單連結。");
+    if (!canAttemptPlaylistPreview(trimmed)) {
+      setPlaylistPreviewError(null);
       return;
     }
     setPlaylistPreviewError(null);
@@ -1222,7 +1444,12 @@ const RoomListPage: React.FC = () => {
   useEffect(() => {
     if (createLibraryTab !== "link" || !isLinkSourceActive) return;
     const trimmed = playlistUrlDraft.trim();
-    if (!trimmed || trimmed === lastAutoPreviewUrlRef.current) return;
+    if (
+      !canAttemptPlaylistPreview(trimmed) ||
+      trimmed === lastAutoPreviewUrlRef.current
+    ) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       lastAutoPreviewUrlRef.current = trimmed;
       void handleFetchPlaylistByUrl(trimmed).catch(() => {
@@ -2126,7 +2353,10 @@ const RoomListPage: React.FC = () => {
                                         size="small"
                                         onClick={() =>
                                           updateQuestionCount(
-                                            Math.max(questionMin, questionCount - 1),
+                                            Math.max(
+                                              questionMin,
+                                              questionCount - 1,
+                                            ),
                                           )
                                         }
                                         disabled={!canDecreaseQuestionCount}
@@ -2145,7 +2375,10 @@ const RoomListPage: React.FC = () => {
                                         size="small"
                                         onClick={() =>
                                           updateQuestionCount(
-                                            Math.min(questionMaxLimit, questionCount + 1),
+                                            Math.min(
+                                              questionMaxLimit,
+                                              questionCount + 1,
+                                            ),
                                           )
                                         }
                                         disabled={!canIncreaseQuestionCount}
@@ -2154,7 +2387,9 @@ const RoomListPage: React.FC = () => {
                                       </IconButton>
                                     </div>
                                     <div className="mt-3 flex flex-wrap justify-center gap-2">
-                                      <Tooltip title={`設為最小題數 ${questionMin}`}>
+                                      <Tooltip
+                                        title={`設為最小題數 ${questionMin}`}
+                                      >
                                         <span>
                                           <button
                                             type="button"
@@ -2164,7 +2399,9 @@ const RoomListPage: React.FC = () => {
                                             disabled={!canDecreaseQuestionCount}
                                             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--mc-border)] px-3 py-1.5 text-xs text-[var(--mc-text-muted)] transition hover:border-cyan-300/35 hover:text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-40"
                                           >
-                                            <KeyboardDoubleArrowLeftRounded sx={{ fontSize: 16 }} />
+                                            <KeyboardDoubleArrowLeftRounded
+                                              sx={{ fontSize: 16 }}
+                                            />
                                             最小
                                           </button>
                                         </span>
@@ -2173,7 +2410,10 @@ const RoomListPage: React.FC = () => {
                                         type="button"
                                         onClick={() =>
                                           updateQuestionCount(
-                                            Math.max(questionMin, questionCount - 10),
+                                            Math.max(
+                                              questionMin,
+                                              questionCount - 10,
+                                            ),
                                           )
                                         }
                                         disabled={!canDecreaseQuestionCount}
@@ -2185,7 +2425,10 @@ const RoomListPage: React.FC = () => {
                                         type="button"
                                         onClick={() =>
                                           updateQuestionCount(
-                                            Math.min(questionMaxLimit, questionCount + 10),
+                                            Math.min(
+                                              questionMaxLimit,
+                                              questionCount + 10,
+                                            ),
                                           )
                                         }
                                         disabled={!canIncreaseQuestionCount}
@@ -2193,18 +2436,24 @@ const RoomListPage: React.FC = () => {
                                       >
                                         +10
                                       </button>
-                                      <Tooltip title={`設為最大題數 ${questionMaxLimit}`}>
+                                      <Tooltip
+                                        title={`設為最大題數 ${questionMaxLimit}`}
+                                      >
                                         <span>
                                           <button
                                             type="button"
                                             onClick={() =>
-                                              updateQuestionCount(questionMaxLimit)
+                                              updateQuestionCount(
+                                                questionMaxLimit,
+                                              )
                                             }
                                             disabled={!canIncreaseQuestionCount}
                                             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--mc-border)] px-3 py-1.5 text-xs text-[var(--mc-text-muted)] transition hover:border-cyan-300/35 hover:text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-40"
                                           >
                                             最大
-                                            <KeyboardDoubleArrowRightRounded sx={{ fontSize: 16 }} />
+                                            <KeyboardDoubleArrowRightRounded
+                                              sx={{ fontSize: 16 }}
+                                            />
                                           </button>
                                         </span>
                                       </Tooltip>
@@ -2668,7 +2917,9 @@ const RoomListPage: React.FC = () => {
                                     value={roomPasswordInput}
                                     onChange={(event) =>
                                       setRoomPasswordInput(
-                                        event.target.value.replace(/\D/g, "").slice(0, 4),
+                                        event.target.value
+                                          .replace(/\D/g, "")
+                                          .slice(0, 4),
                                       )
                                     }
                                     className="mt-3"
@@ -2943,7 +3194,9 @@ const RoomListPage: React.FC = () => {
                                 value={roomPasswordInput}
                                 onChange={(event) =>
                                   setRoomPasswordInput(
-                                    event.target.value.replace(/\D/g, "").slice(0, 4),
+                                    event.target.value
+                                      .replace(/\D/g, "")
+                                      .slice(0, 4),
                                   )
                                 }
                                 inputProps={{
@@ -3086,37 +3339,77 @@ const RoomListPage: React.FC = () => {
                         </div>
                       ) : (
                         <>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
-                                可用題庫預覽
-                              </p>
+                          {createLibraryTab !== "link" && (
+                            <div className="flex flex-col gap-3 rounded-2xl border border-[var(--mc-border)]/80 bg-slate-950/18 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  value={createLibrarySearch}
+                                  onChange={(event) =>
+                                    setCreateLibrarySearch(event.target.value)
+                                  }
+                                  placeholder={
+                                    createLibraryTab === "youtube"
+                                      ? "搜尋 YouTube 播放清單"
+                                      : "搜尋題庫名稱、封面曲名或描述"
+                                  }
+                                  slotProps={{
+                                    input: {
+                                      startAdornment: (
+                                        <InputAdornment position="start">
+                                          <SearchRounded
+                                            sx={{
+                                              fontSize: 18,
+                                              color:
+                                                "rgba(148, 163, 184, 0.85)",
+                                            }}
+                                          />
+                                        </InputAdornment>
+                                      ),
+                                    },
+                                  }}
+                                  sx={{
+                                    "& .MuiOutlinedInput-root": {
+                                      borderRadius: "18px",
+                                      backgroundColor: "rgba(2, 6, 23, 0.3)",
+                                    },
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
+                                  {createLibraryTab === "youtube"
+                                    ? `共 ${filteredCreateYoutubePlaylists.length} 份清單`
+                                    : `共 ${filteredCreateCollections.length} 份題庫`}
+                                </span>
+                                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
+                                  <button
+                                    type="button"
+                                    className={`rounded-full px-3 py-1 text-xs ${
+                                      createLibraryView === "grid"
+                                        ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
+                                        : "cursor-pointer text-[var(--mc-text-muted)]"
+                                    }`}
+                                    onClick={() => setCreateLibraryView("grid")}
+                                  >
+                                    圖示
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`rounded-full px-3 py-1 text-xs ${
+                                      createLibraryView === "list"
+                                        ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
+                                        : "cursor-pointer text-[var(--mc-text-muted)]"
+                                    }`}
+                                    onClick={() => setCreateLibraryView("list")}
+                                  >
+                                    清單
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
-                              <button
-                                type="button"
-                                className={`rounded-full px-3 py-1 text-xs ${
-                                  createLibraryView === "grid"
-                                    ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                                    : "cursor-pointer text-[var(--mc-text-muted)]"
-                                }`}
-                                onClick={() => setCreateLibraryView("grid")}
-                              >
-                                圖示
-                              </button>
-                              <button
-                                type="button"
-                                className={`rounded-full px-3 py-1 text-xs ${
-                                  createLibraryView === "list"
-                                    ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                                    : "cursor-pointer text-[var(--mc-text-muted)]"
-                                }`}
-                                onClick={() => setCreateLibraryView("list")}
-                              >
-                                清單
-                              </button>
-                            </div>
-                          </div>
+                          )}
 
                           {!canUseGoogleLibraries &&
                           createLibraryTab !== "link" ? (
@@ -3135,12 +3428,9 @@ const RoomListPage: React.FC = () => {
                             </div>
                           ) : createLibraryTab === "link" ? (
                             <div className="mt-3 space-y-4">
-                              <div className="rounded-[28px] border border-cyan-300/22 bg-[linear-gradient(180deg,rgba(14,116,144,0.14),rgba(15,23,42,0.18))] p-4 sm:p-5">
+                              <div className="rounded-[28px] p-4 sm:p-5">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                   <div className="flex items-center gap-2">
-                                    <p className="text-sm font-semibold text-[var(--mc-text)]">
-                                      貼上播放清單連結
-                                    </p>
                                     {playlistLoading && (
                                       <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-100/90">
                                         正在載入預覽
@@ -3168,43 +3458,147 @@ const RoomListPage: React.FC = () => {
                                     </Tooltip>
                                   ) : null}
                                 </div>
-                                <div className="mt-4">
-                                  <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="YouTube 播放清單連結"
-                                    placeholder="https://www.youtube.com/playlist?list=..."
-                                    value={playlistUrlDraft}
-                                    disabled={linkPreviewLocked}
-                                    onChange={(event) => {
-                                      if (!isLinkSourceActive) {
-                                        handleActivateLinkSource();
-                                      }
-                                      setPlaylistUrlDraft(event.target.value);
-                                      if (playlistPreviewError)
-                                        setPlaylistPreviewError(null);
-                                    }}
-                                    onKeyDown={(event) => {
-                                      if (linkPreviewLocked) return;
-                                      if (event.key === "Enter") {
-                                        event.preventDefault();
-                                        void handlePreviewPlaylistByUrl();
-                                      }
-                                    }}
-                                    sx={{
-                                      "& .MuiOutlinedInput-root": {
-                                        borderRadius: "20px",
-                                        backgroundColor: "rgba(2, 6, 23, 0.32)",
+                                <div>
+                                  <Tooltip
+                                    title={
+                                      playlistUrlDraft.trim()
+                                        ? playlistPreviewError ||
+                                          playlistError ||
+                                          ""
+                                        : ""
+                                    }
+                                    placement="top"
+                                    arrow
+                                    open={Boolean(
+                                      isPlaylistUrlFieldFocused &&
+                                      playlistUrlDraft.trim() &&
+                                      (playlistPreviewError || playlistError),
+                                    )}
+                                    disableFocusListener
+                                    disableHoverListener
+                                    disableTouchListener
+                                    slotProps={{
+                                      tooltip: {
+                                        sx: {
+                                          fontSize: "0.82rem",
+                                          lineHeight: 1.45,
+                                          px: 1.4,
+                                          py: 1,
+                                          maxWidth: 360,
+                                        },
                                       },
                                     }}
-                                  />
+                                  >
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="YouTube 播放清單連結"
+                                      placeholder="https://www.youtube.com/playlist?list=..."
+                                      value={playlistUrlDraft}
+                                      autoComplete="off"
+                                      error={Boolean(
+                                        playlistUrlDraft.trim() &&
+                                        (playlistPreviewError || playlistError),
+                                      )}
+                                      helperText=" "
+                                      disabled={linkPreviewLocked}
+                                      onFocus={() =>
+                                        setIsPlaylistUrlFieldFocused(true)
+                                      }
+                                      onBlur={() =>
+                                        setIsPlaylistUrlFieldFocused(false)
+                                      }
+                                      onChange={(event) => {
+                                        if (!isLinkSourceActive) {
+                                          handleActivateLinkSource();
+                                        }
+                                        setPlaylistUrlDraft(event.target.value);
+                                        if (playlistPreviewError)
+                                          setPlaylistPreviewError(null);
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (linkPreviewLocked) return;
+                                        if (event.key === "Enter") {
+                                          event.preventDefault();
+                                          void handlePreviewPlaylistByUrl();
+                                        }
+                                      }}
+                                      slotProps={{
+                                        inputLabel: { shrink: true },
+                                        htmlInput: {
+                                          autoComplete: "off",
+                                          spellCheck: "false",
+                                        },
+                                      }}
+                                      sx={{
+                                        "& .MuiInputLabel-root": {
+                                          color: "rgba(248, 250, 252, 0.72)",
+                                          transition:
+                                            "color 180ms ease, transform 180ms ease",
+                                        },
+                                        "& .MuiInputLabel-root.Mui-focused": {
+                                          color: "rgba(251, 191, 36, 0.96)",
+                                        },
+                                        "& .MuiOutlinedInput-root": {
+                                          borderRadius: "20px",
+                                          backgroundColor:
+                                            "rgba(2, 6, 23, 0.32)",
+                                          boxShadow:
+                                            "0 0 0 1px rgba(148, 163, 184, 0.12), 0 10px 28px rgba(2, 6, 23, 0.18)",
+                                          transform: "translateY(0)",
+                                          transition:
+                                            "background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease",
+                                          "& fieldset": {
+                                            borderColor:
+                                              "rgba(148, 163, 184, 0.2)",
+                                          },
+                                          "&:hover": {
+                                            backgroundColor:
+                                              "rgba(15, 23, 42, 0.52)",
+                                            boxShadow:
+                                              "0 0 0 1px rgba(34, 211, 238, 0.16), 0 16px 34px rgba(8, 47, 73, 0.2)",
+                                            transform: "translateY(-1px)",
+                                          },
+                                          "&:hover fieldset": {
+                                            borderColor:
+                                              "rgba(34, 211, 238, 0.34)",
+                                          },
+                                          "&.Mui-focused": {
+                                            backgroundColor:
+                                              "rgba(15, 23, 42, 0.62)",
+                                            boxShadow:
+                                              "0 0 0 1px rgba(251, 191, 36, 0.28), 0 18px 38px rgba(120, 53, 15, 0.18)",
+                                            transform: "translateY(-1px)",
+                                          },
+                                          "&.Mui-focused fieldset": {
+                                            borderColor:
+                                              "rgba(251, 191, 36, 0.72)",
+                                          },
+                                          "&.Mui-error": {
+                                            boxShadow:
+                                              "0 0 0 1px rgba(248, 113, 113, 0.18), 0 16px 34px rgba(127, 29, 29, 0.16)",
+                                          },
+                                          "&.Mui-error:hover": {
+                                            boxShadow:
+                                              "0 0 0 1px rgba(248, 113, 113, 0.26), 0 18px 38px rgba(127, 29, 29, 0.18)",
+                                          },
+                                        },
+                                        "& .MuiOutlinedInput-input": {
+                                          transition: "color 180ms ease",
+                                        },
+                                        "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-input":
+                                          {
+                                            color: "rgba(255, 255, 255, 0.98)",
+                                          },
+                                        "& .MuiFormHelperText-root": {
+                                          marginLeft: 0,
+                                          marginRight: 0,
+                                        },
+                                      }}
+                                    />
+                                  </Tooltip>
                                 </div>
                               </div>
-                              {(playlistPreviewError || playlistError) && (
-                                <p className="text-xs text-rose-300">
-                                  {playlistPreviewError || playlistError}
-                                </p>
-                              )}
                               <div className="rounded-xl border border-cyan-300/25 bg-slate-950/25 p-3">
                                 {linkPlaylistTitle && (
                                   <p className="text-xs text-[var(--mc-text-muted)]">
@@ -3213,7 +3607,9 @@ const RoomListPage: React.FC = () => {
                                 )}
                                 {linkPlaylistPreviewItems.length > 0 ? (
                                   <>
-                                    <div className={`${linkPlaylistTitle ? "mt-2" : ""} rounded-lg border border-[var(--mc-border)]/70 bg-slate-950/20`}>
+                                    <div
+                                      className={`${linkPlaylistTitle ? "mt-2" : ""} rounded-lg border border-[var(--mc-border)]/70 bg-slate-950/20`}
+                                    >
                                       <List<PlaylistPreviewRowProps>
                                         style={{ height: 320, width: "100%" }}
                                         rowCount={
@@ -3354,10 +3750,51 @@ const RoomListPage: React.FC = () => {
                                     ),
                                   )}
                                 </div>
-                              ) : youtubePlaylists.length === 0 ? (
-                                <p className="text-sm text-[var(--mc-text-muted)]">
-                                  目前沒有可用清單，先到收藏建立頁匯入。
-                                </p>
+                              ) : filteredCreateYoutubePlaylists.length ===
+                                0 ? (
+                                <LibraryEmptyState
+                                  icon={
+                                    normalizedCreateLibrarySearch ? (
+                                      <SearchRounded sx={{ fontSize: 28 }} />
+                                    ) : (
+                                      <PlayCircleOutlineRounded
+                                        sx={{ fontSize: 28 }}
+                                      />
+                                    )
+                                  }
+                                  title={
+                                    normalizedCreateLibrarySearch
+                                      ? "找不到符合的播放清單"
+                                      : "目前還沒有可用的 YouTube 清單"
+                                  }
+                                  description={
+                                    normalizedCreateLibrarySearch
+                                      ? "試試不同關鍵字，或清除搜尋後重新瀏覽你的 YouTube 播放清單。"
+                                      : "你可以先貼上播放清單連結，或改用公開/個人題庫建立房間。"
+                                  }
+                                  actions={
+                                    normalizedCreateLibrarySearch ? undefined : (
+                                      <>
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          onClick={handleActivateLinkSource}
+                                        >
+                                          改用貼上連結
+                                        </Button>
+                                        <Button
+                                          size="small"
+                                          variant="text"
+                                          onClick={() =>
+                                            setCreateLibraryTab("public")
+                                          }
+                                        >
+                                          瀏覽公開題庫
+                                        </Button>
+                                      </>
+                                    )
+                                  }
+                                />
                               ) : (
                                 <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
                                   {createLibraryView === "grid" ? (
@@ -3368,7 +3805,7 @@ const RoomListPage: React.FC = () => {
                                           gridTemplateColumns: `repeat(${createLibraryColumns}, minmax(0, 1fr))`,
                                         }}
                                       >
-                                        {youtubePlaylists.map(
+                                        {filteredCreateYoutubePlaylists.map(
                                           (playlist, index) =>
                                             renderYoutubeCard(
                                               playlist,
@@ -3384,10 +3821,12 @@ const RoomListPage: React.FC = () => {
                                         height: youtubeListHeight,
                                         width: "100%",
                                       }}
-                                      rowCount={youtubePlaylists.length}
+                                      rowCount={
+                                        filteredCreateYoutubePlaylists.length
+                                      }
                                       rowHeight={youtubeListRowHeight}
                                       rowProps={{
-                                        items: youtubePlaylists,
+                                        items: filteredCreateYoutubePlaylists,
                                         renderItem: renderYoutubeCard,
                                       }}
                                       rowComponent={VirtualLibraryListRow}
@@ -3420,10 +3859,73 @@ const RoomListPage: React.FC = () => {
                                 <p className="text-sm text-rose-300">
                                   {collectionsError}
                                 </p>
-                              ) : collections.length === 0 ? (
-                                <p className="text-sm text-[var(--mc-text-muted)]">
-                                  目前沒有可用題庫，先使用推薦題庫快速開局。
-                                </p>
+                              ) : filteredCreateCollections.length === 0 ? (
+                                <LibraryEmptyState
+                                  icon={
+                                    normalizedCreateLibrarySearch ? (
+                                      <SearchRounded sx={{ fontSize: 28 }} />
+                                    ) : (
+                                      <BookmarkBorderRounded
+                                        sx={{ fontSize: 28 }}
+                                      />
+                                    )
+                                  }
+                                  title={
+                                    normalizedCreateLibrarySearch
+                                      ? "找不到符合的題庫"
+                                      : createLibraryTab === "public"
+                                        ? "目前還沒有公開題庫"
+                                        : "你目前還沒有個人題庫"
+                                  }
+                                  description={
+                                    normalizedCreateLibrarySearch
+                                      ? "試試不同關鍵字，或清除搜尋後重新瀏覽題庫列表。"
+                                      : createLibraryTab === "public"
+                                        ? "稍後再來看看，或先改用個人題庫與貼上連結建立房間。"
+                                        : "你可以先切換到公開題庫，或直接貼上 YouTube 播放清單連結。"
+                                  }
+                                  actions={
+                                    normalizedCreateLibrarySearch ? undefined : createLibraryTab === "public" ? (
+                                      <>
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          onClick={() =>
+                                            setCreateLibraryTab("personal")
+                                          }
+                                        >
+                                          切換到個人題庫
+                                        </Button>
+                                        <Button
+                                          size="small"
+                                          variant="text"
+                                          onClick={handleActivateLinkSource}
+                                        >
+                                          改用貼上連結
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Button
+                                          size="small"
+                                          variant="outlined"
+                                          onClick={() =>
+                                            setCreateLibraryTab("public")
+                                          }
+                                        >
+                                          瀏覽公開題庫
+                                        </Button>
+                                        <Button
+                                          size="small"
+                                          variant="text"
+                                          onClick={handleActivateLinkSource}
+                                        >
+                                          改用貼上連結
+                                        </Button>
+                                      </>
+                                    )
+                                  }
+                                />
                               ) : (
                                 <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
                                   {createLibraryView === "grid" ? (
@@ -3438,12 +3940,13 @@ const RoomListPage: React.FC = () => {
                                           gridTemplateColumns: `repeat(${createLibraryColumns}, minmax(0, 1fr))`,
                                         }}
                                       >
-                                        {collections.map((collection, index) =>
-                                          renderCollectionCard(
-                                            collection,
-                                            index,
-                                            "grid",
-                                          ),
+                                        {filteredCreateCollections.map(
+                                          (collection, index) =>
+                                            renderCollectionCard(
+                                              collection,
+                                              index,
+                                              "grid",
+                                            ),
                                         )}
                                         {collectionsLoadingMore
                                           ? Array.from({
@@ -3466,7 +3969,7 @@ const RoomListPage: React.FC = () => {
                                       rowCount={collectionListRowCount}
                                       rowHeight={collectionListRowHeight}
                                       rowProps={{
-                                        items: collections,
+                                        items: filteredCreateCollections,
                                         renderItem: renderCollectionCard,
                                         hasMore: collectionsHasMore,
                                         isLoadingMore: collectionsLoadingMore,
@@ -3559,538 +4062,575 @@ const RoomListPage: React.FC = () => {
                   </div>
 
                   {joinEntryTab === "code" && (
-                  <div className="rounded-2xl border border-amber-300/30 bg-amber-400/5 p-4 sm:p-5">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/90">
-                      輸入代碼
-                    </p>
-                    <div className="mx-auto mt-3 max-w-3xl rounded-[28px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(120,53,15,0.2),rgba(15,23,42,0.22))] p-4 sm:p-5">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-full max-w-2xl">
-                          <Tooltip
-                            open={Boolean(directJoinError)}
-                            title={
-                              directJoinError ? (
-                                <div className="space-y-1">
-                                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200/80">
-                                    房間代碼無效
+                    <div className="rounded-2xl border border-amber-300/30 bg-amber-400/5 p-4 sm:p-5">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/90">
+                        輸入代碼
+                      </p>
+                      <div className="mx-auto mt-3 max-w-3xl rounded-[28px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(120,53,15,0.2),rgba(15,23,42,0.22))] p-4 sm:p-5">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-full max-w-2xl">
+                            <Tooltip
+                              open={Boolean(directJoinError)}
+                              title={
+                                directJoinError ? (
+                                  <div className="space-y-1">
+                                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200/80">
+                                      房間代碼無效
+                                    </div>
+                                    <div className="text-sm font-medium text-rose-50">
+                                      {directJoinError}
+                                    </div>
                                   </div>
-                                  <div className="text-sm font-medium text-rose-50">
-                                    {directJoinError}
-                                  </div>
-                                </div>
-                              ) : (
-                                ""
-                              )
-                            }
-                            arrow
-                            placement="top"
-                            disableFocusListener
-                            disableHoverListener
-                            disableTouchListener
-                            slotProps={{
-                              popper: {
-                                modifiers: [
-                                  {
-                                    name: "offset",
-                                    options: { offset: [0, 12] },
+                                ) : (
+                                  ""
+                                )
+                              }
+                              arrow
+                              placement="top"
+                              disableFocusListener
+                              disableHoverListener
+                              disableTouchListener
+                              slotProps={{
+                                popper: {
+                                  modifiers: [
+                                    {
+                                      name: "offset",
+                                      options: { offset: [0, 12] },
+                                    },
+                                  ],
+                                },
+                                tooltip: {
+                                  sx: {
+                                    maxWidth: 320,
+                                    borderRadius: "16px",
+                                    border:
+                                      "1px solid rgba(251, 113, 133, 0.28)",
+                                    background:
+                                      "linear-gradient(180deg, rgba(127, 29, 29, 0.96), rgba(69, 10, 10, 0.98))",
+                                    boxShadow:
+                                      "0 18px 40px rgba(15, 23, 42, 0.45), 0 0 0 1px rgba(251, 113, 133, 0.08)",
+                                    px: 1.75,
+                                    py: 1.25,
                                   },
-                                ],
-                              },
-                              tooltip: {
-                                sx: {
-                                  maxWidth: 320,
-                                  borderRadius: "16px",
-                                  border: "1px solid rgba(251, 113, 133, 0.28)",
-                                  background:
-                                    "linear-gradient(180deg, rgba(127, 29, 29, 0.96), rgba(69, 10, 10, 0.98))",
-                                  boxShadow:
-                                    "0 18px 40px rgba(15, 23, 42, 0.45), 0 0 0 1px rgba(251, 113, 133, 0.08)",
-                                  px: 1.75,
-                                  py: 1.25,
                                 },
-                              },
-                              arrow: {
-                                sx: {
-                                  color: "rgba(127, 29, 29, 0.98)",
+                                arrow: {
+                                  sx: {
+                                    color: "rgba(127, 29, 29, 0.98)",
+                                  },
                                 },
-                              },
-                            }}
-                          >
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => directRoomCodeInputRef.current?.focus()}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  directRoomCodeInputRef.current?.focus();
-                                }
                               }}
-                              className={`relative mx-auto w-full max-w-[34rem] cursor-text rounded-[26px] border bg-slate-950/35 px-4 py-4 outline-none transition ${
-                                directJoinError
-                                  ? "border-rose-300/70 shadow-[0_0_0_4px_rgba(251,113,133,0.16)]"
-                                  : isDirectRoomCodeFocused
-                                    ? "border-amber-300/60 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]"
-                                    : "border-amber-300/20 hover:border-amber-300/35"
-                              }`}
                             >
-                              <input
-                                ref={directRoomCodeInputRef}
-                                aria-label="輸入房間代碼"
-                                value={normalizedDirectRoomCode}
-                                onFocus={() => setIsDirectRoomCodeFocused(true)}
-                                onBlur={() => {
-                                  setIsDirectRoomCodeFocused(false);
-                                }}
-                                onChange={(e) => {
-                                  const next = normalizeRoomCodeInput(e.target.value);
-                                  setDirectRoomIdInput(next);
-                                  setDirectJoinPreviewRoom(null);
-                                  setDirectJoinError(null);
-                                  setDirectJoinNeedsPassword(false);
-                                }}
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() =>
+                                  directRoomCodeInputRef.current?.focus()
+                                }
                                 onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
                                     event.preventDefault();
-                                    void handleDirectJoinById();
+                                    directRoomCodeInputRef.current?.focus();
                                   }
                                 }}
-                                inputMode="text"
-                                autoCapitalize="characters"
-                                spellCheck={false}
-                                maxLength={6}
-                                className="absolute inset-0 h-full w-full opacity-0"
-                              />
-                              <div className="flex items-center justify-center gap-2.5 sm:gap-3">
-                                {directRoomCodeSlots.slice(0, 3).map((char, index) => (
+                                className={`relative mx-auto w-full max-w-[34rem] cursor-text rounded-[26px] border bg-slate-950/35 px-4 py-4 outline-none transition ${
+                                  directJoinError
+                                    ? "border-rose-300/70 shadow-[0_0_0_4px_rgba(251,113,133,0.16)]"
+                                    : isDirectRoomCodeFocused
+                                      ? "border-amber-300/60 shadow-[0_0_0_4px_rgba(251,191,36,0.14)]"
+                                      : "border-amber-300/20 hover:border-amber-300/35"
+                                }`}
+                              >
+                                <input
+                                  ref={directRoomCodeInputRef}
+                                  aria-label="輸入房間代碼"
+                                  value={normalizedDirectRoomCode}
+                                  onFocus={() =>
+                                    setIsDirectRoomCodeFocused(true)
+                                  }
+                                  onBlur={() => {
+                                    setIsDirectRoomCodeFocused(false);
+                                  }}
+                                  onChange={(e) => {
+                                    const next = normalizeRoomCodeInput(
+                                      e.target.value,
+                                    );
+                                    setDirectRoomIdInput(next);
+                                    setDirectJoinPreviewRoom(null);
+                                    setDirectJoinError(null);
+                                    setDirectJoinNeedsPassword(false);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault();
+                                      void handleDirectJoinById();
+                                    }
+                                  }}
+                                  inputMode="text"
+                                  autoCapitalize="characters"
+                                  spellCheck={false}
+                                  maxLength={6}
+                                  className="absolute inset-0 h-full w-full opacity-0"
+                                />
+                                <div className="flex items-center justify-center gap-2.5 sm:gap-3">
+                                  {directRoomCodeSlots
+                                    .slice(0, 3)
+                                    .map((char, index) => (
+                                      <span
+                                        key={`room-code-left-${index}`}
+                                        className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
+                                          directJoinError
+                                            ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
+                                            : isDirectRoomCodeFocused &&
+                                                activeDirectRoomCodeIndex ===
+                                                  index
+                                              ? "border-amber-200 bg-amber-300/16 text-amber-50 shadow-[0_0_0_2px_rgba(251,191,36,0.12)]"
+                                              : char === "_"
+                                                ? "border-white/10 bg-white/5 text-slate-500"
+                                                : "border-amber-300/30 bg-amber-400/10 text-amber-50"
+                                        }`}
+                                      >
+                                        {char}
+                                      </span>
+                                    ))}
                                   <span
-                                    key={`room-code-left-${index}`}
-                                    className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
+                                    className={`px-1 text-xl font-semibold sm:text-2xl ${
                                       directJoinError
-                                        ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
-                                        : isDirectRoomCodeFocused &&
-                                            activeDirectRoomCodeIndex === index
-                                          ? "border-amber-200 bg-amber-300/16 text-amber-50 shadow-[0_0_0_2px_rgba(251,191,36,0.12)]"
-                                          : char === "_"
-                                            ? "border-white/10 bg-white/5 text-slate-500"
-                                            : "border-amber-300/30 bg-amber-400/10 text-amber-50"
+                                        ? "text-rose-200/90"
+                                        : "text-amber-200/80"
                                     }`}
                                   >
-                                    {char}
+                                    -
                                   </span>
-                                ))}
-                                <span
-                                  className={`px-1 text-xl font-semibold sm:text-2xl ${
-                                    directJoinError
-                                      ? "text-rose-200/90"
-                                      : "text-amber-200/80"
-                                  }`}
-                                >
-                                  -
-                                </span>
-                                {directRoomCodeSlots.slice(3).map((char, index) => (
+                                  {directRoomCodeSlots
+                                    .slice(3)
+                                    .map((char, index) => (
+                                      <span
+                                        key={`room-code-right-${index}`}
+                                        className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
+                                          directJoinError
+                                            ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
+                                            : isDirectRoomCodeFocused &&
+                                                activeDirectRoomCodeIndex ===
+                                                  index + 3
+                                              ? "border-amber-200 bg-amber-300/16 text-amber-50 shadow-[0_0_0_2px_rgba(251,191,36,0.12)]"
+                                              : char === "_"
+                                                ? "border-white/10 bg-white/5 text-slate-500"
+                                                : "border-amber-300/30 bg-amber-400/10 text-amber-50"
+                                        }`}
+                                      >
+                                        {char}
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
+                            </Tooltip>
+                          </div>
+                          <Button
+                            variant="contained"
+                            color="warning"
+                            onClick={handleDirectJoinById}
+                            disabled={
+                              directJoinLoading ||
+                              normalizedDirectRoomCode.length < 6 ||
+                              !resolvedDirectJoinRoom
+                            }
+                            className="min-h-[48px] w-full max-w-xs text-sm sm:min-h-[52px]"
+                          >
+                            {directJoinLoading
+                              ? "查詢房間中..."
+                              : resolvedDirectJoinRoom
+                                ? "加入這個房間"
+                                : "輸入完整代碼以查詢"}
+                          </Button>
+                        </div>
+                      </div>
+                      {(resolvedDirectJoinRoom || directJoinNeedsPassword) && (
+                        <div className="mt-3 rounded-2xl border border-[var(--mc-border)]/70 bg-slate-950/20 p-3 sm:p-4">
+                          {resolvedDirectJoinRoom ? (
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-base font-semibold text-[var(--mc-text)]">
+                                    {resolvedDirectJoinRoom.name}
+                                  </p>
+                                  <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                                    代碼{" "}
+                                    {formatRoomCodeDisplay(
+                                      resolvedDirectJoinRoom.roomCode,
+                                    )}
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
+                                    {resolvedDirectJoinRoom.playerCount}
+                                    {resolvedDirectJoinRoom.maxPlayers
+                                      ? `/${resolvedDirectJoinRoom.maxPlayers}`
+                                      : ""}{" "}
+                                    人
+                                  </span>
+                                  <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
+                                    {roomRequiresPin(resolvedDirectJoinRoom)
+                                      ? "需 PIN"
+                                      : "免 PIN"}
+                                  </span>
                                   <span
-                                    key={`room-code-right-${index}`}
-                                    className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
-                                      directJoinError
-                                        ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
-                                        : isDirectRoomCodeFocused &&
-                                            activeDirectRoomCodeIndex === index + 3
-                                          ? "border-amber-200 bg-amber-300/16 text-amber-50 shadow-[0_0_0_2px_rgba(251,191,36,0.12)]"
-                                          : char === "_"
-                                            ? "border-white/10 bg-white/5 text-slate-500"
-                                            : "border-amber-300/30 bg-amber-400/10 text-amber-50"
+                                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                      isRoomCurrentlyPlaying(
+                                        resolvedDirectJoinRoom,
+                                      )
+                                        ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                                        : "border-slate-300/20 bg-slate-400/10 text-slate-200"
                                     }`}
                                   >
-                                    {char}
+                                    {getRoomStatusLabel(resolvedDirectJoinRoom)}
                                   </span>
-                                ))}
+                                </div>
+                              </div>
+                              <div className="grid gap-2 text-sm text-[var(--mc-text-muted)] sm:grid-cols-2">
+                                <p>
+                                  題庫：
+                                  {getRoomPlaylistLabel(resolvedDirectJoinRoom)}
+                                </p>
+                                <p>
+                                  題數：
+                                  {resolvedDirectJoinRoom.gameSettings
+                                    ?.questionCount ?? "-"}
+                                </p>
                               </div>
                             </div>
-                          </Tooltip>
+                          ) : null}
+                          {directJoinNeedsPassword && (
+                            <p className="mt-2 text-xs text-amber-200">
+                              此房間需要 4 位 PIN，按下加入後會請你輸入。
+                            </p>
+                          )}
                         </div>
-                        <Button
-                          variant="contained"
-                          color="warning"
-                          onClick={handleDirectJoinById}
-                          disabled={
-                            directJoinLoading ||
-                            normalizedDirectRoomCode.length < 6 ||
-                            !resolvedDirectJoinRoom
-                          }
-                          className="min-h-[48px] w-full max-w-xs text-sm sm:min-h-[52px]"
-                        >
-                          {directJoinLoading
-                            ? "查詢房間中..."
-                            : resolvedDirectJoinRoom
-                              ? "加入這個房間"
-                              : "輸入完整代碼以查詢"}
-                        </Button>
-                      </div>
+                      )}
                     </div>
-                    {(resolvedDirectJoinRoom || directJoinNeedsPassword) && (
-                      <div className="mt-3 rounded-2xl border border-[var(--mc-border)]/70 bg-slate-950/20 p-3 sm:p-4">
-                        {resolvedDirectJoinRoom ? (
-                          <div className="space-y-3">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className="text-base font-semibold text-[var(--mc-text)]">
-                                  {resolvedDirectJoinRoom.name}
-                                </p>
-                                <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                                  代碼 {formatRoomCodeDisplay(resolvedDirectJoinRoom.roomCode)}
-                                </p>
-                              </div>
+                  )}
+
+                  {joinEntryTab === "browser" && (
+                    <div className="grid gap-3 lg:grid-cols-[0.92fr_1.08fr]">
+                      <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
+                              房間條件
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
+                              確認你要加入哪一間房
+                            </p>
+                          </div>
+                          <p className="text-xs text-[var(--mc-text-muted)]">
+                            左側確認條件，右側挑房間
+                          </p>
+                        </div>
+                        <div className="mt-3 space-y-3">
+                          <div>
+                            <p className="text-xs text-[var(--mc-text-muted)]">
+                              PIN 篩選
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                              {[
+                                { key: "all", label: "全部" },
+                                { key: "no_password", label: "免 PIN" },
+                                { key: "password_required", label: "需 PIN" },
+                              ].map((item) => (
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setJoinPasswordFilter(
+                                      item.key as
+                                        | "all"
+                                        | "no_password"
+                                        | "password_required",
+                                    )
+                                  }
+                                  className={`rounded-full border px-3 py-1 text-xs transition ${
+                                    joinPasswordFilter === item.key
+                                      ? "border-amber-300/60 bg-amber-300/15 text-amber-100"
+                                      : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-xs text-[var(--mc-text-muted)]">
+                              排序方式
+                            </p>
+                            <div className="mt-1 inline-flex overflow-hidden rounded-full border border-[var(--mc-border)]">
+                              <button
+                                type="button"
+                                className={`px-3 py-1 text-xs transition ${
+                                  joinSortMode === "latest"
+                                    ? "bg-amber-400/15 text-amber-100"
+                                    : "text-[var(--mc-text-muted)]"
+                                }`}
+                                onClick={() => setJoinSortMode("latest")}
+                              >
+                                最新建立
+                              </button>
+                              <button
+                                type="button"
+                                className={`px-3 py-1 text-xs transition ${
+                                  joinSortMode === "players_desc"
+                                    ? "bg-amber-400/15 text-amber-100"
+                                    : "text-[var(--mc-text-muted)]"
+                                }`}
+                                onClick={() => setJoinSortMode("players_desc")}
+                              >
+                                玩家數優先
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-dashed border-[var(--mc-border)] p-3 text-xs text-[var(--mc-text-muted)]">
+                            題庫/題庫類型篩選（規劃中）：未來可依曲風、題庫來源快速篩選房間。
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-[var(--mc-border)] bg-slate-950/20 p-3">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
+                            已選房間
+                          </p>
+                          {joinPreviewRoom ? (
+                            <div className="mt-2 space-y-2 text-sm">
+                              <p className="text-lg font-semibold text-[var(--mc-text)]">
+                                {joinPreviewRoom.name}
+                              </p>
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
-                                  {resolvedDirectJoinRoom.playerCount}
-                                  {resolvedDirectJoinRoom.maxPlayers
-                                    ? `/${resolvedDirectJoinRoom.maxPlayers}`
-                                    : ""}{" "}
-                                  人
-                                </span>
-                                <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
-                                  {roomRequiresPin(resolvedDirectJoinRoom) ? "需 PIN" : "免 PIN"}
-                                </span>
                                 <span
                                   className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                    isRoomCurrentlyPlaying(resolvedDirectJoinRoom)
+                                    isRoomCurrentlyPlaying(joinPreviewRoom)
                                       ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
                                       : "border-slate-300/20 bg-slate-400/10 text-slate-200"
                                   }`}
                                 >
-                                  {getRoomStatusLabel(resolvedDirectJoinRoom)}
+                                  {getRoomStatusLabel(joinPreviewRoom)}
+                                </span>
+                                <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
+                                  {roomRequiresPin(joinPreviewRoom)
+                                    ? "需 PIN"
+                                    : "免 PIN"}
                                 </span>
                               </div>
-                            </div>
-                            <div className="grid gap-2 text-sm text-[var(--mc-text-muted)] sm:grid-cols-2">
-                              <p>
-                                題庫：{getRoomPlaylistLabel(resolvedDirectJoinRoom)}
+                              <p className="text-[var(--mc-text-muted)]">
+                                代碼：{joinPreviewRoom.roomCode.slice(0, 3)}-
+                                {joinPreviewRoom.roomCode.slice(3)}
                               </p>
-                              <p>
-                                題數：{resolvedDirectJoinRoom.gameSettings?.questionCount ?? "-"}
+                              <p className="text-[var(--mc-text-muted)]">
+                                玩家 {joinPreviewRoom.playerCount}
+                                {joinPreviewRoom.maxPlayers
+                                  ? `/${joinPreviewRoom.maxPlayers}`
+                                  : ""}
                               </p>
+                              <p className="text-[var(--mc-text-muted)]">
+                                題數{" "}
+                                {joinPreviewRoom.gameSettings?.questionCount ??
+                                  "-"}{" "}
+                                · 題庫 {getRoomPlaylistLabel(joinPreviewRoom)}
+                              </p>
+                              <div className="pt-1">
+                                <Button
+                                  variant="contained"
+                                  size="small"
+                                  onClick={() =>
+                                    handleJoinRoomEntry(joinPreviewRoom)
+                                  }
+                                >
+                                  直接加入這間房
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
-                        {directJoinNeedsPassword && (
-                          <p className="mt-2 text-xs text-amber-200">
-                            此房間需要 4 位 PIN，按下加入後會請你輸入。
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  )}
-
-                  {joinEntryTab === "browser" && (
-                  <div className="grid gap-3 lg:grid-cols-[0.92fr_1.08fr]">
-                    <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
-                            房間條件
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
-                            確認你要加入哪一間房
-                          </p>
+                          ) : (
+                            <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
+                              尚未選擇房間。你可以先輸入代碼，或從右側列表挑選一間公開房。
+                            </p>
+                          )}
                         </div>
-                        <p className="text-xs text-[var(--mc-text-muted)]">
-                          左側確認條件，右側挑房間
-                        </p>
                       </div>
-                      <div className="mt-3 space-y-3">
-                        <div>
-                          <p className="text-xs text-[var(--mc-text-muted)]">
-                            PIN 篩選
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-2">
-                            {[
-                              { key: "all", label: "全部" },
-                              { key: "no_password", label: "免 PIN" },
-                              { key: "password_required", label: "需 PIN" },
-                            ].map((item) => (
-                              <button
-                                key={item.key}
-                                type="button"
-                                onClick={() =>
-                                  setJoinPasswordFilter(
-                                    item.key as
-                                      | "all"
-                                      | "no_password"
-                                      | "password_required",
-                                  )
-                                }
-                                className={`rounded-full border px-3 py-1 text-xs transition ${
-                                  joinPasswordFilter === item.key
-                                    ? "border-amber-300/60 bg-amber-300/15 text-amber-100"
-                                    : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                                }`}
-                              >
-                                {item.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
 
-                        <div>
-                          <p className="text-xs text-[var(--mc-text-muted)]">
-                            排序方式
-                          </p>
-                          <div className="mt-1 inline-flex overflow-hidden rounded-full border border-[var(--mc-border)]">
+                      <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
+                              房間列表
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
+                              從公開房間列表直接加入
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                              目前共 {filteredJoinRooms.length} 間房，
+                              {filteredJoinPlayerTotal} 人在線
+                            </p>
+                          </div>
+                          <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
                             <button
                               type="button"
-                              className={`px-3 py-1 text-xs transition ${
-                                joinSortMode === "latest"
-                                  ? "bg-amber-400/15 text-amber-100"
-                                  : "text-[var(--mc-text-muted)]"
+                              className={`rounded-full px-3 py-1 text-xs ${
+                                joinRoomsView === "list"
+                                  ? "cursor-pointer bg-amber-500/20 text-amber-100"
+                                  : "cursor-pointer text-[var(--mc-text-muted)]"
                               }`}
-                              onClick={() => setJoinSortMode("latest")}
+                              onClick={() => setJoinRoomsView("list")}
                             >
-                              最新建立
+                              清單
                             </button>
                             <button
                               type="button"
-                              className={`px-3 py-1 text-xs transition ${
-                                joinSortMode === "players_desc"
-                                  ? "bg-amber-400/15 text-amber-100"
-                                  : "text-[var(--mc-text-muted)]"
+                              className={`rounded-full px-3 py-1 text-xs ${
+                                joinRoomsView === "grid"
+                                  ? "cursor-pointer bg-amber-500/20 text-amber-100"
+                                  : "cursor-pointer text-[var(--mc-text-muted)]"
                               }`}
-                              onClick={() => setJoinSortMode("players_desc")}
+                              onClick={() => setJoinRoomsView("grid")}
                             >
-                              玩家數優先
+                              圖示
                             </button>
                           </div>
                         </div>
-
-                        <div className="rounded-xl border border-dashed border-[var(--mc-border)] p-3 text-xs text-[var(--mc-text-muted)]">
-                          題庫/題庫類型篩選（規劃中）：未來可依曲風、題庫來源快速篩選房間。
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-[var(--mc-border)] bg-slate-950/20 p-3">
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
-                          已選房間
-                        </p>
-                        {joinPreviewRoom ? (
-                          <div className="mt-2 space-y-2 text-sm">
-                            <p className="text-lg font-semibold text-[var(--mc-text)]">
-                              {joinPreviewRoom.name}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                  isRoomCurrentlyPlaying(joinPreviewRoom)
-                                    ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
-                                    : "border-slate-300/20 bg-slate-400/10 text-slate-200"
-                                }`}
-                              >
-                                {getRoomStatusLabel(joinPreviewRoom)}
-                              </span>
-                              <span className="rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[11px] text-[var(--mc-text-muted)]">
-                                {roomRequiresPin(joinPreviewRoom)
-                                  ? "需 PIN"
-                                  : "免 PIN"}
-                              </span>
-                            </div>
-                            <p className="text-[var(--mc-text-muted)]">
-                              代碼：{joinPreviewRoom.roomCode.slice(0, 3)}-{joinPreviewRoom.roomCode.slice(3)}
-                            </p>
-                            <p className="text-[var(--mc-text-muted)]">
-                              玩家 {joinPreviewRoom.playerCount}
-                              {joinPreviewRoom.maxPlayers
-                                ? `/${joinPreviewRoom.maxPlayers}`
-                                : ""}
-                            </p>
-                            <p className="text-[var(--mc-text-muted)]">
-                              題數{" "}
-                              {joinPreviewRoom.gameSettings?.questionCount ??
-                                "-"}{" "}
-                              · 題庫 {getRoomPlaylistLabel(joinPreviewRoom)}
-                            </p>
-                            <div className="pt-1">
-                              <Button
-                                variant="contained"
-                                size="small"
-                                onClick={() =>
-                                  handleJoinRoomEntry(joinPreviewRoom)
-                                }
-                              >
-                                直接加入這間房
-                              </Button>
-                            </div>
-                          </div>
+                        {filteredJoinRooms.length === 0 ? (
+                          <p className="mt-3 text-sm text-[var(--mc-text-muted)]">
+                            目前沒有符合條件的房間。
+                          </p>
                         ) : (
-                          <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
-                            尚未選擇房間。你可以先輸入代碼，或從右側列表挑選一間公開房。
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
-                            房間列表
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
-                            從公開房間列表直接加入
-                          </p>
-                          <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                            目前共 {filteredJoinRooms.length} 間房，{filteredJoinPlayerTotal} 人在線
-                          </p>
-                        </div>
-                        <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
-                          <button
-                            type="button"
-                            className={`rounded-full px-3 py-1 text-xs ${
-                              joinRoomsView === "list"
-                                ? "cursor-pointer bg-amber-500/20 text-amber-100"
-                                : "cursor-pointer text-[var(--mc-text-muted)]"
-                            }`}
-                            onClick={() => setJoinRoomsView("list")}
-                          >
-                            清單
-                          </button>
-                          <button
-                            type="button"
-                            className={`rounded-full px-3 py-1 text-xs ${
+                          <div
+                            className={`mt-3 ${
                               joinRoomsView === "grid"
-                                ? "cursor-pointer bg-amber-500/20 text-amber-100"
-                                : "cursor-pointer text-[var(--mc-text-muted)]"
+                                ? "grid gap-2 sm:grid-cols-2"
+                                : "space-y-2"
                             }`}
-                            onClick={() => setJoinRoomsView("grid")}
                           >
-                            圖示
-                          </button>
-                        </div>
-                      </div>
-                      {filteredJoinRooms.length === 0 ? (
-                        <p className="mt-3 text-sm text-[var(--mc-text-muted)]">
-                          目前沒有符合條件的房間。
-                        </p>
-                      ) : (
-                        <div
-                          className={`mt-3 ${
-                            joinRoomsView === "grid"
-                              ? "grid gap-2 sm:grid-cols-2"
-                              : "space-y-2"
-                          }`}
-                        >
-                          {filteredJoinRooms.slice(0, 12).map((room) => (
-                            <div
-                              key={room.id}
-                              className={`rounded-2xl border transition ${
-                                selectedJoinRoomId === room.id
-                                  ? "border-amber-300/60 bg-amber-300/14 shadow-[0_12px_30px_rgba(251,191,36,0.08)]"
-                                  : "border-[var(--mc-border)] bg-slate-950/25 hover:border-amber-300/35 hover:bg-slate-900/30"
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedJoinRoomId(room.id);
-                                }}
-                                className={`w-full text-left ${
-                                  joinRoomsView === "grid" ? "p-4" : "px-4 py-3"
+                            {filteredJoinRooms.slice(0, 12).map((room) => (
+                              <div
+                                key={room.id}
+                                className={`rounded-2xl border transition ${
+                                  selectedJoinRoomId === room.id
+                                    ? "border-amber-300/60 bg-amber-300/14 shadow-[0_12px_30px_rgba(251,191,36,0.08)]"
+                                    : "border-[var(--mc-border)] bg-slate-950/25 hover:border-amber-300/35 hover:bg-slate-900/30"
                                 }`}
                               >
-                                <div
-                                  className={`${
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJoinRoomId(room.id);
+                                  }}
+                                  className={`w-full text-left ${
                                     joinRoomsView === "grid"
-                                      ? "space-y-3"
-                                      : "flex flex-wrap items-center gap-4"
+                                      ? "p-4"
+                                      : "px-4 py-3"
                                   }`}
                                 >
                                   <div
                                     className={`${
                                       joinRoomsView === "grid"
                                         ? "space-y-3"
-                                        : "min-w-0 flex-1 space-y-2"
+                                        : "flex flex-wrap items-center gap-4"
                                     }`}
                                   >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-[var(--mc-text)] sm:text-[15px]">
-                                          {room.name}
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {selectedJoinRoomId === room.id && (
-                                          <span className="rounded-full border border-amber-300/35 bg-amber-300/14 px-2 py-0.5 text-[11px] font-medium text-amber-100">
-                                            已選擇
+                                    <div
+                                      className={`${
+                                        joinRoomsView === "grid"
+                                          ? "space-y-3"
+                                          : "min-w-0 flex-1 space-y-2"
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-semibold text-[var(--mc-text)] sm:text-[15px]">
+                                            {room.name}
+                                          </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {selectedJoinRoomId === room.id && (
+                                            <span className="rounded-full border border-amber-300/35 bg-amber-300/14 px-2 py-0.5 text-[11px] font-medium text-amber-100">
+                                              已選擇
+                                            </span>
+                                          )}
+                                          <span
+                                            className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                              isRoomCurrentlyPlaying(room)
+                                                ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                                                : "border-slate-300/20 bg-slate-400/10 text-slate-200"
+                                            }`}
+                                          >
+                                            {getRoomStatusLabel(room)}
                                           </span>
-                                        )}
-                                        <span
-                                          className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                            isRoomCurrentlyPlaying(room)
-                                              ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
-                                              : "border-slate-300/20 bg-slate-400/10 text-slate-200"
-                                          }`}
-                                        >
-                                          {getRoomStatusLabel(room)}
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                        <span className="rounded-full border border-[var(--mc-border)] px-2.5 py-0.5 text-[var(--mc-text-muted)]">
+                                          {room.playerCount}
+                                          {room.maxPlayers
+                                            ? `/${room.maxPlayers}`
+                                            : ""}{" "}
+                                          人
+                                        </span>
+                                        <span className="rounded-full border border-[var(--mc-border)] px-2.5 py-0.5 text-[var(--mc-text-muted)]">
+                                          {roomRequiresPin(room)
+                                            ? "需 PIN"
+                                            : "免 PIN"}
                                         </span>
                                       </div>
-                                    </div>
 
-                                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                                      <span className="rounded-full border border-[var(--mc-border)] px-2.5 py-0.5 text-[var(--mc-text-muted)]">
-                                        {room.playerCount}
-                                        {room.maxPlayers
-                                          ? `/${room.maxPlayers}`
-                                          : ""}{" "}
-                                        人
-                                      </span>
-                                      <span className="rounded-full border border-[var(--mc-border)] px-2.5 py-0.5 text-[var(--mc-text-muted)]">
-                                        {roomRequiresPin(room) ? "需 PIN" : "免 PIN"}
-                                      </span>
+                                      <div
+                                        className={`${
+                                          joinRoomsView === "grid"
+                                            ? "grid gap-2 text-sm text-[var(--mc-text-muted)]"
+                                            : "flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]"
+                                        }`}
+                                      >
+                                        <p>
+                                          題數：
+                                          {room.gameSettings?.questionCount ??
+                                            "-"}
+                                        </p>
+                                        <p className="truncate">
+                                          題庫：{getRoomPlaylistLabel(room)}
+                                        </p>
+                                      </div>
+
+                                      <p className="text-[11px] text-[var(--mc-text-muted)]/80">
+                                        代碼：
+                                        {formatRoomCodeDisplay(room.roomCode)}
+                                      </p>
                                     </div>
 
                                     <div
                                       className={`${
                                         joinRoomsView === "grid"
-                                          ? "grid gap-2 text-sm text-[var(--mc-text-muted)]"
-                                          : "flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[var(--mc-text-muted)]"
+                                          ? "pt-1"
+                                          : "ml-auto flex shrink-0 items-center"
                                       }`}
                                     >
-                                      <p>題數：{room.gameSettings?.questionCount ?? "-"}</p>
-                                      <p className="truncate">
-                                        題庫：{getRoomPlaylistLabel(room)}
-                                      </p>
+                                      <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleJoinRoomEntry(room);
+                                        }}
+                                      >
+                                        加入
+                                      </Button>
                                     </div>
-
-                                    <p className="text-[11px] text-[var(--mc-text-muted)]/80">
-                                      代碼：{formatRoomCodeDisplay(room.roomCode)}
-                                    </p>
                                   </div>
-
-                                  <div
-                                    className={`${
-                                      joinRoomsView === "grid"
-                                        ? "pt-1"
-                                        : "ml-auto flex shrink-0 items-center"
-                                    }`}
-                                  >
-                                    <Button
-                                      variant="contained"
-                                      size="small"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleJoinRoomEntry(room);
-                                      }}
-                                    >
-                                      加入
-                                    </Button>
-                                  </div>
-                                </div>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   )}
                 </div>
               )}

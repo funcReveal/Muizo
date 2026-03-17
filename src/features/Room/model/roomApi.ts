@@ -27,6 +27,7 @@ export type AuthPayload = {
   token?: string;
   user?: AuthUser | null;
   error?: string;
+  error_code?: string;
   detail?: AuthErrorDetail;
 };
 
@@ -44,6 +45,7 @@ export type YoutubePlaylistsPayload = {
   ok?: boolean;
   data?: YoutubePlaylist[];
   error?: string;
+  error_code?: string;
 };
 
 export type YoutubePlaylistItemsPayload = {
@@ -62,6 +64,7 @@ export type YoutubePlaylistItemsPayload = {
     }>;
   };
   error?: string;
+  error_code?: string;
 };
 
 export type PlaylistPreviewPayload =
@@ -82,7 +85,7 @@ export type PlaylistPreviewPayload =
       error: string;
     };
 
-export type WorkerCollection = {
+export type CollectionSummary = {
   id: string;
   owner_id: string;
   title: string;
@@ -95,6 +98,7 @@ export type WorkerCollection = {
   cover_source_id?: string | null;
   cover_provider?: string | null;
   version: number;
+  item_count?: number;
   use_count: number;
   favorite_count?: number;
   is_favorited?: number | boolean;
@@ -105,7 +109,7 @@ export type WorkerCollection = {
   deleted_at: number | null;
 };
 
-export type WorkerCollectionItem = {
+export type CollectionItemRecord = {
   id: string;
   collection_id: string;
   sort: number;
@@ -130,6 +134,7 @@ export type WorkerListPayload<TItem> = {
     pageSize: number;
   };
   error?: string;
+  error_code?: string;
 };
 
 const fetchJson = async <T>(
@@ -214,6 +219,7 @@ export const apiFetchCollections = (
     ownerId?: string;
     visibility?: "public" | "private";
     sort?: "updated" | "popular" | "favorites_first";
+    q?: string;
     page?: number;
     pageSize?: number;
   },
@@ -228,6 +234,9 @@ export const apiFetchCollections = (
   if (options.sort) {
     url.searchParams.set("sort", options.sort);
   }
+  if (options.q) {
+    url.searchParams.set("q", options.q);
+  }
   if (options.page !== undefined) {
     url.searchParams.set("page", String(options.page));
   }
@@ -237,7 +246,7 @@ export const apiFetchCollections = (
   const headers = options.token
     ? { Authorization: `Bearer ${options.token}` }
     : undefined;
-  return fetchJson<WorkerListPayload<WorkerCollection>>(url.toString(), {
+  return fetchJson<WorkerListPayload<CollectionSummary>>(url.toString(), {
     headers,
   });
 };
@@ -296,7 +305,7 @@ export const apiFetchCollectionItems = (
   if (readToken) {
     headers["X-Collection-Read-Token"] = readToken;
   }
-  return fetchJson<WorkerListPayload<WorkerCollectionItem>>(url.toString(), {
+  return fetchJson<WorkerListPayload<CollectionItemRecord>>(url.toString(), {
     headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
 };

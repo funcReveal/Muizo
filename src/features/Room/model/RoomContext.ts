@@ -75,6 +75,7 @@ export interface RoomContextValue {
     cover_duration_sec?: number | null;
     cover_source_id?: string | null;
     cover_provider?: string | null;
+    item_count?: number;
     use_count?: number;
     favorite_count?: number;
     is_favorited?: boolean;
@@ -91,7 +92,10 @@ export interface RoomContextValue {
   selectedCollectionId: string | null;
   collectionItemsLoading: boolean;
   collectionItemsError: string | null;
-  fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  fetchCollections: (
+    scope?: "owner" | "public",
+    options?: { query?: string },
+  ) => Promise<void>;
   loadMoreCollections: () => Promise<void>;
   toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   selectCollection: (collectionId: string | null) => void;

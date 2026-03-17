@@ -5,6 +5,7 @@ import { List, type RowComponentProps } from "react-window";
 import { Box, Button } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
+import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
 import { trackEvent } from "../../../shared/analytics/track";
 
 const API_URL =
@@ -154,6 +155,9 @@ const CollectionsCreatePage = () => {
   const [youtubeActionError, setYoutubeActionError] = useState<string | null>(
     null,
   );
+  const needsGoogleReauth = isGoogleReauthRequired({
+    error: youtubePlaylistsError ?? youtubeActionError,
+  });
 
   const ownerId = authUser?.id ?? null;
   const hasPlaylistItems = playlistItems.length > 0;
@@ -498,12 +502,12 @@ const CollectionsCreatePage = () => {
                     }`}
                     hidden={playlistSource !== "youtube"}
                   >
-                    <div className="text-[11px] text-[var(--mc-text-muted)]">
-                      登入 Google 後可直接載入你的 YouTube 播放清單
-                      {!authUser && (
-                        <Button
-                          variant="outlined"
-                          size="small"
+                      <div className="text-[11px] text-[var(--mc-text-muted)]">
+                        登入 Google 後可直接載入你的 YouTube 播放清單
+                        {(!authUser || needsGoogleReauth) && (
+                          <Button
+                            variant="outlined"
+                            size="small"
                           onClick={loginWithGoogle}
                         >
                           登入 Google

@@ -15,6 +15,10 @@ import {
 import { QUESTION_STEP } from "./roomConstants";
 import { getStoredQuestionCount } from "./roomStorage";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
+import {
+  isGoogleReauthRequired,
+  toGoogleReauthMessage,
+} from "../../../shared/auth/providerAuth";
 
 type UseRoomPlaylistOptions = {
   apiUrl: string;
@@ -72,6 +76,62 @@ export type UseRoomPlaylistResult = {
 };
 
 const QUESTION_MIN = 5;
+
+const normalizePlaylistPreviewErrorMessage = (message: string) => {
+  const normalized = message.trim().toLowerCase();
+
+  if (
+    normalized.includes("please provide a valid playlist url") ||
+    normalized.includes("invalid playlist")
+  ) {
+    return "請貼上有效的 YouTube 播放清單連結。";
+  }
+
+  if (
+    normalized.includes("private or restricted") ||
+    normalized.includes("not publicly accessible") ||
+    normalized.includes("cannot be accessed") ||
+    normalized.includes("not public") ||
+    normalized.includes("playlistitemsnotaccessible")
+  ) {
+    return "這份播放清單目前不是公開狀態，無法透過貼上連結匯入。";
+  }
+
+  if (
+    normalized.includes("playlist not found") ||
+    normalized.includes("playlistnotfound")
+  ) {
+    return "找不到這份播放清單，請確認連結是否正確，或清單是否仍存在。";
+  }
+
+  if (
+    normalized.includes("auto mixes cannot be fetched") ||
+    normalized.includes("auto mix") ||
+    normalized.includes("mix cannot be fetched")
+  ) {
+    return "這個連結是 YouTube 合輯/自動混音，暫時不支援匯入，請改用一般公開播放清單。";
+  }
+
+  if (normalized.includes("playlist is too large")) {
+    return "這份播放清單超過目前匯入上限，請改用較短的清單。";
+  }
+
+  if (
+    normalized.includes("no playable videos found") ||
+    normalized.includes("清單沒有可用影片")
+  ) {
+    return "這份播放清單沒有可匯入的影片，可能包含私人、受限、限制級或不可嵌入內容。";
+  }
+
+  if (
+    normalized.includes("failed to fetch playlist metadata") ||
+    normalized.includes("failed to fetch playlist items")
+  ) {
+    return "讀取播放清單失敗，請稍後再試。";
+  }
+
+  return message;
+};
 
 export const useRoomPlaylist = ({
   apiUrl,
@@ -176,6 +236,9 @@ export const useRoomPlaylist = ({
           }
         }
         const message = payload?.error ?? "載入播放清單失敗";
+        if (isGoogleReauthRequired(payload)) {
+          throw new Error(toGoogleReauthMessage(payload));
+        }
         const normalized = String(message).toLowerCase();
         if (
           normalized.includes("insufficient authentication scopes") ||
@@ -267,6 +330,9 @@ export const useRoomPlaylist = ({
             }
           }
           const message = payload?.error ?? "讀取播放清單失敗";
+          if (isGoogleReauthRequired(payload)) {
+            throw new Error(toGoogleReauthMessage(payload));
+          }
           const normalized = String(message).toLowerCase();
           if (
             normalized.includes("insufficient authentication scopes") ||
@@ -331,11 +397,15 @@ export const useRoomPlaylist = ({
         targetUrl,
         playlistId,
       );
+      if (payload && "error" in payload) {
+        throw new Error(
+          normalizePlaylistPreviewErrorMessage(
+            payload.error || "讀取播放清單失敗，請稍後重試",
+          ),
+        );
+      }
       if (!ok || !payload) {
         throw new Error("讀取播放清單失敗，請稍後重試");
-      }
-      if ("error" in payload) {
-        throw new Error(payload.error || "讀取播放清單失敗，請稍後重試");
       }
 
       const data = payload;
@@ -372,7 +442,7 @@ export const useRoomPlaylist = ({
       console.error(error);
       setPlaylistError(
         error instanceof Error
-          ? error.message
+          ? normalizePlaylistPreviewErrorMessage(error.message)
           : "讀取播放清單時發生錯誤，請確認網路後重試",
       );
       setPlaylistItems([]);

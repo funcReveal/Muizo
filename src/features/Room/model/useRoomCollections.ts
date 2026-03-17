@@ -6,7 +6,7 @@ import {
   apiFetchCollections,
   apiFavoriteCollection,
   apiUnfavoriteCollection,
-  type WorkerCollectionItem,
+  type CollectionItemRecord,
 } from "./roomApi";
 import {
   formatSeconds,
@@ -45,6 +45,7 @@ export type UseRoomCollectionsResult = {
     cover_duration_sec?: number | null;
     cover_source_id?: string | null;
     cover_provider?: string | null;
+    item_count?: number;
     use_count?: number;
     favorite_count?: number;
     is_favorited?: boolean;
@@ -62,7 +63,10 @@ export type UseRoomCollectionsResult = {
   collectionItemsLoading: boolean;
   collectionItemsError: string | null;
   selectCollection: (collectionId: string | null) => void;
-  fetchCollections: (scope?: "owner" | "public") => Promise<void>;
+  fetchCollections: (
+    scope?: "owner" | "public",
+    options?: { query?: string },
+  ) => Promise<void>;
   loadMoreCollections: () => Promise<void>;
   toggleCollectionFavorite: (collectionId: string) => Promise<boolean>;
   loadCollectionItems: (
@@ -95,6 +99,7 @@ export const useRoomCollections = ({
       cover_duration_sec?: number | null;
       cover_source_id?: string | null;
       cover_provider?: string | null;
+      item_count?: number;
       use_count?: number;
       favorite_count?: number;
       is_favorited?: boolean;
@@ -119,6 +124,7 @@ export const useRoomCollections = ({
   );
   const collectionPageRef = useRef(1);
   const collectionRequestScopeRef = useRef<"owner" | "public" | null>(null);
+  const publicCollectionsQueryRef = useRef("");
   const collectionCacheRef = useRef<Record<string, PlaylistItem[]>>({});
   const inFlightCollectionIdRef = useRef<string | null>(null);
   const latestLoadRequestIdRef = useRef(0);
@@ -131,13 +137,18 @@ export const useRoomCollections = ({
   }, []);
 
   const fetchCollections = useCallback(
-    async (scope?: "owner" | "public") => {
+    async (scope?: "owner" | "public", options?: { query?: string }) => {
       if (!apiUrl) {
         setCollectionsError("尚未設定收藏庫 API 位置 (API_URL)");
         return;
       }
       const resolvedScope = scope ?? (authToken && ownerId ? "owner" : "public");
+      const normalizedQuery =
+        resolvedScope === "public" ? (options?.query ?? publicCollectionsQueryRef.current).trim() : "";
       collectionRequestScopeRef.current = resolvedScope;
+      if (resolvedScope === "public") {
+        publicCollectionsQueryRef.current = normalizedQuery;
+      }
       collectionPageRef.current = 1;
       setCollectionScope(resolvedScope);
       if (resolvedScope === "owner") {
@@ -154,6 +165,9 @@ export const useRoomCollections = ({
       setCollectionsLoadingMore(false);
       setCollectionsHasMore(false);
       setCollectionsError(null);
+      if (resolvedScope === "public") {
+        setCollections([]);
+      }
       try {
         const applyCollectionsResult = (
           items: Array<{
@@ -167,6 +181,7 @@ export const useRoomCollections = ({
             cover_duration_sec?: number | null;
             cover_source_id?: string | null;
             cover_provider?: string | null;
+            item_count?: number;
             use_count?: number;
             favorite_count?: number;
             is_favorited?: boolean | number;
@@ -177,6 +192,7 @@ export const useRoomCollections = ({
           setCollections(
             items.map((item) => ({
               ...item,
+              item_count: Math.max(0, Number(item.item_count ?? 0)),
               use_count: Math.max(0, Number(item.use_count ?? 0)),
               favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
               is_favorited: Boolean(item.is_favorited),
@@ -189,15 +205,13 @@ export const useRoomCollections = ({
               ? currentSelection
               : null,
           );
-          if (items.length === 0) {
-            setCollectionsError(emptyMessage);
-          }
         };
 
         if (resolvedScope === "public") {
           const { ok, payload } = await apiFetchCollections(apiUrl, {
             visibility: "public",
             sort: publicCollectionsSort,
+            q: normalizedQuery || undefined,
             page: 1,
             pageSize: DEFAULT_PAGE_SIZE,
           });
@@ -270,6 +284,7 @@ export const useRoomCollections = ({
         cover_duration_sec?: number | null;
         cover_source_id?: string | null;
         cover_provider?: string | null;
+        item_count?: number;
         use_count?: number;
         favorite_count?: number;
         is_favorited?: boolean | number;
@@ -277,6 +292,7 @@ export const useRoomCollections = ({
     ) => {
       const normalizedItems = items.map((item) => ({
         ...item,
+        item_count: Math.max(0, Number(item.item_count ?? 0)),
         use_count: Math.max(0, Number(item.use_count ?? 0)),
         favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
         is_favorited: Boolean(item.is_favorited),
@@ -298,6 +314,7 @@ export const useRoomCollections = ({
         const { ok, payload } = await apiFetchCollections(apiUrl, {
           visibility: "public",
           sort: publicCollectionsSort,
+          q: publicCollectionsQueryRef.current || undefined,
           page: nextPage,
           pageSize: DEFAULT_PAGE_SIZE,
         });
@@ -499,7 +516,7 @@ export const useRoomCollections = ({
       onPlaylistReset();
       setSelectedCollectionId(collectionId);
       try {
-        const mapItems = (items: WorkerCollectionItem[]) =>
+        const mapItems = (items: CollectionItemRecord[]) =>
           items.map((item, index) => {
             const startSec = Math.max(0, item.start_sec ?? 0);
             const explicitEndSec =
@@ -544,7 +561,7 @@ export const useRoomCollections = ({
             };
           });
 
-        const handleSuccess = (items: WorkerCollectionItem[]) => {
+        const handleSuccess = (items: CollectionItemRecord[]) => {
           if (requestId !== latestLoadRequestIdRef.current) {
             return;
           }
@@ -644,6 +661,7 @@ export const useRoomCollections = ({
     setCollectionsLastFetchedAt(null);
     collectionPageRef.current = 1;
     collectionRequestScopeRef.current = null;
+    publicCollectionsQueryRef.current = "";
     setSelectedCollectionId(null);
     setCollectionItemsLoading(false);
     setCollectionItemsError(null);
