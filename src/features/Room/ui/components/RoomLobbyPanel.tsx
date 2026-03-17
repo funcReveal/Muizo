@@ -917,7 +917,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     const item = playlistItems[index];
     const canOpenItem = Boolean(item.url);
     const displayTitle = normalizeDisplayText(
-      item.answerText?.trim() || item.title,
+      item.title || item.answerText?.trim(),
       `歌曲 ${index + 1}`,
     );
     const displayUploader = normalizeDisplayText(item.uploader ?? "", "Unknown");
