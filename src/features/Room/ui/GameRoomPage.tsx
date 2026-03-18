@@ -2135,7 +2135,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             className: "game-room-playback-vote-dialog",
           }}
         >
-          <DialogTitle>撱園?剜?巨</DialogTitle>
+          <DialogTitle>延長播放投票</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={1.2}>
               <Typography variant="body2" className="text-slate-200">
@@ -2182,11 +2182,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               className: "game-room-host-manage-dialog",
             }}
           >
-            <DialogTitle>?蹂蜓蝞∠?</DialogTitle>
+            <DialogTitle>房主管理</DialogTitle>
             <DialogContent dividers>{hostManagementPanelContent}</DialogContent>
             <DialogActions>
               <Button onClick={handleCloseHostManagement} variant="outlined" color="inherit">
-                ??
+                關閉
               </Button>
             </DialogActions>
           </Dialog>

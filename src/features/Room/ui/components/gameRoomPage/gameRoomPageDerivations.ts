@@ -63,37 +63,62 @@ export const buildRevealChoicePickMap = ({
     return {};
   }
 
-  return participants.reduce<RevealChoicePickMap>((acc, participant) => {
-    const answer = answersByClientId[participant.clientId];
+  const grouped = participants.reduce<RevealChoicePickMap>(
+    (acc, participant) => {
+      const answer = answersByClientId[participant.clientId];
 
-    if (
-      !answer ||
-      typeof answer.choiceIndex !== "number" ||
-      !Number.isFinite(answer.choiceIndex)
-    ) {
+      if (
+        !answer ||
+        typeof answer.choiceIndex !== "number" ||
+        !Number.isFinite(answer.choiceIndex)
+      ) {
+        return acc;
+      }
+
+      const username = normalizeRoomDisplayText(
+        participant.username?.trim(),
+        "玩家",
+      );
+
+      const answeredAtMs =
+        typeof answer.answeredAtMs === "number" &&
+        Number.isFinite(answer.answeredAtMs)
+          ? answer.answeredAtMs
+          : null;
+
+      const badge: RevealChoicePickBadge = {
+        clientId: participant.clientId,
+        username,
+        initial: Array.from(username)[0] || "?",
+        result: answer.result,
+        isMe: participant.clientId === meClientId,
+        answeredAtMs,
+      };
+
+      if (!acc[answer.choiceIndex]) {
+        acc[answer.choiceIndex] = [];
+      }
+
+      acc[answer.choiceIndex].push(badge);
       return acc;
-    }
+    },
+    {},
+  );
 
-    const username = normalizeRoomDisplayText(
-      participant.username?.trim(),
-      "玩家",
-    );
+  Object.values(grouped).forEach((items) => {
+    items.sort((a, b) => {
+      const aTime = a.answeredAtMs ?? Number.MAX_SAFE_INTEGER;
+      const bTime = b.answeredAtMs ?? Number.MAX_SAFE_INTEGER;
 
-    const badge: RevealChoicePickBadge = {
-      clientId: participant.clientId,
-      username,
-      initial: Array.from(username)[0] || "?",
-      result: answer.result,
-      isMe: participant.clientId === meClientId,
-    };
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
 
-    if (!acc[answer.choiceIndex]) {
-      acc[answer.choiceIndex] = [];
-    }
+      return a.username.localeCompare(b.username, "zh-Hant");
+    });
+  });
 
-    acc[answer.choiceIndex].push(badge);
-    return acc;
-  }, {});
+  return grouped;
 };
 
 type BuildMyFeedbackModelParams = {

@@ -159,16 +159,16 @@ export const useRoomProviderCreateRoomAction = ({
   const handleCreateRoom = useCallback(async () => {
     const socket = getSocket();
     if (!socket || !username) {
-      setStatusText("嚙罵嚙踝蕭嚙稽嚙緩嚙誕用者名嚙踝蕭");
+      setStatusText("請先設定使用者名稱");
       return;
     }
     if (createRoomInFlightRef.current) {
-      setStatusText("嚙請塚蕭嚙諍立歹蕭嚙璀嚙請稍嚙踝蕭");
+      setStatusText("正在建立房間，請稍候。");
       return;
     }
     createRoomInFlightRef.current = true;
     setIsCreatingRoom(true);
-    setStatusText("嚙諍立房塚蕭嚙踝蕭嚙皺");
+    setStatusText("建立房間中...");
     const releaseCreateRoomLock = () => {
       createRoomInFlightRef.current = false;
       setIsCreatingRoom(false);
@@ -181,7 +181,7 @@ export const useRoomProviderCreateRoomAction = ({
         refreshAuthToken,
       });
       if (!token) {
-        setStatusText("嚙緯嚙皚嚙緩嚙盤嚙踝蕭嚙璀嚙請哨蕭嚙編嚙緯嚙皚");
+        setStatusText("登入狀態已失效，請重新登入。");
         releaseCreateRoomLock();
         return;
       }
@@ -190,12 +190,12 @@ export const useRoomProviderCreateRoomAction = ({
     const trimmedPin = roomPasswordInput.trim();
     const trimmedMaxPlayers = roomMaxPlayersInput.trim();
     if (!trimmed) {
-      setStatusText("嚙請選蕭J嚙請塚蕭嚙磕嚙踝蕭");
+      setStatusText("請先輸入房間名稱。");
       releaseCreateRoomLock();
       return;
     }
     if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
-      setStatusText("嚙請伐蕭嚙踝蕭嚙皚嚙踝蕭嚙踝蕭M嚙踝蕭");
+      setStatusText("請先準備題庫內容，才能建立房間。");
       releaseCreateRoomLock();
       return;
     }
@@ -208,9 +208,7 @@ export const useRoomProviderCreateRoomAction = ({
       ? Number(trimmedMaxPlayers)
       : DEFAULT_ROOM_MAX_PLAYERS;
     if (desiredMaxPlayers < PLAYER_MIN || desiredMaxPlayers > PLAYER_MAX) {
-      setStatusText(
-        `嚙瘡嚙複哨蕭嚙踝蕭搕嚙踝蕭嚙?${PLAYER_MIN} 嚙踝蕭 ${PLAYER_MAX} 嚙瘡`,
-      );
+      setStatusText(`最大人數需介於 ${PLAYER_MIN} - ${PLAYER_MAX} 人之間 `);
       releaseCreateRoomLock();
       return;
     }
@@ -361,9 +359,7 @@ export const useRoomProviderCreateRoomAction = ({
       void uploadRemainingPlaylistChunks(roomId).catch((error) => {
         console.error(error);
         if (currentRoomIdRef.current === roomId) {
-          setStatusText(
-            "嚙緩嚙箠嚙皚嚙請塚蕭嚙璀嚙踝蕭嚙諸餘嚙緬嚙踝蕭P嚙畿嚙踝蕭嚙踝蕭",
-          );
+          setStatusText("已建立房間，但剩餘播放清單同步失敗。");
         }
       });
     };
@@ -393,7 +389,8 @@ export const useRoomProviderCreateRoomAction = ({
         const candidate = nextRooms
           .filter((room) => {
             if ((room.name ?? "").trim() !== trimmed) return false;
-            if ((room.hasPin ?? room.hasPassword) !== Boolean(desiredPin)) return false;
+            if ((room.hasPin ?? room.hasPassword) !== Boolean(desiredPin))
+              return false;
             if (
               typeof room.playlistCount === "number" &&
               room.playlistCount > 0 &&
@@ -437,11 +434,11 @@ export const useRoomProviderCreateRoomAction = ({
           await new Promise<boolean>((resolve) => {
             socket.emit(
               "joinRoom",
-                {
-                  roomCode: candidate.roomCode,
-                  username,
-                  pin: desiredPin ?? undefined,
-                },
+              {
+                roomCode: candidate.roomCode,
+                username,
+                pin: desiredPin ?? undefined,
+              },
               async (joinAck: Ack<RoomState>) => {
                 if (!joinAck?.ok) {
                   resolve(false);
@@ -454,9 +451,7 @@ export const useRoomProviderCreateRoomAction = ({
                 setHostRoomPassword(desiredPin);
                 setRoomNameInput(getDefaultRoomName(username));
                 setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
-                setStatusText(
-                  `嚙諍立回嚙踝蕭嚙踝蕭嚙踝蕭A嚙緩嚙諛動進嚙皚嚙瘦${state.room.name}`,
-                );
+                setStatusText(`已建立房間，並自動加入：${state.room.name}`);
                 finalizeCreate();
                 continueUploadRemainingPlaylistChunks(state.room.id);
                 resolve(true);
@@ -472,10 +467,10 @@ export const useRoomProviderCreateRoomAction = ({
         ) {
           if (createResolved || !createRoomInFlightRef.current) return false;
           if (joinAttempt === 0) {
-            setStatusText("嚙諍立佗蕭嚙穀嚙璀嚙踝蕭嚙箭嚙箠嚙皚嚙請塚蕭嚙皺");
+            setStatusText("已找到房間，正在自動加入。");
           } else {
             setStatusText(
-              `嚙請塚蕭嚙緩嚙諍立，嚙踝蕭嚙箭嚙踝蕭嚙編嚙踝蕭嚙調進嚙皚嚙稽${joinAttempt + 1}/${retryIntervalsMs.length}嚙稷嚙皺`,
+              `已找到房間，正在重試自動加入（${joinAttempt + 1}/${retryIntervalsMs.length}）。`,
             );
             await new Promise<void>((resolve) =>
               window.setTimeout(resolve, retryIntervalsMs[joinAttempt]),
@@ -499,28 +494,22 @@ export const useRoomProviderCreateRoomAction = ({
       const ackTimeout = window.setTimeout(() => {
         if (createResolved || !createRoomInFlightRef.current) return;
         if (attempt === 0) {
-          setStatusText(
-            "嚙諍立房塚蕭嚙稷嚙踝蕭嚙踝蕭嚙踝蕭A嚙踝蕭嚙箭嚙踝蕭嚙調自動進嚙皚嚙皺",
-          );
+          setStatusText("建立房間逾時，正在嘗試自動加入。");
           void tryRecoverCreatedRoomFromList().then((recovered) => {
             if (recovered || createResolved || !createRoomInFlightRef.current) {
               return;
             }
-            setStatusText(
-              "嚙諍立房塚蕭嚙瞌嚙褕，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺",
-            );
+            setStatusText("建立房間逾時，正在重試。");
             submitCreateRoom(1);
           });
           return;
         }
-        setStatusText(
-          "嚙諍立房塚蕭嚙踝蕭嚙踝蕭嚙稷嚙踝蕭嚙璀嚙諒恬蕭A嚙踝蕭嚙調自動進嚙皚嚙皺",
-        );
+        setStatusText("建立房間再次逾時，正在嘗試自動加入。");
         void tryRecoverCreatedRoomFromList().then((recovered) => {
           if (recovered || createResolved || !createRoomInFlightRef.current) {
             return;
           }
-          setStatusText("嚙諍立房塚蕭嚙瞌嚙褕，嚙請稍嚙賦重嚙踝蕭");
+          setStatusText("建立房間逾時，請稍後重試。");
           finalizeCreate();
         });
       }, timeoutMs);
@@ -530,20 +519,16 @@ export const useRoomProviderCreateRoomAction = ({
         if (createResolved) return;
         if (!ack) {
           if (attempt === 0) {
-            setStatusText(
-              "嚙諍立房塚蕭嚙稷嚙踝蕭嚙踩失，嚙踝蕭嚙箭嚙瞑嚙畿嚙皚嚙踝蕭嚙請塚蕭嚙皺",
-            );
+            setStatusText("建立房間失敗，正在重試。");
             submitCreateRoom(1);
             return;
           }
-          setStatusText(
-            "嚙諍立房塚蕭嚙踝蕭嚙諸：嚙踝蕭嚙璀嚙踝蕭嚙盤嚙稷嚙踝蕭",
-          );
+          setStatusText("建立房間失敗：伺服器沒有回應。");
           finalizeCreate();
           return;
         }
         if (!ack.ok) {
-          setStatusText(formatAckError("嚙諍立房塚蕭嚙踝蕭嚙踝蕭", ack.error));
+          setStatusText(formatAckError("建立房間失敗", ack.error));
           finalizeCreate();
           return;
         }
@@ -558,7 +543,7 @@ export const useRoomProviderCreateRoomAction = ({
             const settingsAckTimeout = window.setTimeout(() => {
               if (settled) return;
               settled = true;
-              accessSettingsWarning = "嚙請塚蕭嚙緞嚙踝蕭嚙瞑嚙畿嚙瞌嚙踝蕭";
+              accessSettingsWarning = "房間設定同步逾時";
               resolve();
             }, 4_000);
             socket.emit(
@@ -579,14 +564,13 @@ export const useRoomProviderCreateRoomAction = ({
                 settled = true;
                 window.clearTimeout(settingsAckTimeout);
                 if (!settingsAck) {
-                  accessSettingsWarning =
-                    "嚙請塚蕭嚙緞嚙踝蕭嚙瞑嚙畿嚙瞌嚙踝蕭";
+                  accessSettingsWarning = "房間設定同步逾時";
                   resolve();
                   return;
                 }
                 if (!settingsAck.ok) {
                   accessSettingsWarning = formatAckError(
-                    "嚙請塚蕭嚙緞嚙踝蕭嚙瞑嚙畿嚙踝蕭嚙踝蕭",
+                    "房間設定同步失敗",
                     settingsAck.error,
                   );
                   resolve();
@@ -630,8 +614,8 @@ export const useRoomProviderCreateRoomAction = ({
         });
         setStatusText(
           accessSettingsWarning
-            ? `${accessSettingsWarning}嚙稽嚙請塚蕭嚙緩嚙諍立：${state.room.name}嚙稷`
-            : `嚙緩嚙諍立房塚蕭嚙瘦${state.room.name}`,
+            ? `${accessSettingsWarning}，但房間已建立：${state.room.name}`
+            : `已建立房間：${state.room.name}`,
         );
         finalizeCreate();
         continueUploadRemainingPlaylistChunks(state.room.id);

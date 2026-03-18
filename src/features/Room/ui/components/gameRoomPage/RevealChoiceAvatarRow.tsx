@@ -5,10 +5,13 @@ type RevealChoiceAvatarRowProps = {
     picks: RevealChoicePickBadge[];
 };
 
+const VISIBLE_AVATARS = 3;
+
 const RevealChoiceAvatarRow: React.FC<RevealChoiceAvatarRowProps> = ({
     picks,
 }) => {
-    const visiblePicks = picks.slice(0, 16);
+    const visiblePicks = picks.slice(0, VISIBLE_AVATARS);
+    const overflowCount = Math.max(0, picks.length - visiblePicks.length);
 
     return (
         <div className="game-room-choice-avatar-row" aria-label="作答玩家頭像列">
@@ -33,6 +36,16 @@ const RevealChoiceAvatarRow: React.FC<RevealChoiceAvatarRowProps> = ({
                     {pick.initial}
                 </span>
             ))}
+
+            {overflowCount > 0 && (
+                <span
+                    className="game-room-choice-avatar-more"
+                    aria-label={`還有 ${overflowCount} 位玩家`}
+                    title={`還有 ${overflowCount} 位玩家`}
+                >
+                    +{overflowCount}
+                </span>
+            )}
         </div>
     );
 };

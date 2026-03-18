@@ -4143,19 +4143,19 @@ body {
 }
 
 .game-room-choice-avatar-anchor {
-  pointer-events: none;
   position: absolute;
   top: 0;
-  right: 8px;
+  right: 10px;
   z-index: 12;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   width: auto;
-  max-width: calc(100% - 12px);
+  max-width: calc(100% - 16px);
   height: 0;
   overflow: visible;
-  transform: translateY(-38%);
+  transform: translateY(-46%);
+  pointer-events: none;
 }
 
 .game-room-choice-avatar-row {
@@ -4163,98 +4163,142 @@ body {
   flex-direction: row-reverse;
   align-items: center;
   justify-content: flex-start;
-  max-width: min(100%, 176px);
-  overflow: hidden;
+  max-width: min(100%, 148px);
   white-space: nowrap;
+  overflow: visible;
+  pointer-events: auto;
 }
 
-.game-room-choice-avatar {
+.game-room-choice-avatar,
+.game-room-choice-avatar-more {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
-  margin-right: -7px;
-  border: 2px solid rgba(3, 8, 20, 0.96);
+  margin-right: -3px;
   border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(51, 65, 85, 0.96),
-    rgba(15, 23, 42, 0.98)
-  );
-  color: #f8fafc;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.34);
   user-select: none;
+  line-height: 1;
 }
 
-.game-room-choice-avatar:first-child {
+.game-room-choice-avatar {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(
+      circle at 30% 28%,
+      rgba(255, 255, 255, 0.12),
+      transparent 42%
+    ),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.96), rgba(7, 11, 20, 0.98));
+  color: rgba(248, 250, 252, 0.92);
+  font-size: 8px;
+  font-weight: 800;
+  box-shadow:
+    0 2px 5px rgba(2, 6, 23, 0.14),
+    0 0 0 1px rgba(2, 6, 23, 0.3);
+}
+
+.game-room-choice-avatar:first-child,
+.game-room-choice-avatar-more:first-child {
   margin-right: 0;
 }
 
 .game-room-choice-avatar--correct {
-  box-shadow:
-    0 0 0 1px rgba(34, 197, 94, 0.55),
-    0 6px 14px rgba(22, 163, 74, 0.22);
+  border-color: rgba(74, 222, 128, 0.18);
 }
 
 .game-room-choice-avatar--wrong {
-  box-shadow:
-    0 0 0 1px rgba(248, 113, 113, 0.42),
-    0 6px 14px rgba(127, 29, 29, 0.22);
+  border-color: rgba(251, 113, 133, 0.18);
 }
 
 .game-room-choice-avatar--unanswered {
-  box-shadow:
-    0 0 0 1px rgba(148, 163, 184, 0.28),
-    0 6px 14px rgba(15, 23, 42, 0.2);
+  border-color: rgba(148, 163, 184, 0.12);
 }
 
 .game-room-choice-avatar--me {
-  transform: translateY(-1px) scale(1.05);
+  transform: translateY(-0.5px) scale(1.08);
+  border-color: rgba(56, 189, 248, 0.48);
   box-shadow:
-    0 0 0 2px rgba(56, 189, 248, 0.84),
-    0 0 18px rgba(56, 189, 248, 0.22);
+    0 0 0 1px rgba(56, 189, 248, 0.14),
+    0 3px 8px rgba(14, 165, 233, 0.12),
+    0 0 0 1px rgba(2, 6, 23, 0.3);
+}
+
+.game-room-choice-avatar--me::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+.game-room-choice-avatar-more {
+  min-width: 22px;
+  padding: 0 5px;
+  margin-right: -1px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 16, 28, 0.94);
+  color: rgba(203, 213, 225, 0.9);
+  font-size: 7px;
+  font-weight: 800;
+  box-shadow:
+    0 2px 5px rgba(2, 6, 23, 0.14),
+    0 0 0 1px rgba(2, 6, 23, 0.3);
 }
 
 @media (max-width: 1024px) {
   .game-room-choice-avatar-anchor {
-    top: -11px;
-    right: 7px;
+    right: 8px;
+    transform: translateY(-42%);
   }
 
   .game-room-choice-avatar-row {
-    max-width: min(100%, 156px);
+    max-width: min(100%, 132px);
+  }
+
+  .game-room-choice-avatar,
+  .game-room-choice-avatar-more {
+    width: 17px;
+    height: 17px;
   }
 
   .game-room-choice-avatar {
-    width: 22px;
-    height: 22px;
-    margin-right: -6px;
-    font-size: 9px;
+    font-size: 7.5px;
+  }
+
+  .game-room-choice-avatar-more {
+    min-width: 20px;
+    font-size: 6.5px;
   }
 }
 
 @media (max-width: 767px) {
   .game-room-choice-avatar-anchor {
-    top: -9px;
     right: 6px;
+    transform: translateY(-36%);
   }
 
   .game-room-choice-avatar-row {
-    max-width: min(100%, 128px);
+    max-width: min(100%, 112px);
+  }
+
+  .game-room-choice-avatar,
+  .game-room-choice-avatar-more {
+    width: 15px;
+    height: 15px;
+    margin-right: -2px;
   }
 
   .game-room-choice-avatar {
-    width: 19px;
-    height: 19px;
-    margin-right: -5px;
-    border-width: 1.5px;
-    font-size: 8px;
+    font-size: 6.5px;
+  }
+
+  .game-room-choice-avatar-more {
+    min-width: 18px;
+    font-size: 6px;
   }
 }
 

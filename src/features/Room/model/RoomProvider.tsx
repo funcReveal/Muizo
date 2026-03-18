@@ -161,10 +161,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       const next =
         typeof value === "function"
           ? (
-              value as (
-                prevState: RoomSettlementSnapshot[],
-              ) => RoomSettlementSnapshot[]
-            )(previous)
+            value as (
+              prevState: RoomSettlementSnapshot[],
+            ) => RoomSettlementSnapshot[]
+          )(previous)
           : value;
       return capSettlementHistory(next);
     });
@@ -266,7 +266,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     previousUsernameRef.current = username;
   }, [getDefaultRoomName, username]);
 
-  const onResetCollectionRef = useRef<() => void>(() => {});
+  const onResetCollectionRef = useRef<() => void>(() => { });
   const handlePlaylistCollectionReset = useCallback(() => {
     onResetCollectionRef.current();
   }, []);
@@ -468,11 +468,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   const handleSetUsername = useCallback(() => {
     const trimmed = usernameInput.trim();
     if (!trimmed) {
-      setStatusText("嚙請伐蕭嚙踝蕭J嚙誕用者名嚙踝蕭");
+      setStatusText("請先輸入使用者名稱");
       return;
     }
     if (trimmed.length > USERNAME_MAX) {
-      setStatusText(`嚙誕用者名嚙誶最多 ${USERNAME_MAX} 嚙諉字`);
+      setStatusText(`使用者名稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
     persistUsername(trimmed);
@@ -547,7 +547,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     void fetchRoomById(inviteRoomId).then((room) => {
       setInviteNotFound(!room);
       if (!room) {
-        setStatusText("嚙踝蕭嚙豌房塚蕭嚙踝蕭嚙編嚙箭嚙諄已嚙踝蕭嚙踝蕭");
+        setStatusText("找不到邀請房間，可能已關閉或邀請失效。");
       }
     });
   }, [fetchRoomById, inviteRoomId, setStatusText]);
@@ -822,17 +822,17 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
         firstRoomSettingsItem.endSec > inferredStartOffsetSec
         ? firstRoomSettingsItem.endSec - inferredStartOffsetSec
         : (currentRoom.gameSettings?.playDurationSec ??
-            DEFAULT_PLAY_DURATION_SEC),
+          DEFAULT_PLAY_DURATION_SEC),
     );
     const inferredAllowCollectionClipTiming = playlistViewItems.some(
       (item) => item.timingSource === "track_clip",
     );
     const inferredRevealDurationSec = clampRevealDurationSec(
       currentRoom.gameSettings?.revealDurationSec ??
-        (typeof gameState?.revealDurationMs === "number" &&
+      (typeof gameState?.revealDurationMs === "number" &&
         gameState.revealDurationMs > 0
-          ? gameState.revealDurationMs / 1000
-          : DEFAULT_REVEAL_DURATION_SEC),
+        ? gameState.revealDurationMs / 1000
+        : DEFAULT_REVEAL_DURATION_SEC),
     );
     // eslint-disable-next-line react-hooks/set-state-in-effect -- backfills missing server game settings from playlist timing only once data is available.
     setCurrentRoom((prev) => {
@@ -846,10 +846,10 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       if (
         prev.gameSettings?.playDurationSec === mergedSettings.playDurationSec &&
         prev.gameSettings?.revealDurationSec ===
-          mergedSettings.revealDurationSec &&
+        mergedSettings.revealDurationSec &&
         prev.gameSettings?.startOffsetSec === mergedSettings.startOffsetSec &&
         prev.gameSettings?.allowCollectionClipTiming ===
-          mergedSettings.allowCollectionClipTiming
+        mergedSettings.allowCollectionClipTiming
       ) {
         return prev;
       }
@@ -863,8 +863,8 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const nextPassword =
       currentRoom?.id &&
-      currentRoom.hostClientId === clientId &&
-      (currentRoom.hasPin ?? currentRoom.hasPassword)
+        currentRoom.hostClientId === clientId &&
+        (currentRoom.hasPin ?? currentRoom.hasPassword)
         ? readRoomPassword(currentRoom.id)
         : null;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror local-storage password cache for host view.

@@ -15,6 +15,7 @@ export type RevealChoicePickBadge = {
   initial: string;
   result: RevealAnswerResult;
   isMe: boolean;
+  answeredAtMs: number | null;
 };
 
 export type RevealChoicePickMap = Record<number, RevealChoicePickBadge[]>;

@@ -12,10 +12,7 @@ import {
   DEFAULT_REVEAL_DURATION_SEC,
 } from "./roomConstants";
 import { formatAckError, applyGameSettingsPatch } from "./roomProviderUtils";
-import {
-  clampPlayDurationSec,
-  clampRevealDurationSec,
-} from "./roomUtils";
+import { clampPlayDurationSec, clampRevealDurationSec } from "./roomUtils";
 import type {
   Ack,
   ChatMessage,
@@ -139,7 +136,7 @@ export const useRoomProviderRoomActions = ({
     (roomReference: string, hasPin: boolean, pinOverride?: string) => {
       const socket = getSocket();
       if (!socket || !username) {
-        setStatusText("嚙罵嚙踝蕭嚙稽嚙緩嚙誕用者名嚙踝蕭");
+        setStatusText("請先設定使用者名稱");
         return;
       }
 
@@ -191,14 +188,14 @@ export const useRoomProviderRoomActions = ({
               has_pin: hasPin,
               participant_count: state.participants.length,
             });
-            setStatusText(`嚙緩嚙稼嚙皚嚙請塚蕭嚙瘦${state.room.name}`);
+            setStatusText(`已加入房間${state.room.name}`);
           } else {
             trackEvent("room_join_failed", {
               room_reference: roomReference,
               has_pin: hasPin,
               reason: ack.error ?? "unknown_error",
             });
-            setStatusText(formatAckError("嚙稼嚙皚嚙請塚蕭嚙踝蕭嚙踝蕭", ack.error));
+            setStatusText(formatAckError("加入房間失敗", ack.error));
           }
         },
       );
@@ -252,10 +249,10 @@ export const useRoomProviderRoomActions = ({
           setKickedNotice(null);
           persistRoomId(null);
           resetSessionClientId();
-          setStatusText("嚙緩嚙踝蕭嚙罷嚙請塚蕭");
+          setStatusText("已離開房間");
           onLeft?.();
         } else {
-          setStatusText(formatAckError("嚙踝蕭嚙罷嚙請塚蕭嚙踝蕭嚙踝蕭", ack.error));
+          setStatusText(formatAckError("已離開房間", ack.error));
         }
       });
     },
@@ -284,7 +281,7 @@ export const useRoomProviderRoomActions = ({
   const handleSendMessage = useCallback(() => {
     const socket = getSocket();
     if (!socket || !currentRoom) {
-      setStatusText("嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭");
+      setStatusText("發送訊息失敗");
       return;
     }
     const trimmed = messageInput.trim();
@@ -293,7 +290,7 @@ export const useRoomProviderRoomActions = ({
     socket.emit("sendMessage", { content: trimmed }, (ack) => {
       if (!ack) return;
       if (!ack.ok) {
-        setStatusText(formatAckError("嚙確嚙踝蕭嚙箴嚙碼嚙踝蕭嚙踝蕭", ack.error));
+        setStatusText(formatAckError("發送訊息失敗", ack.error));
       }
     });
 
@@ -303,11 +300,11 @@ export const useRoomProviderRoomActions = ({
   const handleStartGame = useCallback(() => {
     const socket = getSocket();
     if (!socket || !currentRoom) {
-      setStatusText("嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭");
+      setStatusText("尚未加入房間");
       return;
     }
     if (!playlistProgressReady) {
-      setStatusText("嚙踝蕭嚙踝蕭M嚙踝蕭|嚙踝蕭嚙褒備改蕭嚙踝蕭");
+      setStatusText("播放清單尚未準備完成");
       return;
     }
     const guessDurationMs =
@@ -316,7 +313,8 @@ export const useRoomProviderRoomActions = ({
       ) * 1000;
     const revealDurationMs =
       clampRevealDurationSec(
-        currentRoom.gameSettings?.revealDurationSec ?? DEFAULT_REVEAL_DURATION_SEC,
+        currentRoom.gameSettings?.revealDurationSec ??
+          DEFAULT_REVEAL_DURATION_SEC,
       ) * 1000;
 
     socket.emit(
@@ -330,7 +328,7 @@ export const useRoomProviderRoomActions = ({
           setIsGameView(true);
           void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
         } else {
-          setStatusText(formatAckError("嚙罷嚙締嚙瘠嚙踝蕭嚙踝蕭嚙踝蕭", ack.error));
+          setStatusText(formatAckError("開始遊戲失敗", ack.error));
         }
       },
     );
@@ -410,14 +408,14 @@ export const useRoomProviderRoomActions = ({
 
             if (!ack) {
               const error = "Submit acknowledgment missing";
-              setStatusText("嚙踝蕭嚙賣答嚙論伐蕭嚙諸：嚙踝蕭嚙璀嚙踝蕭嚙踝蕭嚙稷嚙踝蕭");
+              setStatusText("提交答案失敗：未收到伺服器回應");
               resolve({ ok: false, error });
               return;
             }
 
             if (!ack.ok) {
               if (ack.error !== "Not in guess phase") {
-                setStatusText(formatAckError("嚙踝蕭嚙賣答嚙論伐蕭嚙踝蕭", ack.error));
+                setStatusText(formatAckError("提交答案失敗", ack.error));
               }
               resolve({ ok: false, error: ack.error || "Submit failed" });
               return;
@@ -428,37 +426,46 @@ export const useRoomProviderRoomActions = ({
         );
       });
     },
-    [answerSubmitRequestSeqRef, currentRoom, gameState, getSocket, pendingAnswerSubmitRef, serverOffsetRef, setStatusText],
+    [
+      answerSubmitRequestSeqRef,
+      currentRoom,
+      gameState,
+      getSocket,
+      pendingAnswerSubmitRef,
+      serverOffsetRef,
+      setStatusText,
+    ],
   );
 
-  const handleRequestPlaybackExtensionVote = useCallback(async (): Promise<boolean> => {
-    const socket = getSocket();
-    if (!socket || !currentRoom) {
-      setStatusText("目前不在房間內");
-      return false;
-    }
-    return await new Promise<boolean>((resolve) => {
-      socket.emit(
-        "requestPlaybackExtensionVote",
-        { roomId: currentRoom.id },
-        (ack: Ack<{ gameState: GameState; serverNow: number }>) => {
-          if (!ack) {
-            setStatusText("發起延長投票失敗，請稍後再試");
-            resolve(false);
-            return;
-          }
-          if (!ack.ok) {
-            setStatusText(formatAckError("發起延長投票失敗", ack.error));
-            resolve(false);
-            return;
-          }
-          syncServerOffset(ack.data.serverNow);
-          setGameState(ack.data.gameState);
-          resolve(true);
-        },
-      );
-    });
-  }, [currentRoom, getSocket, setGameState, setStatusText, syncServerOffset]);
+  const handleRequestPlaybackExtensionVote =
+    useCallback(async (): Promise<boolean> => {
+      const socket = getSocket();
+      if (!socket || !currentRoom) {
+        setStatusText("目前不在房間內");
+        return false;
+      }
+      return await new Promise<boolean>((resolve) => {
+        socket.emit(
+          "requestPlaybackExtensionVote",
+          { roomId: currentRoom.id },
+          (ack: Ack<{ gameState: GameState; serverNow: number }>) => {
+            if (!ack) {
+              setStatusText("發起延長投票失敗，請稍後再試");
+              resolve(false);
+              return;
+            }
+            if (!ack.ok) {
+              setStatusText(formatAckError("發起延長投票失敗", ack.error));
+              resolve(false);
+              return;
+            }
+            syncServerOffset(ack.data.serverNow);
+            setGameState(ack.data.gameState);
+            resolve(true);
+          },
+        );
+      });
+    }, [currentRoom, getSocket, setGameState, setStatusText, syncServerOffset]);
 
   const handleCastPlaybackExtensionVote = useCallback(
     async (vote: "approve" | "reject"): Promise<boolean> => {
@@ -500,7 +507,8 @@ export const useRoomProviderRoomActions = ({
     const trackKey = `${gameState.startedAt}:${gameState.currentIndex}`;
     const pending = pendingAnswerSubmitRef.current;
     if (!pending) return;
-    if (pending.roomId === currentRoom.id && pending.trackKey === trackKey) return;
+    if (pending.roomId === currentRoom.id && pending.trackKey === trackKey)
+      return;
     pendingAnswerSubmitRef.current = null;
   }, [currentRoom, gameState, pendingAnswerSubmitRef]);
 
@@ -521,7 +529,7 @@ export const useRoomProviderRoomActions = ({
         (ack: Ack<null>) => {
           if (!ack) return;
           if (!ack.ok) {
-            setStatusText(formatAckError("嚙踝蕭X嚙踝蕭嚙踝蕭", ack.error));
+            setStatusText(formatAckError("踢出玩家失敗", ack.error));
           }
         },
       );
@@ -539,7 +547,7 @@ export const useRoomProviderRoomActions = ({
         (ack: Ack<{ hostClientId: string }>) => {
           if (!ack) return;
           if (!ack.ok) {
-            setStatusText(formatAckError("嚙賞移嚙請主嚙踝蕭嚙踝蕭", ack.error));
+            setStatusText(formatAckError("轉移房主失敗", ack.error));
           }
         },
       );

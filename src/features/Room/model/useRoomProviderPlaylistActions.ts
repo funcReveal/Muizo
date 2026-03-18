@@ -40,7 +40,10 @@ interface UseRoomProviderPlaylistActionsParams {
     totalCount: number;
     sourceId: string;
   }>;
-  fetchPublicPlaylistSnapshot: (url: string, playlistId: string) => Promise<{
+  fetchPublicPlaylistSnapshot: (
+    url: string,
+    playlistId: string,
+  ) => Promise<{
     items: PlaylistItem[];
     title: string | null;
     totalCount: number;
@@ -111,16 +114,20 @@ export const useRoomProviderPlaylistActions = ({
     async (
       type: "collection" | "playlist",
       value: string,
-      options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
+      options?: {
+        useSnapshot?: boolean;
+        sourceId?: string | null;
+        title?: string | null;
+      },
     ) => {
       const socket = getSocket();
       if (!socket || !currentRoom) {
-        const error = "嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭";
+        const error = "尚未加入房間";
         setStatusText(error);
         return { ok: false, error };
       }
       if (gameStateStatus === "playing") {
-        const error = "嚙瘠嚙踝蕭嚙箠嚙賣中嚙盤嚙糊嚙踝蕭嚙踝蕭";
+        const error = "遊戲進行中，無法建議播放清單";
         setStatusText(error);
         return { ok: false, error };
       }
@@ -130,11 +137,14 @@ export const useRoomProviderPlaylistActions = ({
       if (options?.useSnapshot) {
         try {
           if (type === "collection") {
-            const selectedCollection = collections.find((item) => item.id === value);
-            const isPrivateCollection = selectedCollection?.visibility === "private";
+            const selectedCollection = collections.find(
+              (item) => item.id === value,
+            );
+            const isPrivateCollection =
+              selectedCollection?.visibility === "private";
             if (isPrivateCollection) {
               if (!authUserId) {
-                throw new Error("嚙請伐蕭嚙緯嚙皚嚙踝蕭A嚙踝蕭嚙誼私嚙瘡嚙踝蕭嚙衛庫");
+                throw new Error("私人收藏庫需要先登入");
               }
               readToken = await createCollectionReadToken(value);
             }
@@ -148,7 +158,7 @@ export const useRoomProviderPlaylistActions = ({
           } else {
             const playlistId = options?.sourceId;
             if (!playlistId) {
-              throw new Error("嚙請選蕭J嚙踝蕭嚙衝迎蕭嚙踝蕭嚙踝蕭M嚙踝蕭 URL");
+              throw new Error("缺少播放清單來源 ID，請重新取得歌單");
             }
             const result = authToken
               ? await fetchYoutubeSnapshot(playlistId)
@@ -161,7 +171,8 @@ export const useRoomProviderPlaylistActions = ({
             };
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : "嚙踝蕭嚙誼伐蕭嚙踝蕭";
+          const message =
+            error instanceof Error ? error.message : "建議播放清單失敗";
           setStatusText(message);
           return { ok: false, error: message };
         }
@@ -182,16 +193,16 @@ export const useRoomProviderPlaylistActions = ({
           },
           (ack: Ack<null>) => {
             if (!ack) {
-              resolve({ ok: false, error: "嚙踝蕭嚙誼伐蕭嚙諸，嚙請稍嚙踝蕭A嚙踝蕭" });
+              resolve({ ok: false, error: "建議播放清單失敗，請稍後再試" });
               return;
             }
             if (!ack.ok) {
-              const message = formatAckError("嚙踝蕭嚙誼伐蕭嚙踝蕭", ack.error);
+              const message = formatAckError("建議播放清單失敗", ack.error);
               setStatusText(message);
               resolve({ ok: false, error: message });
               return;
             }
-            setStatusText("嚙緩嚙箴嚙碼嚙踝蕭嚙踝蕭");
+            setStatusText("已送出播放清單建議");
             resolve({ ok: true });
           },
         );
@@ -225,11 +236,11 @@ export const useRoomProviderPlaylistActions = ({
     const socket = getSocket();
     if (!socket || !currentRoom) return;
     if (gameStateStatus === "playing") {
-      setStatusText("嚙瘠嚙踝蕭嚙箠嚙賣中嚙盤嚙糊嚙踝蕭嚙踝蕭嚙緬嚙踝蕭");
+      setStatusText("遊戲進行中，無法更換播放清單");
       return;
     }
     if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
-      setStatusText("嚙請伐蕭嚙踝蕭嚙皚嚙踝蕭嚙踝蕭M嚙踝蕭");
+      setStatusText("請先載入播放清單");
       return;
     }
 
@@ -267,16 +278,23 @@ export const useRoomProviderPlaylistActions = ({
           pageSize: DEFAULT_PAGE_SIZE,
         },
       },
-      async (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => {
+      async (
+        ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>,
+      ) => {
         if (!ack) return;
         if (!ack.ok) {
-          setStatusText(formatAckError("嚙踝蕭嚙踝蕭嚙緬嚙賣失嚙踝蕭", ack.error));
+          setStatusText(formatAckError("變更播放清單失敗", ack.error));
           return;
         }
         if (remaining.length > 0) {
-          await uploadPlaylistChunks(socket, currentRoom.id, uploadId, remaining);
+          await uploadPlaylistChunks(
+            socket,
+            currentRoom.id,
+            uploadId,
+            remaining,
+          );
         }
-        setStatusText("嚙緩嚙踝蕭嚙踝蕭嚙緬嚙踝蕭A嚙踝蕭嚙豎房主嚙罷嚙締嚙瘠嚙踝蕭");
+        setStatusText("播放清單已更新，等待房主開始遊戲");
       },
     );
   }, [
@@ -294,12 +312,12 @@ export const useRoomProviderPlaylistActions = ({
       const socket = getSocket();
       if (!socket || !currentRoom) return;
       if (gameStateStatus === "playing") {
-        setStatusText("嚙瘠嚙踝蕭嚙箠嚙賣中嚙盤嚙糊嚙踝蕭嚙踝蕭嚙緬嚙踝蕭");
+        setStatusText("這份建議沒有可用歌曲");
         return;
       }
       const items = suggestion.items ?? [];
       if (items.length === 0) {
-        setStatusText("嚙踝蕭嚙誼歹蕭嚙箴嚙磅嚙踝蕭嚙箠嚙諄歌嚙踝蕭");
+        setStatusText("建議中沒有可用歌曲");
         return;
       }
       const roomPlayDurationSec = clampPlayDurationSec(
@@ -340,25 +358,38 @@ export const useRoomProviderPlaylistActions = ({
             pageSize: DEFAULT_PAGE_SIZE,
           },
         },
-        async (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => {
+        async (
+          ack: Ack<{
+            receivedCount: number;
+            totalCount: number;
+            ready: boolean;
+          }>,
+        ) => {
           if (!ack) return;
           if (!ack.ok) {
-            setStatusText(formatAckError("嚙踝蕭嚙踝蕭嚙緬嚙賣失嚙踝蕭", ack.error));
+            setStatusText(formatAckError("應用播放清單建議失敗", ack.error));
             return;
           }
-          applyPlaylistSource(
-            uploadItems,
-            sourceId ?? uploadId,
-            title ?? null,
-          );
+          applyPlaylistSource(uploadItems, sourceId ?? uploadId, title ?? null);
           if (remaining.length > 0) {
-            await uploadPlaylistChunks(socket, currentRoom.id, uploadId, remaining);
+            await uploadPlaylistChunks(
+              socket,
+              currentRoom.id,
+              uploadId,
+              remaining,
+            );
           }
-          setStatusText("嚙緩嚙踝蕭嚙踝蕭嚙緬嚙踝蕭A嚙踝蕭嚙豎房主嚙罷嚙締嚙瘠嚙踝蕭");
+          setStatusText("已應用播放清單建議");
         },
       );
     },
-    [applyPlaylistSource, currentRoom, gameStateStatus, getSocket, setStatusText],
+    [
+      applyPlaylistSource,
+      currentRoom,
+      gameStateStatus,
+      getSocket,
+      setStatusText,
+    ],
   );
 
   return {
@@ -370,4 +401,3 @@ export const useRoomProviderPlaylistActions = ({
 };
 
 export default useRoomProviderPlaylistActions;
-
