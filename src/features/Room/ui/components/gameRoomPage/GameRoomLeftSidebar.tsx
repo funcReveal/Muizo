@@ -485,6 +485,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
             const rowComboTierClass =
               rowComboTier > 0 ? `game-room-score-row--combo-tier-${rowComboTier}` : "";
             const shouldShowComboFlare = isComboLeader && rowComboTier > 0;
+            const shouldShowComboChampion = shouldShowComboFlare && idx === 0;
             const displayName = normalizeRoomDisplayText(
               p.username,
               `玩家 ${idx + 1}`,
@@ -522,6 +523,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                     ? "game-room-score-row--rank-swap-focus"
                     : ""
                   } ${rowComboTierClass} ${shouldShowComboFlare ? "game-room-score-row--combo-flare" : ""
+                  } ${shouldShowComboChampion ? "game-room-score-row--combo-champion" : ""
                   }`}
                 style={rowSwapStyle}
               >

@@ -212,7 +212,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const [autoPreviewEnabled, setAutoPreviewEnabled] = useState(() =>
     readStoredBoolean(AUTO_PREVIEW_STORAGE_KEY, true),
   );
-  const [reviewDoubleClickPlayEnabled] = useState(() =>
+  const [reviewDoubleClickPlayEnabled, setReviewDoubleClickPlayEnabled] = useState(() =>
     readStoredBoolean(REVIEW_DOUBLE_PLAY_STORAGE_KEY, true),
   );
   const [previewCountdownSec, setPreviewCountdownSec] = useState(
@@ -288,6 +288,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       autoPreviewEnabled ? "1" : "0",
     );
   }, [autoPreviewEnabled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      REVIEW_DOUBLE_PLAY_STORAGE_KEY,
+      reviewDoubleClickPlayEnabled ? "1" : "0",
+    );
+  }, [reviewDoubleClickPlayEnabled]);
 
   const effectivePreviewVolume = settlementPreviewSyncGameVolume
     ? gameVolume
@@ -695,11 +703,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [handleOpenTrackLink, normalizedRecaps],
   );
 
-  const handleSupportArtistClick = useCallback(() => {
-    if (!currentRecommendation || !currentRecommendationLink) return;
-    handleOpenTrackLink(currentRecommendationLink, currentRecommendation.recap);
-  }, [currentRecommendation, currentRecommendationLink, handleOpenTrackLink]);
-
   const handleRecommendPreviewIframeLoad = useCallback(() => {
     registerYouTubeBridge();
     syncPreviewVolume();
@@ -1006,6 +1009,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 settlementPreviewSyncGameVolume={settlementPreviewSyncGameVolume}
                 recommendPreviewStageRef={recommendPreviewStageRef}
                 isCurrentRecommendationPreviewOpen={isCurrentRecommendationPreviewOpen}
+                previewPlayerState={previewPlayerState}
                 currentRecommendationPreviewUrl={currentRecommendationPreviewUrl}
                 previewIframeRef={previewIframeRef}
                 onPreviewIframeLoad={handleRecommendPreviewIframeLoad}
@@ -1032,8 +1036,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 recommendNavLabels={recommendNavLabels}
                 onGoPrevRecommendation={goPrevRecommendation}
                 onGoNextRecommendation={goNextRecommendation}
-                multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
-                onSupportArtistClick={handleSupportArtistClick}
               />
             )}
 
@@ -1079,6 +1081,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 selectedRecapGradeMeta={selectedRecapGradeMeta}
                 selectedRecapRatingBreakdown={selectedRecapRatingBreakdown}
                 multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
+                reviewDoubleClickPlayEnabled={reviewDoubleClickPlayEnabled}
+                onToggleReviewDoubleClickPlay={() =>
+                  setReviewDoubleClickPlayEnabled((current) => !current)
+                }
               />
             )}
           </div>

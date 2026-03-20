@@ -10843,6 +10843,32 @@ body {
   }
 }
 
+@keyframes settlementChampionSpotlight {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scaleX(0.96);
+  }
+
+  50% {
+    opacity: 0.98;
+    transform: scaleX(1.04);
+  }
+}
+
+@keyframes settlementChampionHalo {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: translateX(-50%) scale(0.96);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: translateX(-50%) scale(1.04);
+  }
+}
+
 @keyframes settlementCrownFloat {
   0%,
   100% {
@@ -10866,6 +10892,12 @@ body {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+@property --gr-row-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
 }
 
 @keyframes settlementControlHintPulse {
@@ -11294,6 +11326,30 @@ body {
     180deg,
     rgba(34, 211, 238, 0.9),
     rgba(14, 165, 233, 0.9)
+  );
+}
+
+.game-settlement-recommend-list-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 158, 11, 0.72) rgba(15, 23, 42, 0.52);
+  scrollbar-gutter: stable;
+}
+
+.game-settlement-recommend-list-viewport::-webkit-scrollbar {
+  width: 7px;
+}
+
+.game-settlement-recommend-list-viewport::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.game-settlement-recommend-list-viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(251, 191, 36, 0.92),
+    rgba(245, 158, 11, 0.88)
   );
 }
 
@@ -12171,11 +12227,7 @@ body {
   --gr-row-hot: rgba(45, 212, 191, 0.52);
   --gr-row-hot-soft: rgba(45, 212, 191, 0.18);
   --gr-row-duration: 2.24s;
-  border-color: color-mix(
-    in srgb,
-    var(--gr-row-hot) 68%,
-    rgba(255, 255, 255, 0.1)
-  );
+  border-color: transparent;
   background:
     radial-gradient(
       260px 70px at 4% 50%,
@@ -12188,29 +12240,97 @@ body {
       rgba(12, 18, 32, 0.72)
     );
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--gr-row-hot) 26%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--gr-row-hot) 16%, transparent),
-    0 0 18px -16px color-mix(in srgb, var(--gr-row-hot) 32%, transparent);
+    0 0 18px -16px color-mix(in srgb, var(--gr-row-hot) 34%, transparent);
   animation: game-room-score-row-combo-pulse var(--gr-row-duration) ease-in-out
     infinite;
 }
 
-.game-room-score-row--combo-flare::before {
-  opacity: 0.42;
+.game-room-score-row--combo-champion {
+  isolation: isolate;
+  overflow: hidden;
+  border-color: transparent !important;
+  box-shadow:
+    0 0 0 0 transparent,
+    0 0 22px -16px color-mix(in srgb, var(--gr-row-hot) 42%, transparent);
+}
+
+.game-room-score-row--combo-champion:hover {
+  border-color: transparent !important;
+  box-shadow:
+    0 0 0 0 transparent,
+    0 0 26px -14px color-mix(in srgb, var(--gr-row-hot) 46%, transparent);
+}
+
+.game-room-score-row--combo-champion::before {
+  opacity: 0.34;
   background:
-    linear-gradient(
-      112deg,
-      transparent 0%,
-      color-mix(in srgb, var(--gr-row-hot) 14%, transparent) 24%,
-      color-mix(in srgb, var(--gr-row-hot) 24%, transparent) 46%,
-      transparent 74%
+    radial-gradient(
+      220px 78px at 0% 0%,
+      rgba(249, 115, 22, 0.38),
+      transparent 58%
     ),
     radial-gradient(
-      260px 82px at 4% 50%,
-      color-mix(in srgb, var(--gr-row-hot-soft) 78%, transparent),
-      transparent 74%
+      220px 82px at 100% 100%,
+      rgba(56, 189, 248, 0.32),
+      transparent 60%
     );
-  animation: game-room-score-row-combo-stream var(--gr-row-duration) ease-in-out
+  animation: game-room-score-row-combo-flame-soft var(--gr-row-duration) ease-in-out
+    infinite;
+}
+
+.game-room-score-row--combo-champion::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  --gr-row-angle: 0deg;
+  background: conic-gradient(
+    from var(--gr-row-angle),
+    rgba(255, 249, 235, 0.04) 0deg,
+    rgba(249, 115, 22, 0.98) 18deg,
+    rgba(251, 191, 36, 1) 42deg,
+    rgba(255, 251, 235, 0.92) 58deg,
+    rgba(255, 251, 235, 0.12) 82deg,
+    rgba(255, 251, 235, 0.03) 154deg,
+    rgba(255, 251, 235, 0.03) 198deg,
+    rgba(56, 189, 248, 0.94) 226deg,
+    rgba(125, 211, 252, 1) 252deg,
+    rgba(224, 242, 254, 0.9) 270deg,
+    rgba(255, 251, 235, 0.1) 294deg,
+    rgba(255, 249, 235, 0.04) 360deg
+  );
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  padding: 3.5px;
+  opacity: 1;
+  filter: saturate(1.22);
+  animation: game-room-score-row-combo-ring-spin 2.35s linear infinite;
+}
+
+.game-room-score-row--combo-flare::before {
+  opacity: 0.24;
+  background:
+    radial-gradient(
+      180px 56px at 0% 50%,
+      color-mix(in srgb, var(--gr-row-hot) 34%, transparent),
+      transparent 76%
+    ),
+    radial-gradient(
+      180px 56px at 100% 50%,
+      color-mix(in srgb, var(--gr-row-hot) 30%, transparent),
+      transparent 76%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--gr-row-hot) 12%, transparent) 18%,
+      color-mix(in srgb, var(--gr-row-hot-soft) 22%, transparent) 50%,
+      color-mix(in srgb, var(--gr-row-hot) 12%, transparent) 82%,
+      transparent 100%
+    );
+  animation: game-room-score-row-combo-flame-soft var(--gr-row-duration) ease-in-out
     infinite;
 }
 
@@ -12999,6 +13119,90 @@ body {
   50% {
     opacity: 0.56;
     filter: saturate(1.14);
+  }
+}
+
+@keyframes game-room-score-row-combo-crown {
+  0% {
+    transform: rotate(0deg) scale(0.98);
+    filter: saturate(1) brightness(1);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.015);
+    filter: saturate(1.18) brightness(1.12);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(0.98);
+    filter: saturate(1) brightness(1);
+  }
+}
+
+@keyframes game-room-score-row-combo-flame {
+  0%,
+  100% {
+    opacity: 0.9;
+    filter: saturate(1.04) brightness(0.98);
+    background-position: 0% 50%, 100% 50%, 0% 50%;
+    box-shadow:
+      0 0 10px rgba(249, 115, 22, 0.18),
+      0 0 18px rgba(251, 191, 36, 0.14);
+  }
+
+  50% {
+    opacity: 1;
+    filter: saturate(1.12) brightness(1.04);
+    background-position: 0% 50%, 100% 50%, 100% 50%;
+    box-shadow:
+      0 0 14px rgba(249, 115, 22, 0.24),
+      0 0 24px rgba(251, 191, 36, 0.2);
+  }
+}
+
+@keyframes game-room-score-row-combo-orbit {
+  0% {
+    filter: saturate(1.08) brightness(1);
+    background-position: 0% 0%, 100% 100%, 0% 0%;
+  }
+
+  50% {
+    filter: saturate(1.18) brightness(1.04);
+    background-position: 0% 0%, 100% 100%, 100% 100%;
+  }
+
+  100% {
+    filter: saturate(1.08) brightness(1);
+    background-position: 0% 0%, 100% 100%, 0% 0%;
+  }
+}
+
+@keyframes game-room-score-row-combo-ring-spin {
+  0% {
+    --gr-row-angle: 0deg;
+    filter: saturate(1.1) brightness(1);
+  }
+
+  50% {
+    filter: saturate(1.22) brightness(1.04);
+  }
+
+  100% {
+    --gr-row-angle: 360deg;
+    filter: saturate(1.1) brightness(1);
+  }
+}
+
+@keyframes game-room-score-row-combo-flame-soft {
+  0%,
+  100% {
+    opacity: 0.24;
+    filter: saturate(1);
+  }
+
+  50% {
+    opacity: 0.42;
+    filter: saturate(1.16);
   }
 }
 
@@ -14801,7 +15005,9 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 0 0 1px rgba(251, 191, 36, 0.18),
     0 18px 36px -22px rgba(245, 158, 11, 0.88);
-  animation: game-room-vote-prompt-pulse 1.2s ease-in-out infinite;
+  animation:
+    game-room-vote-prompt-pulse 1.1s ease-in-out infinite,
+    game-room-vote-prompt-shake 0.36s linear infinite;
 }
 
 .game-room-extend-vote-btn--prompt::after {
@@ -14849,6 +15055,35 @@ body {
       0 22px 40px -22px rgba(251, 191, 36, 1);
     filter: saturate(1.08);
   }
+}
+
+@keyframes game-room-vote-prompt-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+
+  20% {
+    transform: translate3d(-1px, 0, 0) rotate(-1.2deg);
+  }
+
+  40% {
+    transform: translate3d(1.5px, -0.5px, 0) rotate(1deg);
+  }
+
+  60% {
+    transform: translate3d(-1.5px, 0.5px, 0) rotate(-0.8deg);
+  }
+
+  80% {
+    transform: translate3d(1px, 0, 0) rotate(0.8deg);
+  }
+}
+
+.game-room-mobile-toggle-chip--vote-prompt {
+  animation:
+    game-room-vote-prompt-pulse 1.1s ease-in-out infinite,
+    game-room-vote-prompt-shake 0.36s linear infinite;
 }
 
 .game-room-playback-vote-dialog.MuiPaper-root {

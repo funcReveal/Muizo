@@ -332,7 +332,7 @@ export const resolvePreviewEmbedUrl = (
         ? `&origin=${encodeURIComponent(window.location.origin)}`
         : "";
     // Keep initial frame muted and let JS API restore the configured volume.
-    return `https://www.youtube.com/embed/${id}?autoplay=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&mute=1${originParam}`;
+    return `https://www.youtube.com/embed/${id}?autoplay=0&controls=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&mute=1${originParam}`;
   }
   return null;
 };

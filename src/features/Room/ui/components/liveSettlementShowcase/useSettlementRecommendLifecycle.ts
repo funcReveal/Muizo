@@ -126,6 +126,7 @@ const useSettlementRecommendLifecycle = ({
       return;
     }
     if (autoAdvanceAtMs === null) return;
+    let retryTimer: number | null = null;
     const timer = window.setTimeout(() => {
       if (previewPlayerStateRef.current === "playing") return;
       const lastProgressAt = previewLastProgressAtMsRef.current;
@@ -134,21 +135,36 @@ const useSettlementRecommendLifecycle = ({
         setPreviewPlayerState("playing");
         return;
       }
-      const remainingMs = Math.max(
-        0,
-        autoAdvanceAtMsRef.current !== null
-          ? autoAdvanceAtMsRef.current - Date.now()
-          : pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000,
-      );
-      autoAdvanceAtMsRef.current = null;
-      pausedCountdownRemainingMsRef.current = remainingMs;
-      setAutoAdvanceAtMs(null);
-      setPausedCountdownRemainingMs(remainingMs);
-      setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
-      setPreviewPlayerState("paused");
-      pushPreviewSwitchNotice("瀏覽器限制自動播放，點擊影片區即可開始");
+      postYouTubeCommand("playVideo");
+      retryTimer = window.setTimeout(() => {
+        if (previewPlayerStateRef.current === "playing") return;
+        const retryLastProgressAt = previewLastProgressAtMsRef.current;
+        if (retryLastProgressAt !== null && Date.now() - retryLastProgressAt <= 2800) {
+          previewPlayerStateRef.current = "playing";
+          setPreviewPlayerState("playing");
+          return;
+        }
+        const remainingMs = Math.max(
+          0,
+          autoAdvanceAtMsRef.current !== null
+            ? autoAdvanceAtMsRef.current - Date.now()
+            : pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000,
+        );
+        autoAdvanceAtMsRef.current = null;
+        pausedCountdownRemainingMsRef.current = remainingMs;
+        setAutoAdvanceAtMs(null);
+        setPausedCountdownRemainingMs(remainingMs);
+        setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
+        setPreviewPlayerState("paused");
+        pushPreviewSwitchNotice("瀏覽器限制自動播放，點擊影片區即可開始");
+      }, 1800);
     }, 4200);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+      }
+    };
   }, [
     activeTab,
     autoAdvanceAtMs,
@@ -157,6 +173,7 @@ const useSettlementRecommendLifecycle = ({
     currentRecommendationPreviewUrl,
     isCurrentRecommendationPreviewOpen,
     pausedCountdownRemainingMsRef,
+    postYouTubeCommand,
     previewLastProgressAtMsRef,
     previewPlaybackMode,
     previewPlayerStateRef,
