@@ -80,6 +80,7 @@ interface RecommendGuideSectionProps {
   settlementPreviewSyncGameVolume: boolean;
   recommendPreviewStageRef: React.RefObject<HTMLDivElement | null>;
   isCurrentRecommendationPreviewOpen: boolean;
+  previewPlayerState: "idle" | "playing" | "paused";
   currentRecommendationPreviewUrl: string | null;
   previewIframeRef: React.RefObject<HTMLIFrameElement | null>;
   onPreviewIframeLoad: () => void;
@@ -97,8 +98,6 @@ interface RecommendGuideSectionProps {
   recommendNavLabels: { prev: string; next: string };
   onGoPrevRecommendation: () => void;
   onGoNextRecommendation: () => void;
-  multilineEllipsis2Style: React.CSSProperties;
-  onSupportArtistClick: () => void;
 }
 
 const CATEGORY_META: Array<{ key: RecommendCategory; icon: React.ElementType }> = [
@@ -107,6 +106,66 @@ const CATEGORY_META: Array<{ key: RecommendCategory; icon: React.ElementType }> 
   { key: "hard", icon: LocalFireDepartmentRoundedIcon },
   { key: "other", icon: LibraryMusicRoundedIcon },
 ];
+
+const YouTubeBadge: React.FC = () => (
+  <svg viewBox="0 0 36 24" aria-hidden="true" className="h-7 w-10">
+    <rect x="1" y="1" width="34" height="22" rx="7" fill="#FF0033" />
+    <path d="M15 8.3L23.2 12L15 15.7V8.3Z" fill="#FFFFFF" />
+  </svg>
+);
+
+const AutoMarqueeTitle: React.FC<{
+  text: string;
+  className?: string;
+}> = ({ text, className = "" }) => {
+  const wrapRef = React.useRef<HTMLSpanElement | null>(null);
+  const trackRef = React.useRef<HTMLSpanElement | null>(null);
+  const [canMarquee, setCanMarquee] = React.useState(false);
+  const [style, setStyle] = React.useState<React.CSSProperties>({});
+
+  React.useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const track = trackRef.current;
+    if (!wrap || !track) return;
+
+    const measure = () => {
+      const overflow = track.scrollWidth - wrap.clientWidth;
+      if (overflow > 10) {
+        setCanMarquee(true);
+        setStyle({
+          ["--settlement-title-shift" as const]: `${-(overflow + 22)}px`,
+          ["--settlement-title-duration" as const]: `${Math.min(
+            11.5,
+            Math.max(5.4, overflow / 44),
+          ).toFixed(2)}s`,
+        } as React.CSSProperties);
+      } else {
+        setCanMarquee(false);
+        setStyle({});
+      }
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(wrap);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [text]);
+
+  return (
+    <span ref={wrapRef} className={`game-settlement-title-marquee block overflow-hidden ${className}`}>
+      <span
+        ref={trackRef}
+        className={`game-settlement-title-marquee-track ${
+          canMarquee ? "game-settlement-title-marquee-track--run" : ""
+        }`}
+        style={style}
+      >
+        {text}
+      </span>
+    </span>
+  );
+};
 
 const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   recommendSectionRef,
@@ -148,6 +207,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   settlementPreviewSyncGameVolume,
   recommendPreviewStageRef,
   isCurrentRecommendationPreviewOpen,
+  previewPlayerState,
   currentRecommendationPreviewUrl,
   previewIframeRef,
   onPreviewIframeLoad,
@@ -165,12 +225,15 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   recommendNavLabels,
   onGoPrevRecommendation,
   onGoNextRecommendation,
-  multilineEllipsis2Style,
-  onSupportArtistClick,
 }) => {
   const youtubeOverlayTitle = "如果喜歡這首音樂，別忘了到 YouTube 支持創作者喲！";
   const currentCard = currentRecommendation;
-  const showPreviewCover = shouldShowPreviewOverlay || !isCurrentRecommendationPreviewOpen;
+  const shouldKeepLivePreviewVisible =
+    currentRecommendationPreviewUrl !== null &&
+    (isCurrentRecommendationPreviewOpen || previewPlayerState === "playing");
+  const showPreviewCover =
+    previewPlayerState !== "playing" &&
+    (shouldShowPreviewOverlay || !shouldKeepLivePreviewVisible);
 
   return (
     <section
@@ -249,10 +312,10 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
           目前沒有可顯示的推薦題目。
         </div>
       ) : (
-        <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+        <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.58fr)_minmax(340px,0.9fr)]">
           <article
             key={recommendationTransitionKey}
-            className={`flex min-h-[680px] min-w-0 flex-col rounded-[28px] border p-5 transition-colors duration-300 ${activeCategoryTheme.sectionClass}`}
+            className={`flex h-[760px] min-w-0 flex-col rounded-[28px] border p-5 transition-colors duration-300 ${activeCategoryTheme.sectionClass}`}
             style={{ animation: "settlementSwapIn 220ms ease-out both" }}
           >
             <div className="flex items-start justify-between gap-4">
@@ -270,19 +333,15 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                       : "cursor-default"
                   }`}
                 >
-                  <span className="block min-w-0" style={multilineEllipsis2Style}>
-                    {currentCard.recap.title}
-                  </span>
+                  <AutoMarqueeTitle text={currentCard.recap.title} className="min-w-0" />
                 </button>
                 <p className="mt-2 text-lg font-semibold text-slate-200">
-                  作者：{currentCard.recap.uploader || "未知作者"}
+                  {currentCard.recap.uploader || "未知作者"}
                 </p>
               </div>
 
               <div className="shrink-0">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-500/55 bg-slate-900/72 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
-                  <SmartDisplayRoundedIcon />
-                </div>
+                <YouTubeBadge />
               </div>
             </div>
 
@@ -322,21 +381,46 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
               )}
             </div>
 
-            <div className="mt-4 rounded-[22px] border border-slate-700/70 bg-slate-950/55 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-slate-200">
-                <span>{currentCard.hint}</span>
-                <span>{currentCard.emphasis}</span>
-                {typeof currentRecommendationAverageCorrectMs === "number" && (
-                  <span>平均作答 {formatMs(currentRecommendationAverageCorrectMs)}</span>
-                )}
-                {hasCurrentRecommendationSpeedDelta && (
-                  <span title={currentRecommendationSpeedNote}>
-                    速度差 {currentRecommendationSpeedValue}
-                  </span>
-                )}
+            <div className="mt-4 w-full rounded-[22px] border border-cyan-300/18 bg-[linear-gradient(180deg,rgba(10,20,36,0.9),rgba(3,7,18,0.94))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-[16px] bg-black/18 px-3 py-3">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <BoltRoundedIcon className="text-[1rem]" />
+                    <p className="text-[11px]">題目亮點</p>
+                  </div>
+                  <p className="mt-2 text-sm font-black text-white">{currentCard.hint}</p>
+                </div>
+                <div className="rounded-[16px] bg-black/18 px-3 py-3">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <LocalFireDepartmentRoundedIcon className="text-[1rem]" />
+                    <p className="text-[11px]">表現重點</p>
+                  </div>
+                  <p className="mt-2 text-sm font-black text-white">{currentCard.emphasis}</p>
+                </div>
+                <div className="rounded-[16px] bg-black/18 px-3 py-3">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <GraphicEqRoundedIcon className="text-[1rem]" />
+                    <p className="text-[11px]">平均作答</p>
+                  </div>
+                  <p className="mt-2 text-sm font-black text-white">
+                    {typeof currentRecommendationAverageCorrectMs === "number"
+                      ? formatMs(currentRecommendationAverageCorrectMs)
+                      : "--"}
+                  </p>
+                </div>
+                <div className="rounded-[16px] bg-black/18 px-3 py-3">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <SmartDisplayRoundedIcon className="text-[1rem]" />
+                    <p className="text-[11px]">速度差</p>
+                  </div>
+                  <p className="mt-2 text-sm font-black text-white" title={currentRecommendationSpeedNote}>
+                    {hasCurrentRecommendationSpeedDelta ? currentRecommendationSpeedValue : "--"}
+                  </p>
+                </div>
               </div>
               {currentRecommendationFastestCorrectMeta && (
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 inline-flex items-center gap-2 text-xs text-slate-400">
+                  <GraphicEqRoundedIcon className="text-[0.95rem]" />
                   最快 {currentRecommendationFastestCorrectMeta.username} ・{" "}
                   {formatMs(currentRecommendationFastestCorrectMeta.answeredAtMs)}
                 </p>
@@ -347,8 +431,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
               {hasCurrentRecommendationLink && (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-400/60 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/60 hover:text-cyan-100"
-                  onClick={onSupportArtistClick}
+                  onClick={onOpenRecommendationTitle}
+                  className="inline-flex items-center gap-2 rounded-full border border-rose-300/35 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-50 transition hover:border-rose-200/55 hover:bg-rose-500/16"
                 >
                   <OpenInNewRoundedIcon className="text-[1rem]" />
                   前往YouTube支持作者
@@ -381,7 +465,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                   />
                 )}
 
-                {isCurrentRecommendationPreviewOpen && currentRecommendationPreviewUrl && (
+                {shouldKeepLivePreviewVisible && currentRecommendationPreviewUrl && (
                   <iframe
                     ref={previewIframeRef}
                     src={currentRecommendationPreviewUrl}
@@ -393,22 +477,16 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                   />
                 )}
 
-                {currentRecommendationPreviewUrl && (
+                {currentRecommendationPreviewUrl && showPreviewCover && (
                   <button
                     type="button"
-                    className={`absolute inset-0 z-20 block h-full w-full ${
-                      showPreviewCover
-                        ? "bg-[linear-gradient(180deg,rgba(2,6,23,0.18),rgba(2,6,23,0.72))]"
-                        : "bg-transparent"
-                    }`}
+                    className="absolute inset-0 z-20 block h-full w-full bg-[linear-gradient(180deg,rgba(2,6,23,0.18),rgba(2,6,23,0.72))]"
                     onClick={onPreviewSurfaceClick}
                     aria-label="切換推薦影片播放狀態"
                   >
-                    {showPreviewCover && (
-                      <span className="mx-auto flex h-full max-w-[30rem] items-center justify-center px-6 text-center text-base font-semibold text-white">
-                        {youtubeOverlayTitle}
-                      </span>
-                    )}
+                    <span className="mx-auto flex h-full max-w-[30rem] items-center justify-center px-6 text-center text-base font-semibold text-white">
+                      {youtubeOverlayTitle}
+                    </span>
                   </button>
                 )}
 
@@ -432,41 +510,43 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
           </article>
 
           <aside
-            className={`flex h-full min-h-[680px] min-w-0 flex-col rounded-[28px] border p-4 transition-colors duration-300 ${activeCategoryTheme.asideClass}`}
+            className={`flex h-[760px] min-w-0 flex-col overflow-hidden rounded-[28px] border bg-[linear-gradient(180deg,rgba(7,15,28,0.96),rgba(5,10,18,0.99))] p-4 transition-colors duration-300 ${activeCategoryTheme.asideClass}`}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">題目清單</p>
-                <p className="mt-1 text-xl font-black text-white">
-                  {recommendationCards.length === 0
-                    ? "0 / 0"
-                    : `${safeRecommendIndex + 1} / ${recommendationCards.length}`}
-                </p>
-              </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-sky-300/35 bg-sky-500/10 px-1 py-1">
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
-                  onClick={onGoPrevReviewParticipant}
-                  disabled={!canCycleReviewParticipants}
-                >
-                  上一位
-                </button>
-                <span className="max-w-[10rem] truncate px-2 text-[11px] font-semibold text-sky-100">
-                  {selectedReviewParticipantLabel}
-                </span>
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
-                  onClick={onGoNextReviewParticipant}
-                  disabled={!canCycleReviewParticipants}
-                >
-                  下一位
-                </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="shrink-0">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-slate-400">題目清單</p>
+                  <p className="mt-1 whitespace-nowrap text-[1.95rem] font-black leading-none text-white">
+                    {recommendationCards.length === 0
+                      ? "0 / 0"
+                      : `${safeRecommendIndex + 1} / ${recommendationCards.length}`}
+                  </p>
+                </div>
+                <div className="grid min-w-0 w-full flex-1 grid-cols-[80px_minmax(0,1fr)_80px] items-center rounded-full border border-sky-300/35 bg-sky-500/10 px-1 py-1 sm:max-w-[340px]">
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
+                    onClick={onGoPrevReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    上一位
+                  </button>
+                  <span className="truncate px-2 text-center text-[11px] font-semibold text-sky-100">
+                    {selectedReviewParticipantLabel}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:opacity-40"
+                    onClick={onGoNextReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    下一位
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="game-settlement-recommend-list-viewport mt-4 min-h-0 flex-1 overflow-y-auto pr-1.5">
               <div className="space-y-3">
                 {recommendationCards.length === 0 ? (
                   <div className="flex h-full min-h-[240px] items-center justify-center rounded-[22px] border border-dashed border-slate-700/70 bg-slate-950/55 px-4 text-sm text-slate-400">
@@ -482,7 +562,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                         type="button"
                         className={`block w-full rounded-[22px] border px-4 py-4 text-left transition ${
                           isActive
-                            ? activeCategoryTheme.listActiveClass
+                            ? `${activeCategoryTheme.listActiveClass} shadow-[0_18px_34px_-28px_rgba(16,185,129,0.48)]`
                             : "border-slate-700/75 bg-slate-950/58 hover:border-slate-500/75"
                         }`}
                         onClick={() => onSelectRecommendation(index)}
@@ -491,28 +571,25 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                           {card.link?.href ? (
                             <button
                               type="button"
-                              className="block w-full text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
+                              className="inline-block max-w-full truncate text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onSelectRecommendation(index);
                                 onOpenCardLink(card);
                               }}
+                              title={card.recap.title}
                             >
-                              <span className="block" style={multilineEllipsis2Style}>
-                                {card.recap.title}
-                              </span>
+                              <span className="block truncate">{card.recap.title}</span>
                             </button>
                           ) : (
-                            <p className="text-lg font-black leading-snug text-white">
-                              <span className="block" style={multilineEllipsis2Style}>
-                                {card.recap.title}
-                              </span>
+                            <p
+                              className="truncate text-lg font-black leading-snug text-white"
+                              title={card.recap.title}
+                            >
+                              {card.recap.title}
                             </p>
                           )}
-                          <p
-                            className="mt-2 min-w-0 text-sm text-slate-300"
-                            style={multilineEllipsis2Style}
-                          >
+                          <p className="mt-2 truncate text-sm text-slate-300" title={card.recap.uploader || "未知作者"}>
                             {card.recap.uploader || "未知作者"}
                           </p>
                           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -531,23 +608,25 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
-                onClick={onGoPrevRecommendation}
-                disabled={!canNavigateRecommendations}
-              >
-                {recommendNavLabels.prev}
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
-                onClick={onGoNextRecommendation}
-                disabled={!canNavigateRecommendations}
-              >
-                {recommendNavLabels.next}
-              </button>
+            <div className="mt-4 border-t border-white/6 pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
+                  onClick={onGoPrevRecommendation}
+                  disabled={!canNavigateRecommendations}
+                >
+                  {recommendNavLabels.prev}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:opacity-40"
+                  onClick={onGoNextRecommendation}
+                  disabled={!canNavigateRecommendations}
+                >
+                  {recommendNavLabels.next}
+                </button>
+              </div>
             </div>
           </aside>
         </div>

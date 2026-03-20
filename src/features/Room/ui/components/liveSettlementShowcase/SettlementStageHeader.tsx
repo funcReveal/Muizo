@@ -3,7 +3,11 @@ import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
-import { Button, Chip } from "@mui/material";
+import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
+import Groups2RoundedIcon from "@mui/icons-material/Groups2Rounded";
+import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
+import EventRoundedIcon from "@mui/icons-material/EventRounded";
+import { Button } from "@mui/material";
 
 type LiveSettlementTab = "overview" | "recommend";
 
@@ -28,6 +32,34 @@ interface SettlementStageHeaderProps {
   hasNextStep: boolean;
   canFinish: boolean;
 }
+
+const MetaPill = ({
+  icon,
+  label,
+  accentClass,
+  barClass,
+  compact = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  accentClass: string;
+  barClass: string;
+  compact?: boolean;
+}) => (
+  <div
+    className={`inline-flex items-center gap-2 rounded-full border border-white/8 bg-[linear-gradient(180deg,rgba(19,26,40,0.92),rgba(10,14,24,0.98))] pl-2 pr-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_24px_-18px_rgba(2,6,23,0.9)] backdrop-blur-sm ${compact ? "py-1" : "py-1.5"}`}
+  >
+    <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.04)] ${accentClass}`}>
+      {icon}
+    </span>
+    <span className={`${compact ? "text-[10.5px]" : "text-[11px]"} font-semibold tracking-[0.03em] text-slate-100`}>{label}</span>
+    <span className="ml-1 inline-flex h-5 items-end gap-0.5 opacity-85">
+      <span className={`w-1 rounded-full ${barClass} ${compact ? "h-1.5" : "h-2"}`} />
+      <span className={`w-1 rounded-full ${barClass} ${compact ? "h-2.5" : "h-3"}`} />
+      <span className={`w-1 rounded-full ${barClass} ${compact ? "h-4" : "h-4"}`} />
+    </span>
+  </div>
+);
 
 const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   isMobileView = false,
@@ -81,21 +113,37 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
         </div>
         {isMobileView ? (
           <div className="game-settlement-mobile-meta flex w-full flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-amber-400/14 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
-              題數 {playedQuestionCount}
-            </span>
-            <span className="rounded-full bg-sky-400/14 px-2 py-0.5 text-[11px] font-semibold text-sky-100">
-              玩家 {participantsLength}
-            </span>
+            <MetaPill
+              compact
+              icon={<QuizRoundedIcon sx={{ fontSize: 14 }} />}
+              label={`題數 ${playedQuestionCount}`}
+              accentClass="bg-amber-400/16 text-amber-100"
+              barClass="bg-amber-300/80"
+            />
+            <MetaPill
+              compact
+              icon={<Groups2RoundedIcon sx={{ fontSize: 14 }} />}
+              label={`玩家 ${participantsLength}`}
+              accentClass="bg-sky-400/16 text-sky-100"
+              barClass="bg-sky-300/80"
+            />
             {mobileMetaExpanded && elapsedLabel && (
-              <span className="rounded-full border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
-                局長 {elapsedLabel}
-              </span>
+              <MetaPill
+                compact
+                icon={<TimerRoundedIcon sx={{ fontSize: 14 }} />}
+                label={`局長 ${elapsedLabel}`}
+                accentClass="bg-emerald-400/16 text-emerald-100"
+                barClass="bg-emerald-300/80"
+              />
             )}
             {mobileMetaExpanded && settlementTimeChipLabel && (
-              <span className="rounded-full border border-slate-500/50 bg-slate-900/65 px-2.5 py-1 text-[10.5px] font-semibold text-slate-200">
-                {settlementTimeChipLabel}
-              </span>
+              <MetaPill
+                compact
+                icon={<EventRoundedIcon sx={{ fontSize: 14 }} />}
+                label={settlementTimeChipLabel}
+                accentClass="bg-violet-400/14 text-violet-100"
+                barClass="bg-violet-300/80"
+              />
             )}
             <button
               type="button"
@@ -107,32 +155,32 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            <Chip
-              size="small"
+            <MetaPill
+              icon={<QuizRoundedIcon sx={{ fontSize: 15 }} />}
               label={`題數 ${playedQuestionCount}`}
-              variant="outlined"
-              className="border-amber-300/40 text-amber-100"
+              accentClass="bg-amber-400/16 text-amber-100"
+              barClass="bg-amber-300/80"
             />
-            <Chip
-              size="small"
+            <MetaPill
+              icon={<Groups2RoundedIcon sx={{ fontSize: 15 }} />}
               label={`玩家 ${participantsLength}`}
-              variant="outlined"
-              className="border-sky-400/45 text-sky-100"
+              accentClass="bg-sky-400/16 text-sky-100"
+              barClass="bg-sky-300/80"
             />
             {elapsedLabel && (
-              <Chip
-                size="small"
+              <MetaPill
+                icon={<TimerRoundedIcon sx={{ fontSize: 15 }} />}
                 label={`局長 ${elapsedLabel}`}
-                variant="outlined"
-                className="border-emerald-300/45 text-emerald-100"
+                accentClass="bg-emerald-400/16 text-emerald-100"
+                barClass="bg-emerald-300/80"
               />
             )}
             {settlementTimeChipLabel && (
-              <Chip
-                size="small"
+              <MetaPill
+                icon={<EventRoundedIcon sx={{ fontSize: 15 }} />}
                 label={settlementTimeChipLabel}
-                variant="outlined"
-                className="border-slate-400/50 text-slate-200"
+                accentClass="bg-violet-400/14 text-violet-100"
+                barClass="bg-violet-300/80"
               />
             )}
           </div>

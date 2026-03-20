@@ -1927,6 +1927,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--compact game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--vote ${playbackExtensionVote?.status === "active" || canOpenPlaybackVotePrompt
                       ? "game-room-mobile-toggle-chip--active"
                       : ""
+                      } ${canOpenPlaybackVotePrompt ? "game-room-mobile-toggle-chip--vote-prompt" : ""
                       }`}
                     onClick={handleRequestPlaybackVote}
                     disabled={playbackVoteButtonDisabled}
