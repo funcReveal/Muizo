@@ -320,7 +320,7 @@ export const resolvePreviewEmbedUrl = (
   link: SettlementTrackLink,
 ): string | null => {
   const provider = (recap.provider || link.provider || "").toLowerCase();
-  if (provider === "youtube") {
+  if (provider === "youtube" || provider === "youtube_music") {
     const id = extractYouTubeId(
       recap.sourceId,
       recap.videoId,
@@ -332,7 +332,7 @@ export const resolvePreviewEmbedUrl = (
         ? `&origin=${encodeURIComponent(window.location.origin)}`
         : "";
     // Keep initial frame muted and let JS API restore the configured volume.
-    return `https://www.youtube.com/embed/${id}?autoplay=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&mute=1${originParam}`;
+    return `https://www.youtube.com/embed/${id}?autoplay=0&controls=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&mute=1${originParam}`;
   }
   return null;
 };
@@ -358,7 +358,7 @@ export const buildRecommendationCard = (
     link.providerLabel ||
     ((recap.provider ?? "").trim()
       ? (recap.provider ?? "").trim().toUpperCase()
-      : "Unknown");
+      : "");
   return {
     recap,
     hint,

@@ -193,7 +193,6 @@ export const useRoomCollections = ({
             favorite_count?: number;
             is_favorited?: boolean | number;
           }>,
-          emptyMessage: string,
         ) => {
           if (requestId !== latestCollectionsRequestIdRef.current) {
             return;
@@ -229,7 +228,7 @@ export const useRoomCollections = ({
             throw new Error(payload?.error ?? "載入公開收藏庫失敗");
           }
           const items = payload?.data?.items ?? [];
-          applyCollectionsResult(items, "目前沒有公開收藏庫");
+          applyCollectionsResult(items);
           return;
         }
 
@@ -246,7 +245,7 @@ export const useRoomCollections = ({
           });
           if (ok) {
             const items = payload?.data?.items ?? [];
-            applyCollectionsResult(items, "你目前沒有收藏庫");
+            applyCollectionsResult(items);
             return;
           }
           if (status === 401 && allowRetry) {

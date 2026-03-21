@@ -92,9 +92,9 @@ export const useCollectionLoader = ({
         body: JSON.stringify({
           id: ownerId,
           display_name:
-            authUser?.display_name && authUser.display_name !== "(?芾身摰?"
+            authUser?.display_name && authUser.display_name !== "（未提供名稱）"
               ? authUser.display_name
-              : displayUsername && displayUsername !== "(?芾身摰?"
+              : displayUsername && displayUsername !== "（未提供名稱）"
                 ? displayUsername
                 : "Guest",
           provider: authUser?.provider ?? "google",

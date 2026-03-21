@@ -76,9 +76,11 @@ export const useRoomProviderSettingsActions = ({
         gameSettingsOverride,
       );
       const uploadItems = buildUploadPlaylistItems(sourceItems, {
-        playDurationSec: gameSettings.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+        playDurationSec:
+          gameSettings.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
         startOffsetSec: gameSettings.startOffsetSec ?? DEFAULT_START_OFFSET_SEC,
-        allowCollectionClipTiming: gameSettings.allowCollectionClipTiming ?? true,
+        allowCollectionClipTiming:
+          gameSettings.allowCollectionClipTiming ?? true,
       });
       if (uploadItems.length === 0) return false;
 
@@ -104,13 +106,19 @@ export const useRoomProviderSettingsActions = ({
               pageSize: room.playlist.pageSize || DEFAULT_PAGE_SIZE,
             },
           },
-          (ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>) => {
+          (
+            ack: Ack<{
+              receivedCount: number;
+              totalCount: number;
+              ready: boolean;
+            }>,
+          ) => {
             resolve(Boolean(ack?.ok));
           },
         );
       });
       if (!changePlaylistOk) {
-        setStatusText("嚙瞑嚙畿嚙緬嚙踝蕭嚙褕塚蕭嚙稽嚙緩嚙踝蕭嚙踝蕭");
+        setStatusText("同步播放清單失敗");
         return false;
       }
 
@@ -133,7 +141,7 @@ export const useRoomProviderSettingsActions = ({
             );
           });
           if (!chunkOk) {
-            setStatusText("嚙瞑嚙畿嚙緬嚙踝蕭嚙褕塚蕭嚙稽嚙緩嚙踝蕭嚙踝蕭");
+            setStatusText("同步播放清單失敗");
             return false;
           }
         }
@@ -148,7 +156,7 @@ export const useRoomProviderSettingsActions = ({
     async (payload: RoomSettingsPayload) => {
       const socket = getSocket();
       if (!socket || !currentRoom) {
-        setStatusText("嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭");
+        setStatusText("尚未加入房間");
         return false;
       }
 
@@ -158,7 +166,11 @@ export const useRoomProviderSettingsActions = ({
           ? { playDurationSec: clampPlayDurationSec(payload.playDurationSec) }
           : {}),
         ...(typeof payload.revealDurationSec === "number"
-          ? { revealDurationSec: clampRevealDurationSec(payload.revealDurationSec) }
+          ? {
+              revealDurationSec: clampRevealDurationSec(
+                payload.revealDurationSec,
+              ),
+            }
           : {}),
         ...(typeof payload.startOffsetSec === "number"
           ? { startOffsetSec: clampStartOffsetSec(payload.startOffsetSec) }
@@ -178,7 +190,7 @@ export const useRoomProviderSettingsActions = ({
               return;
             }
             if (!ack.ok) {
-              setStatusText(formatAckError("嚙踝蕭s嚙請塚蕭嚙稽嚙緩嚙踝蕭嚙踝蕭", ack.error));
+              setStatusText(formatAckError("更新房間設定失敗", ack.error));
               resolve(false);
               return;
             }
@@ -193,7 +205,8 @@ export const useRoomProviderSettingsActions = ({
               ...(typeof normalizedPayload.startOffsetSec === "number"
                 ? { startOffsetSec: normalizedPayload.startOffsetSec }
                 : {}),
-              ...(typeof normalizedPayload.allowCollectionClipTiming === "boolean"
+              ...(typeof normalizedPayload.allowCollectionClipTiming ===
+              "boolean"
                 ? {
                     allowCollectionClipTiming:
                       normalizedPayload.allowCollectionClipTiming,
@@ -211,7 +224,10 @@ export const useRoomProviderSettingsActions = ({
               currentRoom,
               ack.data.room,
             );
-            const patchedRoom = applyGameSettingsPatch(mergedRoom, gameSettingsPatch);
+            const patchedRoom = applyGameSettingsPatch(
+              mergedRoom,
+              gameSettingsPatch,
+            );
             setCurrentRoom((previous) =>
               previous
                 ? applyGameSettingsPatch(
@@ -239,7 +255,7 @@ export const useRoomProviderSettingsActions = ({
               typeof normalizedPayload.allowCollectionClipTiming === "boolean";
 
             if (!shouldSyncTiming) {
-              setStatusText("嚙請塚蕭嚙稽嚙緩嚙緩嚙踝蕭s");
+              setStatusText("房間設定已更新");
               resolve(true);
               return;
             }
@@ -251,8 +267,8 @@ export const useRoomProviderSettingsActions = ({
               );
               setStatusText(
                 synced
-                  ? "嚙請塚蕭嚙稽嚙緩嚙緩嚙踝蕭s嚙稽嚙緬嚙踝蕭嚙褕塚蕭嚙緩嚙瞑嚙畿嚙稷"
-                  : "嚙請塚蕭嚙稽嚙緩嚙緩嚙踝蕭s嚙璀嚙踝蕭嚙緬嚙踝蕭嚙褕塚蕭嚙瞑嚙畿嚙踝蕭嚙踝蕭",
+                  ? "房間設定已更新，播放清單已同步"
+                  : "房間設定已更新，但播放清單同步失敗",
               );
               resolve(true);
             })();

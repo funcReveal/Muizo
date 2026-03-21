@@ -438,22 +438,20 @@ const CollectionsCreatePage = () => {
                     <button
                       type="button"
                       onClick={() => setPlaylistSource("url")}
-                      className={`rounded-full px-3 py-1 transition ${
-                        playlistSource === "url"
-                          ? "bg-[var(--mc-accent)]/15 text-[var(--mc-text)]"
-                          : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                      }`}
+                      className={`rounded-full px-3 py-1 transition ${playlistSource === "url"
+                        ? "bg-[var(--mc-accent)]/15 text-[var(--mc-text)]"
+                        : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                        }`}
                     >
                       連結
                     </button>
                     <button
                       type="button"
                       onClick={() => setPlaylistSource("youtube")}
-                      className={`rounded-full px-3 py-1 transition ${
-                        playlistSource === "youtube"
-                          ? "bg-[var(--mc-accent-2)]/15 text-[var(--mc-text)]"
-                          : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                      }`}
+                      className={`rounded-full px-3 py-1 transition ${playlistSource === "youtube"
+                        ? "bg-[var(--mc-accent-2)]/15 text-[var(--mc-text)]"
+                        : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                        }`}
                     >
                       YouTube 清單
                     </button>
@@ -462,11 +460,10 @@ const CollectionsCreatePage = () => {
 
                 <div className="relative mt-3 min-h-[120px]">
                   <div
-                    className={`space-y-3 transition-all duration-200 ${
-                      playlistSource === "url"
-                        ? "opacity-100 translate-x-0"
-                        : "pointer-events-none opacity-0 -translate-x-2"
-                    }`}
+                    className={`space-y-3 transition-all duration-200 ${playlistSource === "url"
+                      ? "opacity-100 translate-x-0"
+                      : "pointer-events-none opacity-0 -translate-x-2"
+                      }`}
                     hidden={playlistSource !== "url"}
                   >
                     <div className="text-[11px] text-[var(--mc-text-muted)]">
@@ -495,19 +492,18 @@ const CollectionsCreatePage = () => {
                   </div>
 
                   <div
-                    className={`space-y-3 transition-all duration-200 ${
-                      playlistSource === "youtube"
-                        ? "opacity-100 translate-x-0"
-                        : "pointer-events-none opacity-0 translate-x-2"
-                    }`}
+                    className={`space-y-3 transition-all duration-200 ${playlistSource === "youtube"
+                      ? "opacity-100 translate-x-0"
+                      : "pointer-events-none opacity-0 translate-x-2"
+                      }`}
                     hidden={playlistSource !== "youtube"}
                   >
-                      <div className="text-[11px] text-[var(--mc-text-muted)]">
-                        登入 Google 後可直接載入你的 YouTube 播放清單
-                        {(!authUser || needsGoogleReauth) && (
-                          <Button
-                            variant="outlined"
-                            size="small"
+                    <div className="text-[11px] text-[var(--mc-text-muted)]">
+                      登入 Google 後可直接載入你的 YouTube 播放清單
+                      {(!authUser || needsGoogleReauth) && (
+                        <Button
+                          variant="outlined"
+                          size="small"
                           onClick={loginWithGoogle}
                         >
                           登入 Google
@@ -589,22 +585,20 @@ const CollectionsCreatePage = () => {
                   <button
                     type="button"
                     onClick={() => setVisibility("private")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "private"
-                        ? "border-amber-400/60 bg-amber-400/10 text-amber-100"
-                        : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs ${visibility === "private"
+                      ? "border-amber-400/60 bg-amber-400/10 text-amber-100"
+                      : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
+                      }`}
                   >
                     私人
                   </button>
                   <button
                     type="button"
                     onClick={() => setVisibility("public")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "public"
-                        ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
-                        : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs ${visibility === "public"
+                      ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
+                      : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
+                      }`}
                   >
                     公開
                   </button>
@@ -623,7 +617,7 @@ const CollectionsCreatePage = () => {
 
             <div className="p-3 h-full">
               {/* <div className="text-xs text-[var(--mc-text-muted)]">
-                ?嗉?摨恍?閬?
+                 收藏內容預覽 
               </div> */}
               {collectionPreview ? (
                 <div className="mt-3">
@@ -687,11 +681,11 @@ const CollectionsCreatePage = () => {
                       </p>
                       <p className="mt-1 line-clamp-2 text-[11px] text-red-100/90">
                         {playlistIssueSummary.unavailable.length > 0 ||
-                        playlistIssueSummary.unknown.length > 0
+                          playlistIssueSummary.unknown.length > 0
                           ? [
-                              ...playlistIssueSummary.unavailable,
-                              ...playlistIssueSummary.unknown,
-                            ].join("、")
+                            ...playlistIssueSummary.unavailable,
+                            ...playlistIssueSummary.unknown,
+                          ].join("、")
                           : playlistIssueSummary.unknownCount > 0
                             ? `共 ${playlistIssueSummary.unknownCount} 首（後端未提供明細）`
                             : "無"}

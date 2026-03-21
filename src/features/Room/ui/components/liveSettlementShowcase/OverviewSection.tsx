@@ -1,4 +1,6 @@
-import React from "react";
+﻿import React from "react";
+import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
+import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 
 import type { RoomParticipant } from "../../../model/types";
 
@@ -34,22 +36,126 @@ interface OverviewSectionProps {
   multilineEllipsis2Style: React.CSSProperties;
 }
 
-const renderName = (
+const comboTierClass = (combo: number) => {
+  if (combo >= 10) {
+    return "border-amber-200/55 bg-amber-400/14 text-amber-50 shadow-[0_0_0_1px_rgba(251,191,36,0.36),0_0_42px_rgba(250,204,21,0.22)]";
+  }
+  if (combo >= 7) {
+    return "border-cyan-300/45 bg-cyan-400/14 text-cyan-50 shadow-[0_0_0_1px_rgba(56,189,248,0.3),0_0_30px_rgba(56,189,248,0.18)]";
+  }
+  if (combo >= 4) {
+    return "border-violet-300/40 bg-violet-500/14 text-violet-50";
+  }
+  if (combo >= 1) {
+    return "border-slate-400/45 bg-slate-700/55 text-slate-100";
+  }
+  return "border-slate-600/65 bg-slate-900/68 text-slate-300";
+};
+
+const renderParticipantName = (
   participant: RoomParticipant | null,
   meClientId?: string,
-  style?: React.CSSProperties,
+  multilineEllipsis2Style?: React.CSSProperties,
+  useYouBadge = false,
 ) => {
-  if (!participant) return "--";
+  if (!participant) return <span>--</span>;
+  const isMe = Boolean(meClientId && participant.clientId === meClientId);
+  const username = participant.username ?? "";
+  const isLongName = username.length >= 12;
+  const participantNameStyle: React.CSSProperties = {
+    ...multilineEllipsis2Style,
+    display: "-webkit-box",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: 2,
+    overflow: "hidden",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  };
+
   return (
-    <span style={style}>
-      {participant.username}
-      {meClientId && participant.clientId === meClientId ? " (你)" : ""}
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span
+        className={`block min-w-0 text-center ${isLongName ? "text-[1.42rem] leading-[1.12]" : ""}`}
+        style={participantNameStyle}
+        title={username}
+      >
+        {username}
+      </span>
+      {isMe && useYouBadge && (
+        <span className="shrink-0 rounded-full border border-cyan-300/45 bg-cyan-400/16 px-2 py-0.5 text-[10px] font-black tracking-[0.08em] text-cyan-50">
+          YOU
+        </span>
+      )}
     </span>
   );
 };
 
+const podiumNameClass = (username: string) => {
+  if (username.length >= 14) return "text-[1.6rem] leading-[1.08]";
+  if (username.length >= 10) return "text-[1.9rem] leading-[1.08]";
+  return "text-[2.35rem] leading-[1]";
+};
+
+const renderPodiumName = (
+  participant: RoomParticipant | null,
+  multilineEllipsis2Style?: React.CSSProperties,
+) => {
+  if (!participant?.username) return <span>--</span>;
+  const username = participant.username;
+  const style: React.CSSProperties = {
+    ...multilineEllipsis2Style,
+    display: "-webkit-box",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: 2,
+    overflow: "hidden",
+    textWrap: "balance",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
+  };
+
+  return (
+    <span
+      className={`mx-auto block max-w-[10.5rem] text-center font-black tracking-[-0.04em] ${podiumNameClass(username)}`}
+      style={style}
+      title={username}
+    >
+      {username}
+    </span>
+  );
+};
+
+const rankSurfaceClass = (rank: number) => {
+  if (rank === 1) {
+    return "bg-[linear-gradient(180deg,rgba(255,248,214,0.46)_0%,rgba(253,224,71,0.32)_8%,rgba(250,204,21,0.22)_18%,rgba(181,129,31,0.14)_30%,rgba(58,42,24,0.92)_46%,rgba(25,18,18,0.99)_100%)] shadow-[inset_0_0_0_1px_rgba(251,191,36,0.34),inset_0_1px_0_rgba(255,248,214,0.18),0_42px_96px_-44px_rgba(250,204,21,0.68)]";
+  }
+  if (rank === 2) {
+    return "bg-[linear-gradient(180deg,rgba(248,250,252,0.5)_0%,rgba(226,232,240,0.24)_8%,rgba(191,201,216,0.15)_18%,rgba(124,140,166,0.1)_30%,rgba(32,36,52,0.95)_100%)] shadow-[inset_0_0_0_1px_rgba(226,232,240,0.26),inset_0_1px_0_rgba(248,250,252,0.18),0_26px_60px_-40px_rgba(203,213,225,0.34)]";
+  }
+  return "bg-[linear-gradient(180deg,rgba(245,158,11,0.22)_0%,rgba(217,119,6,0.2)_8%,rgba(161,98,7,0.14)_18%,rgba(120,74,32,0.1)_30%,rgba(34,22,16,0.97)_100%)] shadow-[inset_0_0_0_1px_rgba(217,119,6,0.2),inset_0_1px_0_rgba(253,186,116,0.1),0_22px_52px_-38px_rgba(180,83,9,0.24)]";
+};
+
+const podiumLabel = (rank: number) => {
+  if (rank === 1) return "冠軍";
+  if (rank === 2) return "亞軍";
+  return "季軍";
+};
+
+const podiumAuraClass = (rank: number) => {
+  if (rank === 1) {
+    return "before:absolute before:inset-x-[28%] before:-top-7 before:h-7 before:rounded-full before:bg-amber-200/8 before:blur-[14px] before:content-['']";
+  }
+  if (rank === 2) {
+    return "before:absolute before:inset-x-[28%] before:-top-5 before:h-6 before:rounded-full before:bg-slate-100/8 before:blur-[11px] before:content-['']";
+  }
+  return "before:absolute before:inset-x-[30%] before:-top-4 before:h-5 before:rounded-full before:bg-orange-200/7 before:blur-[10px] before:content-['']";
+};
+
+const statDisplayName = (participant: RoomParticipant | null) => {
+  if (!participant?.username) return "尚無資料";
+  return participant.username.length > 10 ? `${participant.username.slice(0, 10)}...` : participant.username;
+};
+
 const OverviewSection: React.FC<OverviewSectionProps> = ({
-  isMobileView = false,
   winner,
   runnerUp,
   thirdPlace,
@@ -67,386 +173,347 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
   formatMs,
   multilineEllipsis2Style,
 }) => {
-  const [mobileStatsExpanded, setMobileStatsExpanded] = React.useState(false);
-  const [mobileRankingExpanded, setMobileRankingExpanded] = React.useState(false);
-  const mobileStatsRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    if (!isMobileView) {
-      setMobileStatsExpanded(true);
-      setMobileRankingExpanded(true);
-      return;
-    }
-    setMobileStatsExpanded(false);
-    setMobileRankingExpanded(false);
-  }, [isMobileView]);
-
-  React.useEffect(() => {
-    if (!isMobileView || !mobileStatsExpanded) return;
-    const timer = window.setTimeout(() => {
-      const target = mobileStatsRef.current;
-      if (!target) return;
-      const top = window.scrollY + target.getBoundingClientRect().top - 84;
-      window.scrollTo({
-        top: Math.max(0, top),
-        behavior: "smooth",
-      });
-    }, 260);
-    return () => window.clearTimeout(timer);
-  }, [isMobileView, mobileStatsExpanded]);
-
-  const visibleParticipants =
-    isMobileView && !mobileRankingExpanded
-      ? sortedParticipants.slice(0, 3)
-      : sortedParticipants;
+  const podium = [
+    {
+      participant: runnerUp,
+      rank: 2,
+      orderClass: "order-1",
+      heightClass: "min-h-[420px]",
+      widthClass: "mx-auto w-full",
+      topPadClass: "pt-[2rem]",
+    },
+    {
+      participant: winner,
+      rank: 1,
+      orderClass: "order-2",
+      heightClass: "min-h-[450px]",
+      widthClass: "mx-auto w-full",
+      topPadClass: "pt-3",
+    },
+    {
+      participant: thirdPlace,
+      rank: 3,
+      orderClass: "order-3",
+      heightClass: "min-h-[390px]",
+      widthClass: "mx-auto w-full",
+      topPadClass: "pt-[2rem]",
+    },
+  ];
 
   return (
-    <section className="game-settlement-overview-shell grid gap-4 xl:grid-cols-[1.15fr_1.15fr]">
-      <article
-        className={`game-settlement-overview-podium relative isolate overflow-hidden rounded-2xl border p-4 ${
-          isMobileView
-            ? "border-amber-300/28 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(2,6,23,0.95))]"
-            : "border-amber-300/45 bg-[radial-gradient(circle_at_50%_-5%,rgba(250,204,21,0.24),transparent_45%),linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.96))]"
-        }`}
-      >
-        <div className="pointer-events-none absolute left-1/2 top-0 h-56 w-72 -translate-x-1/2 bg-[radial-gradient(circle,rgba(251,191,36,0.3)_0%,rgba(251,191,36,0.08)_35%,transparent_75%)] blur-2xl" />
-        <div className="pointer-events-none absolute -left-10 bottom-0 h-36 w-36 rounded-full bg-sky-400/15 blur-2xl" />
-        <div className="relative">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {!isMobileView && (
-              <p className="text-xs uppercase tracking-[0.24em] text-amber-200/85">
-                Podium
-              </p>
-            )}
-            <span className="rounded-full border border-amber-200/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
-              本局結果
-            </span>
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+      <article className="relative overflow-hidden rounded-[28px] border border-amber-300/18 bg-[radial-gradient(circle_at_50%_-8%,rgba(250,204,21,0.24),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(52,35,10,0.98),rgba(22,16,24,0.98))] p-5 shadow-[0_28px_80px_-48px_rgba(245,158,11,0.54)]">
+        <div className="pointer-events-none absolute inset-x-[28%] top-0 h-16 rounded-full bg-amber-200/8 blur-[38px]" />
+
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-3xl font-black tracking-tight text-white">本場冠軍榜</h3>
           </div>
+          <span className="rounded-full border border-amber-200/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-100">
+            前 3 名玩家
+          </span>
+        </div>
 
-          {winner ? (
-            <>
-              <div className="mt-4 grid grid-cols-3 items-end gap-2">
+        <div className="relative mt-6 grid min-h-[430px] grid-cols-3 items-end gap-4 px-1">
+          {podium.map(
+            ({ participant, rank, orderClass, heightClass, widthClass, topPadClass }) => {
+              const combo = participant
+                ? Math.max(participant.maxCombo ?? 0, participant.combo)
+                : 0;
+              const correctCount = participant?.correctCount ?? 0;
+              const isChampion = rank === 1;
+              const isMe = Boolean(meClientId && participant?.clientId === meClientId);
+              const nameToneClass =
+                rank === 1
+                  ? "text-white"
+                  : rank === 2
+                    ? "text-slate-50"
+                    : "text-orange-50";
+
+              return (
                 <div
-                  className={`flex flex-col items-center rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center ${
-                    isMobileView ? "min-h-[132px]" : "min-h-[154px]"
-                  }`}
+                  key={`podium-${rank}`}
+                  className={`relative overflow-hidden ${orderClass} ${heightClass} ${widthClass} ${topPadClass} rounded-[28px] px-4 pb-4 text-center ${rankSurfaceClass(rank)} ${podiumAuraClass(rank)} ${isMe ? "ring-1 ring-white/18" : ""
+                    } ${rank === 1 ? "z-20" : rank === 2 ? "z-10" : "z-0"
+                    }`}
+                  style={rank === 1 ? { animation: "settlementChampionGlow 2.8s ease-in-out infinite" } : undefined}
                 >
-                  <p className="text-[10px] tracking-[0.15em] text-slate-300">#2</p>
-                  <p
-                    className="mt-2 min-h-[2.5rem] w-full px-1 text-xs font-semibold leading-tight text-slate-100"
-                    style={multilineEllipsis2Style}
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/8" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent,rgba(10,10,16,0.08)_55%,rgba(10,10,16,0.14))]" />
+                  {isChampion && (
+                    <>
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-0 h-[356px] w-[252px] -translate-x-1/2 opacity-[0.8]"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, rgba(250,204,21,0) 0%, rgba(255,244,194,0.06) 18%, rgba(255,249,226,0.26) 50%, rgba(255,244,194,0.06) 82%, rgba(250,204,21,0) 100%), linear-gradient(180deg, rgba(255,248,214,0.26) 0%, rgba(255,239,170,0.15) 18%, rgba(250,204,21,0.08) 42%, rgba(250,204,21,0.03) 68%, rgba(250,204,21,0) 100%)",
+                          clipPath: "polygon(45% 0, 55% 0, 79% 100%, 21% 100%)",
+                          filter: "blur(5px)",
+                          maskImage:
+                            "linear-gradient(180deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.86) 38%, rgba(0,0,0,0.48) 72%, rgba(0,0,0,0.12) 90%, rgba(0,0,0,0) 100%)",
+                          animation: "settlementChampionSpotlight 3.8s ease-in-out infinite",
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-0 h-[310px] w-[196px] -translate-x-1/2 opacity-[0.42]"
+                        style={{
+                          background:
+                            "linear-gradient(180deg, rgba(255,250,228,0.18) 0%, rgba(255,245,190,0.08) 28%, rgba(250,204,21,0.03) 64%, rgba(250,204,21,0) 100%)",
+                          clipPath: "polygon(46% 0, 54% 0, 72% 100%, 28% 100%)",
+                          filter: "blur(9px)",
+                          maskImage:
+                            "linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.65) 56%, rgba(0,0,0,0.08) 90%, rgba(0,0,0,0) 100%)",
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-5 h-24 w-[68%] -translate-x-1/2 rounded-full border border-amber-200/12 bg-[radial-gradient(circle,rgba(253,224,71,0.08),transparent_66%)] blur-[1px]"
+                        style={{ animation: "settlementChampionHalo 3.2s ease-in-out infinite" }}
+                      />
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-[43%] h-24 w-[58%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.12),rgba(250,204,21,0.03)_52%,transparent_74%)] blur-[12px]"
+                        style={{ animation: "settlementChampionHalo 3.2s ease-in-out infinite 0.4s" }}
+                      />
+                      <div className="pointer-events-none absolute inset-x-[24%] top-0 h-8 rounded-[18px] bg-[radial-gradient(circle_at_50%_0%,rgba(255,245,190,0.2),rgba(255,228,136,0.03)_56%,transparent_80%)] blur-[1.5px]" />
+                      <div
+                        className="pointer-events-none absolute left-[18%] top-20 h-3.5 w-3.5 rounded-full bg-amber-100/60 blur-[1px]"
+                        style={{ animation: "settlementChampionSpark 1.8s ease-out infinite" }}
+                      />
+                      <div
+                        className="pointer-events-none absolute right-[18%] top-24 h-3 w-3 rounded-full bg-amber-50/66 blur-[1px]"
+                        style={{ animation: "settlementChampionSpark 2.1s ease-out infinite 0.45s" }}
+                      />
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-28 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-200/44 blur-[1px]"
+                        style={{ animation: "settlementChampionSpark 1.9s ease-out infinite 0.9s" }}
+                      />
+                      <div
+                        className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-amber-200/22 p-2 shadow-[0_0_38px_rgba(250,204,21,0.5)]"
+                        style={{ animation: "settlementCrownFloat 2.1s ease-in-out infinite" }}
+                      >
+                        <WorkspacePremiumRoundedIcon className="text-[1.15rem] text-amber-50" />
+                      </div>
+                    </>
+                  )}
+
+                  <div
+                    className={`relative z-10 mx-auto inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black tracking-[0.18em] ${rank === 1
+                      ? "mt-10 border-amber-100/18 bg-black/18 text-amber-50"
+                      : rank === 2
+                        ? "mt-3 border-slate-200/16 bg-black/12 text-slate-100"
+                        : "mt-0 border-orange-200/14 bg-black/10 text-orange-100"
+                      }`}
                   >
-                    {renderName(runnerUp, meClientId, multilineEllipsis2Style)}
-                  </p>
-                  <div className="mt-auto flex h-14 w-full items-center justify-center rounded-lg bg-slate-800/80 text-2xl font-black leading-none text-slate-100">
-                    {runnerUp?.score ?? "--"}
+                    {podiumLabel(rank)}
                   </div>
-                </div>
-                <div
-                  className={`relative flex flex-col items-center rounded-xl border border-amber-300/60 bg-amber-500/12 px-2 pb-2 pt-3 text-center shadow-[0_0_0_1px_rgba(252,211,77,0.25),0_18px_46px_-24px_rgba(251,191,36,0.65)] ${
-                    isMobileView ? "min-h-[148px]" : "min-h-[172px]"
-                  } ${me && winner.clientId === me.clientId ? "ring-2 ring-amber-200/70" : ""}`}
-                  style={{
-                    animation: "settlementChampionGlow 2.2s ease-in-out infinite",
-                  }}
-                >
-                  <span
-                    className="pointer-events-none absolute inset-x-0 -top-4 flex justify-center text-[1.35rem]"
-                    aria-hidden
+
+                  <div className={`relative z-10 mt-4 min-h-[4.9rem] px-1 ${nameToneClass}`}>
+                    {renderPodiumName(participant, multilineEllipsis2Style)}
+                  </div>
+
+                  <div
+                    className={`mx-auto mt-5 flex w-full max-w-[176px] flex-col items-center justify-center rounded-[24px] px-4 py-5 ${
+                      rank === 1
+                        ? "bg-[linear-gradient(180deg,rgba(11,10,14,0.08),rgba(11,10,14,0.22))] shadow-[inset_0_1px_0_rgba(255,245,190,0.06),0_16px_34px_-28px_rgba(250,204,21,0.14)]"
+                        : rank === 2
+                          ? "bg-[linear-gradient(180deg,rgba(9,12,20,0.14),rgba(9,12,20,0.24))] shadow-[inset_0_1px_0_rgba(226,232,240,0.04)]"
+                          : "bg-[linear-gradient(180deg,rgba(14,10,10,0.12),rgba(14,10,10,0.24))] shadow-[inset_0_1px_0_rgba(249,115,22,0.04)]"
+                      }`}
                   >
+                    <p className="text-[3.25rem] font-black leading-none text-white">
+                      {participant?.score ?? "--"}
+                    </p>
+                    <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-white/78">
+                      {correctCount}/{playedQuestionCount || "--"} 題答對
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                     <span
-                      className="drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]"
-                      style={{
-                        animation: "settlementCrownFloat 1.8s ease-in-out infinite",
-                      }}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${comboTierClass(combo)}`}
                     >
-                      👑
+                      Combo x{combo}
                     </span>
-                  </span>
-                  <p className="text-[10px] tracking-[0.18em] text-amber-200">#1</p>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+
+        <div className="mt-3 rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(251,191,36,0.05),rgba(15,23,42,0.42))] p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.03)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold tracking-[0.18em] text-amber-100/72">
+                個人結算
+              </p>
+              <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
+                <p className="text-[1.6rem] font-black leading-tight text-white">
+                  {me ? `${myRank > 0 ? `第 ${myRank} 名` : "未列入排名"}` : "尚無玩家"}
+                </p>
+                {me && (
                   <p
-                    className="mt-1 min-h-[2.5rem] w-full px-1 text-center text-sm font-black leading-tight text-amber-100"
+                    className="min-w-0 text-base font-semibold text-amber-50/88"
                     style={multilineEllipsis2Style}
                   >
-                    {renderName(winner, meClientId, multilineEllipsis2Style)}
+                    {me.username}
                   </p>
-                  <div className="mt-auto flex h-20 w-full items-center justify-center rounded-lg bg-amber-300/20 text-[2rem] font-black leading-none text-amber-50">
-                    <span>{winner.score}</span>
-                  </div>
-                  {[
-                    { left: "16%", top: "16%", delay: "0ms" },
-                    { left: "82%", top: "20%", delay: "220ms" },
-                    { left: "74%", top: "72%", delay: "420ms" },
-                    { left: "24%", top: "74%", delay: "640ms" },
-                  ].map((spark) => (
-                    <span
-                      key={`${spark.left}-${spark.top}`}
-                      className="pointer-events-none absolute inline-block h-1.5 w-1.5 rounded-full bg-amber-200/95"
-                      style={{
-                        left: spark.left,
-                        top: spark.top,
-                        animation: "settlementChampionSpark 1.8s ease-in-out infinite",
-                        animationDelay: spark.delay,
-                      }}
-                    />
-                  ))}
-                </div>
-                <div
-                  className={`flex flex-col items-center rounded-xl border border-slate-600/70 bg-slate-900/70 p-2 text-center ${
-                    isMobileView ? "min-h-[122px]" : "min-h-[142px]"
-                  }`}
-                >
-                  <p className="text-[10px] tracking-[0.15em] text-slate-300">#3</p>
-                  <p
-                    className="mt-2 min-h-[2.5rem] w-full px-1 text-xs font-semibold leading-tight text-slate-100"
-                    style={multilineEllipsis2Style}
-                  >
-                    {renderName(thirdPlace, meClientId, multilineEllipsis2Style)}
-                  </p>
-                  <div className="mt-auto flex h-12 w-full items-center justify-center rounded-lg bg-slate-800/80 text-xl font-black leading-none text-slate-100">
-                    {thirdPlace?.score ?? "--"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-center">
-                <p className="text-sm font-bold text-amber-100">
-                  冠軍 #1 {winner.username}
-                  {me && winner.clientId === me.clientId ? " (你)" : ""}
-                </p>
-                <p className="mt-1 text-xs text-amber-50/90">
-                  分數 {winner.score} ・ 答對 {winner.correctCount ?? 0}/
-                  {playedQuestionCount} ・ Combo x
-                  {Math.max(winner.maxCombo ?? 0, winner.combo)}
-                </p>
-              </div>
-              {me && (
-                <div className="mt-2 rounded-xl border border-sky-300/35 bg-sky-500/10 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-100">
-                    你的排名
-                  </p>
-                  <p className="mt-1 text-sm font-bold text-sky-50">
-                    第 {myRank}/{Math.max(1, participantsLength)} 名 ・ 分數 {me.score}
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="mt-4 text-sm text-slate-400">目前沒有可顯示的頒獎台資訊</p>
-          )}
-
-          {isMobileView && (
-            <button
-              type="button"
-              className="mt-3 inline-flex items-center rounded-full border border-slate-500/70 bg-slate-900/65 px-3 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-300/70"
-              onClick={() => setMobileStatsExpanded((prev) => !prev)}
-            >
-              {mobileStatsExpanded ? "收合統計資訊" : "展開統計資訊"}
-            </button>
-          )}
-
-          {(!isMobileView || mobileStatsExpanded) && (
-            <div ref={mobileStatsRef}>
-              <div className="mt-2 rounded-xl border border-slate-700/70 bg-slate-950/50 p-2.5">
-                <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
-                  本局亮點
-                </p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2">
-                    <p className="text-[11px] text-cyan-100/90" title="本局答對率最高的玩家">
-                      最高答對率
-                    </p>
-                    <p className="mt-1 text-2xl font-black leading-none text-cyan-50">
-                      {topAccuracyEntry ? formatPercent(topAccuracyEntry.accuracy) : "--"}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-cyan-100/95">
-                      {topAccuracyEntry
-                        ? `${topAccuracyEntry.participant.username}${
-                            meClientId &&
-                            topAccuracyEntry.participant.clientId === meClientId
-                              ? " (你)"
-                              : ""
-                          }`
-                        : "尚無資料"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-fuchsia-300/35 bg-fuchsia-500/10 px-3 py-2">
-                    <p className="text-[11px] text-fuchsia-100/90" title="本局最高連續答對 Combo">
-                      最高 Combo
-                    </p>
-                    <p className="mt-1 text-2xl font-black leading-none text-fuchsia-50">
-                      {topComboEntry ? `x${topComboEntry.combo}` : "--"}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-fuchsia-100/95">
-                      {topComboEntry
-                        ? `${topComboEntry.participant.username}${
-                            meClientId &&
-                            topComboEntry.participant.clientId === meClientId
-                              ? " (你)"
-                              : ""
-                          }`
-                        : "尚無資料"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                    <p className="text-[11px] text-amber-100/90" title="本局平均答對速度最快的玩家">
-                      最快平均答對
-                    </p>
-                    <p className="mt-1 text-2xl font-black leading-none text-amber-50">
-                      {fastestAverageAnswerEntry
-                        ? formatMs(fastestAverageAnswerEntry.ms)
-                        : "--"}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-amber-100/95">
-                      {fastestAverageAnswerEntry
-                        ? `${fastestAverageAnswerEntry.participant.username}${
-                            meClientId &&
-                            fastestAverageAnswerEntry.participant.clientId === meClientId
-                              ? " (你)"
-                              : ""
-                          }`
-                        : "尚無資料"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 border-t border-slate-700/80 pt-3">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 px-3 py-2">
-                    <p className="text-[11px] text-emerald-100/90">你的分數</p>
-                    <p className="mt-1 text-xl font-bold text-emerald-50">
-                      {me ? me.score : "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-sky-300/35 bg-sky-500/10 px-3 py-2">
-                    <p className="text-[11px] text-sky-100/90">你的名次</p>
-                    <p className="mt-1 text-xl font-bold text-sky-50">
-                      {myRank > 0 ? `${myRank}/${Math.max(1, participantsLength)}` : "--"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2">
-                    <p className="text-[11px] text-amber-100/90">你的答對</p>
-                    <p className="mt-1 text-xl font-bold text-amber-50">
-                      {me?.correctCount ?? 0}/{playedQuestionCount}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
-          )}
+            <div className="rounded-full border border-white/5 bg-black/16 px-3 py-1 text-xs font-semibold text-white/76">
+              {me ? `${me.correctCount ?? 0}/${playedQuestionCount} 題答對` : "尚無資料"}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <p className="text-[11px] tracking-[0.18em] text-white/58">排名</p>
+              <p className="mt-3 text-4xl font-black text-white">
+                {myRank > 0 ? `${myRank}/${Math.max(1, participantsLength)}` : "--"}
+              </p>
+            </div>
+            <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <p className="text-[11px] tracking-[0.18em] text-white/58">分數</p>
+              <p className="mt-3 text-4xl font-black text-white">{me?.score ?? 0}</p>
+            </div>
+            <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+              <p className="text-[11px] tracking-[0.18em] text-white/58">COMBO</p>
+              <p className="mt-3 text-4xl font-black text-white">
+                x{me ? Math.max(me.maxCombo ?? 0, me.combo) : 0}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[22px] border border-cyan-300/10 bg-cyan-500/10 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]">
+            <p className="text-[11px] font-semibold text-cyan-100/88">最高準度</p>
+            <p className="mt-3 text-4xl font-black text-cyan-50">
+              {topAccuracyEntry ? formatPercent(topAccuracyEntry.accuracy) : "--"}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-cyan-50/90">
+              {topAccuracyEntry ? statDisplayName(topAccuracyEntry.participant) : "尚無資料"}
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-fuchsia-300/10 bg-fuchsia-500/10 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(217,70,239,0.04)]">
+            <p className="text-[11px] font-semibold text-fuchsia-100/88">最高連擊</p>
+            <p className="mt-3 text-4xl font-black text-fuchsia-50">
+              {topComboEntry ? `x${topComboEntry.combo}` : "--"}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-fuchsia-50/90">
+              {topComboEntry ? statDisplayName(topComboEntry.participant) : "尚無資料"}
+            </p>
+          </div>
+          <div className="rounded-[22px] border border-amber-300/10 bg-amber-500/10 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.04)]">
+            <p className="text-[11px] font-semibold text-amber-100/88">最快平均作答</p>
+            <p className="mt-3 text-4xl font-black text-amber-50">
+              {fastestAverageAnswerEntry ? formatMs(fastestAverageAnswerEntry.ms) : "--"}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-amber-50/90">
+              {fastestAverageAnswerEntry
+                ? statDisplayName(fastestAverageAnswerEntry.participant)
+                : "尚無資料"}
+            </p>
+          </div>
         </div>
       </article>
 
-      <article
-        className={`game-settlement-overview-ranking rounded-2xl border p-4 ${
-          isMobileView
-            ? "border-cyan-300/20 bg-[linear-gradient(175deg,rgba(3,10,28,0.92),rgba(4,16,34,0.86))]"
-            : "border-cyan-300/30 bg-[radial-gradient(circle_at_92%_8%,rgba(56,189,248,0.16),transparent_38%),linear-gradient(175deg,rgba(3,10,28,0.96),rgba(4,16,34,0.9))] shadow-[0_24px_52px_-40px_rgba(56,189,248,0.65)]"
-        }`}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">排行榜</p>
-          {isMobileView && sortedParticipants.length > 3 && (
-            <button
-              type="button"
-              className="rounded-full border border-slate-500/70 bg-slate-900/65 px-2.5 py-1 text-[11px] font-semibold text-slate-100 transition hover:border-slate-300/70"
-              onClick={() => setMobileRankingExpanded((prev) => !prev)}
-            >
-              {mobileRankingExpanded ? "收合" : "展開全部"}
-            </button>
-          )}
+      <article className="rounded-[28px] border border-cyan-300/18 bg-[radial-gradient(circle_at_16%_8%,rgba(34,211,238,0.14),transparent_18%),radial-gradient(circle_at_88%_100%,rgba(14,165,233,0.08),transparent_20%),linear-gradient(180deg,rgba(11,18,31,0.98),rgba(9,13,24,0.95))] p-5 shadow-[0_24px_70px_-52px_rgba(34,211,238,0.44)]">
+        <div className="flex items-start gap-3">
+          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-400/12 text-cyan-100">
+            <EmojiEventsRoundedIcon />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-3xl font-black tracking-tight text-cyan-50">排行榜</h3>
+          </div>
         </div>
-        <div className="game-settlement-overview-ranking-list mt-3 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-          {visibleParticipants.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/55 px-3 py-4 text-sm text-slate-400">
+
+        <div className="mt-4 max-h-[680px] space-y-2 overflow-y-auto pr-1">
+          {sortedParticipants.length === 0 ? (
+            <div className="rounded-[22px] border border-dashed border-slate-700 bg-slate-950/55 px-4 py-5 text-sm text-slate-400">
               目前沒有可顯示的排行榜資料
             </div>
           ) : (
-            visibleParticipants.map((participant) => {
-              const rank =
-                sortedParticipants.findIndex((entry) => entry.clientId === participant.clientId) +
-                1;
-              const isMe = meClientId && participant.clientId === meClientId;
-              const metrics =
-                participantScoreMeta.metricsByClientId[participant.clientId];
-              const title = participantScoreMeta.byClientId[participant.clientId] ?? "參與者";
+            sortedParticipants.map((participant, index) => {
+              const rank = index + 1;
+              const isMe = Boolean(meClientId && participant.clientId === meClientId);
+              const metrics = participantScoreMeta.metricsByClientId[participant.clientId];
+              const title = participantScoreMeta.byClientId[participant.clientId] ?? "尚無稱號";
               const titleTooltip =
-                participantScoreMeta.tooltipByClientId[participant.clientId] ?? "本局表現";
+                participantScoreMeta.tooltipByClientId[participant.clientId] ?? "尚無稱號說明";
+              const combo =
+                metrics?.combo ?? Math.max(participant.maxCombo ?? 0, participant.combo);
+
               return (
                 <div
                   key={participant.clientId}
-                  className={`rounded-xl border px-3 py-2 transition-colors ${
-                    isMe
-                      ? "border-sky-300/60 bg-sky-500/14 shadow-[0_0_0_1px_rgba(56,189,248,0.28)]"
-                      : "border-slate-700/80 bg-slate-950/55"
-                  }`}
+                  className={`rounded-[24px] border px-4 py-3 ${rank === 1
+                    ? "border-amber-300/48 bg-[radial-gradient(circle_at_55%_50%,rgba(250,204,21,0.2),rgba(120,53,15,0.12)_52%,rgba(15,23,42,0.94)_100%)] shadow-[0_16px_40px_-34px_rgba(250,204,21,0.34)]"
+                    : isMe
+                      ? "border-sky-300/55 bg-sky-500/14 shadow-[0_0_0_1px_rgba(56,189,248,0.18)]"
+                      : "border-slate-700/80 bg-slate-950/58"
+                    }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-black ${
-                          isMe
-                            ? "border-sky-200/70 bg-sky-400/20 text-sky-50"
-                            : "border-slate-500/70 bg-slate-800/70 text-slate-200"
-                        }`}
-                      >
-                        {rank}
-                      </span>
-                      <p
-                        className="text-sm font-semibold text-slate-100"
-                        style={multilineEllipsis2Style}
-                      >
-                        {participant.username}
-                        {isMe ? " (你)" : ""}
-                      </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-black ${rank === 1
+                            ? "border-amber-200/60 bg-black/30 text-amber-50"
+                            : "border-slate-500/70 bg-slate-900/72 text-slate-100"
+                            }`}
+                        >
+                          {rank}
+                        </span>
+                        <div className="min-w-0">
+                          <p
+                            className="min-w-0 text-[1.05rem] font-black text-white"
+                            style={multilineEllipsis2Style}
+                          >
+                            {renderParticipantName(
+                              participant,
+                              meClientId,
+                              multilineEllipsis2Style,
+                              true,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-100">
+                        <span className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1">
+                          準度 {formatPercent(metrics?.accuracy ?? 0)}
+                        </span>
+                        <span className="rounded-full border border-sky-300/35 bg-sky-500/12 px-2.5 py-1">
+                          平均 {formatMs(metrics?.avgSpeedMs)}
+                        </span>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 ${comboTierClass(combo)}`}
+                        >
+                          Combo x{combo}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex min-w-[98px] shrink-0 self-center flex-col items-center justify-center gap-2 py-1 text-center">
+
+                    <div className="flex shrink-0 flex-col items-end justify-between gap-3 text-right">
                       <span
-                        className="rounded-full border border-slate-500/70 bg-slate-900/75 px-2 py-0.5 text-[10px] font-semibold leading-none text-slate-200"
+                        className="rounded-full border border-white/12 bg-black/26 px-2.5 py-1 text-[10px] font-semibold text-white/84"
                         title={titleTooltip}
                       >
                         {title}
                       </span>
-                      <p className="text-2xl font-black leading-none text-slate-100 sm:text-[1.7rem]">
+                      <p className="text-[3.2rem] font-black leading-none text-white">
                         {participant.score}
                       </p>
                     </div>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-slate-300">
-                    <span
-                      className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2 py-0.5"
-                      title="答對率"
-                    >
-                      答對率 {formatPercent(metrics?.accuracy ?? 0)}
-                    </span>
-                    <span
-                      className="rounded-full border border-sky-300/35 bg-sky-500/12 px-2 py-0.5"
-                      title="平均答對時間"
-                    >
-                      平均答對 {formatMs(metrics?.avgSpeedMs)}
-                    </span>
-                    <span
-                      className="rounded-full border border-fuchsia-300/35 bg-fuchsia-500/12 px-2 py-0.5"
-                      title="最高連續答對"
-                    >
-                      Combo x
-                      {metrics?.combo ?? Math.max(participant.maxCombo ?? 0, participant.combo)}
-                    </span>
                   </div>
                 </div>
               );
             })
           )}
         </div>
-        {isMobileView && !mobileRankingExpanded && sortedParticipants.length > 3 && (
-          <p className="mt-2 text-[11px] text-slate-400">
-            目前先顯示前 3 名，展開後可查看完整排行榜。
-          </p>
-        )}
       </article>
     </section>
   );
 };
 
 export default OverviewSection;
+

@@ -70,6 +70,7 @@ import {
   triggerHapticFeedback,
 } from "./components/gameRoomPage/gameRoomPageUtils";
 import {
+  buildRevealChoicePickMap,
   buildScoreboardRows,
   sortParticipantsByScore,
 } from "./components/gameRoomPage/gameRoomPageDerivations";
@@ -886,6 +887,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => sortParticipantsByScore(participants),
     [participants],
   );
+  const revealChoicePickMap = useMemo(
+    () =>
+      buildRevealChoicePickMap({
+        phase: gameState.phase,
+        answersByClientId: gameState.questionStats?.answersByClientId,
+        participants,
+        meClientId,
+      }),
+    [
+      gameState.phase,
+      gameState.questionStats?.answersByClientId,
+      participants,
+      meClientId,
+    ],
+  );
   const { topTwoSwapState, resetTopTwoSwapState } =
     useTopTwoSwapState(sortedParticipants);
   const { questionRecaps, resetQuestionRecaps } = useGameRoomRecaps({
@@ -1563,12 +1579,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         size="small"
         startIcon={<HowToVoteRoundedIcon />}
         className={`game-room-extend-vote-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs ${playbackExtensionVote?.status === "active"
-            ? "game-room-extend-vote-btn--active"
-            : playbackExtensionVote?.status === "approved"
-              ? "game-room-extend-vote-btn--approved"
-              : playbackExtensionVote?.status === "rejected"
-                ? "game-room-extend-vote-btn--rejected"
-                : ""
+          ? "game-room-extend-vote-btn--active"
+          : playbackExtensionVote?.status === "approved"
+            ? "game-room-extend-vote-btn--approved"
+            : playbackExtensionVote?.status === "rejected"
+              ? "game-room-extend-vote-btn--rejected"
+              : ""
           } ${canOpenPlaybackVotePrompt ? "game-room-extend-vote-btn--prompt" : ""}`}
         disabled={playbackVoteButtonDisabled}
         onClick={handleRequestPlaybackVote}
@@ -1722,7 +1738,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   return (
     <div className="game-room-shell">
-      <div className="game-room-grid grid w-full grid-cols-1 gap-3 pb-20 lg:grid-cols-[400px_1fr] lg:pb-0 xl:grid-cols-[440px_1fr] lg:h-[calc(100vh-140px)] lg:items-stretch">
+      <div className="game-room-grid grid w-full grid-cols-1 gap-3 pb-20 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] lg:pb-0 xl:grid-cols-[minmax(360px,400px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(400px,440px)_minmax(0,1fr)] lg:h-[calc(100vh-140px)] lg:items-stretch">
         <div className="hidden lg:block lg:h-full">
           <GameRoomLeftSidebar
             scoreboardRows={scoreboardRows}
@@ -1844,12 +1860,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             allAnsweredReadyForReveal={allAnsweredReadyForReveal}
             isRevealPendingServerSync={isRevealPendingServerSync}
             isRevealPendingOptimisticSync={isRevealPendingOptimisticSync}
+            revealChoicePickMap={revealChoicePickMap}
           />
           {isMobileGameViewport && (
             <div
               className={`game-room-mobile-action-dock lg:hidden ${mobileAutoOverlayTransition !== "idle"
-                  ? `game-room-mobile-action-dock--${mobileAutoOverlayTransition}`
-                  : ""
+                ? `game-room-mobile-action-dock--${mobileAutoOverlayTransition}`
+                : ""
                 }`}
             >
               <button
@@ -1884,8 +1901,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               </button>
               <div
                 className={`game-room-mobile-action-subdock col-span-2 ${mobileSubdockActionCount <= 1
-                    ? "game-room-mobile-action-subdock--compact"
-                    : ""
+                  ? "game-room-mobile-action-subdock--compact"
+                  : ""
                   }`}
               >
                 {isHostInGame && (
@@ -1908,8 +1925,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <button
                     type="button"
                     className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--compact game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--vote ${playbackExtensionVote?.status === "active" || canOpenPlaybackVotePrompt
-                        ? "game-room-mobile-toggle-chip--active"
-                        : ""
+                      ? "game-room-mobile-toggle-chip--active"
+                      : ""
+                      } ${canOpenPlaybackVotePrompt ? "game-room-mobile-toggle-chip--vote-prompt" : ""
                       }`}
                     onClick={handleRequestPlaybackVote}
                     disabled={playbackVoteButtonDisabled}
@@ -1931,8 +1949,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <button
                   type="button"
                   className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor game-room-mobile-toggle-chip--anchor ${mobileGuessAnchorEnabled
-                      ? "game-room-mobile-toggle-chip--active"
-                      : ""
+                    ? "game-room-mobile-toggle-chip--active"
+                    : ""
                     }`}
                   onClick={() =>
                     setMobileGuessAnchorEnabled((current) => !current)
@@ -1950,8 +1968,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <button
                   type="button"
                   className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
-                      ? "game-room-mobile-toggle-chip--active"
-                      : ""
+                    ? "game-room-mobile-toggle-chip--active"
+                    : ""
                     }`}
                   onClick={() =>
                     setMobileRevealAutoOverlayEnabled((current) => !current)
@@ -1991,8 +2009,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             )}
             <SwipeableDrawer
               className={`game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden ${mobileAutoOverlayTransition !== "idle"
-                  ? `game-room-mobile-drawer-root--${mobileAutoOverlayTransition}`
-                  : ""
+                ? `game-room-mobile-drawer-root--${mobileAutoOverlayTransition}`
+                : ""
                 }`}
               anchor="bottom"
               open={mobileScoreboardOpen}
@@ -2029,8 +2047,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
                 <div className="game-room-mobile-scoreboard-headline">
                   <div className="game-room-mobile-scoreboard-title-group">
-                    <span className="game-room-mobile-scoreboard-kicker">排行榜</span>
-                    <span className="game-room-mobile-scoreboard-title">分數榜</span>
+                    <span className="game-room-mobile-scoreboard-title">排行榜</span>
                   </div>
                   <div className="game-room-mobile-scoreboard-actions">
                     <span className="game-room-mobile-scoreboard-answered-pill">
@@ -2118,7 +2135,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             className: "game-room-playback-vote-dialog",
           }}
         >
-          <DialogTitle>撱園?剜?巨</DialogTitle>
+          <DialogTitle>延長播放投票</DialogTitle>
           <DialogContent dividers>
             <Stack spacing={1.2}>
               <Typography variant="body2" className="text-slate-200">
@@ -2165,11 +2182,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               className: "game-room-host-manage-dialog",
             }}
           >
-            <DialogTitle>?蹂蜓蝞∠?</DialogTitle>
+            <DialogTitle>房主管理</DialogTitle>
             <DialogContent dividers>{hostManagementPanelContent}</DialogContent>
             <DialogActions>
               <Button onClick={handleCloseHostManagement} variant="outlined" color="inherit">
-                ??
+                關閉
               </Button>
             </DialogActions>
           </Dialog>

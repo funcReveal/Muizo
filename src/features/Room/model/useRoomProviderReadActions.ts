@@ -34,7 +34,7 @@ export const useRoomProviderReadActions = ({
   setStatusText,
 }: UseRoomProviderReadActionsParams) => {
   const withSocketAckTimeout = useCallback(
-    <T,>(
+    <T>(
       label: string,
       executor: (
         resolve: (value: T) => void,
@@ -47,7 +47,9 @@ export const useRoomProviderReadActions = ({
           if (settled) return;
           settled = true;
           reject(
-            new Error(`${label}\u903e\u6642\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66`),
+            new Error(
+              `${label}\u903e\u6642\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66`,
+            ),
           );
         }, READ_ACK_TIMEOUT_MS);
 
@@ -72,13 +74,13 @@ export const useRoomProviderReadActions = ({
 
   const fetchRooms = useCallback(async () => {
     if (!apiUrl) {
-      setStatusText("嚙罵嚙踝蕭嚙稽嚙緩 API 嚙踝蕭m (API_URL)");
+      setStatusText("請先設定 API 網址 (API_URL)");
       return;
     }
     try {
       const { ok, payload } = await apiFetchRooms(apiUrl);
       if (!ok) {
-        throw new Error(payload?.error ?? "嚙盤嚙糊嚙踝蕭嚙緻嚙請塚蕭嚙瘠嚙踝蕭");
+        throw new Error(payload?.error ?? "取得房間列表失敗");
       }
       const next = (payload?.rooms ?? payload) as RoomSummary[];
       setRooms(Array.isArray(next) ? next : []);
@@ -88,7 +90,7 @@ export const useRoomProviderReadActions = ({
           : false;
         setInviteNotFound(!found);
         if (!found) {
-          setStatusText("嚙踝蕭嚙豌房塚蕭嚙踝蕭嚙編嚙箭嚙諄已嚙踝蕭嚙踝蕭");
+          setStatusText("找不到邀請房間，可能已關閉或邀請失效。");
         }
       }
     } catch (error) {
@@ -107,7 +109,7 @@ export const useRoomProviderReadActions = ({
   const fetchRoomById = useCallback(
     async (roomId: string) => {
       if (!apiUrl) {
-        setStatusText("嚙罵嚙踝蕭嚙稽嚙緩 API 嚙踝蕭m (API_URL)");
+        setStatusText("請先設定 API 網址 (API_URL)");
         return null;
       }
       try {
@@ -128,7 +130,7 @@ export const useRoomProviderReadActions = ({
     async (options?: { limit?: number; beforeEndedAt?: number | null }) => {
       const socket = getSocket();
       if (!socket || !currentRoom) {
-        throw new Error("嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭");
+        throw new Error("尚未加入房間");
       }
       return await withSocketAckTimeout<{
         items: RoomSettlementHistorySummary[];
@@ -148,11 +150,11 @@ export const useRoomProviderReadActions = ({
             }>,
           ) => {
             if (!ack) {
-              reject(new Error("嚙踝蕭嚙皚嚙踝蕭埲嚙踝蕭v嚙踝蕭嚙踝蕭"));
+              reject(new Error("讀取房間歷史失敗"));
               return;
             }
             if (!ack.ok) {
-              reject(new Error(ack.error || "嚙踝蕭嚙皚嚙踝蕭埲嚙踝蕭v嚙踝蕭嚙踝蕭"));
+              reject(new Error(ack.error || "讀取房間歷史失敗"));
               return;
             }
             resolve(ack.data);
@@ -167,30 +169,31 @@ export const useRoomProviderReadActions = ({
     async (matchId: string) => {
       const socket = getSocket();
       if (!socket || !currentRoom) {
-        throw new Error("嚙罵嚙踝蕭嚙稼嚙皚嚙踝蕭嚙請塚蕭");
+        throw new Error("尚未加入房間");
       }
       return await withSocketAckTimeout<RoomSettlementSnapshot>(
         "\u8b80\u53d6\u5c0d\u6230\u56de\u653e",
         (resolve, reject) => {
           socket.emit(
-          "getSettlementReplay",
-          {
-            roomId: currentRoom.id,
-            matchId,
-          },
-          (ack: Ack<RoomSettlementSnapshot>) => {
-            if (!ack) {
-              reject(new Error("嚙踝蕭嚙皚嚙踝蕭啈^嚙磊嚙踝蕭嚙踝蕭"));
-              return;
-            }
-            if (!ack.ok) {
-              reject(new Error(ack.error || "嚙踝蕭嚙皚嚙踝蕭啈^嚙磊嚙踝蕭嚙踝蕭"));
-              return;
-            }
-            resolve(ack.data);
-          },
-        );
-      });
+            "getSettlementReplay",
+            {
+              roomId: currentRoom.id,
+              matchId,
+            },
+            (ack: Ack<RoomSettlementSnapshot>) => {
+              if (!ack) {
+                reject(new Error("讀取對戰回放失敗"));
+                return;
+              }
+              if (!ack.ok) {
+                reject(new Error(ack.error || "讀取對戰回放失敗"));
+                return;
+              }
+              resolve(ack.data);
+            },
+          );
+        },
+      );
     },
     [currentRoom, getSocket, withSocketAckTimeout],
   );

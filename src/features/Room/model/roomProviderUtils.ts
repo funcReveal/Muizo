@@ -64,7 +64,9 @@ export const mapCollectionItemsToPlaylist = (
       title: rawTitle,
       answerText,
       url: resolvedLink.href ?? "",
-      thumbnail: videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : undefined,
+      thumbnail: videoId
+        ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+        : undefined,
       uploader: item.channel_title ?? undefined,
       duration: durationValue,
       startSec,
@@ -160,7 +162,10 @@ export const formatAckError = (prefix: string, error?: string) => {
   return `${safePrefix}：${detail}`;
 };
 
-export const normalizeQuestionCount = (value: number | undefined, fallback: number) => {
+export const normalizeQuestionCount = (
+  value: number | undefined,
+  fallback: number,
+) => {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return fallback;
   }
@@ -282,7 +287,10 @@ export const buildUploadPlaylistItems = (
       useTrackClip && collectionHasExplicitEndSec && collectionClipEndSec
         ? collectionClipEndSec
         : fallbackEndSec;
-    const endSec = Math.max(startSec + 1, useTrackClip ? itemEndSec : fallbackEndSec);
+    const endSec = Math.max(
+      startSec + 1,
+      useTrackClip ? itemEndSec : fallbackEndSec,
+    );
     return {
       ...item,
       startSec,
