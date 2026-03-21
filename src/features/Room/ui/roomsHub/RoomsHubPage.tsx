@@ -43,10 +43,8 @@ import {
 import { usePublicCollectionsSearchUi } from "./hooks/usePublicCollectionsSearchUi";
 import { useSharedCollectionEntry } from "./hooks/useSharedCollectionEntry";
 import {
-  buildCreatePresetCards,
   buildCreateSettingsCards,
   buildSelectedCreateSourceSummary,
-  buildSelectedSourceSummary,
   formatDurationLabel,
   normalizeRoomCodeInput,
   formatRoomCodeDisplay,
@@ -191,6 +189,7 @@ const RoomsHubPage: React.FC = () => {
     collectionsHasMore,
     collectionsError,
     collectionItemsError,
+    collectionItemsLoading,
     collectionScope,
     publicCollectionsSort,
     setPublicCollectionsSort,
@@ -548,6 +547,7 @@ const RoomsHubPage: React.FC = () => {
     setCreateLibraryTab,
     setCreateLeftTab,
     setRoomCreateSourceMode,
+    updateAllowCollectionClipTiming,
     setSelectedCreateYoutubeId,
     setSelectedCreateCollectionId,
     setSharedCollectionMeta,
@@ -680,41 +680,6 @@ const RoomsHubPage: React.FC = () => {
       ? `https://i.ytimg.com/vi/${selectedCollection.cover_source_id}/hqdefault.jpg`
       : "") ||
     (selectedSharedCollection ? playlistItems[0]?.thumbnail || "" : "");
-  const selectedSourceSummary = useMemo(
-    () =>
-      buildSelectedSourceSummary({
-        isCreateSourceReady,
-        roomCreateSourceMode,
-        lastFetchedPlaylistTitle,
-        playlistItemsLength: playlistItems.length,
-        playlistPreviewThumbnail: playlistPreviewItems[0]?.thumbnail || "",
-        selectedYoutubePlaylist,
-        selectedCollection,
-        selectedSharedCollection,
-        selectedCollectionThumb,
-      }),
-    [
-      isCreateSourceReady,
-      lastFetchedPlaylistTitle,
-      playlistItems.length,
-      playlistPreviewItems,
-      roomCreateSourceMode,
-      selectedCollection,
-      selectedSharedCollection,
-      selectedCollectionThumb,
-      selectedYoutubePlaylist,
-    ],
-  );
-  const createSourceShowsImportIssues =
-    roomCreateSourceMode === "link" || roomCreateSourceMode === "youtube";
-  const createSourceHasImportIssues =
-    createSourceShowsImportIssues &&
-    (playlistIssueSummary.removed.length > 0 ||
-      playlistIssueSummary.privateRestricted.length > 0 ||
-      playlistIssueSummary.embedBlocked.length > 0 ||
-      playlistIssueSummary.unavailable.length > 0 ||
-      playlistIssueSummary.unknown.length > 0 ||
-      playlistIssueSummary.unknownCount > 0);
   const createRequirementsHintText = !roomNameInput.trim()
     ? "請先輸入房間名稱。"
     : playlistItems.length === 0
@@ -743,33 +708,6 @@ const RoomsHubPage: React.FC = () => {
       startOffsetSec,
     ],
   );
-  const createPresetCards = useMemo(
-    () =>
-      buildCreatePresetCards({
-        questionCount,
-        playDurationSec,
-        revealDurationSec,
-        startOffsetSec,
-        updateQuestionCount,
-        updatePlayDurationSec,
-        updateRevealDurationSec,
-        updateStartOffsetSec,
-      }),
-    [
-      playDurationSec,
-      questionCount,
-      revealDurationSec,
-      startOffsetSec,
-      updatePlayDurationSec,
-      updateQuestionCount,
-      updateRevealDurationSec,
-      updateStartOffsetSec,
-    ],
-  );
-  const activeCreatePreset = useMemo(
-    () => createPresetCards.find((preset) => preset.active) ?? null,
-    [createPresetCards],
-  );
   const selectedCreateSourceSummary = useMemo(
     () =>
       buildSelectedCreateSourceSummary({
@@ -781,8 +719,8 @@ const RoomsHubPage: React.FC = () => {
         selectedYoutubePlaylist,
         selectedCollection,
         selectedSharedCollection,
-        selectedCollectionThumb,
-      }),
+      selectedCollectionThumb,
+    }),
     [
       isCreateSourceReady,
       lastFetchedPlaylistTitle,
@@ -795,6 +733,24 @@ const RoomsHubPage: React.FC = () => {
       selectedYoutubePlaylist,
     ],
   );
+  const supportsCollectionClipTiming =
+    roomCreateSourceMode === "publicCollection" ||
+    roomCreateSourceMode === "privateCollection";
+  useEffect(() => {
+    if (!supportsCollectionClipTiming && allowCollectionClipTiming) {
+      updateAllowCollectionClipTiming(false);
+    }
+  }, [
+    allowCollectionClipTiming,
+    supportsCollectionClipTiming,
+    updateAllowCollectionClipTiming,
+  ]);
+  const isCreateSourceSummaryLoading =
+    createLeftTab === "settings" &&
+    !selectedCreateSourceSummary &&
+    (roomCreateSourceMode === "link" || roomCreateSourceMode === "youtube"
+      ? playlistLoading
+      : collectionItemsLoading);
   const createLibraryColumns = isLibraryGridWide ? 2 : 1;
   const youtubeListRowHeight = 80;
   const youtubeListHeight = Math.min(
@@ -937,6 +893,7 @@ const RoomsHubPage: React.FC = () => {
     collectionId: string,
     scope: "public" | "owner",
   ) => {
+    updateAllowCollectionClipTiming(true);
     setRoomCreateSourceMode(
       scope === "public" ? "publicCollection" : "privateCollection",
     );
@@ -1281,31 +1238,23 @@ const RoomsHubPage: React.FC = () => {
               className="mt-4 animate-[guide-panel-enter_220ms_ease-out]"
             >
               {guideMode === "create" ? (
-                <div className="rounded-2xl border border-[var(--mc-border)] p-3 sm:p-4">
+                <div className="rounded-2xl sm:border sm:border-[var(--mc-border)] sm:p-4">
                   <LibrarySourcePanel
                     createLeftTab={createLeftTab}
                     createLibraryTab={createLibraryTab}
                     canUseGoogleLibraries={canUseGoogleLibraries}
                     setCreateLibraryTab={setCreateLibraryTab}
                     handleBackToCreateLibrary={handleBackToCreateLibrary}
-                    selectedSourceSummary={selectedSourceSummary}
-                    createSourceHasImportIssues={createSourceHasImportIssues}
-                    playlistIssueSummary={playlistIssueSummary}
-                    setCreateLeftTab={setCreateLeftTab}
                   >
-                    <div className="rounded-2xl bg-[var(--mc-surface)]/25 p-4 lg:border-l lg:border-[var(--mc-border)]/45 lg:rounded-none lg:pl-5">
+                    <div className="rounded-2xl bg-[var(--mc-surface)]/25 lg:border-l lg:border-[var(--mc-border)]/45 lg:rounded-none lg:pl-5">
                       {createLeftTab === "settings" ? (
                         <RoomSetupPanel
-                          playlistItemsLength={playlistItems.length}
-                          activeCreatePreset={activeCreatePreset}
-                          createPresetCards={createPresetCards}
                           roomNameInput={roomNameInput}
                           setRoomNameInput={setRoomNameInput}
                           roomVisibilityInput={roomVisibilityInput}
                           setRoomVisibilityInput={setRoomVisibilityInput}
                           roomPasswordInput={roomPasswordInput}
                           setRoomPasswordInput={setRoomPasswordInput}
-                          roomMaxPlayersInput={roomMaxPlayersInput}
                           setRoomMaxPlayersInput={setRoomMaxPlayersInput}
                           parsedMaxPlayers={parsedMaxPlayers}
                           questionCount={questionCount}
@@ -1322,10 +1271,13 @@ const RoomsHubPage: React.FC = () => {
                           updateAllowCollectionClipTiming={
                             updateAllowCollectionClipTiming
                           }
+                          supportsCollectionClipTiming={
+                            supportsCollectionClipTiming
+                          }
                           selectedCreateSourceSummary={
                             selectedCreateSourceSummary
                           }
-                          roomCreateSourceMode={roomCreateSourceMode}
+                          isSourceSummaryLoading={isCreateSourceSummaryLoading}
                           createSettingsCards={createSettingsCards}
                           createRequirementsHintText={
                             createRequirementsHintText

@@ -11,6 +11,7 @@ type UseSharedCollectionEntryArgs = {
   setCreateLibraryTab: (value: "public" | "personal" | "youtube" | "link") => void;
   setCreateLeftTab: (value: "library" | "settings") => void;
   setRoomCreateSourceMode: (value: "publicCollection" | "privateCollection" | "youtube" | "link") => void;
+  updateAllowCollectionClipTiming: (value: boolean) => boolean;
   setSelectedCreateYoutubeId: (value: string | null) => void;
   setSelectedCreateCollectionId: (value: string | null) => void;
   setSharedCollectionMeta: (value: {
@@ -33,6 +34,7 @@ export const useSharedCollectionEntry = ({
   setCreateLibraryTab,
   setCreateLeftTab,
   setRoomCreateSourceMode,
+  updateAllowCollectionClipTiming,
   setSelectedCreateYoutubeId,
   setSelectedCreateCollectionId,
   setSharedCollectionMeta,
@@ -51,6 +53,7 @@ export const useSharedCollectionEntry = ({
     setGuideMode("create");
     setCreateLibraryTab("public");
     setCreateLeftTab("settings");
+    updateAllowCollectionClipTiming(true);
     setRoomCreateSourceMode("publicCollection");
     setSelectedCreateYoutubeId(null);
     setSelectedCreateCollectionId(sharedCollectionId);
@@ -68,6 +71,7 @@ export const useSharedCollectionEntry = ({
     setCreateLibraryTab,
     setGuideMode,
     setRoomCreateSourceMode,
+    updateAllowCollectionClipTiming,
     setSelectedCreateCollectionId,
     setSelectedCreateYoutubeId,
     setSharedCollectionMeta,

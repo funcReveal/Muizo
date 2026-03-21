@@ -204,7 +204,7 @@ export const buildSelectedCreateSourceSummary = ({
     return {
       label: "貼上連結",
       title: lastFetchedPlaylistTitle || "YouTube 播放清單",
-      detail: `共 ${playlistItemsLength} 首歌曲`,
+      detail: `${playlistItemsLength} 題`,
       thumbnail: playlistPreviewThumbnail,
     };
   }
@@ -213,7 +213,7 @@ export const buildSelectedCreateSourceSummary = ({
     return {
       label: "YouTube 播放清單",
       title: selectedYoutubePlaylist?.title || "尚未選擇 YouTube 播放清單",
-      detail: `${playlistItemsLength} 首歌曲`,
+      detail: `${playlistItemsLength} 題`,
       thumbnail:
         selectedYoutubePlaylist?.thumbnail || playlistPreviewThumbnail || "",
     };
@@ -226,7 +226,7 @@ export const buildSelectedCreateSourceSummary = ({
         selectedCollection?.title ||
         selectedSharedCollection?.title ||
         "尚未選擇公開收藏庫",
-      detail: `共 ${playlistItemsLength} 首歌曲`,
+      detail: `${playlistItemsLength} 題`,
       thumbnail: selectedCollectionThumb,
     };
   }
@@ -238,7 +238,7 @@ export const buildSelectedCreateSourceSummary = ({
         selectedCollection?.title ||
         selectedSharedCollection?.title ||
         "尚未選擇個人收藏庫",
-      detail: `共 ${playlistItemsLength} 首歌曲`,
+      detail: `${playlistItemsLength} 題`,
       thumbnail: selectedCollectionThumb,
     };
   }
@@ -267,7 +267,10 @@ export const buildCreateSettingsCards = ({
 }: BuildCreateSettingsCardsArgs): CreateSettingsCard[] => [
   {
     label: "房間型態",
-    value: roomVisibilityInput === "private" ? "私人房" : "公開房",
+    value:
+      roomVisibilityInput === "private"
+        ? "私人房 · 不會顯示在列表，需透過房間代碼進入"
+        : "公開房 · 會顯示在大廳列表",
   },
   {
     label: "玩家上限",

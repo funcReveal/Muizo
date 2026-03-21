@@ -174,6 +174,9 @@ export const usePlaylistImportUi = ({
     setSelectedCreateCollectionId(null);
     setSelectedCreateYoutubeId(null);
     setSharedCollectionMeta(null);
+    setPlaylistUrlDraft("");
+    setPlaylistPreviewError(null);
+    lastAutoPreviewUrlRef.current = "";
     setCreateLeftTab("settings");
   };
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Button, Tooltip } from "@mui/material";
+
+import { Tooltip } from "@mui/material";
 import {
   BookmarkBorderRounded,
   ChevronLeftRounded,
@@ -8,9 +9,6 @@ import {
   PublicOutlined,
   YouTube,
 } from "@mui/icons-material";
-
-import type { PlaylistIssueSummary } from "./PlaylistPreviewRows";
-import type { SourceSummary } from "../../roomsHubViewModels";
 
 type CreateLibraryTab = "public" | "personal" | "youtube" | "link";
 type CreateLeftTab = "library" | "settings";
@@ -21,10 +19,6 @@ type LibrarySourcePanelProps = {
   canUseGoogleLibraries: boolean;
   setCreateLibraryTab: (value: CreateLibraryTab) => void;
   handleBackToCreateLibrary: () => void;
-  selectedSourceSummary: SourceSummary;
-  createSourceHasImportIssues: boolean;
-  playlistIssueSummary: PlaylistIssueSummary;
-  setCreateLeftTab: (value: CreateLeftTab) => void;
   children: ReactNode;
 };
 
@@ -34,16 +28,24 @@ const LibrarySourcePanel = ({
   canUseGoogleLibraries,
   setCreateLibraryTab,
   handleBackToCreateLibrary,
-  selectedSourceSummary,
-  createSourceHasImportIssues,
-  playlistIssueSummary,
-  setCreateLeftTab,
   children,
 }: LibrarySourcePanelProps) => {
   return (
     <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="p-2 sm:p-2">
-        <div className=" flex items-center gap-3">
+      <aside className="pr-2 pb-2 pl-0 pt-2 sm:p-2">
+        <div className="flex items-center gap-1">
+          {createLeftTab === "settings" ? (
+            <Tooltip title="更換題庫來源" placement="top">
+              <button
+                type="button"
+                onClick={handleBackToCreateLibrary}
+                className="inline-flex h-10 w-10 items-center justify-center text-cyan-100 transition hover:text-cyan-200"
+                aria-label="更換題庫來源"
+              >
+                <ChevronLeftRounded sx={{ fontSize: 24 }} />
+              </button>
+            </Tooltip>
+          ) : null}
           <p className="text-lg font-semibold tracking-wider text-[var(--mc-text)]">
             {createLeftTab === "library" ? "題庫來源" : "房間設置"}
           </p>
@@ -77,6 +79,7 @@ const LibrarySourcePanel = ({
               const isActive = createLibraryTab === key;
               const disabled =
                 !canUseGoogleLibraries && key !== "public" && key !== "link";
+
               return (
                 <button
                   key={item.key}
@@ -99,136 +102,17 @@ const LibrarySourcePanel = ({
                       <span className="text-cyan-200/90">{item.icon}</span>
                       <span>{item.label}</span>
                     </span>
-                    {disabled && (
-                      <Tooltip title="登入即可解鎖此功能" placement="top">
+                    {disabled ? (
+                      <Tooltip title="使用此來源前需要先登入 Google" placement="top">
                         <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
                       </Tooltip>
-                    )}
+                    ) : null}
                   </span>
                 </button>
               );
             })}
           </div>
-        ) : (
-          <div className="mt-2 space-y-2">
-            <button
-              type="button"
-              onClick={handleBackToCreateLibrary}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-500/8 px-3 py-1.5 text-xs text-cyan-100 transition hover:border-cyan-300/35 hover:bg-cyan-500/12"
-            >
-              <ChevronLeftRounded sx={{ fontSize: 16 }} />
-              {"更換題庫來源"}
-            </button>
-            {selectedSourceSummary ? (
-              <div className="rounded-xl border border-cyan-300/30 bg-cyan-500/8 p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/90">
-                  {selectedSourceSummary.label}
-                </p>
-                <div className="mt-2 overflow-hidden rounded-lg">
-                  {selectedSourceSummary.thumbnail ? (
-                    <img
-                      src={selectedSourceSummary.thumbnail}
-                      alt={selectedSourceSummary.title}
-                      className="h-28 w-full scale-[1.08] object-cover [object-position:center_35%]"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-28 w-full items-center justify-center text-xs text-[var(--mc-text-muted)]">
-                      {"無縮圖"}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-2 min-w-0">
-                  <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                    {selectedSourceSummary.title}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                    {selectedSourceSummary.detail}
-                  </p>
-                </div>
-                {createSourceHasImportIssues && (
-                  <div className="mt-3 grid gap-2">
-                    <p className="text-[11px] font-semibold text-[var(--mc-text-muted)]">
-                      {"未成功匯入原因"}
-                    </p>
-                    <div className="rounded-md border border-amber-300/35 bg-amber-300/10 px-2 py-1.5">
-                      <p className="text-[11px] font-semibold text-amber-100">
-                        {"已移除："}{playlistIssueSummary.removed.length} {"首"}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-amber-100/90">
-                        {playlistIssueSummary.removed.length > 0
-                          ? playlistIssueSummary.removed
-                              .map((item) => item.title)
-                              .join("、")
-                          : "無"}
-                      </p>
-                    </div>
-                    <div className="rounded-md border border-fuchsia-300/35 bg-fuchsia-300/10 px-2 py-1.5">
-                      <p className="text-[11px] font-semibold text-fuchsia-100">
-                        {"隱私限制："}{playlistIssueSummary.privateRestricted.length} {"首"}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-fuchsia-100/90">
-                        {playlistIssueSummary.privateRestricted.length > 0
-                          ? playlistIssueSummary.privateRestricted
-                              .map((item) => item.title)
-                              .join("、")
-                          : "無"}
-                      </p>
-                    </div>
-                    <div className="rounded-md border border-rose-300/35 bg-rose-300/10 px-2 py-1.5">
-                      <p className="text-[11px] font-semibold text-rose-100">
-                        {"嵌入限制："}{playlistIssueSummary.embedBlocked.length} {"首"}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-rose-100/90">
-                        {playlistIssueSummary.embedBlocked.length > 0
-                          ? playlistIssueSummary.embedBlocked
-                              .map((item) => item.title)
-                              .join("、")
-                          : "無"}
-                      </p>
-                    </div>
-                    <div className="rounded-md border border-red-300/35 bg-red-300/10 px-2 py-1.5">
-                      <p className="text-[11px] font-semibold text-red-100">
-                        {"其他不可用："}
-                        {playlistIssueSummary.unavailable.length +
-                          playlistIssueSummary.unknown.length +
-                          playlistIssueSummary.unknownCount}{" "}
-                        {"首"}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-red-100/90">
-                        {playlistIssueSummary.unavailable.length > 0 ||
-                        playlistIssueSummary.unknown.length > 0
-                          ? [
-                              ...playlistIssueSummary.unavailable.map(
-                                (item) => item.title,
-                              ),
-                              ...playlistIssueSummary.unknown.map(
-                                (item) => item.title,
-                              ),
-                            ].join("、")
-                          : playlistIssueSummary.unknownCount > 0
-                            ? `共 ${playlistIssueSummary.unknownCount} 首（後端未提供明細）`
-                            : "無"}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => setCreateLeftTab("library")}
-                  className="mt-2"
-                >
-                  {"重新選擇題庫"}
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-cyan-300/30 bg-cyan-500/5 p-3 text-xs text-cyan-100/90">
-                {"先在上方選擇題庫來源，載入歌曲後即可切換到房間設置。"}
-              </div>
-            )}
-          </div>
-        )}
+        ) : null}
       </aside>
 
       {children}
