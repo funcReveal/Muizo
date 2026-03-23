@@ -4,9 +4,6 @@ import {
   Badge,
   Box,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
   Dialog,
   DialogActions,
   DialogContent,
@@ -1684,9 +1681,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   );
 
   return (
-    <Card
-      variant="outlined"
-      className="w-full lg:w-4/5 bg-slate-900/70 border-slate-700 text-slate-50 room-lobby-card"
+    <Box
+      className="w-full lg:w-4/5 text-slate-50 room-lobby-shell"
       onPointerOverCapture={handleLobbyPointerEnter}
       onPointerDownCapture={handleLobbyPointerDown}
       sx={{
@@ -1695,11 +1691,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         maxHeight: "none",
         display: "flex",
         flexDirection: "column",
+        width: "100%",
+        maxWidth: "1460px",
+        marginInline: "auto",
       }}
     >
-      <CardHeader
-        className="room-lobby-card-header"
-        title={
+      <div className="room-lobby-card-header room-lobby-page-header">
+        <div className="MuiCardHeader-content">
           <Stack spacing={1.25} className="room-lobby-header-stack">
             <div className="room-lobby-header-identity">
               <div className="room-lobby-header-copy">
@@ -1735,9 +1733,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               </div>
             </div>
           </Stack>
-        }
-        action={
-          !isMobileTabletLobbyLayout ? (
+        </div>
+        {!isMobileTabletLobbyLayout ? (
+          <div className="MuiCardHeader-action">
             <div className="room-lobby-toolbar" role="toolbar" aria-label="房間操作">
               <div
                 className={`room-lobby-toolbar-shell ${isSoloLeaveToolbar ? "room-lobby-toolbar-shell--solo-leave" : ""
@@ -1842,11 +1840,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 </div>
               </div>
             </div>
-          ) : null
-        }
-      />
-      <CardContent
-        className={`room-lobby-content ${isMobileTabletLobbyLayout ? "room-lobby-content--mobile-redesign" : ""
+          </div>
+        ) : null}
+      </div>
+      <Box
+        className={`room-lobby-content room-lobby-content--shell-less ${isMobileTabletLobbyLayout ? "room-lobby-content--mobile-redesign" : ""
           }`}
         sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}
       >
@@ -2096,7 +2094,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             </div>
           </>
         )}
-      </CardContent>
+      </Box>
       <RoomLobbySettingsDialog
         open={settingsOpen}
         settingsDisabled={settingsDisabled}
@@ -2238,7 +2236,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-    </Card>
+    </Box>
   );
 };
 

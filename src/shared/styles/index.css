@@ -17157,6 +17157,7 @@ body {
 
 /* Room lobby third pass: reduce shell presence and merge desktop into two shared columns. */
 .room-lobby-card {
+  border: 0 !important;
   border-color: rgba(148, 163, 184, 0.035) !important;
   background:
     radial-gradient(
@@ -17171,17 +17172,25 @@ body {
     ),
     linear-gradient(180deg, rgba(4, 8, 18, 0.84), rgba(2, 6, 23, 0.76)) !important;
   box-shadow:
-    0 24px 64px -56px rgba(2, 6, 23, 0.82),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    0 42px 88px -72px rgba(2, 6, 23, 0.72),
+    0 18px 36px -34px rgba(8, 15, 28, 0.28);
 }
 
 .room-lobby-card::before {
+  inset: 12px 14px auto;
+  height: 220px;
+  border-radius: 26px;
+  opacity: 0.88;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 18%),
     radial-gradient(
-      360px 160px at 50% -4%,
-      rgba(255, 255, 255, 0.04),
-      transparent 72%
+      420px 180px at 10% 0%,
+      rgba(245, 158, 11, 0.026),
+      transparent 78%
+    ),
+    radial-gradient(
+      420px 220px at 92% 6%,
+      rgba(34, 211, 238, 0.03),
+      transparent 80%
     );
 }
 
@@ -18477,6 +18486,7 @@ body {
 
 /* Room lobby final polish: single hover-label system and rounded shared header/content transition. */
 .room-lobby-card {
+  border: 0 !important;
   border-radius: 34px !important;
   overflow: visible;
 }
@@ -18541,9 +18551,9 @@ body {
 }
 
 .room-lobby-content::before {
-  inset: -3px 0 0;
-  border-radius: 34px 34px 30px 30px;
-  box-shadow: 0 12px 28px -34px rgba(2, 6, 23, 0.36);
+  inset: 1px 6px 0;
+  border-radius: 30px 30px 28px 28px;
+  box-shadow: 0 10px 24px -36px rgba(2, 6, 23, 0.2);
 }
 
 .room-lobby-header-info-band {
@@ -18701,12 +18711,68 @@ body {
 }
 
 .room-lobby-content::before {
-  inset: -1px 0 0;
-  box-shadow: 0 8px 22px -32px rgba(2, 6, 23, 0.24);
+  inset: 1px 6px 0;
+  box-shadow: 0 8px 20px -34px rgba(2, 6, 23, 0.16);
 }
 
 .room-lobby-header-info-band {
   margin-bottom: -2px;
+}
+
+/* Room lobby shell removal: keep panels, remove the page-level frame. */
+.room-lobby-shell {
+  position: relative;
+  gap: 18px;
+}
+
+.room-lobby-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 4px 4px 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.room-lobby-page-header::before,
+.room-lobby-page-header::after,
+.room-lobby-content--shell-less::before {
+  display: none !important;
+}
+
+.room-lobby-page-header .MuiCardHeader-content {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.room-lobby-page-header .MuiCardHeader-action {
+  margin: 0 !important;
+  padding-left: 18px;
+  flex: 0 0 auto;
+}
+
+.room-lobby-content--shell-less {
+  margin-top: 0;
+  padding: 0 !important;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 1024px) {
+  .room-lobby-shell {
+    gap: 14px;
+  }
+
+  .room-lobby-page-header {
+    padding-inline: 0 !important;
+    padding-top: 0 !important;
+  }
 }
 
 .room-lobby-toolbar .room-lobby-toolbar-icon-btn.MuiButton-root {
