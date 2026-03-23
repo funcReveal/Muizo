@@ -7,6 +7,11 @@ import { useRoom } from "../../Room/model/useRoom";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
 import { trackEvent } from "../../../shared/analytics/track";
+import {
+  isAdminRole,
+  MAX_COLLECTION_ITEMS_PER_COLLECTION,
+  MAX_PRIVATE_COLLECTIONS_PER_USER,
+} from "../model/collectionLimits";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -160,6 +165,7 @@ const CollectionsCreatePage = () => {
   });
 
   const ownerId = authUser?.id ?? null;
+  const isAdmin = isAdminRole(authUser?.role);
   const hasPlaylistItems = playlistItems.length > 0;
 
   useEffect(() => {
@@ -295,6 +301,15 @@ const CollectionsCreatePage = () => {
     }
     if (!hasPlaylistItems) {
       setCreateError("請先匯入播放清單");
+      return;
+    }
+    if (
+      !isAdmin &&
+      playlistItems.length > MAX_COLLECTION_ITEMS_PER_COLLECTION
+    ) {
+      setCreateError(
+        `一般使用者每個收藏庫最多只能保留 ${MAX_COLLECTION_ITEMS_PER_COLLECTION} 題`,
+      );
       return;
     }
 
@@ -575,6 +590,11 @@ const CollectionsCreatePage = () => {
                 <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
                   匯入清單後會自動帶入標題，你也可以手動修改
                 </div>
+                {!isAdmin && (
+                  <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                    一般使用者每個收藏庫最多可收錄 {MAX_COLLECTION_ITEMS_PER_COLLECTION} 題。
+                  </div>
+                )}
               </div>
 
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
@@ -606,6 +626,11 @@ const CollectionsCreatePage = () => {
                 <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
                   私人收藏僅自己可見，公開收藏可讓其他玩家瀏覽與使用
                 </div>
+                {!isAdmin && (
+                  <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                    一般使用者最多可建立 {MAX_PRIVATE_COLLECTIONS_PER_USER} 個私人收藏庫。
+                  </div>
+                )}
               </div>
 
               {createError && (

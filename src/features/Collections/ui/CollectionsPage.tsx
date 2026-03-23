@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
 
 import {
   Box,
@@ -12,12 +13,18 @@ import {
   Typography,
 } from "@mui/material";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import CheckRounded from "@mui/icons-material/CheckRounded";
 import LockOutlined from "@mui/icons-material/LockOutlined";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import ShareRounded from "@mui/icons-material/ShareRounded";
 import { useRoom } from "../../Room/model/useRoom";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { collectionsApi } from "../model/collectionsApi";
+import {
+  isAdminRole,
+  MAX_COLLECTIONS_PER_USER,
+  MAX_PRIVATE_COLLECTIONS_PER_USER,
+} from "../model/collectionLimits";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 
 const API_URL =
@@ -109,9 +116,18 @@ const CollectionsPage = () => {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [copiedShareCollectionId, setCopiedShareCollectionId] = useState<
+    string | null
+  >(null);
   const [authResolved, setAuthResolved] = useState(() => !authLoading);
+  const shareFeedbackTimerRef = useRef<number | null>(null);
   const ownerId = authUser?.id ?? null;
+  const isAdmin = isAdminRole(authUser?.role);
+  const privateCollectionsCount = collections.filter(
+    (item) => item.visibility !== "public",
+  ).length;
+  const hasReachedCollectionLimit =
+    !isAdmin && collections.length >= MAX_COLLECTIONS_PER_USER;
   const showSkeleton = loading && collections.length === 0;
 
   useEffect(() => {
@@ -119,6 +135,14 @@ const CollectionsPage = () => {
       setAuthResolved(true);
     }
   }, [authLoading]);
+
+  useEffect(() => {
+    return () => {
+      if (shareFeedbackTimerRef.current !== null) {
+        window.clearTimeout(shareFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!API_URL || !ownerId || !authToken) return;
@@ -238,6 +262,18 @@ const CollectionsPage = () => {
     visibility: "private" | "public",
   ) => {
     if (!API_URL || !authToken) return;
+    const targetCollection = collections.find((item) => item.id === id);
+    if (
+      !isAdmin &&
+      visibility === "private" &&
+      targetCollection?.visibility !== "private" &&
+      privateCollectionsCount >= MAX_PRIVATE_COLLECTIONS_PER_USER
+    ) {
+      setError(
+        `一般使用者最多只能建立 ${MAX_PRIVATE_COLLECTIONS_PER_USER} 個私人收藏庫`,
+      );
+      return;
+    }
     setVisibilityUpdatingId(id);
     try {
       const token = await ensureFreshAuthToken({
@@ -262,11 +298,19 @@ const CollectionsPage = () => {
       return;
     }
     try {
-        setShareNotice(null);
-        const shareUrl = new URL("/rooms", window.location.origin);
-        shareUrl.searchParams.set("sharedCollection", collection.id);
-        await navigator.clipboard.writeText(shareUrl.toString());
-      setShareNotice("公開收藏庫分享連結已複製，可直接預覽題庫並開房。");
+      const shareUrl = new URL("/rooms", window.location.origin);
+      shareUrl.searchParams.set("sharedCollection", collection.id);
+      await navigator.clipboard.writeText(shareUrl.toString());
+      if (shareFeedbackTimerRef.current !== null) {
+        window.clearTimeout(shareFeedbackTimerRef.current);
+      }
+      setCopiedShareCollectionId(collection.id);
+      shareFeedbackTimerRef.current = window.setTimeout(() => {
+        setCopiedShareCollectionId((current) =>
+          current === collection.id ? null : current,
+        );
+        shareFeedbackTimerRef.current = null;
+      }, 1400);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "建立分享連結失敗");
@@ -302,12 +346,28 @@ const CollectionsPage = () => {
   return (
     <Box className="w-full md:w-full lg:w-3/5 mx-auto space-y-4">
       <Box className="flex items-center justify-between gap-3">
-        <Typography
-          variant="h6"
-          className="text-[var(--mc-text)] font-semibold"
-        >
-          {TEXT.title}
-        </Typography>
+        <div className="flex min-w-0 items-center gap-2">
+          <Typography
+            variant="h6"
+            className="text-[var(--mc-text)] font-semibold"
+          >
+            {TEXT.title}
+          </Typography>
+          {!isAdmin && (
+            <div className="flex items-center gap-1 text-sm text-[var(--mc-text-muted)]">
+              <span>{collections.length}</span>
+              <span className="opacity-50">/</span>
+              <span>
+                {MAX_COLLECTIONS_PER_USER}
+              </span>
+              <span className="px-1 opacity-35">·</span>
+              <span>私人</span>
+              <span>{privateCollectionsCount}</span>
+              <span className="opacity-50">/</span>
+              <span>{MAX_PRIVATE_COLLECTIONS_PER_USER}</span>
+            </div>
+          )}
+        </div>
       </Box>
 
       {showSkeleton ? (
@@ -319,12 +379,6 @@ const CollectionsPage = () => {
               {error}
             </Typography>
           )}
-          {shareNotice && (
-            <Typography variant="body2" className="text-cyan-200">
-              {shareNotice}
-            </Typography>
-          )}
-
           <Box className="grid auto-rows-[1fr] gap-3 sm:grid-cols-2">
             <Card
               sx={{
@@ -334,8 +388,13 @@ const CollectionsPage = () => {
               className="h-full min-h-[180px] border-2 border-dashed"
             >
               <CardActionArea
-                onClick={() => navigate("/collections/new")}
+                onClick={() => {
+                  if (!hasReachedCollectionLimit) {
+                    navigate("/collections/new");
+                  }
+                }}
                 className="h-full"
+                disabled={hasReachedCollectionLimit}
               >
                 <CardContent className="flex h-full flex-col items-center justify-center text-center">
                   <Typography variant="h4" className="text-[var(--mc-text)]">
@@ -345,7 +404,9 @@ const CollectionsPage = () => {
                     variant="body2"
                     className="text-[var(--mc-text-muted)]"
                   >
-                    {TEXT.create}
+                    {hasReachedCollectionLimit
+                      ? `已達 ${MAX_COLLECTIONS_PER_USER} 個上限`
+                      : TEXT.create}
                   </Typography>
                 </CardContent>
               </CardActionArea>
@@ -463,7 +524,24 @@ const CollectionsPage = () => {
                                 className="text-white/70 hover:text-white"
                                 aria-label="share"
                               >
-                                <ShareRounded fontSize="small" />
+                                <span className="relative inline-flex h-[18px] w-[18px] items-center justify-center overflow-hidden">
+                                  <ShareRounded
+                                    fontSize="small"
+                                    className={`absolute transition-all duration-200 ${
+                                      copiedShareCollectionId === collection.id
+                                        ? "scale-75 opacity-0"
+                                        : "scale-100 opacity-100"
+                                    }`}
+                                  />
+                                  <CheckRounded
+                                    fontSize="small"
+                                    className={`absolute text-cyan-300 transition-all duration-200 ${
+                                      copiedShareCollectionId === collection.id
+                                        ? "scale-100 opacity-100"
+                                        : "scale-75 opacity-0"
+                                    }`}
+                                  />
+                                </span>
                               </IconButton>
                             </span>
                           </Tooltip>

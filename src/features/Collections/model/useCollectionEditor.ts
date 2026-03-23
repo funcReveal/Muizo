@@ -4,6 +4,12 @@ import type { DbCollection, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { trackEvent } from "../../../shared/analytics/track";
+import {
+  isAdminRole,
+  MAX_COLLECTION_ITEMS_PER_COLLECTION,
+  MAX_COLLECTIONS_PER_USER,
+  MAX_PRIVATE_COLLECTIONS_PER_USER,
+} from "./collectionLimits";
 
 const resolveItemSource = (
   item: EditableItem,
@@ -36,10 +42,14 @@ const resolveItemSource = (
 type UseCollectionEditorParams = {
   authToken: string | null;
   ownerId: string | null;
+  authRole?: string | null;
   authExpired?: boolean;
   collectionTitle: string;
   collectionVisibility: "private" | "public";
   activeCollectionId: string | null;
+  activeCollectionStoredVisibility?: "private" | "public" | null;
+  collectionsCount: number;
+  privateCollectionsCount: number;
   playlistItems: EditableItem[];
   pendingDeleteIds: string[];
   createServerId: () => string;
@@ -65,10 +75,14 @@ type UseCollectionEditorParams = {
 export const useCollectionEditor = ({
   authToken,
   ownerId,
+  authRole,
   authExpired,
   collectionTitle,
   collectionVisibility,
   activeCollectionId,
+  activeCollectionStoredVisibility,
+  collectionsCount,
+  privateCollectionsCount,
   playlistItems,
   pendingDeleteIds,
   createServerId,
@@ -89,6 +103,7 @@ export const useCollectionEditor = ({
   onAuthExpired,
   onSaved,
 }: UseCollectionEditorParams) => {
+  const isAdmin = isAdminRole(authRole);
   const isAuthError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     return message.includes("Unauthorized") || message.includes("401");
@@ -209,6 +224,45 @@ export const useCollectionEditor = ({
         } else {
           setSaveStatus("error");
           setSaveError("title is required");
+        }
+        return;
+      }
+      if (
+        !isAdmin &&
+        !activeCollectionId &&
+        collectionsCount >= MAX_COLLECTIONS_PER_USER
+      ) {
+        const message = `一般使用者最多只能建立 ${MAX_COLLECTIONS_PER_USER} 個收藏庫`;
+        if (mode === "auto") {
+          showAutoSaveNotice("error", message);
+        } else {
+          setSaveStatus("error");
+          setSaveError(message);
+        }
+        return;
+      }
+      if (
+        !isAdmin &&
+        collectionVisibility === "private" &&
+        (!activeCollectionId || activeCollectionStoredVisibility !== "private") &&
+        privateCollectionsCount >= MAX_PRIVATE_COLLECTIONS_PER_USER
+      ) {
+        const message = `一般使用者最多只能建立 ${MAX_PRIVATE_COLLECTIONS_PER_USER} 個私人收藏庫`;
+        if (mode === "auto") {
+          showAutoSaveNotice("error", message);
+        } else {
+          setSaveStatus("error");
+          setSaveError(message);
+        }
+        return;
+      }
+      if (!isAdmin && playlistItems.length > MAX_COLLECTION_ITEMS_PER_COLLECTION) {
+        const message = `一般使用者每個收藏庫最多只能保留 ${MAX_COLLECTION_ITEMS_PER_COLLECTION} 題`;
+        if (mode === "auto") {
+          showAutoSaveNotice("error", message);
+        } else {
+          setSaveStatus("error");
+          setSaveError(message);
         }
         return;
       }
@@ -349,10 +403,14 @@ export const useCollectionEditor = ({
     },
     [
       activeCollectionId,
+      activeCollectionStoredVisibility,
       authExpired,
+      authRole,
       authToken,
       collectionVisibility,
       collectionTitle,
+      collectionsCount,
+      privateCollectionsCount,
       dirtyCounterRef,
       playlistItems,
       refreshAuthToken,

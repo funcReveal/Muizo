@@ -22,6 +22,10 @@ import {
 import { useCollectionEditor } from "../model/useCollectionEditor";
 import { useCollectionLoader } from "../model/useCollectionLoader";
 import { collectionsApi } from "../model/collectionsApi";
+import {
+  isAdminRole,
+  MAX_PRIVATE_COLLECTIONS_PER_USER,
+} from "../model/collectionLimits";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import CollectionPopover from "./components/playlist/CollectionPopover";
 import ClipEditorPanel from "./components/player/ClipEditorPanel";
@@ -139,7 +143,7 @@ const EditPage = () => {
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
-  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
   const [playlistPanelOpen, setPlaylistPanelOpen] = useState(false);
   const [aiBatchModalOpen, setAiBatchModalOpen] = useState(false);
   const [aiProvider, setAiProvider] = useState<AiAssistantProvider>("grok");
@@ -155,6 +159,7 @@ const EditPage = () => {
   const [playlistAnchor, setPlaylistAnchor] = useState<HTMLElement | null>(
     null,
   );
+  const shareFeedbackTimerRef = useRef<number | null>(null);
   const [playlistItems, setPlaylistItems] = useState<EditableItem[]>([]);
   // const [playlistLoading, setPlaylistLoading] = useState(false);
   // const [playlistError, setPlaylistError] = useState<string | null>(null);
@@ -286,6 +291,12 @@ const EditPage = () => {
   };
 
   const ownerId = authUser?.id ?? null;
+  const isAdmin = isAdminRole(authUser?.role);
+  const privateCollectionsCount = collections.filter(
+    (item) => item.visibility !== "public",
+  ).length;
+  const activeCollectionStoredVisibility =
+    collections.find((item) => item.id === activeCollectionId)?.visibility ?? null;
   const resetBaseline = useCallback(() => {
     baselineSnapshotRef.current = buildSnapshot(
       playlistItems,
@@ -325,10 +336,14 @@ const EditPage = () => {
   const { handleSaveCollection } = useCollectionEditor({
     authToken,
     ownerId,
+    authRole: authUser?.role,
     authExpired,
     collectionTitle,
     collectionVisibility,
     activeCollectionId,
+    activeCollectionStoredVisibility,
+    collectionsCount: collections.length,
+    privateCollectionsCount,
     playlistItems,
     pendingDeleteIds,
     createServerId,
@@ -756,6 +771,17 @@ const EditPage = () => {
 
   const applyVisibilityChange = useCallback(
     async (value: "private" | "public") => {
+      if (
+        !isAdmin &&
+        value === "private" &&
+        activeCollectionStoredVisibility !== "private" &&
+        privateCollectionsCount >= MAX_PRIVATE_COLLECTIONS_PER_USER
+      ) {
+        setSaveError(
+          `一般使用者最多只能建立 ${MAX_PRIVATE_COLLECTIONS_PER_USER} 個私人收藏庫`,
+        );
+        return;
+      }
       if (!authToken || !activeCollectionId) {
         setCollectionVisibility(value);
         return;
@@ -791,8 +817,11 @@ const EditPage = () => {
     },
     [
       activeCollectionId,
+      activeCollectionStoredVisibility,
       authToken,
       hasUnsavedChanges,
+      isAdmin,
+      privateCollectionsCount,
       refreshAuthToken,
       resetBaseline,
       setCollections,
@@ -809,11 +838,17 @@ const EditPage = () => {
       return;
     }
     try {
-        setShareNotice(null);
-        const shareUrl = new URL("/rooms", window.location.origin);
-        shareUrl.searchParams.set("sharedCollection", activeCollectionId);
-        await navigator.clipboard.writeText(shareUrl.toString());
-      setShareNotice("公開收藏庫分享連結已複製，可直接預覽題庫並開房。");
+      const shareUrl = new URL("/rooms", window.location.origin);
+      shareUrl.searchParams.set("sharedCollection", activeCollectionId);
+      await navigator.clipboard.writeText(shareUrl.toString());
+      if (shareFeedbackTimerRef.current !== null) {
+        window.clearTimeout(shareFeedbackTimerRef.current);
+      }
+      setShareCopied(true);
+      shareFeedbackTimerRef.current = window.setTimeout(() => {
+        setShareCopied(false);
+        shareFeedbackTimerRef.current = null;
+      }, 1400);
       setSaveError(null);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "建立分享連結失敗");
@@ -824,6 +859,14 @@ const EditPage = () => {
     collectionTitle,
     collectionVisibility,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (shareFeedbackTimerRef.current !== null) {
+        window.clearTimeout(shareFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   const appendItems = useCallback(
     (
@@ -1836,13 +1879,25 @@ const EditPage = () => {
         playlistMenuOpen={playlistPanelOpen}
       />
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {shareNotice && (
-          <p className="text-sm text-cyan-200">{shareNotice}</p>
-        )}
         <Button
           variant="outlined"
           size="small"
-          startIcon={<ShareRounded fontSize="small" />}
+          startIcon={
+            <span className="relative inline-flex h-[18px] w-[18px] items-center justify-center overflow-hidden">
+              <ShareRounded
+                fontSize="small"
+                className={`absolute transition-all duration-200 ${
+                  shareCopied ? "scale-75 opacity-0" : "scale-100 opacity-100"
+                }`}
+              />
+              <CheckCircleOutlineRounded
+                fontSize="small"
+                className={`absolute text-cyan-300 transition-all duration-200 ${
+                  shareCopied ? "scale-100 opacity-100" : "scale-75 opacity-0"
+                }`}
+              />
+            </span>
+          }
           onClick={() => {
             void handleShareCollection();
           }}

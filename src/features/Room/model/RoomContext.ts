@@ -22,6 +22,9 @@ export type AuthUser = {
   provider_user_id?: string;
   display_name?: string | null;
   avatar_url?: string | null;
+  role?: string | null;
+  plan?: string | null;
+  status?: string | null;
 };
 
 export type YoutubePlaylist = {
