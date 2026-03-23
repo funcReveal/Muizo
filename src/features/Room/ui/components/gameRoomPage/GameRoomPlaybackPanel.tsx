@@ -29,6 +29,7 @@ interface GameRoomPlaybackPanelProps {
   showPreStartMask: boolean;
   showLoadingMask: boolean;
   showAudioOnlyMask: boolean;
+  reduceGuessVideoDisplayCost?: boolean;
   showVideo: boolean;
   onShowVideoChange: (show: boolean) => void;
   gameVolume: number;
@@ -83,6 +84,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   showPreStartMask,
   showLoadingMask,
   showAudioOnlyMask,
+  reduceGuessVideoDisplayCost = false,
   showVideo,
   onShowVideoChange,
   gameVolume,
@@ -150,6 +152,11 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       : isMobileView
         ? "h-[182px]"
         : "h-[140px] sm:h-[188px] md:h-[214px] xl:h-[236px]";
+  const iframeWrapClassName = `game-room-media-iframe-wrap ${
+    reduceGuessVideoDisplayCost
+      ? "game-room-media-iframe-wrap--guess-lite"
+      : "game-room-media-iframe-wrap--full"
+  }`;
 
   const revealAnswerNode =
     isMobileView && isRevealPhase && revealAnswerLabel ? (
@@ -245,19 +252,24 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         className={`game-room-media-frame relative w-full overflow-hidden ${mediaFrameHeightClass}`}
       >
         {iframeSrc ? (
-          <iframe
-            src={iframeSrc}
-            className="h-full w-full object-contain"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-            title="Now playing"
-            style={{
-              pointerEvents: "none",
-              opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
-            }}
-            ref={iframeRef}
-            onLoad={onIframeLoad}
-          />
+          <div
+            className={iframeWrapClassName}
+            aria-hidden={shouldHideVideoFrame || !shouldShowVideo}
+          >
+            <iframe
+              src={iframeSrc}
+              className="game-room-media-iframe h-full w-full object-contain"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              title="Now playing"
+              style={{
+                pointerEvents: "none",
+                opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
+              }}
+              ref={iframeRef}
+              onLoad={onIframeLoad}
+            />
+          </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
             目前沒有可播放的影片來源

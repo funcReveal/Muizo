@@ -878,6 +878,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     showGuessMask ||
     shouldHideVideoInGuessPhase;
   const showAudioOnlyMask = !shouldHideVideoFrame && !showVideo;
+  const reduceGuessVideoDisplayCost =
+    isMobileGameViewport &&
+    showGuessMask &&
+    !showPreStartMask &&
+    !isReveal;
   const correctChoiceIndex = currentTrackIndex;
   const sortedParticipants = useMemo(
     () => sortParticipantsByScore(participants),
@@ -1776,6 +1781,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               showPreStartMask={showPreStartMask}
               showLoadingMask={showLoadingMask}
               showAudioOnlyMask={showAudioOnlyMask}
+              reduceGuessVideoDisplayCost={reduceGuessVideoDisplayCost}
               showVideo={showVideo}
               onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}
@@ -1803,6 +1809,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               showPreStartMask={showPreStartMask}
               showLoadingMask={showLoadingMask}
               showAudioOnlyMask={showAudioOnlyMask}
+              reduceGuessVideoDisplayCost={reduceGuessVideoDisplayCost}
               showVideo={showVideo}
               onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}

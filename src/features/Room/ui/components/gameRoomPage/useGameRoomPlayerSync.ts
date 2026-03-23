@@ -41,7 +41,6 @@ const PRESTART_WARMUP_PLAY_MS = 140;
 const PRESTART_FINAL_HOLD_MS = 120;
 const POST_START_DRIFT_TOLERANCE_SEC = 0.35;
 const POST_START_DRIFT_CHECKPOINTS_MS = [320, 700, 1100];
-const MOBILE_SILENT_AUDIO_WINDOW_MS = 1800;
 const ENABLE_STEADY_STATE_WATCHDOG = false;
 
 const useGameRoomPlayerSync = ({
@@ -108,7 +107,6 @@ const useGameRoomPlayerSync = ({
   const prestartWarmupActiveRef = useRef(false);
   const previousServerOffsetRef = useRef(serverOffsetMs);
   const trackPreparedRef = useRef(false);
-  const silentAudioStopTimerRef = useRef<number | null>(null);
 
   const isSyncDebugEnabled = useCallback(() => {
     if (typeof window === "undefined") return false;
@@ -159,13 +157,6 @@ const useGameRoomPlayerSync = ({
     postStartDriftTimersRef.current = [];
   }, []);
 
-  const clearSilentAudioStopTimer = useCallback(() => {
-    if (silentAudioStopTimerRef.current !== null) {
-      window.clearTimeout(silentAudioStopTimerRef.current);
-      silentAudioStopTimerRef.current = null;
-    }
-  }, []);
-
   const markAudioUnlocked = useCallback(() => {
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
@@ -196,14 +187,8 @@ const useGameRoomPlayerSync = ({
       clearPlaybackStartTimer();
       clearPlaybackWarmupTimers();
       clearPostStartDriftTimers();
-      clearSilentAudioStopTimer();
     };
-  }, [
-    clearPlaybackStartTimer,
-    clearPlaybackWarmupTimers,
-    clearPostStartDriftTimers,
-    clearSilentAudioStopTimer,
-  ]);
+  }, [clearPlaybackStartTimer, clearPlaybackWarmupTimers, clearPostStartDriftTimers]);
 
   const postPlayerMessage = useCallback(
     (payload: Record<string, unknown>, logLabel: string) => {
@@ -344,27 +329,9 @@ const useGameRoomPlayerSync = ({
     }
   }, [isEnded, requiresAudioGesture]);
 
-  const stopSilentAudio = useCallback(() => {
-    const audio = silentAudioRef.current;
-    if (!audio) return;
-    try {
-      clearSilentAudioStopTimer();
-      audio.pause();
-      audio.currentTime = 0;
-      updateMediaSession();
-      window.setTimeout(() => {
-        updateMediaSession();
-      }, 120);
-    } catch (err) {
-      console.error("Failed to stop silent audio", err);
-    }
-  }, [clearSilentAudioStopTimer, updateMediaSession]);
-
   const startSilentAudio = useCallback(() => {
-    if (!requiresAudioGesture) return;
     const audio = silentAudioRef.current;
     if (!audio) return;
-    clearSilentAudioStopTimer();
     audio.loop = true;
     audio.preload = "auto";
     audio.muted = false;
@@ -376,19 +343,21 @@ const useGameRoomPlayerSync = ({
         updateMediaSession();
       });
     }
-    silentAudioStopTimerRef.current = window.setTimeout(() => {
-      silentAudioStopTimerRef.current = null;
-      stopSilentAudio();
-    }, MOBILE_SILENT_AUDIO_WINDOW_MS);
     window.setTimeout(() => {
       updateMediaSession();
     }, 300);
-  }, [
-    clearSilentAudioStopTimer,
-    requiresAudioGesture,
-    stopSilentAudio,
-    updateMediaSession,
-  ]);
+  }, [updateMediaSession]);
+
+  const stopSilentAudio = useCallback(() => {
+    const audio = silentAudioRef.current;
+    if (!audio) return;
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+    } catch (err) {
+      console.error("Failed to stop silent audio", err);
+    }
+  }, []);
 
   const clearInitialAudioHoldReleaseTimer = useCallback(() => {
     if (initialAudioHoldReleaseTimerRef.current !== null) {
@@ -819,7 +788,6 @@ const useGameRoomPlayerSync = ({
       clearPlaybackStartTimer();
       clearPlaybackWarmupTimers();
       clearPostStartDriftTimers();
-      clearSilentAudioStopTimer();
       if (resumeResyncTimerRef.current !== null) {
         window.clearTimeout(resumeResyncTimerRef.current);
       }
@@ -831,7 +799,6 @@ const useGameRoomPlayerSync = ({
       clearPlaybackStartTimer,
       clearPlaybackWarmupTimers,
       clearPostStartDriftTimers,
-      clearSilentAudioStopTimer,
       stopSilentAudio,
     ],
   );
@@ -917,8 +884,9 @@ const useGameRoomPlayerSync = ({
 
   useEffect(() => {
     if (isEnded) return;
-    stopSilentAudio();
-  }, [currentTrackIndex, isEnded, phase, startedAt, stopSilentAudio]);
+    if (requiresAudioGesture && !audioUnlockedRef.current) return;
+    startSilentAudio();
+  }, [currentTrackIndex, isEnded, phase, requiresAudioGesture, startedAt, startSilentAudio]);
 
   useEffect(() => {
     applyVolume(gameVolume);

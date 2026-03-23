@@ -3042,6 +3042,33 @@ body {
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.45);
 }
 
+.game-room-media-iframe-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.game-room-media-iframe {
+  display: block;
+}
+
+.game-room-media-iframe-wrap--full {
+  inset: 0;
+}
+
+.game-room-media-iframe-wrap--guess-lite {
+  inset: auto 8px 8px auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  contain: layout paint style size;
+  transform: translateZ(0) scale(0.18);
+  transform-origin: right bottom;
+  opacity: 0.01;
+}
+
 .game-room-danmu-layer {
   position: absolute;
   inset: 0;
@@ -3185,6 +3212,14 @@ body {
     opacity: 0.72;
     box-shadow: none;
     animation-duration: 2.5s;
+  }
+
+  .game-room-media-iframe-wrap--guess-lite {
+    width: 10px;
+    height: 10px;
+    right: 6px;
+    bottom: 6px;
+    transform: translateZ(0) scale(0.14);
   }
 }
 
