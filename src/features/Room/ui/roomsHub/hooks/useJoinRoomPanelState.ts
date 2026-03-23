@@ -45,12 +45,12 @@ export const useJoinRoomPanelState = ({
     useState<RoomSummary | null>(null);
   const [directJoinError, setDirectJoinError] = useState<string | null>(null);
   const [directJoinNeedsPassword, setDirectJoinNeedsPassword] = useState(false);
-  const [joinRoomsView, setJoinRoomsView] = useState<"grid" | "list">("list");
-  const [selectedJoinRoomId, setSelectedJoinRoomId] = useState<string | null>(
-    null,
-  );
+  const [joinRoomsView, setJoinRoomsView] = useState<"grid" | "list">("grid");
   const [joinPasswordFilter, setJoinPasswordFilter] = useState<
     "all" | "no_password" | "password_required"
+  >("all");
+  const [joinStatusFilter, setJoinStatusFilter] = useState<
+    "all" | "waiting" | "playing"
   >("all");
   const [joinSortMode, setJoinSortMode] = useState<"latest" | "players_desc">(
     "latest",
@@ -92,10 +92,10 @@ export const useJoinRoomPanelState = ({
     setDirectJoinNeedsPassword,
     joinRoomsView,
     setJoinRoomsView,
-    selectedJoinRoomId,
-    setSelectedJoinRoomId,
     joinPasswordFilter,
     setJoinPasswordFilter,
+    joinStatusFilter,
+    setJoinStatusFilter,
     joinSortMode,
     setJoinSortMode,
     normalizedDirectRoomCode,

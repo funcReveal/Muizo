@@ -692,7 +692,7 @@ const RoomSetupPanel = ({
                 fullWidth
                 onClick={onCreateRoom}
                 disabled={!canCreateRoom}
-                className="mt-4"
+                className="mt-8"
               >
                 {isCreatingRoom ? "建立房間中..." : "建立房間"}
               </Button>
@@ -859,15 +859,16 @@ const RoomSetupPanel = ({
                 </div>
               )}
             </div>
-            <Button
-              variant="contained"
-              fullWidth
-              onClick={onCreateRoom}
-              disabled={!canCreateRoom}
-              className="mt-5"
-            >
-              {isCreatingRoom ? "建立中..." : "建立房間"}
-            </Button>
+            <div className="mt-3">
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={onCreateRoom}
+                disabled={!canCreateRoom}
+              >
+                {isCreatingRoom ? "建立中..." : "建立房間"}
+              </Button>
+            </div>
             <p className="mt-3 text-center text-xs text-[var(--mc-text-muted)]">
               將建立
               {roomVisibilityInput === "private" ? "私人房" : "公開房"}

@@ -259,16 +259,16 @@ const RoomsHubPage: React.FC = () => {
     setDirectJoinPreviewRoom,
     directJoinError,
     setDirectJoinError,
-    directJoinNeedsPassword,
-    setDirectJoinNeedsPassword,
-    joinRoomsView,
-    setJoinRoomsView,
-    selectedJoinRoomId,
-    setSelectedJoinRoomId,
-    joinPasswordFilter,
-    setJoinPasswordFilter,
-    joinSortMode,
-    setJoinSortMode,
+      directJoinNeedsPassword,
+      setDirectJoinNeedsPassword,
+      joinRoomsView,
+      setJoinRoomsView,
+      joinPasswordFilter,
+      setJoinPasswordFilter,
+      joinStatusFilter,
+      setJoinStatusFilter,
+      joinSortMode,
+      setJoinSortMode,
     normalizedDirectRoomCode,
     directRoomCodeSlots,
     activeDirectRoomCodeIndex,
@@ -380,17 +380,15 @@ const RoomsHubPage: React.FC = () => {
   }, [guideMode, joinEntryTab, normalizedDirectRoomCode]);
 
   const canUseGoogleLibraries = Boolean(authUser);
-  const selectedJoinRoom = useMemo(
-    () => rooms.find((room) => room.id === selectedJoinRoomId) ?? null,
-    [rooms, selectedJoinRoomId],
-  );
-  const filteredJoinRooms = useMemo(() => {
-    const next = [...rooms].filter((room) => {
-      if (joinPasswordFilter === "no_password") return !roomRequiresPin(room);
-      if (joinPasswordFilter === "password_required")
-        return roomRequiresPin(room);
-      return true;
-    });
+    const filteredJoinRooms = useMemo(() => {
+      const next = [...rooms].filter((room) => {
+        if (joinPasswordFilter === "no_password") return !roomRequiresPin(room);
+        if (joinPasswordFilter === "password_required")
+          return roomRequiresPin(room);
+        if (joinStatusFilter === "waiting") return !isRoomCurrentlyPlaying(room);
+        if (joinStatusFilter === "playing") return isRoomCurrentlyPlaying(room);
+        return true;
+      });
     if (joinSortMode === "players_desc") {
       next.sort((a, b) => b.playerCount - a.playerCount);
       return next;
@@ -401,7 +399,7 @@ const RoomsHubPage: React.FC = () => {
       return bTs - aTs;
     });
     return next;
-  }, [joinPasswordFilter, joinSortMode, rooms]);
+  }, [isRoomCurrentlyPlaying, joinPasswordFilter, joinSortMode, joinStatusFilter, rooms]);
   const filteredJoinPlayerTotal = useMemo(
     () =>
       filteredJoinRooms.reduce(
@@ -410,7 +408,6 @@ const RoomsHubPage: React.FC = () => {
       ),
     [filteredJoinRooms],
   );
-  const joinPreviewRoom = selectedJoinRoom;
   const playlistPreviewItems = useMemo(
     () =>
       playlistItems.map((item) => ({
@@ -990,7 +987,6 @@ const RoomsHubPage: React.FC = () => {
     closePasswordDialog();
   };
   const handleJoinRoomEntry = (room: RoomSummary) => {
-    setSelectedJoinRoomId(room.id);
     if (isRoomCurrentlyPlaying(room)) {
       openInProgressJoinDialog(room);
       return;
@@ -1419,23 +1415,22 @@ const RoomsHubPage: React.FC = () => {
                   setDirectRoomIdInput={setDirectRoomIdInput}
                   setDirectJoinPreviewRoom={setDirectJoinPreviewRoom}
                   setDirectJoinError={setDirectJoinError}
-                  setDirectJoinNeedsPassword={setDirectJoinNeedsPassword}
-                  normalizeRoomCodeInput={normalizeRoomCodeInput}
-                  handleDirectJoinById={handleDirectJoinById}
-                  resolvedDirectJoinRoom={resolvedDirectJoinRoom}
-                  directJoinNeedsPassword={directJoinNeedsPassword}
-                  joinPasswordFilter={joinPasswordFilter}
-                  setJoinPasswordFilter={setJoinPasswordFilter}
-                  joinSortMode={joinSortMode}
-                  setJoinSortMode={setJoinSortMode}
-                  joinPreviewRoom={joinPreviewRoom}
-                  filteredJoinRooms={filteredJoinRooms}
-                  filteredJoinPlayerTotal={filteredJoinPlayerTotal}
-                  joinRoomsView={joinRoomsView}
-                  setJoinRoomsView={setJoinRoomsView}
-                  selectedJoinRoomId={selectedJoinRoomId}
-                  setSelectedJoinRoomId={setSelectedJoinRoomId}
-                  handleJoinRoomEntry={handleJoinRoomEntry}
+                    setDirectJoinNeedsPassword={setDirectJoinNeedsPassword}
+                    normalizeRoomCodeInput={normalizeRoomCodeInput}
+                    handleDirectJoinById={handleDirectJoinById}
+                    resolvedDirectJoinRoom={resolvedDirectJoinRoom}
+                    directJoinNeedsPassword={directJoinNeedsPassword}
+                    joinPasswordFilter={joinPasswordFilter}
+                    setJoinPasswordFilter={setJoinPasswordFilter}
+                    joinStatusFilter={joinStatusFilter}
+                    setJoinStatusFilter={setJoinStatusFilter}
+                    joinSortMode={joinSortMode}
+                    setJoinSortMode={setJoinSortMode}
+                    filteredJoinRooms={filteredJoinRooms}
+                    filteredJoinPlayerTotal={filteredJoinPlayerTotal}
+                    joinRoomsView={joinRoomsView}
+                    setJoinRoomsView={setJoinRoomsView}
+                    handleJoinRoomEntry={handleJoinRoomEntry}
                   roomRequiresPin={roomRequiresPin}
                   isRoomCurrentlyPlaying={isRoomCurrentlyPlaying}
                   getRoomStatusLabel={getRoomStatusLabel}

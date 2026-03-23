@@ -59,6 +59,7 @@ const LibrarySourceToolbar = ({
               value={createLibrarySearch}
               onChange={(event) => setCreateLibrarySearch(event.target.value)}
               placeholder="搜尋題庫名稱、封面曲名或描述"
+              autoComplete="off"
               slotProps={{
                 input: {
                   startAdornment: (
