@@ -694,7 +694,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? gameState.startedAt + effectiveGuessDurationMs
       : gameState.revealEndsAt;
   const phaseRemainingMs = Math.max(0, phaseEndsAt - nowMs);
-  const revealCountdownMs = Math.max(0, gameState.revealEndsAt - nowMs);
   const isEnded = gameState.status === "ended";
   const isReveal = gameState.phase === "reveal";
   const showVideo = showVideoOverride ?? gameState.showVideo ?? true;
@@ -841,9 +840,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !isReveal &&
     allAnsweredByLocalSnapshot &&
     !allAnsweredByServer;
-  const displayedPhaseRemainingMs = allAnsweredReadyForReveal
-    ? 0
-    : phaseRemainingMs;
   const canRequestPlaybackExtensionVote =
     isManualPlaybackExtensionMode &&
     gameState.status === "playing" &&
@@ -1085,13 +1081,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase === "guess"
       ? effectiveGuessDurationMs
       : gameState.revealDurationMs;
-  const progressPct =
-    phaseEndsAt === gameState.startedAt || activePhaseDurationMs <= 0
-      ? 0
-      : allAnsweredReadyForReveal
-        ? 100
-        : ((activePhaseDurationMs - phaseRemainingMs) / activePhaseDurationMs) *
-        100;
   const isGuessUrgency =
     gameState.phase === "guess" &&
     !allAnsweredReadyForReveal &&
@@ -1350,7 +1339,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     [meClientId, sortedParticipants],
   );
 
-  const recentMessages = messages.slice(-80);
+  const recentMessages = useMemo(() => messages.slice(-80), [messages]);
   const isUnreadGameChatMessage = useCallback(
     (message: ChatMessage) =>
       !message.userId.startsWith("system:") && message.userId !== meClientId,
@@ -1375,6 +1364,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   const desktopChatScrollRef = useRef<HTMLDivElement | null>(null);
   const mobileChatScrollRef = useRef<HTMLDivElement | null>(null);
+  const handleShowVideoChange = useCallback((show: boolean) => {
+    setShowVideoOverride(show);
+  }, []);
 
   useEffect(() => {
     lastUnreadGameMessageIdRef.current = readRoomChatLastReadMessageId(room.id);
@@ -1785,7 +1777,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               showLoadingMask={showLoadingMask}
               showAudioOnlyMask={showAudioOnlyMask}
               showVideo={showVideo}
-              onShowVideoChange={(show) => setShowVideoOverride(show)}
+              onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
             />
@@ -1812,7 +1804,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               showLoadingMask={showLoadingMask}
               showAudioOnlyMask={showAudioOnlyMask}
               showVideo={showVideo}
-              onShowVideoChange={(show) => setShowVideoOverride(show)}
+              onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
             />
@@ -1822,15 +1814,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             answerPanelRef={answerPanelRef}
             isInitialCountdown={isInitialCountdown}
             countdownTone={countdownTone}
-            startCountdownSec={startCountdownSec}
             isReveal={isReveal}
             revealTone={revealTone}
             isInterTrackWait={isInterTrackWait}
             phaseLabel={phaseLabel}
-            phaseRemainingMs={displayedPhaseRemainingMs}
+            activePhaseDurationMs={activePhaseDurationMs}
+            phaseEndsAt={phaseEndsAt}
             gamePhase={gameState.phase}
-            isGuessUrgency={isGuessUrgency}
-            progressPct={progressPct}
+            startedAt={gameState.startedAt}
             choices={gameState.choices}
             selectedChoice={selectedChoice}
             correctChoiceIndex={correctChoiceIndex}
@@ -1853,7 +1844,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             myHasChangedAnswer={myHasChangedAnswer}
             myFeedback={myFeedback}
             gameStatus={gameState.status}
-            revealCountdownMs={revealCountdownMs}
+            revealEndsAt={gameState.revealEndsAt}
             resolvedAnswerTitle={resolvedAnswerTitle}
             onOpenExitConfirm={openExitConfirm}
             isPendingFeedbackCard={isPendingFeedbackCard}
@@ -1861,6 +1852,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             isRevealPendingServerSync={isRevealPendingServerSync}
             isRevealPendingOptimisticSync={isRevealPendingOptimisticSync}
             revealChoicePickMap={revealChoicePickMap}
+            serverOffsetMs={serverOffsetMs}
           />
           {isMobileGameViewport && (
             <div
@@ -2016,9 +2008,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               open={mobileScoreboardOpen}
               onOpen={handleOpenMobileScoreboard}
               onClose={handleCloseMobileScoreboard}
-              disableSwipeToOpen={false}
+              disableSwipeToOpen
+              disableDiscovery
               allowSwipeInChildren
-              swipeAreaWidth={26}
+              swipeAreaWidth={0}
               keepMounted
               ModalProps={{
                 keepMounted: true,
@@ -2029,19 +2022,27 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 disableScrollLock: true,
               }}
               PaperProps={{
-                className: "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single",
-                style: mobileScoreboardDragDismiss.paperStyle,
+                className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single ${
+                  mobileScoreboardOpen
+                    ? "game-room-mobile-scoreboard-drawer--open"
+                    : "game-room-mobile-scoreboard-drawer--closed"
+                }`,
+                style: {
+                  ...mobileScoreboardDragDismiss.paperStyle,
+                  pointerEvents: mobileScoreboardOpen ? "auto" : "none",
+                  visibility: mobileScoreboardOpen ? "visible" : "hidden",
+                },
               }}
             >
               <div
                 className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard"
                 role="presentation"
                 aria-label="Drag down to collapse scoreboard"
-                {...mobileScoreboardDragDismiss.dragHandleProps}
               >
                 <div
                   className={`game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable game-room-mobile-drawer-handle-wrap--${mobileScoreboardDismissState}`}
                   aria-hidden="true"
+                  {...mobileScoreboardDragDismiss.dragHandleProps}
                 >
                   <span className="game-room-mobile-drawer-handle-bar" />
                 </div>

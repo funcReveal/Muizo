@@ -35,6 +35,29 @@ interface GameRoomPlaybackPanelProps {
   onGameVolumeChange: (volume: number) => void;
 }
 
+const GameRoomDanmuLayer = React.memo(function GameRoomDanmuLayer({
+  danmuItems,
+}: {
+  danmuItems: DanmuItem[];
+}) {
+  return (
+    <div className="game-room-danmu-layer" aria-hidden="true">
+      {danmuItems.map((danmu) => (
+        <div
+          key={danmu.id}
+          className="game-room-danmu-item"
+          style={{
+            top: `${8 + danmu.lane * 14}%`,
+            animationDuration: `${danmu.durationMs}ms`,
+          }}
+        >
+          {danmu.text}
+        </div>
+      ))}
+    </div>
+  );
+});
+
 const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   rootRef,
   isMobileView = false,
@@ -251,28 +274,13 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
           aria-hidden="true"
         />
 
-        {danmuEnabled && (
-          <div className="game-room-danmu-layer" aria-hidden="true">
-            {danmuItems.map((danmu) => (
-              <div
-                key={danmu.id}
-                className="game-room-danmu-item"
-                style={{
-                  top: `${8 + danmu.lane * 14}%`,
-                  animationDuration: `${danmu.durationMs}ms`,
-                }}
-              >
-                {danmu.text}
-              </div>
-            ))}
-          </div>
-        )}
+        {danmuEnabled && <GameRoomDanmuLayer danmuItems={danmuItems} />}
 
         {showGuessMask && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
+          <div className="game-room-playback-mask game-room-playback-mask--guess pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
             <div className="relative h-24 w-24">
-              <div className="absolute inset-0 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-300 border-r-emerald-300 shadow-[0_0_26px_rgba(34,211,238,0.35)]" />
-              <div className="absolute inset-[22%] animate-pulse rounded-full bg-cyan-300/10" />
+              <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-cyan-300 border-r-emerald-300 shadow-[0_0_26px_rgba(34,211,238,0.35)]" />
+              <div className="game-room-mask-spinner-core absolute inset-[22%] rounded-full bg-cyan-300/10" />
             </div>
             <p className="mt-2 text-xs text-slate-300">猜歌中，影片已隱藏</p>
           </div>
@@ -283,9 +291,9 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         )}
 
         {showLoadingMask && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
+          <div className="game-room-playback-mask game-room-playback-mask--loading pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95">
             <div className="relative h-16 w-16">
-              <div className="absolute inset-0 animate-spin rounded-full border-4 border-slate-700 border-t-amber-300 border-r-cyan-300 shadow-[0_0_20px_rgba(250,204,21,0.28)]" />
+              <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-amber-300 border-r-cyan-300 shadow-[0_0_20px_rgba(250,204,21,0.28)]" />
             </div>
             <p className="mt-2 text-[11px] tracking-[0.12em] text-slate-300">影片載入中</p>
           </div>
@@ -332,4 +340,4 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   );
 };
 
-export default GameRoomPlaybackPanel;
+export default React.memo(GameRoomPlaybackPanel);
