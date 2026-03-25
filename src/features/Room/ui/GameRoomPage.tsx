@@ -43,6 +43,10 @@ import {
   DEFAULT_START_OFFSET_SEC,
 } from "../model/roomConstants";
 import {
+  getStoredShowVideoPreference,
+  setStoredShowVideoPreference,
+} from "../model/roomStorage";
+import {
   normalizePlaybackExtensionMode,
   normalizeRoomDisplayText,
 } from "../model/roomProviderUtils";
@@ -225,7 +229,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, []);
   const [nowMs, setNowMs] = useState(() => Date.now() + serverOffsetMs);
   const [showVideoOverride, setShowVideoOverride] = useState<boolean | null>(
-    null,
+    () => getStoredShowVideoPreference(),
   );
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const isMobileGameViewport = useMediaQuery("(max-width: 1023.95px)");
@@ -1371,6 +1375,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const mobileChatScrollRef = useRef<HTMLDivElement | null>(null);
   const handleShowVideoChange = useCallback((show: boolean) => {
     setShowVideoOverride(show);
+    setStoredShowVideoPreference(show);
   }, []);
 
   useEffect(() => {
@@ -1735,7 +1740,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   return (
     <div className="game-room-shell">
-      <div className="game-room-grid grid w-full grid-cols-1 gap-3 pb-20 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] lg:pb-0 xl:grid-cols-[minmax(360px,400px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(400px,440px)_minmax(0,1fr)] lg:h-[calc(100vh-140px)] lg:items-stretch">
+      <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-3 pb-20 lg:px-0 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] lg:pb-0 xl:grid-cols-[minmax(360px,400px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(400px,440px)_minmax(0,1fr)] lg:h-[calc(100vh-60px)] lg:items-stretch">
         <div className="hidden lg:block lg:h-full">
           <GameRoomLeftSidebar
             scoreboardRows={scoreboardRows}
@@ -1786,6 +1791,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
+              videoId={videoId}
             />
           ) : (
             <GameRoomPlaybackPanel
@@ -1814,6 +1820,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               onShowVideoChange={handleShowVideoChange}
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
+              videoId={videoId}
             />
           )}
           <GameRoomAnswerPanel
@@ -1982,6 +1989,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <span className="game-room-mobile-action-meta">
                     {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
                   </span>
+                </button>
+              </div>
+              <div className="game-room-video-mode-seg col-span-2">
+                <button
+                  type="button"
+                  className={`game-room-video-mode-seg-btn${showVideo ? " game-room-video-mode-seg-btn--active" : ""}`}
+                  onClick={() => handleShowVideoChange(true)}
+                >
+                  顯示影片
+                </button>
+                <button
+                  type="button"
+                  className={`game-room-video-mode-seg-btn${!showVideo ? " game-room-video-mode-seg-btn--active" : ""}`}
+                  onClick={() => handleShowVideoChange(false)}
+                >
+                  顯示縮圖
                 </button>
               </div>
               <button

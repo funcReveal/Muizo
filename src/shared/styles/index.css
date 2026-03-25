@@ -2893,28 +2893,27 @@ body {
 .game-room-shell {
   --gr-bg: #070c16;
   --gr-panel: rgba(9, 17, 31, 0.92);
-  --gr-border: rgba(148, 163, 184, 0.22);
-  --gr-border-strong: rgba(56, 189, 248, 0.35);
-  --gr-border-warm: rgba(251, 191, 36, 0.35);
+  --gr-border: rgba(148, 163, 184, 0.06);
+  --gr-border-strong: rgba(56, 189, 248, 0.10);
+  --gr-border-warm: rgba(251, 191, 36, 0.09);
   --gr-text: #e2e8f0;
-  --gr-shadow: 0 20px 60px rgba(2, 6, 23, 0.45);
+  --gr-shadow: 0 8px 24px rgba(2, 6, 23, 0.22);
   width: 100%;
   font-family: "OpenHuninn", "Noto Sans TC", sans-serif;
   color: var(--gr-text);
   background:
     radial-gradient(
-      900px 420px at 10% -10%,
-      rgba(56, 189, 248, 0.18),
-      transparent 60%
+      1100px 520px at 10% -10%,
+      rgba(56, 189, 248, 0.14),
+      transparent 76%
     ),
     radial-gradient(
-      700px 420px at 90% 0%,
-      rgba(16, 185, 129, 0.15),
-      transparent 55%
-    ),
-    linear-gradient(135deg, #05070f, #0b1324 55%, #070c18);
-  border-radius: 26px;
-  padding: 18px;
+      900px 500px at 90% 0%,
+      rgba(16, 185, 129, 0.12),
+      transparent 72%
+    );
+  border-radius: 0;
+  padding: 0;
   position: relative;
   overflow: hidden;
 }
@@ -2923,20 +2922,14 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    repeating-linear-gradient(
-      135deg,
-      rgba(148, 163, 184, 0.08),
-      rgba(148, 163, 184, 0.08) 1px,
-      transparent 1px,
-      transparent 6px
-    ),
-    radial-gradient(
-      480px 260px at 20% 20%,
-      rgba(255, 255, 255, 0.08),
-      transparent 65%
-    );
-  opacity: 0.35;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.05),
+    rgba(148, 163, 184, 0.05) 1px,
+    transparent 1px,
+    transparent 8px
+  );
+  opacity: 0.18;
   pointer-events: none;
 }
 
@@ -2952,44 +2945,25 @@ body {
 }
 
 .game-room-panel {
-  background: var(--gr-panel);
-  border: 1px solid var(--gr-border);
-  border-radius: 20px;
-  box-shadow: var(--gr-shadow);
-  backdrop-filter: blur(12px);
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  box-shadow: none;
+  backdrop-filter: none;
   position: relative;
   overflow: hidden;
 }
 
-.game-room-panel::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  pointer-events: none;
-}
-
 .game-room-panel--accent {
-  border-color: var(--gr-border-strong);
-  box-shadow:
-    0 0 0 1px rgba(56, 189, 248, 0.12),
-    0 20px 60px rgba(2, 6, 23, 0.5);
+  background: rgba(6, 10, 20, 0.12);
 }
 
 .game-room-panel--left {
-  background: linear-gradient(
-    160deg,
-    rgba(15, 23, 42, 0.98),
-    rgba(9, 17, 31, 0.9)
-  );
+  background: rgba(8, 12, 22, 0.14);
 }
 
 .game-room-panel--warm {
-  border-color: var(--gr-border-warm);
-  box-shadow:
-    0 0 0 1px rgba(251, 191, 36, 0.12),
-    0 20px 60px rgba(2, 6, 23, 0.5);
+  background: transparent;
 }
 
 .game-room-title {
@@ -3030,16 +3004,15 @@ body {
 }
 
 .game-room-media-frame {
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  border: none;
   background:
     radial-gradient(
-      300px 200px at 20% 20%,
-      rgba(56, 189, 248, 0.12),
-      transparent 70%
+      400px 260px at 20% 20%,
+      rgba(56, 189, 248, 0.06),
+      transparent 78%
     ),
-    rgba(2, 6, 23, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.45);
+    rgba(2, 6, 23, 0.18);
 }
 
 .game-room-media-iframe-wrap {
@@ -3125,16 +3098,14 @@ body {
 }
 
 .game-room-mask-spinner {
-  box-shadow:
-    0 0 18px rgba(15, 23, 42, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 18px rgba(15, 23, 42, 0.22);
   transform: translateZ(0);
   animation: game-room-mask-rotate 1.8s linear infinite;
   will-change: transform;
 }
 
 .game-room-mask-spinner-core {
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+  box-shadow: none;
   animation: game-room-mask-core-pulse 1.9s ease-in-out infinite;
   will-change: transform, opacity;
 }
@@ -3226,12 +3197,12 @@ body {
 .game-room-score-row {
   position: relative;
   overflow: hidden;
-  border-radius: 14px;
-  padding: 6px 10px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 4px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid transparent;
   color: #e2e8f0;
-  min-height: 36px;
+  min-height: 34px;
   white-space: nowrap;
   will-change: transform, box-shadow;
 }
@@ -3241,19 +3212,12 @@ body {
   pointer-events: none;
   position: absolute;
   inset: 0;
-  opacity: 0.52;
-  background:
-    radial-gradient(
-      120px 28px at -8% 50%,
-      rgba(125, 211, 252, 0.18),
-      transparent 70%
-    ),
-    linear-gradient(
-      110deg,
-      transparent 0%,
-      rgba(148, 163, 184, 0.08) 34%,
-      transparent 65%
-    );
+  opacity: 0.28;
+  background: radial-gradient(
+    100px 24px at -8% 50%,
+    rgba(125, 211, 252, 0.14),
+    transparent 70%
+  );
   transform: translateX(-16%);
   animation: game-room-score-row-energy 3.4s ease-in-out infinite;
 }
@@ -3270,7 +3234,7 @@ body {
 }
 
 .game-room-score-row--revealed {
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+  box-shadow: none;
 }
 
 .game-room-score-row--answered {
@@ -3283,23 +3247,19 @@ body {
   background: rgba(16, 185, 129, 0.2);
   border-color: rgba(16, 185, 129, 0.52);
   color: #ecfdf5;
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.22),
-    0 0 18px rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 28px -6px rgba(16, 185, 129, 0.24);
 }
 
 .game-room-score-row--wrong {
   background: rgba(244, 63, 94, 0.2);
   border-color: rgba(244, 63, 94, 0.52);
   color: #ffe4e6;
-  box-shadow:
-    0 0 0 1px rgba(244, 63, 94, 0.22),
-    0 0 18px rgba(244, 63, 94, 0.16);
+  box-shadow: 0 0 28px -6px rgba(244, 63, 94, 0.24);
 }
 
 .game-room-score-row--me {
-  border-color: rgba(56, 189, 248, 0.55);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.38);
+  box-shadow: none;
 }
 
 .game-room-score-row-you-badge {
@@ -3320,10 +3280,9 @@ body {
 }
 
 .game-room-score-row--placeholder {
-  border-style: dashed;
-  border-color: rgba(148, 163, 184, 0.2);
-  background: rgba(2, 6, 23, 0.3);
-  color: rgba(148, 163, 184, 0.6);
+  border: none;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.45);
 }
 
 .game-room-score-row--placeholder::before {
@@ -3336,8 +3295,8 @@ body {
     cubic-bezier(0.18, 0.82, 0.24, 1) both;
   transform-origin: 50% 50%;
   box-shadow:
-    0 0 0 1px rgba(251, 191, 36, 0.34),
-    0 22px 34px -20px rgba(251, 191, 36, 0.56);
+    0 0 30px -8px rgba(251, 191, 36, 0.42),
+    0 22px 34px -20px rgba(251, 191, 36, 0.44);
 }
 
 .game-room-score-row--top-swap-second {
@@ -3346,8 +3305,8 @@ body {
     cubic-bezier(0.2, 0.78, 0.2, 1) var(--game-room-swap-second-delay, 0ms) both;
   transform-origin: 50% 50%;
   box-shadow:
-    0 0 0 1px rgba(148, 163, 184, 0.3),
-    0 18px 30px -22px rgba(148, 163, 184, 0.46);
+    0 0 26px -10px rgba(148, 163, 184, 0.36),
+    0 18px 30px -22px rgba(148, 163, 184, 0.36);
 }
 
 .game-room-score-row--top-swap-first::after,
@@ -3370,22 +3329,20 @@ body {
   z-index: 6;
   animation-name: game-room-rank-swap-up;
   box-shadow:
-    0 0 0 1px rgba(251, 191, 36, 0.24),
-    0 12px 20px -20px rgba(251, 191, 36, 0.45);
+    0 0 24px -10px rgba(251, 191, 36, 0.32),
+    0 12px 20px -20px rgba(251, 191, 36, 0.36);
 }
 
 .game-room-score-row--rank-swap-down {
   z-index: 5;
   animation-name: game-room-rank-swap-down;
   box-shadow:
-    0 0 0 1px rgba(148, 163, 184, 0.2),
-    0 10px 16px -18px rgba(148, 163, 184, 0.4);
+    0 0 20px -10px rgba(148, 163, 184, 0.24),
+    0 10px 16px -18px rgba(148, 163, 184, 0.32);
 }
 
 .game-room-score-row--rank-swap-focus {
-  box-shadow:
-    0 0 0 1px rgba(56, 189, 248, 0.34),
-    0 0 20px -14px rgba(56, 189, 248, 0.58);
+  box-shadow: 0 0 28px -8px rgba(56, 189, 248, 0.46);
 }
 
 .game-room-score-swap-rail {
@@ -3676,15 +3633,15 @@ body {
 }
 
 .game-room-chat {
-  background: rgba(2, 6, 23, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .game-room-chat-bubble {
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.22);
+  border: none;
+  border-radius: 10px;
 }
 
 .game-room-choice-button.MuiButton-root {
@@ -3695,6 +3652,7 @@ body {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  border: 1px solid transparent;
   transition:
     transform 140ms ease,
     box-shadow 320ms ease,
@@ -3713,7 +3671,7 @@ body {
 }
 
 .game-room-choice-button.MuiButton-root::before {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: none;
 }
 
 .game-room-choice-button.MuiButton-root::after {
@@ -3757,10 +3715,9 @@ body {
     ),
     linear-gradient(180deg, rgba(3, 105, 161, 0.22), rgba(8, 47, 73, 0.24)) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(56, 189, 248, 0.34),
-    inset 0 0 0 2px rgba(14, 165, 233, 0.14),
-    0 0 0 1px rgba(56, 189, 248, 0.2),
-    0 0 18px -12px rgba(56, 189, 248, 0.7) !important;
+    inset 0 0 0 1px rgba(56, 189, 248, 0.20),
+    inset 0 0 0 2px rgba(14, 165, 233, 0.08),
+    0 0 38px -8px rgba(56, 189, 248, 0.48) !important;
 }
 
 .game-room-choice-button--selected-live-active.MuiButton-root {
@@ -4583,7 +4540,7 @@ body {
   --gr-feedback-row: clamp(96px, 13.6vh, 120px);
   display: grid;
   grid-template-rows: minmax(0, 1fr) var(--gr-feedback-row);
-  gap: 10px;
+  gap: 6px;
   flex: 1;
   min-height: 0;
 }
@@ -4603,7 +4560,7 @@ body {
 .game-room-answer-body {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
   overflow: hidden;
 }
@@ -4726,18 +4683,16 @@ body {
 }
 
 .game-room-reveal-card--result {
-  border-color: rgba(56, 189, 248, 0.45);
+  border-color: rgba(56, 189, 248, 0.36);
   background:
     radial-gradient(
       280px 140px at 18% 12%,
-      rgba(56, 189, 248, 0.2),
+      rgba(56, 189, 248, 0.14),
       transparent 72%
     ),
-    linear-gradient(120deg, rgba(3, 105, 161, 0.26), rgba(14, 116, 144, 0.12)),
-    rgba(2, 6, 23, 0.82);
-  box-shadow:
-    0 0 0 1px rgba(56, 189, 248, 0.16),
-    0 16px 30px -20px rgba(2, 132, 199, 0.45);
+    linear-gradient(120deg, rgba(3, 105, 161, 0.16), rgba(14, 116, 144, 0.08)),
+    rgba(2, 6, 23, 0.36);
+  box-shadow: none;
 }
 
 .game-room-reveal-card--result-burst {
@@ -4838,15 +4793,13 @@ body {
 }
 
 .game-room-reveal-card--neutral {
-  border-color: rgba(148, 163, 184, 0.48);
-  background:
-    linear-gradient(120deg, rgba(51, 65, 85, 0.34), rgba(148, 163, 184, 0.1)),
-    rgba(15, 23, 42, 0.72);
+  border-color: transparent;
+  background: transparent;
 }
 
 .game-room-reveal-card--pending {
   box-shadow:
-    0 0 0 1px rgba(148, 163, 184, 0.16),
+    0 0 0 1px rgba(148, 163, 184, 0.08),
     0 0 0 rgba(148, 163, 184, 0);
   animation: game-room-pending-pulse 1.85s ease-in-out infinite;
 }
@@ -4861,11 +4814,9 @@ body {
 .game-room-reveal-card--correct {
   border-color: rgba(74, 222, 128, 0.68);
   background:
-    linear-gradient(120deg, rgba(22, 163, 74, 0.32), rgba(74, 222, 128, 0.16)),
-    rgba(2, 18, 12, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(74, 222, 128, 0.26),
-    0 0 26px rgba(74, 222, 128, 0.2);
+    linear-gradient(120deg, rgba(22, 163, 74, 0.24), rgba(74, 222, 128, 0.10)),
+    rgba(2, 18, 12, 0.40);
+  box-shadow: 0 0 24px -6px rgba(74, 222, 128, 0.18);
 }
 
 .game-room-reveal-card--correct .game-room-feedback-title {
@@ -4875,11 +4826,9 @@ body {
 .game-room-reveal-card--wrong {
   border-color: rgba(248, 113, 113, 0.72);
   background:
-    linear-gradient(120deg, rgba(185, 28, 28, 0.36), rgba(248, 113, 113, 0.18)),
-    rgba(23, 7, 12, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(248, 113, 113, 0.28),
-    0 0 26px rgba(248, 113, 113, 0.2);
+    linear-gradient(120deg, rgba(185, 28, 28, 0.26), rgba(248, 113, 113, 0.12)),
+    rgba(23, 7, 12, 0.40);
+  box-shadow: 0 0 24px -6px rgba(248, 113, 113, 0.18);
 }
 
 .game-room-reveal-card--wrong .game-room-feedback-title {
@@ -4962,9 +4911,7 @@ body {
 
 .game-room-phase-progress--urgent
   .game-room-phase-progress-bar.MuiLinearProgress-root {
-  box-shadow:
-    0 0 0 1px rgba(248, 113, 113, 0.34),
-    0 0 24px rgba(248, 113, 113, 0.34);
+  box-shadow: 0 0 28px -4px rgba(248, 113, 113, 0.40);
 }
 
 .game-room-phase-progress--urgent .MuiLinearProgress-bar {
@@ -4973,11 +4920,11 @@ body {
 
 .game-room-feedback-banner {
   margin-top: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.62);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.10);
+  background: rgba(15, 23, 42, 0.28);
   padding: 10px 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: none;
   animation: game-room-feedback-in 180ms ease-out;
 }
 
@@ -4985,34 +4932,30 @@ body {
   border-color: rgba(56, 189, 248, 0.5);
   background:
     linear-gradient(120deg, rgba(14, 116, 144, 0.32), rgba(2, 132, 199, 0.14)),
-    rgba(2, 6, 23, 0.72);
+    rgba(2, 6, 23, 0.30);
 }
 
 .game-room-feedback-banner--correct {
   border-color: rgba(74, 222, 128, 0.68);
   background:
-    linear-gradient(120deg, rgba(22, 163, 74, 0.32), rgba(74, 222, 128, 0.16)),
-    rgba(2, 18, 12, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(74, 222, 128, 0.26),
-    0 0 26px rgba(74, 222, 128, 0.2);
+    linear-gradient(120deg, rgba(22, 163, 74, 0.22), rgba(74, 222, 128, 0.10)),
+    rgba(2, 18, 12, 0.34);
+  box-shadow: 0 0 24px -6px rgba(74, 222, 128, 0.18);
 }
 
 .game-room-feedback-banner--wrong {
   border-color: rgba(248, 113, 113, 0.72);
   background:
-    linear-gradient(120deg, rgba(185, 28, 28, 0.36), rgba(248, 113, 113, 0.18)),
-    rgba(23, 7, 12, 0.72);
-  box-shadow:
-    0 0 0 1px rgba(248, 113, 113, 0.28),
-    0 0 26px rgba(248, 113, 113, 0.2);
+    linear-gradient(120deg, rgba(185, 28, 28, 0.26), rgba(248, 113, 113, 0.12)),
+    rgba(23, 7, 12, 0.34);
+  box-shadow: 0 0 24px -6px rgba(248, 113, 113, 0.18);
 }
 
 .game-room-feedback-banner--neutral {
-  border-color: rgba(148, 163, 184, 0.48);
+  border-color: rgba(148, 163, 184, 0.16);
   background:
-    linear-gradient(120deg, rgba(51, 65, 85, 0.34), rgba(148, 163, 184, 0.1)),
-    rgba(15, 23, 42, 0.72);
+    linear-gradient(120deg, rgba(51, 65, 85, 0.18), rgba(148, 163, 184, 0.06)),
+    rgba(15, 23, 42, 0.28);
 }
 
 .game-room-feedback-title {
@@ -9450,143 +9393,162 @@ body {
 .game-room-shell {
   --gr-bg: #06070b;
   --gr-panel: rgba(10, 14, 22, 0.92);
-  --gr-border: rgba(148, 163, 184, 0.18);
-  --gr-border-strong: rgba(34, 211, 238, 0.36);
-  --gr-border-warm: rgba(245, 158, 11, 0.34);
+  --gr-border: rgba(148, 163, 184, 0.07);
+  --gr-border-strong: rgba(34, 211, 238, 0.12);
+  --gr-border-warm: rgba(245, 158, 11, 0.10);
   --gr-text: #e8edf5;
-  --gr-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
-  background:
-    radial-gradient(
-      940px 420px at 6% -8%,
-      rgba(245, 158, 11, 0.12),
-      transparent 62%
-    ),
-    radial-gradient(
-      840px 480px at 100% 2%,
-      rgba(34, 211, 238, 0.12),
-      transparent 58%
-    ),
-    linear-gradient(140deg, #04070d, #09111f 54%, #080e17);
-  box-shadow:
-    0 26px 70px -54px rgba(0, 0, 0, 0.9),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --gr-shadow: none;
+  background: transparent;
 }
 
 .game-room-shell::before {
-  opacity: 0.22;
-  background-image:
-    repeating-linear-gradient(
-      135deg,
-      rgba(148, 163, 184, 0.05),
-      rgba(148, 163, 184, 0.05) 1px,
-      transparent 1px,
-      transparent 7px
-    ),
-    radial-gradient(
-      420px 240px at 16% 14%,
-      rgba(255, 255, 255, 0.045),
-      transparent 68%
-    );
+  opacity: 0;
 }
 
 .game-room-panel {
-  background: linear-gradient(
-    180deg,
-    rgba(11, 15, 24, 0.94),
-    rgba(8, 12, 20, 0.9)
-  );
-  border-color: rgba(148, 163, 184, 0.16);
-  box-shadow:
-    0 18px 42px -28px rgba(0, 0, 0, 0.72),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
-}
-
-.game-room-panel::after {
-  border-color: rgba(255, 255, 255, 0.025);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .game-room-panel--accent {
-  box-shadow:
-    0 0 0 1px rgba(34, 211, 238, 0.12),
-    0 18px 42px -28px rgba(8, 47, 73, 0.48);
+  background: transparent;
+  overflow: visible;
 }
 
 .game-room-panel--warm {
-  box-shadow:
-    0 0 0 1px rgba(245, 158, 11, 0.12),
-    0 18px 42px -28px rgba(120, 53, 15, 0.4);
+  background: transparent;
 }
 
 .game-room-panel--left {
-  background:
-    radial-gradient(
-      340px 200px at 84% 12%,
-      rgba(34, 211, 238, 0.08),
-      transparent 70%
-    ),
-    linear-gradient(160deg, rgba(12, 16, 25, 0.98), rgba(9, 13, 21, 0.92));
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(148, 163, 184, 0.07);
+}
+
+@media (min-width: 1024px) {
+  .game-room-panel--left {
+    border-radius: 8px;
+  }
+  .game-room-main-section {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(148, 163, 184, 0.07);
+    border-radius: 8px;
+    /* Fit the bordered box to content — no forced-full-height empty tail */
+    height: auto;
+    align-self: start;
+  }
+  .game-room-main-section > .game-room-panel--accent,
+  .game-room-main-section > .game-room-panel--warm {
+    border-radius: 0;
+  }
+  /* Answer panel: collapse to content height instead of flex-stretching */
+  .game-room-main-section > .game-room-panel--warm {
+    flex: 0 0 auto;
+  }
+}
+
+.game-room-main-section {
+  gap: 0;
+}
+
+.game-room-main-section > .game-room-panel--warm {
+  padding-top: 10px;
+}
+
+/* Collapse forced stretch between options and feedback card */
+.game-room-answer-layout {
+  grid-template-rows: auto auto;
+  align-content: start;
+}
+
+.game-room-answer-body {
+  grid-template-rows: auto auto auto;
+}
+
+.game-room-reveal {
+  height: auto;
+  min-height: auto;
+}
+
+.game-room-reveal-card {
+  height: auto;
+  min-height: 0;
+  padding: 5px 8px;
+}
+
+/* Result card — weaker framing, integrated feel */
+.game-room-reveal-card--result {
+  border-color: rgba(56, 189, 248, 0.16);
+  background: rgba(8, 18, 32, 0.30);
+  box-shadow: none;
 }
 
 .game-room-media-frame {
-  border-color: rgba(148, 163, 184, 0.14);
-  background:
-    radial-gradient(
-      280px 180px at 18% 18%,
-      rgba(245, 158, 11, 0.08),
-      transparent 72%
-    ),
-    radial-gradient(
-      320px 200px at 82% 14%,
-      rgba(34, 211, 238, 0.08),
-      transparent 72%
-    ),
-    rgba(3, 7, 14, 0.86);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.game-room-playback-mask--guess,
+.game-room-playback-mask--loading {
+  background: radial-gradient(
+    ellipse 80% 80% at 50% 50%,
+    rgba(6, 7, 11, 0.96) 42%,
+    rgba(6, 7, 11, 0.88) 70%,
+    rgba(6, 7, 11, 0.72) 100%
+  );
 }
 
 .game-room-chat {
-  background: rgba(5, 9, 16, 0.56);
-  border-color: rgba(148, 163, 184, 0.16);
+  background: transparent;
+  border: none;
 }
 
 .game-room-chat-bubble {
-  background: linear-gradient(
-    180deg,
-    rgba(15, 20, 31, 0.72),
-    rgba(11, 15, 24, 0.76)
-  );
-  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(15, 20, 31, 0.18);
+  border: none;
+}
+
+.game-room-chat-input-field {
+  border: none !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  outline: none !important;
+}
+
+.game-room-chat-input-field:focus {
+  border-bottom-color: rgba(56, 189, 248, 0.36) !important;
 }
 
 .game-room-choice-button.MuiButton-root {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: linear-gradient(
-    180deg,
-    rgba(13, 18, 28, 0.86),
-    rgba(10, 14, 22, 0.9)
-  );
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 .game-room-choice-button.MuiButton-root:hover {
-  border-color: rgba(245, 158, 11, 0.22);
-  background: linear-gradient(
-    180deg,
-    rgba(18, 23, 34, 0.92),
-    rgba(12, 17, 27, 0.94)
-  );
+  background: rgba(34, 211, 238, 0.06);
+  box-shadow: 0 0 30px -8px rgba(34, 211, 238, 0.26);
+}
+
+.game-room-score-row {
+  border-radius: 6px;
+}
+
+.game-room-feedback-banner {
+  border-radius: 8px;
 }
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedInfo {
   border-color: rgba(34, 211, 238, 0.36);
   background: linear-gradient(
     180deg,
-    rgba(8, 145, 178, 0.26),
-    rgba(14, 116, 144, 0.2)
+    rgba(8, 145, 178, 0.18),
+    rgba(14, 116, 144, 0.14)
   ) !important;
   color: #ecfeff !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(34, 211, 238, 0.12),
-    0 12px 26px -18px rgba(14, 165, 233, 0.35);
+  box-shadow: 0 0 20px -10px rgba(14, 165, 233, 0.24);
 }
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedSuccess {
@@ -9599,15 +9561,12 @@ body {
     ),
     radial-gradient(
       220px 140px at 95% 10%,
-      rgba(45, 212, 191, 0.12),
+      rgba(45, 212, 191, 0.10),
       transparent 74%
     ),
-    linear-gradient(180deg, rgba(8, 34, 29, 0.94), rgba(6, 28, 24, 0.96)) !important;
+    linear-gradient(180deg, rgba(8, 34, 29, 0.52), rgba(6, 28, 24, 0.56)) !important;
   color: #ecfdf5 !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px rgba(45, 212, 191, 0.1),
-    0 12px 28px -20px rgba(16, 185, 129, 0.24);
+  box-shadow: 0 0 22px -10px rgba(16, 185, 129, 0.22);
 }
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedError {
@@ -9615,20 +9574,17 @@ body {
   background:
     radial-gradient(
       240px 120px at 12% 14%,
-      rgba(251, 113, 133, 0.16),
+      rgba(251, 113, 133, 0.14),
       transparent 72%
     ),
     radial-gradient(
       220px 130px at 95% 8%,
-      rgba(251, 146, 60, 0.08),
+      rgba(251, 146, 60, 0.06),
       transparent 74%
     ),
-    linear-gradient(180deg, rgba(40, 10, 18, 0.95), rgba(31, 8, 15, 0.97)) !important;
+    linear-gradient(180deg, rgba(40, 10, 18, 0.54), rgba(31, 8, 15, 0.58)) !important;
   color: #fff1f2 !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 0 0 1px rgba(251, 113, 133, 0.12),
-    0 12px 28px -20px rgba(225, 29, 72, 0.26);
+  box-shadow: 0 0 22px -10px rgba(225, 29, 72, 0.22);
 }
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedSuccess
@@ -9645,25 +9601,25 @@ body {
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedSuccess
   .game-room-choice-key {
-  border-color: rgba(110, 231, 183, 0.28);
-  background: rgba(6, 20, 18, 0.72);
+  border-color: rgba(110, 231, 183, 0.22);
+  background: rgba(6, 20, 18, 0.36);
   color: #d1fae5;
 }
 
 .game-room-choice-button.MuiButton-contained.MuiButton-containedError
   .game-room-choice-key {
-  border-color: rgba(251, 113, 133, 0.3);
-  background: rgba(28, 10, 16, 0.76);
+  border-color: rgba(251, 113, 133, 0.24);
+  background: rgba(28, 10, 16, 0.36);
   color: #ffe4e6;
 }
 
 .game-room-choice-button.MuiButton-outlined.MuiButton-outlinedInfo {
-  border-color: rgba(148, 163, 184, 0.22);
+  border-color: rgba(148, 163, 184, 0.10);
   color: #dbe7f7;
   background: linear-gradient(
     180deg,
-    rgba(12, 16, 24, 0.66),
-    rgba(9, 12, 19, 0.74)
+    rgba(12, 16, 24, 0.60),
+    rgba(9, 12, 19, 0.68)
   ) !important;
 }
 
@@ -9676,8 +9632,8 @@ body {
       rgba(74, 222, 128, 0.12),
       transparent 70%
     ),
-    linear-gradient(120deg, rgba(22, 163, 74, 0.24), rgba(74, 222, 128, 0.1)),
-    rgba(4, 20, 13, 0.76);
+    linear-gradient(120deg, rgba(22, 163, 74, 0.18), rgba(74, 222, 128, 0.08)),
+    rgba(4, 20, 13, 0.36);
 }
 
 .game-room-reveal-card--wrong,
@@ -9689,13 +9645,13 @@ body {
       rgba(248, 113, 113, 0.12),
       transparent 70%
     ),
-    linear-gradient(120deg, rgba(220, 38, 38, 0.24), rgba(248, 113, 113, 0.1)),
-    rgba(23, 8, 12, 0.78);
+    linear-gradient(120deg, rgba(220, 38, 38, 0.18), rgba(248, 113, 113, 0.08)),
+    rgba(23, 8, 12, 0.36);
 }
 
 .game-room-phase-progress-bar.MuiLinearProgress-root {
-  background-color: rgba(19, 27, 39, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  background-color: rgba(19, 27, 39, 0.22);
+  box-shadow: none;
 }
 
 .game-room-phase-progress-bar .MuiLinearProgress-bar {
@@ -9707,15 +9663,15 @@ body {
 }
 
 .game-room-reveal-card--result {
-  border-color: rgba(34, 211, 238, 0.42);
+  border-color: rgba(34, 211, 238, 0.34);
   background:
     radial-gradient(
       260px 140px at 18% 14%,
       rgba(34, 211, 238, 0.12),
       transparent 72%
     ),
-    linear-gradient(120deg, rgba(8, 47, 73, 0.22), rgba(14, 116, 144, 0.1)),
-    rgba(5, 10, 18, 0.82);
+    linear-gradient(120deg, rgba(8, 47, 73, 0.16), rgba(14, 116, 144, 0.08)),
+    rgba(5, 10, 18, 0.36);
 }
 
 /* Keep reveal-tone colors from being overridden by the generic result shell */
@@ -9727,8 +9683,8 @@ body {
       rgba(74, 222, 128, 0.16),
       transparent 70%
     ),
-    linear-gradient(120deg, rgba(22, 163, 74, 0.3), rgba(74, 222, 128, 0.12)),
-    rgba(4, 20, 13, 0.8);
+    linear-gradient(120deg, rgba(22, 163, 74, 0.22), rgba(74, 222, 128, 0.10)),
+    rgba(4, 20, 13, 0.40);
 }
 
 .game-room-reveal-card--result.game-room-reveal-card--wrong {
@@ -9739,11 +9695,9 @@ body {
       rgba(251, 113, 133, 0.18),
       transparent 70%
     ),
-    linear-gradient(120deg, rgba(225, 29, 72, 0.3), rgba(248, 113, 113, 0.14)),
-    rgba(28, 7, 14, 0.84);
-  box-shadow:
-    0 0 0 1px rgba(251, 113, 133, 0.32),
-    0 0 28px rgba(225, 29, 72, 0.24);
+    linear-gradient(120deg, rgba(225, 29, 72, 0.24), rgba(248, 113, 113, 0.10)),
+    rgba(28, 7, 14, 0.40);
+  box-shadow: 0 0 24px -8px rgba(225, 29, 72, 0.22);
 }
 
 .game-room-reveal-card--result.game-room-reveal-card--wrong
@@ -9759,8 +9713,8 @@ body {
 }
 
 .game-room-choice-tag {
-  border-color: rgba(148, 163, 184, 0.3);
-  background: rgba(11, 16, 25, 0.78);
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(11, 16, 25, 0.48);
 }
 
 .game-settlement-stage {
@@ -10764,34 +10718,13 @@ body {
 
 /* ===== Unified Chat Language (Lobby + In-Game) ===== */
 .game-room-panel--left {
-  border-color: rgba(148, 163, 184, 0.16);
-  background:
-    radial-gradient(
-      320px 180px at 88% 8%,
-      rgba(34, 211, 238, 0.05),
-      transparent 74%
-    ),
-    radial-gradient(
-      260px 150px at 12% 0%,
-      rgba(245, 158, 11, 0.04),
-      transparent 72%
-    ),
-    linear-gradient(160deg, rgba(10, 13, 20, 0.94), rgba(7, 10, 16, 0.9));
+  background: transparent;
 }
 
 .game-room-chat {
-  border-radius: 12px;
-  border-color: rgba(245, 158, 11, 0.14);
-  background:
-    radial-gradient(
-      220px 120px at 10% 0%,
-      rgba(245, 158, 11, 0.04),
-      transparent 72%
-    ),
-    linear-gradient(180deg, rgba(8, 12, 19, 0.9), rgba(6, 10, 16, 0.88));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.015),
-    0 16px 28px -24px rgba(0, 0, 0, 0.9);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .game-room-chat-header {
@@ -10801,9 +10734,9 @@ body {
 .game-room-chat-divider {
   background: linear-gradient(
     90deg,
-    rgba(245, 158, 11, 0.14),
-    rgba(148, 163, 184, 0.12) 45%,
-    rgba(34, 211, 238, 0.14)
+    rgba(245, 158, 11, 0.05),
+    rgba(148, 163, 184, 0.04) 45%,
+    rgba(34, 211, 238, 0.05)
   );
 }
 
@@ -10816,37 +10749,14 @@ body {
   position: relative;
   overflow: visible;
   border: none !important;
-  border-left: 2px solid rgba(56, 189, 248, 0.16) !important;
-  border-radius: 10px !important;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 15, 24, 0.34),
-    rgba(7, 11, 18, 0.16)
-  ) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.022) !important;
+  box-shadow: none !important;
   max-width: 100% !important;
 }
 
-.game-room-chat-message::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 6px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.008),
-    rgba(255, 255, 255, 0)
-  );
-  pointer-events: none;
-}
-
 .game-room-chat-message:hover {
-  border-left-color: rgba(245, 158, 11, 0.28) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(13, 18, 28, 0.42),
-    rgba(8, 12, 20, 0.22)
-  ) !important;
+  background: rgba(255, 255, 255, 0.040) !important;
 }
 
 .game-room-chat-empty-state {
@@ -10858,20 +10768,14 @@ body {
 }
 
 .game-room-chat-input-field {
-  border-color: rgba(148, 163, 184, 0.18) !important;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 14, 21, 0.92),
-    rgba(7, 10, 16, 0.95)
-  ) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  border-bottom-color: rgba(148, 163, 184, 0.16) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .game-room-chat-input-field:focus {
-  border-color: rgba(34, 211, 238, 0.4) !important;
-  box-shadow:
-    0 0 0 3px rgba(34, 211, 238, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  border-bottom-color: rgba(34, 211, 238, 0.40) !important;
+  box-shadow: none !important;
 }
 
 .game-room-chat-send.MuiButton-root {
@@ -11123,24 +11027,20 @@ body {
 }
 
 .game-room-track-counter {
-  border-color: rgba(251, 191, 36, 0.52);
+  border-color: rgba(251, 191, 36, 0.22);
   background:
     radial-gradient(
-      120px 48px at 12% 50%,
-      rgba(251, 191, 36, 0.2),
-      transparent 72%
+      140px 56px at 12% 50%,
+      rgba(251, 191, 36, 0.10),
+      transparent 82%
     ),
-    rgba(58, 30, 8, 0.52);
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 191, 36, 0.2),
-    0 10px 18px -14px rgba(251, 191, 36, 0.45);
+    rgba(58, 30, 8, 0.20);
+  box-shadow: 0 12px 28px -14px rgba(251, 191, 36, 0.24);
   animation: gameRoomTrackCounterPulse 2.2s ease-in-out infinite;
 }
 
 .game-room-chip--ready {
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.25),
-    0 0 20px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 28px -6px rgba(16, 185, 129, 0.30);
 }
 
 .game-room-panel--blaze {
@@ -11151,21 +11051,21 @@ body {
 .game-room-panel--blaze::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: 0;
   pointer-events: none;
   border-radius: inherit;
   background:
     radial-gradient(
-      280px 140px at 6% 0%,
-      rgba(251, 146, 60, 0.18),
-      transparent 72%
+      75% 58% at 14% 16%,
+      rgba(251, 146, 60, 0.10),
+      transparent 88%
     ),
     radial-gradient(
-      300px 160px at 98% 100%,
-      rgba(56, 189, 248, 0.14),
-      transparent 74%
+      80% 64% at 86% 84%,
+      rgba(56, 189, 248, 0.07),
+      transparent 90%
     );
-  opacity: 0.75;
+  opacity: 0.26;
 }
 
 .game-room-options-grid--blaze {
@@ -11184,13 +11084,13 @@ body {
   border-radius: 18px;
   background: conic-gradient(
     from 100deg,
-    rgba(251, 146, 60, 0.5),
-    rgba(56, 189, 248, 0.32),
-    rgba(251, 113, 133, 0.42),
-    rgba(251, 146, 60, 0.5)
+    rgba(251, 146, 60, 0.35),
+    rgba(56, 189, 248, 0.22),
+    rgba(251, 113, 133, 0.28),
+    rgba(251, 146, 60, 0.35)
   );
-  filter: blur(8px);
-  opacity: 0.42;
+  filter: blur(18px);
+  opacity: 0.18;
   animation: gameRoomFrameFlare 3.4s ease-in-out infinite;
 }
 
@@ -11200,15 +11100,11 @@ body {
 }
 
 .game-room-score-row--correct {
-  box-shadow:
-    inset 0 0 0 1px rgba(74, 222, 128, 0.2),
-    0 0 22px -14px rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 28px -8px rgba(16, 185, 129, 0.40);
 }
 
 .game-room-score-row--wrong {
-  box-shadow:
-    inset 0 0 0 1px rgba(251, 113, 133, 0.2),
-    0 0 22px -14px rgba(225, 29, 72, 0.42);
+  box-shadow: 0 0 28px -8px rgba(225, 29, 72, 0.34);
 }
 
 .game-settlement-controls-sticky {
@@ -11364,15 +11260,11 @@ body {
 @keyframes gameRoomTrackCounterPulse {
   0%,
   100% {
-    box-shadow:
-      inset 0 0 0 1px rgba(251, 191, 36, 0.2),
-      0 10px 18px -14px rgba(251, 191, 36, 0.45);
+    box-shadow: 0 10px 26px -14px rgba(251, 191, 36, 0.26);
   }
 
   50% {
-    box-shadow:
-      inset 0 0 0 1px rgba(251, 191, 36, 0.34),
-      0 14px 24px -14px rgba(251, 191, 36, 0.62);
+    box-shadow: 0 14px 32px -12px rgba(251, 191, 36, 0.38);
   }
 }
 
@@ -12168,26 +12060,24 @@ body {
   --gr-panel-combo-core: rgba(45, 212, 191, 0.24);
   --gr-panel-combo-glow: rgba(45, 212, 191, 0.28);
   --gr-panel-combo-speed: 2.3s;
-  border-color: var(--gr-panel-combo-border) !important;
+  border-color: transparent !important;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--gr-panel-combo-border) 44%, transparent),
-    0 26px 60px -42px rgba(2, 6, 23, 0.9),
-    0 0 46px -24px
-      color-mix(in srgb, var(--gr-panel-combo-glow) 92%, transparent);
+    0 0 60px -18px color-mix(in srgb, var(--gr-panel-combo-glow) 78%, transparent),
+    0 0 100px -50px color-mix(in srgb, var(--gr-panel-combo-glow) 48%, transparent);
 }
 
 .game-room-panel--combo-live.game-room-panel--blaze::before {
-  opacity: 0.86;
+  opacity: 0.68;
   background:
     radial-gradient(
-      320px 160px at 4% 0%,
+      72% 58% at 12% 14%,
       color-mix(in srgb, var(--gr-panel-combo-core) 100%, transparent),
-      transparent 72%
+      transparent 84%
     ),
     radial-gradient(
-      340px 180px at 98% 100%,
-      color-mix(in srgb, var(--gr-panel-combo-glow) 82%, transparent),
-      transparent 74%
+      78% 62% at 86% 84%,
+      color-mix(in srgb, var(--gr-panel-combo-glow) 80%, transparent),
+      transparent 86%
     );
 }
 
@@ -12314,14 +12204,8 @@ body {
 
 /* Remove border-eating illusion from option-container overlay */
 .game-room-options-grid--blaze {
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  background:
-    radial-gradient(
-      320px 120px at 8% 0%,
-      rgba(56, 189, 248, 0.08),
-      transparent 70%
-    ),
-    rgba(2, 6, 23, 0.18);
+  border: none;
+  background: transparent;
 }
 
 .game-room-options-grid--blaze::before {
@@ -12330,8 +12214,7 @@ body {
 
 .game-room-choice-button.MuiButton-root {
   background-clip: padding-box;
-  border-width: 1px;
-  border-style: solid;
+  border: 1px solid transparent;
 }
 
 .game-room-choice-button.MuiButton-root::before {
@@ -12372,33 +12255,27 @@ body {
 }
 
 /* ===== Gameplay FX refresh (scoreboard + guess panel) ===== */
+.game-room-panel--blaze::before {
+  opacity: 0;
+}
+
 .game-room-scoreboard-stack {
   position: relative;
-  border-radius: 16px;
-  padding: 6px;
-  border: 1px solid rgba(71, 85, 105, 0.34);
-  background:
-    radial-gradient(
-      280px 120px at 8% 0%,
-      rgba(56, 189, 248, 0.08),
-      transparent 74%
-    ),
-    linear-gradient(180deg, rgba(8, 12, 20, 0.76), rgba(6, 9, 14, 0.72));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 16px 28px -28px rgba(2, 6, 23, 0.9);
+  border-radius: 10px;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scoreboard-border-effect {
+  display: none;
 }
 
 .game-room-score-row {
-  border-color: rgba(100, 116, 139, 0.22);
-  background: linear-gradient(
-    128deg,
-    rgba(15, 23, 42, 0.76),
-    rgba(12, 18, 32, 0.68)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 0 0 1px rgba(15, 23, 42, 0.32);
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.010);
+  box-shadow: none;
   transition:
     transform 220ms ease,
     border-color 220ms ease,
@@ -12407,28 +12284,20 @@ body {
 }
 
 .game-room-score-row::before {
-  opacity: 0.28;
+  opacity: 0.20;
   transform: none;
   animation: none !important;
-  background:
-    radial-gradient(
-      180px 40px at 6% 50%,
-      rgba(125, 211, 252, 0.16),
-      transparent 72%
-    ),
-    radial-gradient(
-      200px 48px at 98% 50%,
-      rgba(14, 165, 233, 0.14),
-      transparent 74%
-    );
+  background: radial-gradient(
+    160px 36px at 6% 50%,
+    rgba(125, 211, 252, 0.12),
+    transparent 72%
+  );
 }
 
 .game-room-score-row:hover {
-  border-color: rgba(125, 211, 252, 0.38);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 0 0 1px rgba(56, 189, 248, 0.16),
-    0 14px 22px -24px rgba(56, 189, 248, 0.52);
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(34, 211, 238, 0.05);
+  box-shadow: none;
 }
 
 .game-room-score-row--combo-flare {
@@ -13069,15 +12938,10 @@ body {
 }
 
 .game-room-choice-button.MuiButton-root {
-  border-color: rgba(100, 116, 139, 0.38);
-  background: linear-gradient(
-    135deg,
-    rgba(15, 23, 42, 0.74),
-    rgba(9, 14, 26, 0.68)
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 0 0 1px rgba(15, 23, 42, 0.34);
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  box-shadow: none;
   transition:
     transform 180ms ease,
     border-color 220ms ease,
@@ -13087,12 +12951,26 @@ body {
 }
 
 .game-room-choice-button.MuiButton-root:not(.pointer-events-none):hover {
-  border-color: rgba(125, 211, 252, 0.54);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 0 0 1px rgba(56, 189, 248, 0.2),
-    0 12px 24px -22px rgba(56, 189, 248, 0.58);
-  filter: saturate(1.08);
+  border-color: transparent;
+  background: rgba(34, 211, 238, 0.07);
+  box-shadow: 0 0 36px -6px rgba(34, 211, 238, 0.32);
+  filter: saturate(1.06);
+}
+
+/* Flatten outlined-info choice buttons — override the dark-section !important fill */
+.game-room-choice-button.MuiButton-outlined.MuiButton-outlinedInfo {
+  background: rgba(255, 255, 255, 0.022) !important;
+  border-color: rgba(148, 163, 184, 0.07);
+}
+
+.game-room-choice-button.MuiButton-outlined.MuiButton-outlinedInfo:not(.pointer-events-none):hover {
+  background: rgba(34, 211, 238, 0.06) !important;
+}
+
+/* Flatten keyboard shortcut badge */
+.game-room-choice-button .game-room-choice-key {
+  background: rgba(15, 23, 42, 0.32);
+  border-color: rgba(100, 116, 139, 0.28);
 }
 
 .game-room-choice-button--press-hit.MuiButton-root {
@@ -13110,10 +12988,9 @@ body {
     ),
     linear-gradient(180deg, rgba(4, 73, 109, 0.34), rgba(8, 47, 73, 0.26)) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(56, 189, 248, 0.34),
-    inset 0 0 0 2px rgba(125, 211, 252, 0.14),
-    0 0 0 1px rgba(56, 189, 248, 0.22),
-    0 0 22px -12px rgba(56, 189, 248, 0.68) !important;
+    inset 0 0 0 1px rgba(56, 189, 248, 0.20),
+    inset 0 0 0 2px rgba(125, 211, 252, 0.08),
+    0 0 40px -8px rgba(56, 189, 248, 0.48) !important;
   animation: game-room-choice-selected-breathe 1.72s ease-in-out infinite;
 }
 
@@ -14126,7 +14003,7 @@ body {
 
 @media (min-width: 1024px) and (max-width: 1480px) {
   .game-room-shell {
-    padding: 14px;
+    padding: 0;
   }
 
   .game-room-grid {
@@ -14166,8 +14043,8 @@ body {
 
 @media (max-width: 1023.98px) {
   .game-room-shell {
-    border-radius: 18px;
-    padding: 8px;
+    border-radius: 0;
+    padding: 0;
     background:
       radial-gradient(
         560px 320px at 8% -8%,
@@ -14178,8 +14055,7 @@ body {
         460px 280px at 92% 0%,
         rgba(16, 185, 129, 0.14),
         transparent 56%
-      ),
-      linear-gradient(135deg, #05070f, #0b1324 56%, #070c18);
+      );
   }
 
   .game-room-grid {
@@ -14197,7 +14073,7 @@ body {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
-    border: 1px solid rgba(56, 189, 248, 0.26);
+    border: 1px solid rgba(71, 85, 105, 0.22);
     border-radius: 12px;
     padding: 7px;
     background: linear-gradient(
@@ -14205,9 +14081,7 @@ body {
       rgba(8, 13, 24, 0.9),
       rgba(5, 9, 17, 0.95)
     );
-    box-shadow:
-      0 18px 34px -24px rgba(2, 132, 199, 0.68),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 12px 28px -20px rgba(2, 6, 23, 0.55);
     backdrop-filter: blur(10px);
     transition:
       opacity 180ms ease,
@@ -14245,8 +14119,8 @@ body {
     justify-content: center;
     gap: 4px;
     border-radius: 11px;
-    border: 1px solid rgba(71, 85, 105, 0.7);
-    background: rgba(11, 18, 32, 0.72);
+    border: 1px solid rgba(71, 85, 105, 0.28);
+    background: rgba(11, 18, 32, 0.6);
     color: #e2e8f0;
     padding: 7px 7px;
     font-size: 12px;
@@ -14261,23 +14135,19 @@ body {
   }
 
   .game-room-mobile-action-btn--icon {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.05),
-      0 8px 18px -16px rgba(56, 189, 248, 0.8);
+    box-shadow: none;
   }
 
   .game-room-mobile-action-btn--active {
-    border-color: rgba(56, 189, 248, 0.62);
+    border-color: rgba(56, 189, 248, 0.48);
     background:
       radial-gradient(
         120px 70px at 16% 12%,
-        rgba(56, 189, 248, 0.2),
+        rgba(56, 189, 248, 0.16),
         transparent 74%
       ),
       rgba(6, 26, 43, 0.78);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 12px 24px -16px rgba(56, 189, 248, 0.95);
+    box-shadow: 0 8px 20px -16px rgba(56, 189, 248, 0.6);
   }
 
   .game-room-mobile-action-icon {
@@ -14314,7 +14184,7 @@ body {
     gap: 8px;
     margin-top: 1px;
     padding-top: 2px;
-    border-top: 1px solid rgba(71, 85, 105, 0.34);
+    border-top: 1px solid rgba(71, 85, 105, 0.14);
   }
 
   .game-room-mobile-action-subdock--compact {
@@ -14340,8 +14210,8 @@ body {
     justify-content: space-between;
     gap: 8px;
     border-radius: 11px;
-    border: 1px solid rgba(34, 211, 238, 0.42);
-    background: rgba(8, 32, 44, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.2);
+    background: rgba(8, 18, 28, 0.45);
     color: #d9f6ff;
     padding: 8px 9px;
     font-size: 11px;
@@ -14387,7 +14257,7 @@ body {
   }
 
   .game-room-mobile-toggle-chip--vote {
-    border-color: rgba(245, 158, 11, 0.38);
+    border-color: rgba(245, 158, 11, 0.18);
     background:
       radial-gradient(
         210px 110px at 14% 10%,
@@ -14399,7 +14269,7 @@ body {
   }
 
   .game-room-mobile-toggle-chip--host {
-    border-color: rgba(34, 211, 238, 0.34);
+    border-color: rgba(71, 85, 105, 0.2);
     background:
       radial-gradient(
         210px 110px at 14% 10%,
@@ -14411,7 +14281,7 @@ body {
   }
 
   .game-room-mobile-toggle-chip--anchor {
-    border-color: rgba(99, 102, 241, 0.22);
+    border-color: rgba(71, 85, 105, 0.18);
     background:
       radial-gradient(
         190px 90px at 14% 10%,
@@ -14423,7 +14293,7 @@ body {
   }
 
   .game-room-mobile-toggle-chip--overlay {
-    border-color: rgba(56, 189, 248, 0.22);
+    border-color: rgba(71, 85, 105, 0.18);
     background:
       radial-gradient(
         190px 90px at 14% 10%,
@@ -14435,7 +14305,7 @@ body {
   }
 
   .game-room-mobile-toggle-chip--leave {
-    border-color: rgba(148, 163, 184, 0.28);
+    border-color: rgba(71, 85, 105, 0.18);
     background: linear-gradient(
       180deg,
       rgba(13, 18, 30, 0.9),
@@ -14447,9 +14317,7 @@ body {
   .game-room-mobile-toggle-chip:hover {
     transform: translateY(-1px);
     filter: saturate(1.05);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 14px 24px -20px rgba(15, 23, 42, 0.9);
+    box-shadow: 0 10px 20px -18px rgba(15, 23, 42, 0.7);
   }
 
   .game-room-mobile-toggle-chip:active {
@@ -14458,59 +14326,88 @@ body {
   }
 
   .game-room-mobile-toggle-chip--host:hover {
-    border-color: rgba(103, 232, 249, 0.52);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 16px 26px -22px rgba(34, 211, 238, 0.72);
+    border-color: rgba(103, 232, 249, 0.36);
+    box-shadow: 0 10px 22px -18px rgba(34, 211, 238, 0.42);
   }
 
   .game-room-mobile-toggle-chip--vote:hover {
-    border-color: rgba(251, 191, 36, 0.52);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 16px 26px -22px rgba(245, 158, 11, 0.72);
+    border-color: rgba(251, 191, 36, 0.36);
+    box-shadow: 0 10px 22px -18px rgba(245, 158, 11, 0.42);
   }
 
   .game-room-mobile-toggle-chip--anchor:hover {
-    border-color: rgba(165, 180, 252, 0.52);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 16px 26px -22px rgba(99, 102, 241, 0.62);
+    border-color: rgba(165, 180, 252, 0.34);
+    box-shadow: 0 10px 22px -18px rgba(99, 102, 241, 0.38);
   }
 
   .game-room-mobile-toggle-chip--overlay:hover {
-    border-color: rgba(103, 232, 249, 0.52);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 16px 26px -22px rgba(56, 189, 248, 0.72);
+    border-color: rgba(103, 232, 249, 0.34);
+    box-shadow: 0 10px 22px -18px rgba(56, 189, 248, 0.38);
   }
 
   .game-room-mobile-toggle-chip--leave:hover {
-    border-color: rgba(226, 232, 240, 0.4);
+    border-color: rgba(148, 163, 184, 0.3);
     background:
       radial-gradient(
         150px 90px at 12% 10%,
-        rgba(148, 163, 184, 0.12),
+        rgba(148, 163, 184, 0.08),
         transparent 72%
       ),
       linear-gradient(180deg, rgba(16, 22, 34, 0.94), rgba(10, 14, 24, 0.98));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 16px 26px -22px rgba(15, 23, 42, 0.82);
+    box-shadow: 0 10px 22px -18px rgba(15, 23, 42, 0.5);
   }
 
   .game-room-mobile-toggle-chip--active {
-    border-color: rgba(56, 189, 248, 0.62);
+    border-color: rgba(56, 189, 248, 0.42);
     background:
       radial-gradient(
         170px 96px at 14% 10%,
-        rgba(56, 189, 248, 0.18),
+        rgba(56, 189, 248, 0.14),
         transparent 76%
       ),
       linear-gradient(180deg, rgba(8, 30, 46, 0.78), rgba(6, 24, 38, 0.82));
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 10px 22px -18px rgba(56, 189, 248, 0.92);
+    box-shadow: 0 8px 18px -16px rgba(56, 189, 248, 0.55);
+  }
+
+  /* ---- Video mode segmented control ---- */
+  .game-room-video-mode-seg {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    background: rgba(6, 12, 22, 0.65);
+    border: 1px solid rgba(71, 85, 105, 0.2);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .game-room-video-mode-seg-btn {
+    flex: 1 1 0;
+    min-height: 34px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(148, 163, 184, 0.7);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      color 160ms ease;
+  }
+
+  .game-room-video-mode-seg-btn--active {
+    background: rgba(56, 189, 248, 0.13);
+    color: #bae6fd;
+  }
+
+  .game-room-video-mode-seg-btn:hover:not(.game-room-video-mode-seg-btn--active) {
+    background: rgba(71, 85, 105, 0.18);
+    color: rgba(226, 232, 240, 0.85);
+  }
+
+  .game-room-video-mode-seg-btn:active {
+    transform: scale(0.97);
   }
 
   .game-room-mobile-drawer-root {
@@ -19842,5 +19739,161 @@ body {
     height: calc(72px * 2.5 + 16px);
     max-height: calc(72px * 2.5 + 16px);
     flex: 0 0 auto;
+  }
+}
+
+/* ===== Mobile simplicity override — reduce panel framing and color intensity ===== */
+@media (max-width: 1023.98px) {
+  /* --- Grid layout: tighten outer padding and inter-panel gap --- */
+  .game-room-grid {
+    padding-inline: 6px;
+    gap: 6px;
+  }
+
+  .game-room-main-section {
+    gap: 4px;
+  }
+
+  /* --- Panel border-radius & shadow reduction --- */
+  .game-room-left-sidebar--mobile {
+    border-radius: 5px;
+  }
+
+  .game-room-left-sidebar--mobile .game-room-scoreboard-stack {
+    border-radius: 4px;
+  }
+
+  .game-room-playback-panel--mobile {
+    border-radius: 5px;
+  }
+
+  .game-room-playback-panel--mobile-inline {
+    box-shadow: none;
+  }
+
+  .game-room-playback-panel--mobile-overlay {
+    border-color: rgba(71, 85, 105, 0.32);
+  }
+
+  .game-room-answer-panel--mobile {
+    border-radius: 5px;
+  }
+
+  /* --- Reveal / feedback card: flatten corner, reduce border intensity --- */
+  .game-room-answer-layout--mobile .game-room-reveal-card {
+    border-radius: 5px;
+  }
+
+  .game-room-answer-layout--mobile .game-room-reveal-card--locked {
+    border-color: rgba(56, 189, 248, 0.22);
+  }
+
+  .game-room-answer-layout--mobile .game-room-reveal-card--result {
+    border-color: rgba(56, 189, 248, 0.14);
+    background: rgba(4, 12, 28, 0.26);
+  }
+
+  .game-room-mobile-chat-entry {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* --- Action dock — neutralise cyan border & shadow --- */
+  .game-room-mobile-action-dock {
+    border-color: rgba(71, 85, 105, 0.38);
+    box-shadow:
+      0 12px 24px -20px rgba(2, 6, 23, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* --- Action button — remove cyan glow --- */
+  .game-room-mobile-action-btn--icon {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .game-room-mobile-action-btn--active {
+    border-color: rgba(100, 116, 139, 0.72);
+    background:
+      radial-gradient(
+        120px 70px at 16% 12%,
+        rgba(148, 163, 184, 0.1),
+        transparent 74%
+      ),
+      rgba(14, 22, 36, 0.82);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 10px 20px -18px rgba(15, 23, 42, 0.7);
+  }
+
+  /* --- Toggle chips — flatten to neutral dark base --- */
+  .game-room-mobile-toggle-chip {
+    border-color: rgba(71, 85, 105, 0.5);
+    background: rgba(11, 18, 30, 0.72);
+    color: #cbd5e1;
+  }
+
+  .game-room-mobile-toggle-chip--vote {
+    border-color: rgba(100, 116, 139, 0.4);
+    background: rgba(14, 18, 26, 0.78);
+    color: #e2e8f0;
+  }
+
+  .game-room-mobile-toggle-chip--host {
+    border-color: rgba(71, 85, 105, 0.42);
+    background: rgba(10, 16, 26, 0.78);
+    color: #cbd5e1;
+  }
+
+  .game-room-mobile-toggle-chip--anchor {
+    border-color: rgba(71, 85, 105, 0.36);
+    background: rgba(12, 14, 24, 0.72);
+    color: #c7d2fe;
+  }
+
+  .game-room-mobile-toggle-chip--overlay {
+    border-color: rgba(71, 85, 105, 0.36);
+    background: rgba(10, 16, 26, 0.72);
+    color: #cbd5e1;
+  }
+
+  .game-room-mobile-toggle-chip--active {
+    border-color: rgba(100, 116, 139, 0.68);
+    background:
+      radial-gradient(
+        170px 96px at 14% 10%,
+        rgba(148, 163, 184, 0.1),
+        transparent 76%
+      ),
+      linear-gradient(180deg, rgba(14, 22, 36, 0.82), rgba(10, 16, 28, 0.86));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 8px 18px -16px rgba(15, 23, 42, 0.7);
+  }
+
+  /* Hover effects: neutralise colored drop shadows */
+  .game-room-mobile-toggle-chip--host:hover,
+  .game-room-mobile-toggle-chip--vote:hover,
+  .game-room-mobile-toggle-chip--anchor:hover,
+  .game-room-mobile-toggle-chip--overlay:hover {
+    border-color: rgba(100, 116, 139, 0.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 14px 24px -20px rgba(15, 23, 42, 0.8);
+  }
+
+  /* --- Chat FAB — neutral border/shadow --- */
+  .game-room-mobile-chat-fab {
+    border-color: rgba(100, 116, 139, 0.42);
+    background:
+      linear-gradient(180deg, rgba(11, 18, 30, 0.96), rgba(8, 14, 24, 0.94));
+    box-shadow:
+      0 10px 24px -18px rgba(2, 6, 23, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .game-room-mobile-chat-fab:hover {
+    border-color: rgba(148, 163, 184, 0.55);
+    box-shadow:
+      0 12px 26px -18px rgba(2, 6, 23, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.09);
   }
 }

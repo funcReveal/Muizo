@@ -750,7 +750,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
 
       {showChat && (
         <>
-          <div className="h-px bg-slate-800/80" />
+          <div className="h-px bg-white/[0.06]" />
           <GameRoomChatPanel
             danmuEnabled={danmuEnabled}
             onDanmuEnabledChange={onDanmuEnabledChange}

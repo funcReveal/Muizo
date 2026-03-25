@@ -252,9 +252,11 @@ const RoomsLayoutShell: React.FC = () => {
     [setStatusText],
   );
 
+  const isGameMode = Boolean(currentRoom && gameState);
+
   return (
-    <div className="flex min-h-screen bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start p-4">
-      <div className="flex w-full min-w-0 max-w-[1600px] flex-col space-y-4">
+    <div className="flex min-h-screen bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start">
+      <div className={`flex w-full min-w-0 max-w-[1600px] flex-col space-y-4${isGameMode ? " px-6" : " p-4"}`}>
         <div>
           <AppHeader
             displayUsername={displayUsername}

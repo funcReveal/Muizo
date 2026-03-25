@@ -32,6 +32,7 @@ interface GameRoomPlaybackPanelProps {
   reduceGuessVideoDisplayCost?: boolean;
   showVideo: boolean;
   onShowVideoChange: (show: boolean) => void;
+  videoId?: string | null;
   gameVolume: number;
   onGameVolumeChange: (volume: number) => void;
 }
@@ -89,6 +90,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   onShowVideoChange,
   gameVolume,
   onGameVolumeChange,
+  videoId,
 }) => {
   const revealMarqueeWrapRef = React.useRef<HTMLSpanElement | null>(null);
   const revealMarqueeTrackRef = React.useRef<HTMLSpanElement | null>(null);
@@ -312,13 +314,30 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         )}
 
         {showAudioOnlyMask && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
-            <div className="rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
-              Audio Mode
-            </div>
-            <p className="mt-2 text-xs text-slate-300">
-              目前為純音訊模式，若需要觀看畫面可重新開啟影片顯示。
-            </p>
+          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center overflow-hidden bg-[#06070b]">
+            {videoId ? (
+              <>
+                <img
+                  src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                  alt="影片縮圖"
+                  className="absolute inset-0 h-full w-full object-cover opacity-40"
+                  draggable={false}
+                />
+                <div className="absolute inset-0 bg-linear-to-t from-[#06070b]/80 via-transparent to-[#06070b]/40" />
+                <div className="relative z-10 rounded-full border border-slate-600/60 bg-slate-950/70 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300 backdrop-blur-sm">
+                  Audio Mode
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
+                  Audio Mode
+                </div>
+                <p className="mt-2 text-xs text-slate-300">
+                  目前為純音訊模式，若需要觀看畫面可重新開啟影片顯示。
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -36,4 +36,5 @@ export const STORAGE_KEYS = {
   questionCount: "mq_questionCount",
   roomPasswordPrefix: "mq_roomPassword:",
   profileConfirmedPrefix: "mq_profileConfirmed:",
+  showVideoPreference: "mq_showVideoPreference",
 } as const;
