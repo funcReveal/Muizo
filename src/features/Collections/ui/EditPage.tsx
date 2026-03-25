@@ -2,7 +2,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
 import MoreHorizRounded from "@mui/icons-material/MoreHorizRounded";
-import ShareRounded from "@mui/icons-material/ShareRounded";
 import {
   Button,
   Dialog,
@@ -68,12 +67,24 @@ import {
   UNSAVED_PROMPT,
   VOLUME_LABEL,
 } from "./lib/editConstants";
-
 type YTPlayer = YT.Player;
 type YTPlayerEvent = YT.PlayerEvent;
 type YTPlayerStateEvent = YT.OnStateChangeEvent;
-type AiAssistantProvider = "grok" | "perplexity";
+type AiAssistantProvider =
+  | "grok"
+  | "perplexity"
+  | "chatgpt"
+  | "gemini"
+  | "claude";
 const AI_BATCH_PAGE_SIZE = 100;
+const MAX_AI_ASSISTANT_URL_LENGTH = 1800;
+const AI_PROVIDERS = [
+  "grok",
+  "perplexity",
+  "chatgpt",
+  "gemini",
+  "claude",
+] as const satisfies readonly AiAssistantProvider[];
 type AiAnswerUpdate = {
   id: string;
   answerText: string;
@@ -153,6 +164,10 @@ const EditPage = () => {
     {},
   );
   const [aiHelperNotice, setAiHelperNotice] = useState<string | null>(null);
+  const [pendingAiBatchSave, setPendingAiBatchSave] = useState<{
+    pageIndex: number;
+    count: number;
+  } | null>(null);
   const [collectionAnchor, setCollectionAnchor] = useState<HTMLElement | null>(
     null,
   );
@@ -207,6 +222,7 @@ const EditPage = () => {
   const hasResetPlaylistRef = useRef(false);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef<boolean>(false);
   const [volume, setVolume] = useState(() => {
     if (typeof window === "undefined") return 50;
     const stored =
@@ -220,6 +236,8 @@ const EditPage = () => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(EDIT_MUTE_STORAGE_KEY) === "1";
   });
+  const volumeRef = useRef<number>(volume);
+  const isMutedRef = useRef<boolean>(isMuted);
   const lastVolumeRef = useRef<number>(volume);
   const [autoPlayOnSwitch, setAutoPlayOnSwitch] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -239,6 +257,15 @@ const EditPage = () => {
   useEffect(() => {
     autoPlayRef.current = autoPlayOnSwitch;
   }, [autoPlayOnSwitch]);
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
   const [ytReady, setYtReady] = useState(false);
   const [currentTimeSec, setCurrentTimeSec] = useState(0);
 
@@ -535,14 +562,14 @@ const EditPage = () => {
         pageIndex: pages.length,
         start,
         end,
-        items: playlistItems.slice(start, end).map((item) => ({
-          id: item.dbId ?? item.localId,
-          title: item.title ?? "",
-          uploader: item.uploader ?? "",
-          answerText: item.answerText ?? "",
-        })),
-      });
-    }
+          items: playlistItems.slice(start, end).map((item) => ({
+            id: item.dbId ?? item.localId,
+            title: item.title ?? "",
+            uploader: item.uploader ?? "",
+            answerText: item.answerText ?? "",
+          })),
+        });
+      }
 
     return pages;
   }, [playlistItems]);
@@ -563,31 +590,60 @@ const EditPage = () => {
     [currentAiPromptPage],
   );
   const aiPromptText = useMemo(
-    () =>
-      [
-        "你是一位音樂猜歌題庫校對助手。",
-        "請根據每筆題目的歌曲標題與上傳者，修正 answerText，讓答案盡量統一為正式且常見的曲名。",
-        `這是第 ${aiBatchPageIndex + 1} 批，共 ${Math.max(aiPromptPages.length, 1)} 批，本批處理第 ${
-          (currentAiPromptPage?.start ?? 0) + 1
-        } 到 ${currentAiPromptPage?.end ?? 0} 首。`,
-        "規則：",
-        "1. 只輸出 JSON，不要附加任何說明或 Markdown。",
-        "2. 保留每筆 id，不要新增或刪除題目。",
-        "3. 只修改 answerText，其餘欄位不要輸出。",
-        "4. 如果無法判斷，請保留原本的 answerText。",
-        '5. 回傳格式必須是 {"items":[{"id":"...","answerText":"..."}]}。',
-        "",
-        "以下是待校對資料：",
-        aiPromptPayload,
-      ].join("\n"),
-    [aiBatchPageIndex, aiPromptPages.length, aiPromptPayload, currentAiPromptPage],
-  );
+      () =>
+        [
+          "你是一位音樂猜歌題庫校對助手。",
+          "請根據每筆題目的歌曲標題與上傳者，修正 answerText，讓答案盡量統一為正式且常見的曲名。",
+          `這是第 ${aiBatchPageIndex + 1} 批，共 ${Math.max(aiPromptPages.length, 1)} 批，本批處理第 ${
+            (currentAiPromptPage?.start ?? 0) + 1
+          } 到 ${currentAiPromptPage?.end ?? 0} 首。`,
+          "",
+          "請遵守以下規則：",
+          "1. 請只回傳一個 ```json code block，不要附加其他說明。",
+          "2. 保留每筆 id，不要新增或刪除題目。",
+          "3. 只回傳 answerText，其餘欄位不要輸出。",
+          "4. 如果無法判斷，請保留原本的 answerText。",
+          '5. 回傳格式必須是 {"items":[{"id":"...","answerText":"..."}]}。',
+          "",
+          "以下是待校對資料：",
+          aiPromptPayload,
+        ].join("\n"),
+      [aiBatchPageIndex, aiPromptPages.length, aiPromptPayload, currentAiPromptPage],
+    );
+  const getAiProviderLabel = useCallback((provider: AiAssistantProvider) => {
+    if (provider === "grok") return "Grok";
+    if (provider === "perplexity") return "Perplexity";
+    if (provider === "gemini") return "Gemini";
+    if (provider === "claude") return "Claude";
+    return "ChatGPT";
+  }, []);
+  const getAiProviderBaseUrl = useCallback((provider: AiAssistantProvider) => {
+    if (provider === "chatgpt") {
+      return "https://chatgpt.com/";
+    }
+    if (provider === "perplexity") {
+      return "https://www.perplexity.ai/search/new";
+    }
+    if (provider === "gemini") {
+      return "https://gemini.google.com/app";
+    }
+    if (provider === "claude") {
+      return "https://claude.ai/new";
+    }
+    return "https://grok.com/";
+  }, []);
   const aiPromptUrl = useMemo(() => {
     const encoded = encodeURIComponent(aiPromptText);
+    if (aiProvider === "chatgpt") {
+      return `https://chatgpt.com/?q=${encoded}`;
+    }
     if (aiProvider === "perplexity") {
       return `https://www.perplexity.ai/search/new?q=${encoded}`;
     }
-    return `https://grok.com/?q=${encoded}`;
+    if (aiProvider === "grok") {
+      return `https://grok.com/?q=${encoded}`;
+    }
+    return null;
   }, [aiPromptText, aiProvider]);
   const aiParsedResult = useMemo(() => {
     if (!currentAiJsonDraft.trim()) {
@@ -598,7 +654,11 @@ const EditPage = () => {
     }
 
     try {
-      const parsed = JSON.parse(currentAiJsonDraft) as { items?: unknown };
+      const normalizedDraft = currentAiJsonDraft.trim().replace(
+        /^```(?:json)?\s*([\s\S]*?)\s*```$/i,
+        "$1",
+      );
+      const parsed = JSON.parse(normalizedDraft) as { items?: unknown };
       if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) {
         return {
           error: "JSON 格式不正確，請確認最外層包含 items 陣列。",
@@ -689,6 +749,22 @@ const EditPage = () => {
       changedItems,
     };
   }, [aiParsedResult.updates, currentAiPromptPage]);
+  const aiPageStatuses = useMemo(
+      () =>
+        aiPromptPages.map((page) => {
+          const completedCount = playlistItems
+            .slice(page.start, page.end)
+            .filter((item) => item.answerAiBatchKey !== null).length;
+          return {
+            pageIndex: page.pageIndex,
+            completedCount,
+            totalCount: page.items.length,
+            isComplete: page.items.length > 0 && completedCount === page.items.length,
+            isPartial: completedCount > 0 && completedCount < page.items.length,
+          };
+        }),
+      [aiPromptPages, playlistItems],
+    );
   const canApplyAiBatch =
     !aiParsedResult.error && aiPreview.changedItems.length > 0;
 
@@ -718,12 +794,60 @@ const EditPage = () => {
     }
   }, [aiPromptText]);
 
-  const handleOpenAiAssistant = useCallback(() => {
+  const handleOpenAiAssistant = useCallback(async () => {
+    const providerLabel = getAiProviderLabel(aiProvider);
+    const providerBaseUrl = getAiProviderBaseUrl(aiProvider);
+
+    if (aiPromptUrl && aiPromptUrl.length <= MAX_AI_ASSISTANT_URL_LENGTH) {
+      window.open(aiPromptUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(aiPromptText);
+      setAiHelperNotice(
+        aiPromptUrl
+          ? `Prompt 過長，這次不會自動帶入 ${providerLabel}，已改為複製內容並開啟首頁，請直接貼上。`
+          : `${providerLabel} 目前不支援直接帶入 prompt，已改為複製內容並開啟首頁，請直接貼上。`,
+      );
+    } catch {
+      setAiHelperNotice(
+        aiPromptUrl
+          ? `Prompt 過長，這次不會自動帶入 ${providerLabel}。若未自動複製，請手動複製下方內容。`
+          : `${providerLabel} 目前不支援直接帶入 prompt。若未自動複製，請手動複製下方內容。`,
+      );
+    }
+
+    window.open(providerBaseUrl, "_blank", "noopener,noreferrer");
+  }, [
+    aiPromptText,
+    aiPromptUrl,
+    aiProvider,
+    getAiProviderBaseUrl,
+    getAiProviderLabel,
+  ]);
+  const handleForceOpenAiAssistant = useCallback(() => {
+    const providerLabel = getAiProviderLabel(aiProvider);
+    if (!aiPromptUrl) {
+      window.open(getAiProviderBaseUrl(aiProvider), "_blank", "noopener,noreferrer");
+      setAiHelperNotice(
+        `${providerLabel} 目前沒有可用的直接帶入網址，已改為開啟首頁供你手動貼上。`,
+      );
+      return;
+    }
+
     window.open(aiPromptUrl, "_blank", "noopener,noreferrer");
-  }, [aiPromptUrl]);
+    setAiHelperNotice(
+      `已強制用 query 開啟 ${providerLabel}，可直接測試長網址限制。`,
+    );
+  }, [aiPromptUrl, aiProvider, getAiProviderBaseUrl, getAiProviderLabel]);
 
   const handleApplyAiBatch = useCallback(() => {
     if (!canApplyAiBatch) return;
+    const changedCount = aiPreview.changedItems.length;
+    const appliedPageIndex = aiBatchPageIndex;
+    const batchKey = `ai_${aiProvider}_${Date.now()}_p${appliedPageIndex + 1}`;
+    const updatedAt = Math.floor(Date.now() / 1000);
     const updates = new Map(
       aiPreview.changedItems.map((item) => [item.id, item.newAnswer] as const),
     );
@@ -735,6 +859,10 @@ const EditPage = () => {
         return {
           ...item,
           answerText: nextAnswer,
+          answerStatus: "ai_modified",
+          answerAiProvider: aiProvider,
+          answerAiUpdatedAt: updatedAt,
+          answerAiBatchKey: batchKey,
         };
       }),
     );
@@ -755,19 +883,38 @@ const EditPage = () => {
       [aiBatchPageIndex]: true,
     }));
     setAiHelperNotice(
-      `已套用第 ${aiBatchPageIndex + 1} 批的 ${aiPreview.changedItems.length} 筆答案。`,
+      `已套用第 ${appliedPageIndex + 1} 批的 ${changedCount} 筆答案，正在自動寫入。`,
     );
+    setPendingAiBatchSave({
+      pageIndex: appliedPageIndex,
+      count: changedCount,
+    });
     if (aiBatchPageIndex < aiPromptPages.length - 1) {
       setAiBatchPageIndex(aiBatchPageIndex + 1);
     }
   }, [
     aiBatchPageIndex,
+    aiProvider,
     aiPreview.changedItems,
     aiPromptPages.length,
     canApplyAiBatch,
     markDirty,
     selectedItem,
   ]);
+
+  useEffect(() => {
+    if (!pendingAiBatchSave) return;
+
+    const persistAiBatchUpdates = async () => {
+      await handleSaveCollection("auto");
+      setAiHelperNotice(
+        `已套用第 ${pendingAiBatchSave.pageIndex + 1} 批的 ${pendingAiBatchSave.count} 筆答案，已送出寫入。`,
+      );
+      setPendingAiBatchSave(null);
+    };
+
+    void persistAiBatchUpdates();
+  }, [handleSaveCollection, pendingAiBatchSave]);
 
   const applyVisibilityChange = useCallback(
     async (value: "private" | "public") => {
@@ -856,7 +1003,6 @@ const EditPage = () => {
   }, [
     activeCollectionId,
     authToken,
-    collectionTitle,
     collectionVisibility,
   ]);
 
@@ -1091,7 +1237,9 @@ const EditPage = () => {
       events: {
         onReady: (event: YTPlayerEvent) => {
           setIsPlayerReady(true);
-          event.target.setVolume?.(volume);
+          event.target.setVolume?.(
+            isMutedRef.current ? 0 : volumeRef.current,
+          );
           const initialStart = Math.floor(selectedStartRef.current);
           if (autoPlayRef.current) {
             playRequestedRef.current = true;
@@ -1133,11 +1281,7 @@ const EditPage = () => {
           const state = window.YT?.PlayerState;
           if (!state) return;
           if (event.data === state.PLAYING) {
-            if (!playRequestedRef.current) {
-              event.target.pauseVideo?.();
-              setIsPlaying(false);
-              return;
-            }
+            playRequestedRef.current = true;
             if (autoPlayRef.current && !autoPlaySeekedRef.current) {
               const targetStart = selectedStartRef.current;
               const current = event.target.getCurrentTime?.();
@@ -1155,6 +1299,7 @@ const EditPage = () => {
             event.data === state.PAUSED ||
             event.data === state.ENDED
           ) {
+            playRequestedRef.current = false;
             setIsPlaying(false);
           }
         },
@@ -1175,16 +1320,15 @@ const EditPage = () => {
     itemsLoading,
     collectionsLoading,
     selectedVideoId,
-    volume,
     syncDurationFromPlayer,
   ]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
-    if (autoPlayOnSwitch) return;
+    if (autoPlayRef.current) return;
     playerRef.current.seekTo?.(startSec, true);
     setCurrentTimeSec(startSec);
-  }, [startSec, isPlayerReady, selectedVideoId, autoPlayOnSwitch]);
+  }, [startSec, isPlayerReady, selectedVideoId]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
@@ -1192,8 +1336,56 @@ const EditPage = () => {
   }, [volume, isMuted, isPlayerReady]);
 
   useEffect(() => {
-    if (!autoPlayOnSwitch) return;
     if (!isPlayerReady || !playerRef.current) return;
+
+    const syncPlayerVolumeState = () => {
+      const player = playerRef.current;
+      if (!player) return;
+
+      const nextMuted = player.isMuted?.() ?? false;
+      const rawVolume = player.getVolume?.();
+      const nextVolume = Number.isFinite(rawVolume)
+        ? Math.min(100, Math.max(0, Math.round(rawVolume)))
+        : null;
+
+      if (typeof nextVolume === "number" && nextVolume !== volumeRef.current) {
+        volumeRef.current = nextVolume;
+        setVolume(nextVolume);
+        if (nextVolume > 0) {
+          lastVolumeRef.current = nextVolume;
+        }
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            EDIT_VOLUME_STORAGE_KEY,
+            String(nextVolume),
+          );
+        }
+      }
+
+      if (nextMuted !== isMutedRef.current) {
+        isMutedRef.current = nextMuted;
+        setIsMuted(nextMuted);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            EDIT_MUTE_STORAGE_KEY,
+            nextMuted ? "1" : "0",
+          );
+        }
+      }
+    };
+
+    syncPlayerVolumeState();
+    const intervalId = window.setInterval(syncPlayerVolumeState, 250);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isPlayerReady, selectedVideoId]);
+
+  useEffect(() => {
+    if (!autoPlayRef.current) return;
+    if (!isPlayerReady || !playerRef.current) return;
+    if (!selectedItemId) return;
     playRequestedRef.current = true;
     if (shouldSeekToStartRef.current) {
       shouldSeekToStartRef.current = false;
@@ -1206,10 +1398,10 @@ const EditPage = () => {
       playerRef.current.seekTo?.(pendingStart, true);
       setCurrentTimeSec(pendingStart);
     }
-    if (!isPlaying) {
+    if (!isPlayingRef.current) {
       playerRef.current.playVideo?.();
     }
-  }, [autoPlayOnSwitch, isPlayerReady, selectedVideoId, isPlaying]);
+  }, [isPlayerReady, selectedItemId]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
@@ -1696,10 +1888,34 @@ const EditPage = () => {
 
   const handleVolumeChange = (value: number) => {
     const clamped = Math.min(100, Math.max(0, value));
+    volumeRef.current = clamped;
+    const player = playerRef.current;
+    if (player) {
+      if (clamped > 0 && isMutedRef.current) {
+        player.unMute?.();
+        isMutedRef.current = false;
+        setIsMuted(false);
+      }
+      player.setVolume?.(clamped);
+    }
+    if (clamped > 0) {
+      lastVolumeRef.current = clamped;
+    }
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(clamped));
+    }
+  };
+
+  const handleVolumeCommit = (value: number) => {
+    const clamped = Math.min(100, Math.max(0, value));
+    volumeRef.current = clamped;
     setVolume(clamped);
     if (clamped > 0) {
       lastVolumeRef.current = clamped;
-      if (isMuted) setIsMuted(false);
+      if (isMuted) {
+        isMutedRef.current = false;
+        setIsMuted(false);
+      }
     }
     if (typeof window !== "undefined") {
       window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(clamped));
@@ -1707,23 +1923,33 @@ const EditPage = () => {
   };
 
   const handleToggleMute = () => {
-    setIsMuted((prev) => {
-      const next = !prev;
-      if (!next && volume === 0) {
-        const restored = Math.max(10, lastVolumeRef.current || 10);
-        setVolume(restored);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            EDIT_VOLUME_STORAGE_KEY,
-            String(restored),
-          );
-        }
+    const player = playerRef.current;
+    const nextMuted = !isMutedRef.current;
+
+    if (nextMuted) {
+      const currentAudibleVolume = Math.max(0, volumeRef.current || volume);
+      if (currentAudibleVolume > 0) {
+        lastVolumeRef.current = currentAudibleVolume;
       }
+      player?.mute?.();
+      isMutedRef.current = true;
+      setIsMuted(true);
+    } else {
+      const restored = Math.max(10, lastVolumeRef.current || volumeRef.current || volume || 10);
+      player?.unMute?.();
+      player?.setVolume?.(restored);
+      volumeRef.current = restored;
+      isMutedRef.current = false;
+      setVolume(restored);
+      setIsMuted(false);
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(EDIT_MUTE_STORAGE_KEY, next ? "1" : "0");
+        window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(restored));
       }
-      return next;
-    });
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(EDIT_MUTE_STORAGE_KEY, nextMuted ? "1" : "0");
+    }
   };
 
   const handleAutoPlayToggle = (value: boolean) => {
@@ -1861,6 +2087,13 @@ const EditPage = () => {
           void applyVisibilityChange(value);
         }}
         collectionCount={collectionCount}
+        onShare={() => {
+          void handleShareCollection();
+        }}
+        shareCopied={shareCopied}
+        shareDisabled={
+          !activeCollectionId || isReadOnly || collectionVisibility !== "public"
+        }
         onCollectionButtonClick={(event) => {
           setCollectionAnchor(event.currentTarget);
           setCollectionMenuOpen((prev) => !prev);
@@ -1878,36 +2111,6 @@ const EditPage = () => {
         collectionMenuOpen={collectionMenuOpen}
         playlistMenuOpen={playlistPanelOpen}
       />
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={
-            <span className="relative inline-flex h-[18px] w-[18px] items-center justify-center overflow-hidden">
-              <ShareRounded
-                fontSize="small"
-                className={`absolute transition-all duration-200 ${
-                  shareCopied ? "scale-75 opacity-0" : "scale-100 opacity-100"
-                }`}
-              />
-              <CheckCircleOutlineRounded
-                fontSize="small"
-                className={`absolute text-cyan-300 transition-all duration-200 ${
-                  shareCopied ? "scale-100 opacity-100" : "scale-75 opacity-0"
-                }`}
-              />
-            </span>
-          }
-          onClick={() => {
-            void handleShareCollection();
-          }}
-          disabled={
-            !activeCollectionId || isReadOnly || collectionVisibility !== "public"
-          }
-        >
-          複製分享連結
-        </Button>
-      </div>
       <CollectionPopover
         open={collectionMenuOpen}
         anchorEl={collectionAnchor}
@@ -2032,6 +2235,7 @@ const EditPage = () => {
                 isPlayerReady={isPlayerReady}
                 isPlaying={isPlaying}
                 onVolumeChange={handleVolumeChange}
+                onVolumeCommit={handleVolumeCommit}
                 volume={volume}
                 isMuted={isMuted}
                 onToggleMute={handleToggleMute}
@@ -2143,9 +2347,6 @@ const EditPage = () => {
         <DialogTitle className="!px-6 !pt-6 !pb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.28em] text-[var(--mc-text-muted)]">
-                AI Answer Assistant
-              </div>
               <div className="mt-1 text-lg font-semibold text-[var(--mc-text)]">
                 AI 批次修正答案
               </div>
@@ -2178,6 +2379,7 @@ const EditPage = () => {
                     const active = page.pageIndex === aiBatchPageIndex;
                     const hasDraft = Boolean(aiJsonDrafts[page.pageIndex]?.trim());
                     const isApplied = aiAppliedPages[page.pageIndex] === true;
+                    const pageStatus = aiPageStatuses[page.pageIndex];
                     return (
                       <button
                         key={`${page.start}-${page.end}`}
@@ -2196,10 +2398,15 @@ const EditPage = () => {
                         <span className="ml-2 text-[10px] opacity-75">
                           {page.start + 1}-{page.end}
                         </span>
-                        {isApplied ? (
+                        {isApplied || pageStatus?.isComplete ? (
                           <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-emerald-300">
                             <CheckCircleOutlineRounded sx={{ fontSize: 14 }} />
                             已套用
+                          </span>
+                        ) : pageStatus?.isPartial ? (
+                          <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-cyan-200">
+                            <MoreHorizRounded sx={{ fontSize: 14 }} />
+                            {pageStatus.completedCount}/{pageStatus.totalCount}
                           </span>
                         ) : hasDraft ? (
                           <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-amber-200">
@@ -2246,13 +2453,13 @@ const EditPage = () => {
               <div className="text-sm font-semibold text-[var(--mc-text)]">
                 Step 2. 選擇 AI
               </div>
-              <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                目前先支援透過 query 預填內容的服務。若網址過長，也可以只複製 prompt 後手動貼上。
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["grok", "perplexity"] as const).map((provider) => {
-                  const active = aiProvider === provider;
-                  return (
+                <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                  部分服務支援直接帶入 prompt。若網址過長或該服務不支援，介面會提示這次未帶入 prompt，並改為複製後開首頁。
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {AI_PROVIDERS.map((provider) => {
+                    const active = aiProvider === provider;
+                    return (
                     <button
                       key={provider}
                       type="button"
@@ -2263,28 +2470,36 @@ const EditPage = () => {
                           : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/50 hover:text-[var(--mc-text)]"
                       }`}
                     >
-                      {provider === "grok" ? "Grok" : "Perplexity"}
+                      {getAiProviderLabel(provider)}
                     </button>
                   );
                 })}
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleOpenAiAssistant}
-                  className="!bg-[var(--mc-accent)] !text-slate-950 hover:!bg-[var(--mc-accent)]/90"
-                >
-                  在 {aiProvider === "grok" ? "Grok" : "Perplexity"} 開啟
-                </Button>
-              </div>
-            </section>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleOpenAiAssistant}
+                    className="!bg-[var(--mc-accent)] !text-slate-950 hover:!bg-[var(--mc-accent)]/90"
+                  >
+                    在 {getAiProviderLabel(aiProvider)} 開啟
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleForceOpenAiAssistant}
+                    className="!border-[var(--mc-border)] !text-[var(--mc-text)] hover:!border-[var(--mc-accent)]/60"
+                  >
+                    強制帶入測試
+                  </Button>
+                </div>
+              </section>
 
             <section className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-4">
               <div className="text-sm font-semibold text-[var(--mc-text)]">
                 Step 3. 貼回 JSON 並預覽
               </div>
-              <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                請貼上 AI 回傳的純 JSON。系統會先驗證格式，再預覽哪些答案會被更新。
-              </div>
+                <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                  請貼上 AI 回傳內容。支援純 JSON，也支援包在 ```json code block 內的格式。
+                </div>
               <TextField
                 value={currentAiJsonDraft}
                 onChange={(event) => {
@@ -2300,10 +2515,11 @@ const EditPage = () => {
                 }}
                 multiline
                 minRows={8}
+                maxRows={14}
                 fullWidth
                 margin="normal"
-                placeholder='{"items":[{"id":"item-id","answerText":"正式答案"}]}'
-              />
+                  placeholder={'```json\n{"items":[{"id":"item-id","answerText":"正式答案"}]}\n```'}
+                />
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
@@ -2395,10 +2611,12 @@ const EditPage = () => {
           <Button
             variant="contained"
             onClick={handleApplyAiBatch}
-            disabled={!canApplyAiBatch}
+            disabled={!canApplyAiBatch || pendingAiBatchSave !== null}
             className="!bg-[var(--mc-accent)] !text-slate-950 hover:!bg-[var(--mc-accent)]/90 disabled:!bg-slate-700 disabled:!text-slate-300"
           >
-            套用 {aiPreview.changedItems.length} 筆變更
+            {pendingAiBatchSave !== null
+              ? "寫入中..."
+              : `套用並寫入 ${aiPreview.changedItems.length} 筆變更`}
           </Button>
         </DialogActions>
       </Dialog>

@@ -25,6 +25,10 @@ export const buildEditableItems = (items: PlaylistItem[]): EditableItem[] => {
       startSec: 0,
       endSec: Math.max(1, end),
       answerText: item.title ?? "",
+      answerStatus: "original",
+      answerAiProvider: null,
+      answerAiUpdatedAt: null,
+      answerAiBatchKey: null,
     };
   });
 };
@@ -64,6 +68,10 @@ export const buildEditableItemsFromDb = (
       startSec,
       endSec,
       answerText: item.answer_text ?? "",
+      answerStatus: item.answer_status ?? "original",
+      answerAiProvider: item.answer_ai_provider ?? null,
+      answerAiUpdatedAt: item.answer_ai_updated_at ?? null,
+      answerAiBatchKey: item.answer_ai_batch_key ?? null,
     };
   });
 };
