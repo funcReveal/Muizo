@@ -1,5 +1,7 @@
 import type { PlaylistItem } from "../../../Room/model/types";
 
+export type AnswerStatus = "original" | "ai_modified" | "manual_reviewed";
+
 export type EditableItem = PlaylistItem & {
   localId: string;
   dbId?: string;
@@ -8,6 +10,10 @@ export type EditableItem = PlaylistItem & {
   startSec: number;
   endSec: number;
   answerText: string;
+  answerStatus?: AnswerStatus;
+  answerAiProvider?: "grok" | "perplexity" | "chatgpt" | null;
+  answerAiUpdatedAt?: number | null;
+  answerAiBatchKey?: string | null;
 };
 
 export type DbCollection = {
@@ -30,4 +36,8 @@ export type DbCollectionItem = {
   start_sec: number;
   end_sec: number | null;
   answer_text: string;
+  answer_status?: AnswerStatus;
+  answer_ai_provider?: "grok" | "perplexity" | "chatgpt" | null;
+  answer_ai_updated_at?: number | null;
+  answer_ai_batch_key?: string | null;
 };

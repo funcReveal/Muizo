@@ -1,5 +1,5 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Checkbox, FormControlLabel } from "@mui/material";
 
@@ -15,6 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import Close from "@mui/icons-material/Close";
 import {
   SortableContext,
@@ -34,6 +35,8 @@ type PlaylistItemView = {
   startSec: number;
   endSec: number;
   thumbnail?: string;
+  answerStatus?: "original" | "ai_modified" | "manual_reviewed";
+  answerAiProvider?: "grok" | "perplexity" | "chatgpt" | null;
 };
 
 type PlaylistListPanelProps = {
@@ -76,6 +79,7 @@ type SortableRowProps = {
   formatSeconds: (value: number) => string;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
+  totalCount: number;
   outerStyle?: CSSProperties;
 };
 
@@ -88,8 +92,10 @@ const RowCard = ({
   formatSeconds,
   onSelect,
   onRemove,
-  dndHandle,
+  totalCount,
   dimmed,
+  dragAttributes,
+  dragListeners,
 }: {
   item: PlaylistItemView;
   index: number;
@@ -99,11 +105,15 @@ const RowCard = ({
   formatSeconds: (value: number) => string;
   onSelect?: (index: number) => void;
   onRemove?: (index: number) => void;
-  dndHandle?: ReactNode;
+  totalCount?: number;
   dimmed?: boolean;
+  dragAttributes?: Record<string, unknown>;
+  dragListeners?: Record<string, unknown>;
 }) => {
   return (
     <div
+      {...(dragAttributes ?? {})}
+      {...(dragListeners ?? {})}
       onClick={onSelect ? () => onSelect(index) : undefined}
       onKeyDown={(event) => {
         if (!onSelect) return;
@@ -112,20 +122,17 @@ const RowCard = ({
           onSelect(index);
         }
       }}
-      className={`relative flex items-center gap-3 rounded-xl border p-2 text-left transition-[border-color,background-color,box-shadow,transform,opacity] duration-150 ${
+      className={`relative flex min-h-[84px] cursor-pointer items-stretch overflow-hidden text-left transition-[background-color,box-shadow,transform,opacity] duration-150 ${
         isActive
-          ? "border-[var(--mc-accent)] bg-[var(--mc-surface-strong)]"
-          : "border-[var(--mc-border)] bg-[var(--mc-surface)]/60 hover:border-[var(--mc-accent)]/60"
+          ? "bg-[rgba(255,255,255,0.11)]"
+          : "bg-[var(--mc-surface)]/55 hover:bg-[rgba(255,255,255,0.13)]"
       } ${
-        isHighlighted
-          ? "ring-1 ring-[var(--mc-accent)]/80 shadow-[0_0_0_1px_rgba(245,158,11,0.35)]"
-          : ""
+        isHighlighted ? "shadow-[inset_0_0_0_1px_rgba(245,158,11,0.45)]" : ""
       } ${dimmed ? "opacity-35" : ""}`}
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
     >
-      {dndHandle}
-      <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--mc-surface-strong)]">
+      <div className="relative w-20 shrink-0 self-stretch p-2">
         <span className="absolute left-1 top-1 rounded bg-[var(--mc-surface)]/80 px-1 py-0.5 text-[9px] text-[var(--mc-text)]">
           {index + 1}
         </span>
@@ -133,7 +140,7 @@ const RowCard = ({
           <img
             src={item.thumbnail}
             alt={item.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full rounded-lg object-cover"
             loading="lazy"
             decoding="async"
           />
@@ -143,30 +150,50 @@ const RowCard = ({
           </div>
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[12px] text-[var(--mc-text)]">
-          {item.title}
-        </div>
-        <div className="mt-0.5 text-[10px] text-[var(--mc-text-muted)]">
-          {item.duration ?? "--:--"} - {clipDurationLabel}{" "}
-          {formatSeconds(Math.max(0, item.endSec - item.startSec))}
+      <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 pr-12">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] text-[var(--mc-text)]">
+            {item.title}
+          </div>
+          <div className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+            {item.duration ?? "--:--"} - {clipDurationLabel}{" "}
+            {formatSeconds(Math.max(0, item.endSec - item.startSec))}
+          </div>
         </div>
       </div>
-      <div className="flex pb-5">
-        {onRemove && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove(index);
-            }}
-            className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-rose-400/45 bg-rose-500/12 text-rose-200 transition-colors hover:bg-rose-500/22"
-            aria-label="Delete"
-          >
-            <Close sx={{ fontSize: 14 }} />
-          </button>
-        )}
-      </div>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove(index);
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/8 text-rose-200 transition-all duration-150 hover:bg-rose-500/18 hover:text-rose-100 active:scale-95"
+          aria-label="Delete"
+        >
+          <Close sx={{ fontSize: 14 }} />
+        </button>
+      )}
+      {item.answerStatus === "ai_modified" && (
+        <span
+          className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-cyan-200 transition-all duration-150 hover:text-cyan-100 hover:drop-shadow-[0_0_6px_rgba(103,232,249,0.55)]"
+          title="AI 已修改"
+          aria-label="AI 已修改"
+        >
+          <AutoFixHighOutlined sx={{ fontSize: 14 }} />
+        </span>
+      )}
+      {item.answerStatus === "manual_reviewed" && (
+        <span className="absolute bottom-2 right-2 rounded-full bg-emerald-400/8 px-2 py-0.5 text-[9px] font-medium tracking-[0.12em] text-emerald-200 transition-colors duration-150 hover:bg-emerald-400/16">
+          已覆核
+        </span>
+      )}
+      {index < (totalCount ?? 0) - 1 && (
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-[var(--mc-border)]/55" />
+      )}
     </div>
   );
 };
@@ -181,13 +208,13 @@ const SortableRow = ({
   formatSeconds,
   onSelect,
   onRemove,
+  totalCount,
   outerStyle,
 }: SortableRowProps) => {
   const {
     attributes,
     listeners,
     setNodeRef,
-    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -212,7 +239,7 @@ const SortableRow = ({
     <div
       style={outerStyle}
       {...(ariaAttributes ?? {})}
-      className="box-border px-0 pb-2"
+      className="box-border px-0"
     >
       <div ref={setNodeRef} style={innerStyle}>
         <RowCard
@@ -224,20 +251,10 @@ const SortableRow = ({
           formatSeconds={formatSeconds}
           onSelect={onSelect}
           onRemove={onRemove}
+          totalCount={totalCount}
           dimmed={isDragging}
-          dndHandle={
-            <span
-              ref={setActivatorNodeRef}
-              {...attributes}
-              {...listeners}
-              onClick={(e) => e.stopPropagation()}
-              className="mr-1 inline-flex h-12 w-5 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 text-[10px] text-[var(--mc-text-muted)] cursor-grab active:cursor-grabbing"
-              title="Drag"
-              aria-label="Drag"
-            >
-              ::
-            </span>
-          }
+          dragAttributes={attributes as Record<string, unknown>}
+          dragListeners={listeners as Record<string, unknown>}
         />
       </div>
     </div>
@@ -264,11 +281,7 @@ const OverlayCard = ({
         isHighlighted={false}
         clipDurationLabel={clipDurationLabel}
         formatSeconds={formatSeconds}
-        dndHandle={
-          <span className="mr-1 inline-flex h-12 w-5 flex-shrink-0 items-center justify-center rounded-lg border border-[var(--mc-accent)]/70 bg-[var(--mc-surface-strong)]/70 text-[10px] text-[var(--mc-text)] shadow-[0_0_0_1px_rgba(245,158,11,0.35)]">
-            ::
-          </span>
-        }
+        totalCount={index + 1}
       />
     </div>
   </div>
@@ -397,10 +410,10 @@ const PlaylistListPanel = ({
     formatSeconds: (value: number) => string;
     onSelect: (index: number) => void;
     onRemove: (index: number) => void;
+    totalCount: number;
   };
 
-  // Row height is (card ~64px) + (pb-2 = 8px).
-  const ROW_HEIGHT = 72;
+  const ROW_HEIGHT = 84;
 
   const Row = useCallback(
     ({
@@ -414,6 +427,7 @@ const PlaylistListPanel = ({
       formatSeconds,
       onSelect,
       onRemove,
+      totalCount,
     }: {
       ariaAttributes: {
         "aria-posinset": number;
@@ -436,6 +450,7 @@ const PlaylistListPanel = ({
           formatSeconds={formatSeconds}
           onSelect={onSelect}
           onRemove={onRemove}
+          totalCount={totalCount}
           outerStyle={style}
         />
       );
@@ -584,6 +599,7 @@ const PlaylistListPanel = ({
                 formatSeconds,
                 onSelect,
                 onRemove: handleRequestRemove,
+                totalCount: safeItems.length,
               }}
               style={{ height: "100%" }}
             />

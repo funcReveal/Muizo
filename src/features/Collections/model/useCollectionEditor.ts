@@ -123,6 +123,14 @@ export const useCollectionEditor = ({
           start_sec: item.startSec,
           end_sec: item.endSec,
           answer_text: item.answerText || item.title || "Untitled",
+          answer_status: item.answerStatus ?? "original",
+          answer_ai_provider: item.answerAiProvider ?? null,
+          answer_ai_updated_at:
+            item.answerAiUpdatedAt !== null &&
+            item.answerAiUpdatedAt !== undefined
+              ? new Date(item.answerAiUpdatedAt * 1000).toISOString()
+              : null,
+          answer_ai_batch_key: item.answerAiBatchKey ?? null,
           duration_sec: (() => {
             const parsed = parseDurationToSeconds(item.duration ?? "");
             return parsed && parsed > 0 ? parsed : undefined;
@@ -145,6 +153,10 @@ export const useCollectionEditor = ({
               start_sec: item.start_sec,
               end_sec: item.end_sec,
               answer_text: item.answer_text,
+              answer_status: item.answer_status,
+              answer_ai_provider: item.answer_ai_provider,
+              answer_ai_updated_at: item.answer_ai_updated_at,
+              answer_ai_batch_key: item.answer_ai_batch_key,
               ...(item.duration_sec !== undefined
                 ? { duration_sec: item.duration_sec }
                 : {}),
@@ -165,6 +177,10 @@ export const useCollectionEditor = ({
           start_sec: item.start_sec,
           end_sec: item.end_sec,
           answer_text: item.answer_text,
+          answer_status: item.answer_status,
+          answer_ai_provider: item.answer_ai_provider,
+          answer_ai_updated_at: item.answer_ai_updated_at,
+          answer_ai_batch_key: item.answer_ai_batch_key,
           ...(item.duration_sec !== undefined
             ? { duration_sec: item.duration_sec }
             : {}),
@@ -269,7 +285,9 @@ export const useCollectionEditor = ({
 
       const dirtySnapshot = dirtyCounterRef.current;
       saveInFlightRef.current = true;
-      setSaveStatus("saving");
+      if (mode === "manual") {
+        setSaveStatus("saving");
+      }
       setSaveError(null);
 
       try {

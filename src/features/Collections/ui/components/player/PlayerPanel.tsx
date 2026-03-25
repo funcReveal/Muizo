@@ -33,6 +33,7 @@ type PlayerPanelProps = {
   isPlayerReady: boolean;
   isPlaying: boolean;
   onVolumeChange: (value: number) => void;
+  onVolumeCommit: (value: number) => void;
   volume: number;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -68,6 +69,7 @@ const PlayerPanel = ({
   isPlayerReady,
   isPlaying,
   onVolumeChange,
+  onVolumeCommit,
   volume,
   isMuted,
   onToggleMute,
@@ -86,12 +88,19 @@ const PlayerPanel = ({
   const volumeDragRef = useRef(false);
   const volumePointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isVolumeDragging, setIsVolumeDragging] = useState(false);
+  const [dragVolume, setDragVolume] = useState<number | null>(null);
+  const [dragMuted, setDragMuted] = useState<boolean | null>(null);
   const updateVolumeFromEvent = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       const rect = event.currentTarget.getBoundingClientRect();
       const ratio = (event.clientX - rect.left) / rect.width;
       const next = Math.min(100, Math.max(0, Math.round(ratio * 100)));
+      setDragVolume(next);
+      if (next > 0) {
+        setDragMuted(false);
+      }
       onVolumeChange(next);
+      return next;
     },
     [onVolumeChange],
   );
@@ -230,6 +239,8 @@ const PlayerPanel = ({
     const s = (total % 60).toString().padStart(2, "0");
     return `${m}:${s}`;
   };
+  const effectiveDisplayVolume = dragVolume ?? volume;
+  const effectiveDisplayMuted = dragMuted ?? isMuted;
 
   // Avoid a render-loop "fight" between React style updates and rAF updates.
   // When playing, rAF owns `--progress-pct`. When paused/dragging, sync it from React state.
@@ -499,7 +510,7 @@ const PlayerPanel = ({
             tabIndex={-1}
             aria-label={isMuted ? "????" : "??"}
           >
-            {isMuted || volume === 0 ? (
+            {effectiveDisplayMuted || effectiveDisplayVolume === 0 ? (
               <VolumeOff fontSize="small" />
             ) : (
               <VolumeUp fontSize="small" />
@@ -537,8 +548,15 @@ const PlayerPanel = ({
                 volumeDragRef.current = false;
                 setIsVolumeDragging(false);
                 if (!isVolumeDragging) {
-                  updateVolumeFromEvent(event);
+                  const next = updateVolumeFromEvent(event);
+                  if (typeof next === "number") {
+                    onVolumeCommit(next);
+                  }
+                } else {
+                  onVolumeCommit(dragVolume ?? volume);
                 }
+                setDragVolume(null);
+                setDragMuted(null);
                 volumePointerStartRef.current = null;
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }
@@ -547,6 +565,8 @@ const PlayerPanel = ({
               if (volumeDragRef.current) {
                 volumeDragRef.current = false;
                 setIsVolumeDragging(false);
+                setDragVolume(null);
+                setDragMuted(null);
                 volumePointerStartRef.current = null;
                 event.currentTarget.releasePointerCapture(event.pointerId);
               }
@@ -556,14 +576,14 @@ const PlayerPanel = ({
             <div
               className="absolute left-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-emerald-300"
               style={{
-                width: `calc(${isMuted ? 0 : volume}% - 8px)`,
+                width: `calc(${effectiveDisplayMuted ? 0 : effectiveDisplayVolume}% - 8px)`,
                 transition: isVolumeDragging ? "none" : "width 200ms ease-out",
               }}
             />
             <div
               className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-sky-200 shadow-[0_0_0_2px_rgba(15,23,42,0.8)]"
               style={{
-                left: `calc(${isMuted ? 0 : volume}% - 6px)`,
+                left: `calc(${effectiveDisplayMuted ? 0 : effectiveDisplayVolume}% - 6px)`,
                 transition: isVolumeDragging ? "none" : "left 200ms ease-out",
               }}
             />
