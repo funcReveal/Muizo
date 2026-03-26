@@ -69,7 +69,10 @@ export const useCollectionLoader = ({
   const lastItemsKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!ownerId || !authToken) return;
+    if (!ownerId || !authToken) {
+      setCollectionsLoading(false);
+      return;
+    }
     const key = `${ownerId}:${collectionId ?? ""}`;
     // A token refresh updates authToken and would re-trigger this effect,
     // causing a visible "refresh" (spinners, refetch) despite no real data change.
@@ -142,23 +145,54 @@ export const useCollectionLoader = ({
     };
 
     const ensureAndLoad = async () => {
+      const startedAt = performance.now();
       setCollectionsLoading(true);
       setCollectionsError(null);
+      console.debug("[mq-collections] collections load start", {
+        ownerId,
+        collectionId: collectionId ?? null,
+        startedAt: new Date().toISOString(),
+      });
       try {
+        const tokenRefreshStartedAt = performance.now();
         const token = await ensureFreshAuthToken({
           token: authToken,
           refreshAuthToken,
         });
+        console.debug("[mq-collections] collections token ready", {
+          ownerId,
+          collectionId: collectionId ?? null,
+          elapsedMs: Math.round(performance.now() - tokenRefreshStartedAt),
+          hasToken: Boolean(token),
+        });
         if (!token) {
           throw new Error("Unauthorized");
         }
+        const fetchStartedAt = performance.now();
         await run(token, true);
+        console.debug("[mq-collections] collections fetch success", {
+          ownerId,
+          collectionId: collectionId ?? null,
+          elapsedMs: Math.round(performance.now() - fetchStartedAt),
+        });
       } catch (error) {
         if (!active) return;
+        console.error("[mq-collections] collections load failed", {
+          ownerId,
+          collectionId: collectionId ?? null,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          error: error instanceof Error ? error.message : String(error),
+        });
         setCollectionsError(
           error instanceof Error ? error.message : String(error),
         );
       } finally {
+        console.debug("[mq-collections] collections load end", {
+          ownerId,
+          collectionId: collectionId ?? null,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          active,
+        });
         if (active) setCollectionsLoading(false);
       }
     };
@@ -188,7 +222,10 @@ export const useCollectionLoader = ({
   ]);
 
   useEffect(() => {
-    if (!collectionId || !authToken) return;
+    if (!collectionId || !authToken) {
+      setItemsLoading(false);
+      return;
+    }
     const key = collectionId;
     const tokenChanged =
       lastItemsAuthTokenRef.current !== null &&
@@ -225,21 +262,47 @@ export const useCollectionLoader = ({
     };
 
     const ensureAndLoad = async () => {
+      const startedAt = performance.now();
       setItemsLoading(true);
       setItemsError(null);
+      console.debug("[mq-collections] items load start", {
+        collectionId,
+        startedAt: new Date().toISOString(),
+      });
       try {
+        const tokenRefreshStartedAt = performance.now();
         const token = await ensureFreshAuthToken({
           token: authToken,
           refreshAuthToken,
         });
+        console.debug("[mq-collections] items token ready", {
+          collectionId,
+          elapsedMs: Math.round(performance.now() - tokenRefreshStartedAt),
+          hasToken: Boolean(token),
+        });
         if (!token) {
           throw new Error("Unauthorized");
         }
+        const fetchStartedAt = performance.now();
         await run(token, true);
+        console.debug("[mq-collections] items fetch success", {
+          collectionId,
+          elapsedMs: Math.round(performance.now() - fetchStartedAt),
+        });
       } catch (error) {
         if (!active) return;
+        console.error("[mq-collections] items load failed", {
+          collectionId,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          error: error instanceof Error ? error.message : String(error),
+        });
         setItemsError(error instanceof Error ? error.message : String(error));
       } finally {
+        console.debug("[mq-collections] items load end", {
+          collectionId,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          active,
+        });
         if (active) setItemsLoading(false);
       }
     };

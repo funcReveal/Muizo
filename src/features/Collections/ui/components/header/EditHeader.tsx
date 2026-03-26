@@ -42,7 +42,7 @@ type EditHeaderProps = {
   shareCopied: boolean;
   shareDisabled: boolean;
   onCollectionButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onPlaylistButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onPlaylistButtonClick: () => void;
   onAiBatchEditClick: () => void;
   aiBatchDisabled: boolean;
   collectionMenuOpen: boolean;

@@ -9,8 +9,8 @@ import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
 import { trackEvent } from "../../../shared/analytics/track";
 import {
   isAdminRole,
-  MAX_COLLECTION_ITEMS_PER_COLLECTION,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
+  resolveCollectionItemLimit,
 } from "../model/collectionLimits";
 
 const API_URL =
@@ -166,6 +166,10 @@ const CollectionsCreatePage = () => {
 
   const ownerId = authUser?.id ?? null;
   const isAdmin = isAdminRole(authUser?.role);
+  const collectionItemLimit = resolveCollectionItemLimit({
+    role: authUser?.role,
+    plan: authUser?.plan,
+  });
   const hasPlaylistItems = playlistItems.length > 0;
 
   useEffect(() => {
@@ -303,15 +307,10 @@ const CollectionsCreatePage = () => {
       setCreateError("請先匯入播放清單");
       return;
     }
-    if (
-      !isAdmin &&
-      playlistItems.length > MAX_COLLECTION_ITEMS_PER_COLLECTION
-    ) {
-      setCreateError(
-        `一般使用者每個收藏庫最多只能保留 ${MAX_COLLECTION_ITEMS_PER_COLLECTION} 題`,
-      );
-      return;
-    }
+      if (collectionItemLimit !== null && playlistItems.length > collectionItemLimit) {
+        setCreateError(`一般使用者每個收藏庫最多只能保留 ${collectionItemLimit} 題`);
+        return;
+      }
 
     setCreateError(null);
     setIsCreating(true);
@@ -600,8 +599,8 @@ const CollectionsCreatePage = () => {
                 </div>
                 {!isAdmin && (
                   <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                    一般使用者每個收藏庫最多可收錄{" "}
-                    {MAX_COLLECTION_ITEMS_PER_COLLECTION} 題。
+                      一般使用者每個收藏庫最多可收錄{" "}
+                      {collectionItemLimit === null ? "無上限" : collectionItemLimit} 題。
                   </div>
                 )}
               </div>

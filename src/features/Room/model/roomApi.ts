@@ -97,6 +97,8 @@ export type CollectionSummary = {
   title: string;
   description: string | null;
   visibility: "private" | "public";
+  item_limit_override?: number | null;
+  effective_item_limit?: number | null;
   cover_title?: string | null;
   cover_channel_title?: string | null;
   cover_thumbnail_url?: string | null;
@@ -143,13 +145,37 @@ export type WorkerListPayload<TItem> = {
   error_code?: string;
 };
 
+const API_REQUEST_TIMEOUT_MS = 15_000;
+
 const fetchJson = async <T>(
   url: string,
   options?: RequestInit,
 ): Promise<ApiResult<T>> => {
-  const res = await fetch(url, options);
-  const payload = await res.json().catch(() => null);
-  return { ok: res.ok, status: res.status, payload };
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    API_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    const payload = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, payload };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return {
+        ok: false,
+        status: 408,
+        payload: { error: "請求逾時，請稍後再試" } as T,
+      };
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 };
 
 export const apiRefreshAuthToken = (apiUrl: string) =>
