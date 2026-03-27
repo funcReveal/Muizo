@@ -22,6 +22,9 @@ export type DbCollection = {
   title: string;
   description?: string | null;
   visibility?: "private" | "public";
+  item_count?: number;
+  item_limit_override?: number | null;
+  effective_item_limit?: number | null;
 };
 
 export type DbCollectionItem = {

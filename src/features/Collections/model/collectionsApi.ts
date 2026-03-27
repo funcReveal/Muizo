@@ -2,6 +2,30 @@
   import.meta.env.VITE_API_URL ||
   (typeof window !== "undefined" ? window.location.origin : "");
 
+const COLLECTIONS_REQUEST_TIMEOUT_MS = 15_000;
+
+const fetchWithTimeout = async (url: string, options?: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    COLLECTIONS_REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("收藏庫載入逾時，請重新整理後再試");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 const buildAuthHeaders = (token: string) => ({
   Authorization: `Bearer ${token}`,
 });
@@ -18,7 +42,7 @@ export const collectionsApi = {
     if (!API_URL) {
       throw new Error("尚未設定收藏庫 API 位置 (API_URL)");
     }
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${API_URL}/api/collections?owner_id=${encodeURIComponent(ownerId)}`,
       { headers: buildAuthHeaders(token) },
     );
@@ -36,7 +60,7 @@ export const collectionsApi = {
     if (!API_URL) {
       throw new Error("API_URL is missing");
     }
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${API_URL}/api/collections/${collectionId}/items/all`,
       { headers: buildAuthHeaders(token) },
     );

@@ -24,6 +24,7 @@ import { collectionsApi } from "../model/collectionsApi";
 import {
   isAdminRole,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
+  resolveCollectionItemLimit,
 } from "../model/collectionLimits";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import CollectionPopover from "./components/playlist/CollectionPopover";
@@ -31,7 +32,7 @@ import ClipEditorPanel from "./components/player/ClipEditorPanel";
 import AnswerPanel from "./components/answer/AnswerPanel";
 import EditHeader from "./components/header/EditHeader";
 import PlaylistListPanel from "./components/playlist/PlaylistListPanel";
-import PlaylistPopover from "./components/playlist/PlaylistPopover";
+import PlaylistSourceModal from "./components/playlist/PlaylistSourceModal";
 import PlayerPanel from "./components/player/PlayerPanel";
 import {
   DEFAULT_DURATION_SEC,
@@ -70,21 +71,11 @@ import {
 type YTPlayer = YT.Player;
 type YTPlayerEvent = YT.PlayerEvent;
 type YTPlayerStateEvent = YT.OnStateChangeEvent;
-type AiAssistantProvider =
-  | "grok"
-  | "perplexity"
-  | "chatgpt"
-  | "gemini"
-  | "claude";
 const AI_BATCH_PAGE_SIZE = 100;
-const MAX_AI_ASSISTANT_URL_LENGTH = 1800;
-const AI_PROVIDERS = [
-  "grok",
-  "perplexity",
-  "chatgpt",
-  "gemini",
-  "claude",
-] as const satisfies readonly AiAssistantProvider[];
+const MAX_AI_ASSISTANT_URL_LENGTH = 50000;
+const AI_PROVIDER = "perplexity";
+const AI_PROVIDER_LABEL = "Perplexity";
+const AI_PROVIDER_BASE_URL = "https://www.perplexity.ai/search/new";
 type AiAnswerUpdate = {
   id: string;
   answerText: string;
@@ -155,9 +146,11 @@ const EditPage = () => {
   const [titleDraft, setTitleDraft] = useState("");
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const [playlistPanelOpen, setPlaylistPanelOpen] = useState(false);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [sourceModalMode, setSourceModalMode] = useState<"playlist" | "single">(
+    "playlist",
+  );
   const [aiBatchModalOpen, setAiBatchModalOpen] = useState(false);
-  const [aiProvider, setAiProvider] = useState<AiAssistantProvider>("grok");
   const [aiBatchPageIndex, setAiBatchPageIndex] = useState(0);
   const [aiJsonDrafts, setAiJsonDrafts] = useState<Record<number, string>>({});
   const [aiAppliedPages, setAiAppliedPages] = useState<Record<number, boolean>>(
@@ -169,9 +162,6 @@ const EditPage = () => {
     count: number;
   } | null>(null);
   const [collectionAnchor, setCollectionAnchor] = useState<HTMLElement | null>(
-    null,
-  );
-  const [playlistAnchor, setPlaylistAnchor] = useState<HTMLElement | null>(
     null,
   );
   const shareFeedbackTimerRef = useRef<number | null>(null);
@@ -188,7 +178,6 @@ const EditPage = () => {
   const [singleTrackError, setSingleTrackError] = useState<string | null>(null);
   const [singleTrackLoading, setSingleTrackLoading] = useState(false);
   const lastResolvedUrlRef = useRef<string | null>(null);
-  const [singleTrackOpen, setSingleTrackOpen] = useState(false);
   const [duplicateIndex, setDuplicateIndex] = useState<number | null>(null);
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const [pendingScrollIndex, setPendingScrollIndex] = useState<number | null>(
@@ -322,8 +311,15 @@ const EditPage = () => {
   const privateCollectionsCount = collections.filter(
     (item) => item.visibility !== "public",
   ).length;
+  const activeCollection =
+    collections.find((item) => item.id === activeCollectionId) ?? null;
   const activeCollectionStoredVisibility =
-    collections.find((item) => item.id === activeCollectionId)?.visibility ?? null;
+    activeCollection?.visibility ?? null;
+  const activeCollectionItemLimit = resolveCollectionItemLimit({
+    role: authUser?.role,
+    plan: authUser?.plan,
+    itemLimitOverride: activeCollection?.item_limit_override ?? null,
+  });
   const resetBaseline = useCallback(() => {
     baselineSnapshotRef.current = buildSnapshot(
       playlistItems,
@@ -364,11 +360,14 @@ const EditPage = () => {
     authToken,
     ownerId,
     authRole: authUser?.role,
+    authPlan: authUser?.plan,
     authExpired,
     collectionTitle,
     collectionVisibility,
     activeCollectionId,
     activeCollectionStoredVisibility,
+    activeCollectionItemLimitOverride:
+      activeCollection?.item_limit_override ?? null,
     collectionsCount: collections.length,
     privateCollectionsCount,
     playlistItems,
@@ -556,20 +555,24 @@ const EditPage = () => {
       }>;
     }> = [];
 
-    for (let start = 0; start < playlistItems.length; start += AI_BATCH_PAGE_SIZE) {
+    for (
+      let start = 0;
+      start < playlistItems.length;
+      start += AI_BATCH_PAGE_SIZE
+    ) {
       const end = Math.min(start + AI_BATCH_PAGE_SIZE, playlistItems.length);
       pages.push({
         pageIndex: pages.length,
         start,
         end,
-          items: playlistItems.slice(start, end).map((item) => ({
-            id: item.dbId ?? item.localId,
-            title: item.title ?? "",
-            uploader: item.uploader ?? "",
-            answerText: item.answerText ?? "",
-          })),
-        });
-      }
+        items: playlistItems.slice(start, end).map((item) => ({
+          id: item.dbId ?? item.localId,
+          title: item.title ?? "",
+          uploader: item.uploader ?? "",
+          answerText: item.answerText ?? "",
+        })),
+      });
+    }
 
     return pages;
   }, [playlistItems]);
@@ -590,61 +593,50 @@ const EditPage = () => {
     [currentAiPromptPage],
   );
   const aiPromptText = useMemo(
-      () =>
-        [
-          "你是一位音樂猜歌題庫校對助手。",
-          "請根據每筆題目的歌曲標題與上傳者，修正 answerText，讓答案盡量統一為正式且常見的曲名。",
-          `這是第 ${aiBatchPageIndex + 1} 批，共 ${Math.max(aiPromptPages.length, 1)} 批，本批處理第 ${
-            (currentAiPromptPage?.start ?? 0) + 1
-          } 到 ${currentAiPromptPage?.end ?? 0} 首。`,
-          "",
-          "請遵守以下規則：",
-          "1. 請只回傳一個 ```json code block，不要附加其他說明。",
-          "2. 保留每筆 id，不要新增或刪除題目。",
-          "3. 只回傳 answerText，其餘欄位不要輸出。",
-          "4. 如果無法判斷，請保留原本的 answerText。",
-          '5. 回傳格式必須是 {"items":[{"id":"...","answerText":"..."}]}。',
-          "",
-          "以下是待校對資料：",
-          aiPromptPayload,
-        ].join("\n"),
-      [aiBatchPageIndex, aiPromptPages.length, aiPromptPayload, currentAiPromptPage],
-    );
-  const getAiProviderLabel = useCallback((provider: AiAssistantProvider) => {
-    if (provider === "grok") return "Grok";
-    if (provider === "perplexity") return "Perplexity";
-    if (provider === "gemini") return "Gemini";
-    if (provider === "claude") return "Claude";
-    return "ChatGPT";
-  }, []);
-  const getAiProviderBaseUrl = useCallback((provider: AiAssistantProvider) => {
-    if (provider === "chatgpt") {
-      return "https://chatgpt.com/";
-    }
-    if (provider === "perplexity") {
-      return "https://www.perplexity.ai/search/new";
-    }
-    if (provider === "gemini") {
-      return "https://gemini.google.com/app";
-    }
-    if (provider === "claude") {
-      return "https://claude.ai/new";
-    }
-    return "https://grok.com/";
-  }, []);
+    () =>
+      [
+        "You are a music quiz answer normalization assistant.",
+        "Use each item's song title and uploader to revise answerText into the most official and commonly recognized song title.",
+        "",
+        "Rules:",
+        "1. Return exactly one ```json``` code block and nothing else.",
+        "2. Keep every original id. Do not add or remove items.",
+        "3. Return only answerText for each item. Do not output any other fields.",
+        "4. Preserve the song title's original dominant language whenever possible. Do not translate the title unless the translated form is clearly the official/common primary title.",
+        "5. If the title is mixed-language, prefer the most official and widely recognized primary form.",
+        "6. If you are uncertain, keep the original answerText unchanged.",
+        '7. The output format must be {"items":[{"id":"...","answerText":"..."}]}.',
+        "",
+        "Items to normalize:",
+        aiPromptPayload,
+      ].join("\n"),
+    [
+      aiBatchPageIndex,
+      aiPromptPages.length,
+      aiPromptPayload,
+      currentAiPromptPage,
+    ],
+  );
   const aiPromptUrl = useMemo(() => {
     const encoded = encodeURIComponent(aiPromptText);
-    if (aiProvider === "chatgpt") {
-      return `https://chatgpt.com/?q=${encoded}`;
+    return `${AI_PROVIDER_BASE_URL}?q=${encoded}`;
+  }, [aiPromptText]);
+  const aiDirectOpenState = useMemo(() => {
+    const promptUrlLength = aiPromptUrl?.length ?? 0;
+    if (aiPromptUrl.length > MAX_AI_ASSISTANT_URL_LENGTH) {
+      const exceededBy = aiPromptUrl.length - MAX_AI_ASSISTANT_URL_LENGTH;
+      return {
+        tone: "warn" as const,
+        title: `${AI_PROVIDER_LABEL} 這次不會直接帶入`,
+        description: `目前長度 ${promptUrlLength} / ${MAX_AI_ASSISTANT_URL_LENGTH}，超出 ${exceededBy}。點擊開啟時會先複製內容，再開該服務首頁。`,
+      };
     }
-    if (aiProvider === "perplexity") {
-      return `https://www.perplexity.ai/search/new?q=${encoded}`;
-    }
-    if (aiProvider === "grok") {
-      return `https://grok.com/?q=${encoded}`;
-    }
-    return null;
-  }, [aiPromptText, aiProvider]);
+    return {
+      tone: "ready" as const,
+      title: `${AI_PROVIDER_LABEL} 目前會直接帶入 prompt`,
+      description: `目前長度 ${promptUrlLength} / ${MAX_AI_ASSISTANT_URL_LENGTH}。點擊開啟後會用 query 參數建立新分頁，通常可直接看到已填入內容。`,
+    };
+  }, [aiPromptUrl]);
   const aiParsedResult = useMemo(() => {
     if (!currentAiJsonDraft.trim()) {
       return {
@@ -654,12 +646,15 @@ const EditPage = () => {
     }
 
     try {
-      const normalizedDraft = currentAiJsonDraft.trim().replace(
-        /^```(?:json)?\s*([\s\S]*?)\s*```$/i,
-        "$1",
-      );
+      const normalizedDraft = currentAiJsonDraft
+        .trim()
+        .replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1");
       const parsed = JSON.parse(normalizedDraft) as { items?: unknown };
-      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) {
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        !Array.isArray(parsed.items)
+      ) {
         return {
           error: "JSON 格式不正確，請確認最外層包含 items 陣列。",
           updates: [] as AiAnswerUpdate[],
@@ -679,8 +674,7 @@ const EditPage = () => {
         const candidateId = "id" in rawItem ? rawItem.id : null;
         const candidateAnswer =
           "answerText" in rawItem ? rawItem.answerText : null;
-        const id =
-          typeof candidateId === "string" ? candidateId.trim() : "";
+        const id = typeof candidateId === "string" ? candidateId.trim() : "";
         const answerText =
           typeof candidateAnswer === "string" ? candidateAnswer.trim() : "";
 
@@ -713,7 +707,9 @@ const EditPage = () => {
   }, [currentAiJsonDraft]);
   const aiPreview = useMemo(() => {
     const lookup = new Map(
-      (currentAiPromptPage?.items ?? []).map((item) => [item.id, item] as const),
+      (currentAiPromptPage?.items ?? []).map(
+        (item) => [item.id, item] as const,
+      ),
     );
     const missingIds: string[] = [];
     const unchangedIds: string[] = [];
@@ -750,21 +746,22 @@ const EditPage = () => {
     };
   }, [aiParsedResult.updates, currentAiPromptPage]);
   const aiPageStatuses = useMemo(
-      () =>
-        aiPromptPages.map((page) => {
-          const completedCount = playlistItems
-            .slice(page.start, page.end)
-            .filter((item) => item.answerAiBatchKey !== null).length;
-          return {
-            pageIndex: page.pageIndex,
-            completedCount,
-            totalCount: page.items.length,
-            isComplete: page.items.length > 0 && completedCount === page.items.length,
-            isPartial: completedCount > 0 && completedCount < page.items.length,
-          };
-        }),
-      [aiPromptPages, playlistItems],
-    );
+    () =>
+      aiPromptPages.map((page) => {
+        const completedCount = playlistItems
+          .slice(page.start, page.end)
+          .filter((item) => item.answerAiBatchKey !== null).length;
+        return {
+          pageIndex: page.pageIndex,
+          completedCount,
+          totalCount: page.items.length,
+          isComplete:
+            page.items.length > 0 && completedCount === page.items.length,
+          isPartial: completedCount > 0 && completedCount < page.items.length,
+        };
+      }),
+    [aiPromptPages, playlistItems],
+  );
   const canApplyAiBatch =
     !aiParsedResult.error && aiPreview.changedItems.length > 0;
 
@@ -795,9 +792,6 @@ const EditPage = () => {
   }, [aiPromptText]);
 
   const handleOpenAiAssistant = useCallback(async () => {
-    const providerLabel = getAiProviderLabel(aiProvider);
-    const providerBaseUrl = getAiProviderBaseUrl(aiProvider);
-
     if (aiPromptUrl && aiPromptUrl.length <= MAX_AI_ASSISTANT_URL_LENGTH) {
       window.open(aiPromptUrl, "_blank", "noopener,noreferrer");
       return;
@@ -806,47 +800,28 @@ const EditPage = () => {
     try {
       await navigator.clipboard.writeText(aiPromptText);
       setAiHelperNotice(
-        aiPromptUrl
-          ? `Prompt 過長，這次不會自動帶入 ${providerLabel}，已改為複製內容並開啟首頁，請直接貼上。`
-          : `${providerLabel} 目前不支援直接帶入 prompt，已改為複製內容並開啟首頁，請直接貼上。`,
+        `Prompt 過長，這次不會自動帶入 ${AI_PROVIDER_LABEL}，已改為複製內容並開啟首頁，請直接貼上。`,
       );
     } catch {
       setAiHelperNotice(
-        aiPromptUrl
-          ? `Prompt 過長，這次不會自動帶入 ${providerLabel}。若未自動複製，請手動複製下方內容。`
-          : `${providerLabel} 目前不支援直接帶入 prompt。若未自動複製，請手動複製下方內容。`,
+        `Prompt 過長，這次不會自動帶入 ${AI_PROVIDER_LABEL}。若未自動複製，請手動複製下方內容。`,
       );
     }
 
-    window.open(providerBaseUrl, "_blank", "noopener,noreferrer");
-  }, [
-    aiPromptText,
-    aiPromptUrl,
-    aiProvider,
-    getAiProviderBaseUrl,
-    getAiProviderLabel,
-  ]);
+    window.open(AI_PROVIDER_BASE_URL, "_blank", "noopener,noreferrer");
+  }, [aiPromptText, aiPromptUrl]);
   const handleForceOpenAiAssistant = useCallback(() => {
-    const providerLabel = getAiProviderLabel(aiProvider);
-    if (!aiPromptUrl) {
-      window.open(getAiProviderBaseUrl(aiProvider), "_blank", "noopener,noreferrer");
-      setAiHelperNotice(
-        `${providerLabel} 目前沒有可用的直接帶入網址，已改為開啟首頁供你手動貼上。`,
-      );
-      return;
-    }
-
     window.open(aiPromptUrl, "_blank", "noopener,noreferrer");
     setAiHelperNotice(
-      `已強制用 query 開啟 ${providerLabel}，可直接測試長網址限制。`,
+      `已強制用 query 開啟 ${AI_PROVIDER_LABEL}，可直接測試目前長度是否仍能帶入。`,
     );
-  }, [aiPromptUrl, aiProvider, getAiProviderBaseUrl, getAiProviderLabel]);
+  }, [aiPromptUrl]);
 
   const handleApplyAiBatch = useCallback(() => {
     if (!canApplyAiBatch) return;
     const changedCount = aiPreview.changedItems.length;
     const appliedPageIndex = aiBatchPageIndex;
-    const batchKey = `ai_${aiProvider}_${Date.now()}_p${appliedPageIndex + 1}`;
+    const batchKey = `ai_${AI_PROVIDER}_${Date.now()}_p${appliedPageIndex + 1}`;
     const updatedAt = Math.floor(Date.now() / 1000);
     const updates = new Map(
       aiPreview.changedItems.map((item) => [item.id, item.newAnswer] as const),
@@ -860,7 +835,7 @@ const EditPage = () => {
           ...item,
           answerText: nextAnswer,
           answerStatus: "ai_modified",
-          answerAiProvider: aiProvider,
+          answerAiProvider: AI_PROVIDER,
           answerAiUpdatedAt: updatedAt,
           answerAiBatchKey: batchKey,
         };
@@ -874,6 +849,7 @@ const EditPage = () => {
       }
     }
     markDirty();
+    setSaveStatus("saving");
     setAiJsonDrafts((prev) => ({
       ...prev,
       [aiBatchPageIndex]: "",
@@ -894,7 +870,6 @@ const EditPage = () => {
     }
   }, [
     aiBatchPageIndex,
-    aiProvider,
     aiPreview.changedItems,
     aiPromptPages.length,
     canApplyAiBatch,
@@ -1000,11 +975,7 @@ const EditPage = () => {
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "建立分享連結失敗");
     }
-  }, [
-    activeCollectionId,
-    authToken,
-    collectionVisibility,
-  ]);
+  }, [activeCollectionId, authToken, collectionVisibility]);
 
   useEffect(() => {
     return () => {
@@ -1237,9 +1208,7 @@ const EditPage = () => {
       events: {
         onReady: (event: YTPlayerEvent) => {
           setIsPlayerReady(true);
-          event.target.setVolume?.(
-            isMutedRef.current ? 0 : volumeRef.current,
-          );
+          event.target.setVolume?.(isMutedRef.current ? 0 : volumeRef.current);
           const initialStart = Math.floor(selectedStartRef.current);
           if (autoPlayRef.current) {
             playRequestedRef.current = true;
@@ -1514,6 +1483,22 @@ const EditPage = () => {
     [markDirty, selectedIndex],
   );
 
+  const updateSelectedAnswerText = useCallback(
+    (value: string) => {
+      setAnswerText(value);
+      if (!selectedItem) return;
+      const nextStatus =
+        value === selectedItem.answerText
+          ? (selectedItem.answerStatus ?? "original")
+          : "manual_reviewed";
+      updateSelectedItem({
+        answerText: value,
+        answerStatus: nextStatus,
+      });
+    },
+    [selectedItem, updateSelectedItem],
+  );
+
   const handleSelectIndex = useCallback(
     (nextIndex: number) => {
       if (nextIndex === selectedIndex) return;
@@ -1593,8 +1578,8 @@ const EditPage = () => {
     setSingleTrackDuration("");
     setSingleTrackAnswer("");
     setSingleTrackUploader("");
-    setSingleTrackOpen(false);
     setDuplicateIndex(null);
+    setSourceModalOpen(false);
   }, [
     appendItems,
     playlistItems,
@@ -1824,32 +1809,91 @@ const EditPage = () => {
   );
 
   const removeItem = useCallback(
-    (index: number) => {
-      markDirty();
-      const removedId = playlistItems[index]?.localId ?? null;
-      setPlaylistItems((prev) => {
-        const target = prev[index];
-        if (target?.dbId) {
-          setPendingDeleteIds((ids) =>
-            ids.includes(target.dbId!) ? ids : [...ids, target.dbId!],
-          );
+    async (index: number) => {
+      const target = playlistItems[index];
+      if (!target) return;
+
+      const nextItems = playlistItems.filter((_item, idx) => idx !== index);
+      const nextSelectedId =
+        target.localId === selectedItemId
+          ? (playlistItems[index + 1]?.localId ??
+            playlistItems[index - 1]?.localId ??
+            null)
+          : selectedItemId;
+
+      if (!target.dbId || !activeCollectionId || !authToken) {
+        markDirty();
+        setPlaylistItems(nextItems);
+        if (nextSelectedId !== selectedItemId) {
+          setSelectedItemId(nextSelectedId);
         }
-        return prev.filter((_item, idx) => idx !== index);
-      });
-      if (removedId && removedId === selectedItemId) {
-        const next =
-          playlistItems[index + 1]?.localId ??
-          playlistItems[index - 1]?.localId ??
-          null;
-        setSelectedItemId(next);
+        return;
+      }
+
+      const previousItems = playlistItems;
+      const previousSelectedId = selectedItemId;
+      const hadUnsavedChanges = hasUnsavedChanges;
+      setSaveStatus("saving");
+      setSaveError(null);
+      setPlaylistItems(nextItems);
+      if (nextSelectedId !== selectedItemId) {
+        setSelectedItemId(nextSelectedId);
+      }
+
+      try {
+        const token = await ensureFreshAuthToken({
+          token: authToken,
+          refreshAuthToken,
+        });
+        if (!token) {
+          throw new Error("登入已過期，請重新登入");
+        }
+
+        await collectionsApi.deleteCollectionItem(token, target.dbId);
+        setPendingDeleteIds((ids) => ids.filter((id) => id !== target.dbId));
+        setCollections((prev) =>
+          prev.map((item) =>
+            item.id === activeCollectionId
+              ? {
+                  ...item,
+                  item_count: Math.max(0, (item.item_count ?? previousItems.length) - 1),
+                }
+              : item,
+            ),
+        );
+        if (hadUnsavedChanges) {
+          setSaveStatus("idle");
+        } else {
+          baselineSnapshotRef.current = buildSnapshot(
+            nextItems,
+            collectionTitle,
+            pendingDeleteIds.filter((id) => id !== target.dbId),
+          );
+          baselineReadyRef.current = true;
+          dirtyCounterRef.current = 0;
+          setHasUnsavedChanges(false);
+          setSaveStatus("saved");
+        }
+      } catch (error) {
+        setPlaylistItems(previousItems);
+        setSelectedItemId(previousSelectedId);
+        setSaveStatus("error");
+        setSaveError(error instanceof Error ? error.message : String(error));
       }
     },
-    [markDirty, playlistItems, selectedItemId],
+    [
+      activeCollectionId,
+      authToken,
+      buildSnapshot,
+      collectionTitle,
+      hasUnsavedChanges,
+      markDirty,
+      pendingDeleteIds,
+      playlistItems,
+      refreshAuthToken,
+      selectedItemId,
+    ],
   );
-
-  const handleAddSingleToggle = useCallback(() => {
-    setSingleTrackOpen(true);
-  }, []);
 
   const handleSingleTrackUrlChange = useCallback((value: string) => {
     setSingleTrackUrl(value);
@@ -1864,7 +1908,6 @@ const EditPage = () => {
   }, []);
 
   const handleSingleTrackCancel = useCallback(() => {
-    setSingleTrackOpen(false);
     setSingleTrackError(null);
   }, []);
 
@@ -1935,7 +1978,10 @@ const EditPage = () => {
       isMutedRef.current = true;
       setIsMuted(true);
     } else {
-      const restored = Math.max(10, lastVolumeRef.current || volumeRef.current || volume || 10);
+      const restored = Math.max(
+        10,
+        lastVolumeRef.current || volumeRef.current || volume || 10,
+      );
       player?.unMute?.();
       player?.setVolume?.(restored);
       volumeRef.current = restored;
@@ -2098,9 +2144,9 @@ const EditPage = () => {
           setCollectionAnchor(event.currentTarget);
           setCollectionMenuOpen((prev) => !prev);
         }}
-        onPlaylistButtonClick={(event) => {
-          setPlaylistAnchor(event.currentTarget);
-          setPlaylistPanelOpen((prev) => !prev);
+        onPlaylistButtonClick={() => {
+          setSourceModalMode("playlist");
+          setSourceModalOpen(true);
         }}
         onAiBatchEditClick={() => {
           setAiHelperNotice(null);
@@ -2109,7 +2155,7 @@ const EditPage = () => {
         }}
         aiBatchDisabled={playlistItems.length === 0}
         collectionMenuOpen={collectionMenuOpen}
-        playlistMenuOpen={playlistPanelOpen}
+        playlistMenuOpen={sourceModalOpen}
       />
       <CollectionPopover
         open={collectionMenuOpen}
@@ -2160,20 +2206,34 @@ const EditPage = () => {
           setConfirmPublicOpen(false);
         }}
       />
-      <PlaylistPopover
-        open={playlistPanelOpen}
-        anchorEl={playlistAnchor}
-        onClose={() => setPlaylistPanelOpen(false)}
-        label={TEXT.playlistLabel}
+      <PlaylistSourceModal
+        open={sourceModalOpen}
+        mode={sourceModalMode}
+        onClose={() => {
+          setSourceModalOpen(false);
+          handleSingleTrackCancel();
+        }}
+        onModeChange={setSourceModalMode}
         playlistUrl={playlistUrl}
-        onChangeUrl={(value) => {
+        onChangePlaylistUrl={(value) => {
           setPlaylistUrl(value);
           if (playlistAddError) setPlaylistAddError(null);
         }}
-        onImport={handleImportPlaylist}
+        onImportPlaylist={handleImportPlaylist}
         playlistLoading={playlistLoading}
         playlistError={playlistError}
         playlistAddError={playlistAddError}
+        singleTrackUrl={singleTrackUrl}
+        singleTrackTitle={singleTrackTitle}
+        singleTrackAnswer={singleTrackAnswer}
+        singleTrackError={singleTrackError}
+        singleTrackLoading={singleTrackLoading}
+        isDuplicate={isDuplicate}
+        canEditSingleMeta={canEditSingleMeta}
+        onSingleTrackUrlChange={handleSingleTrackUrlChange}
+        onSingleTrackTitleChange={handleSingleTrackTitleChange}
+        onSingleTrackAnswerChange={handleSingleTrackAnswerChange}
+        onAddSingle={handleAddSingleTrack}
       />
       <div
         className={`rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 p-1 shadow-[0_24px_60px_-36px_rgba(2,6,23,0.9)] overflow-hidden min-h-0 ${
@@ -2188,9 +2248,10 @@ const EditPage = () => {
         <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="order-2 lg:order-2 min-w-0">
             {playlistItems.length > 0 && (
-              <PlaylistListPanel
-                items={playlistItems}
-                selectedIndex={selectedIndex}
+                <PlaylistListPanel
+                  items={playlistItems}
+                 maxItems={activeCollectionItemLimit}
+                  selectedIndex={selectedIndex}
                 onSelect={handleSelectIndex}
                 onRemove={removeItem}
                 onReorder={moveItem}
@@ -2198,20 +2259,6 @@ const EditPage = () => {
                 highlightIndex={highlightIndex}
                 clipDurationLabel={CLIP_DURATION_LABEL}
                 formatSeconds={formatSeconds}
-                onAddSingleToggle={handleAddSingleToggle}
-                singleTrackOpen={singleTrackOpen}
-                singleTrackUrl={singleTrackUrl}
-                singleTrackTitle={singleTrackTitle}
-                singleTrackAnswer={singleTrackAnswer}
-                singleTrackError={singleTrackError}
-                singleTrackLoading={singleTrackLoading}
-                isDuplicate={isDuplicate}
-                canEditSingleMeta={canEditSingleMeta}
-                onSingleTrackUrlChange={handleSingleTrackUrlChange}
-                onSingleTrackTitleChange={handleSingleTrackTitleChange}
-                onSingleTrackAnswerChange={handleSingleTrackAnswerChange}
-                onSingleTrackCancel={handleSingleTrackCancel}
-                onAddSingle={handleAddSingleTrack}
               />
             )}
           </div>
@@ -2261,20 +2308,15 @@ const EditPage = () => {
                 primaryActionLabel="套用標題"
                 onPrimaryAction={() => {
                   if (!selectedItem?.title) return;
-                  setAnswerText(selectedItem.title);
-                  updateSelectedItem({
-                    answerText: selectedItem.title,
-                  });
+                  updateSelectedAnswerText(selectedItem.title);
                 }}
                 secondaryActionLabel="清空"
                 onSecondaryAction={() => {
-                  setAnswerText("");
-                  updateSelectedItem({ answerText: "" });
+                  updateSelectedAnswerText("");
                 }}
                 maxLength={ANSWER_MAX_LENGTH}
                 onChange={(value) => {
-                  setAnswerText(value);
-                  updateSelectedItem({ answerText: value });
+                  updateSelectedAnswerText(value);
                 }}
               />
             </div>
@@ -2350,17 +2392,10 @@ const EditPage = () => {
               <div className="mt-1 text-lg font-semibold text-[var(--mc-text)]">
                 AI 批次修正答案
               </div>
-              <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-                先把目前題庫轉成 prompt，交給外部 AI 校對後，再把 JSON 貼回來批次套用。
-              </div>
             </div>
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/50 px-3 py-2 text-right">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                本次題目
-              </div>
-              <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-                {playlistItems.length}
-              </div>
+
+            <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
+              {playlistItems.length} 題
             </div>
           </div>
         </DialogTitle>
@@ -2371,13 +2406,12 @@ const EditPage = () => {
                 <div className="text-sm font-semibold text-[var(--mc-text)]">
                   批次分頁
                 </div>
-                <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                  每批最多 {AI_BATCH_PAGE_SIZE} 首，先逐批處理再貼回 JSON，能大幅降低 AI 回傳格式失敗率。
-                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {aiPromptPages.map((page) => {
                     const active = page.pageIndex === aiBatchPageIndex;
-                    const hasDraft = Boolean(aiJsonDrafts[page.pageIndex]?.trim());
+                    const hasDraft = Boolean(
+                      aiJsonDrafts[page.pageIndex]?.trim(),
+                    );
                     const isApplied = aiAppliedPages[page.pageIndex] === true;
                     const pageStatus = aiPageStatuses[page.pageIndex];
                     return (
@@ -2424,9 +2458,6 @@ const EditPage = () => {
                   <div className="text-sm font-semibold text-[var(--mc-text)]">
                     Step 1. 產生 Prompt
                   </div>
-                  <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                    目前只處理第 {aiBatchPageIndex + 1} 批，Prompt 只會要求 AI 回傳 `id + answerText`，避免誤改其他欄位。
-                  </div>
                 </div>
                 <Button
                   variant="outlined"
@@ -2454,33 +2485,31 @@ const EditPage = () => {
                 Step 2. 選擇 AI
               </div>
                 <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                  部分服務支援直接帶入 prompt。若網址過長或該服務不支援，介面會提示這次未帶入 prompt，並改為複製後開首頁。
+                  目前固定使用 Perplexity。若網址過長，介面會提示這次未帶入
+                  prompt，並改為複製後開首頁。
+                </div>
+                <div
+                  className={`mt-3 rounded-2xl border px-3 py-2 text-sm ${
+                    aiDirectOpenState.tone === "ready"
+                      ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
+                      : aiDirectOpenState.tone === "warn"
+                        ? "border-amber-500/30 bg-amber-950/20 text-amber-100"
+                        : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 text-[var(--mc-text-muted)]"
+                  }`}
+                >
+                  <div className="font-medium">{aiDirectOpenState.title}</div>
+                  <div className="mt-1 text-xs opacity-85">
+                    {aiDirectOpenState.description}
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {AI_PROVIDERS.map((provider) => {
-                    const active = aiProvider === provider;
-                    return (
-                    <button
-                      key={provider}
-                      type="button"
-                      onClick={() => setAiProvider(provider)}
-                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                        active
-                          ? "border-[var(--mc-accent)] bg-[var(--mc-accent)]/12 text-[var(--mc-text)]"
-                          : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/50 hover:text-[var(--mc-text)]"
-                      }`}
-                    >
-                      {getAiProviderLabel(provider)}
-                    </button>
-                  );
-                })}
                   <Button
                     variant="contained"
                     size="small"
                     onClick={handleOpenAiAssistant}
                     className="!bg-[var(--mc-accent)] !text-slate-950 hover:!bg-[var(--mc-accent)]/90"
                   >
-                    在 {getAiProviderLabel(aiProvider)} 開啟
+                    在 {AI_PROVIDER_LABEL} 開啟
                   </Button>
                   <Button
                     variant="outlined"
@@ -2491,15 +2520,16 @@ const EditPage = () => {
                     強制帶入測試
                   </Button>
                 </div>
-              </section>
+            </section>
 
             <section className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-4">
               <div className="text-sm font-semibold text-[var(--mc-text)]">
                 Step 3. 貼回 JSON 並預覽
               </div>
-                <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                  請貼上 AI 回傳內容。支援純 JSON，也支援包在 ```json code block 內的格式。
-                </div>
+              <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                請貼上 AI 回傳內容。支援純 JSON，也支援包在 ```json code block
+                內的格式。
+              </div>
               <TextField
                 value={currentAiJsonDraft}
                 onChange={(event) => {
@@ -2518,8 +2548,10 @@ const EditPage = () => {
                 maxRows={14}
                 fullWidth
                 margin="normal"
-                  placeholder={'```json\n{"items":[{"id":"item-id","answerText":"正式答案"}]}\n```'}
-                />
+                placeholder={
+                  '```json\n{"items":[{"id":"item-id","answerText":"正式答案"}]}\n```'
+                }
+              />
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-3">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
@@ -2558,12 +2590,14 @@ const EditPage = () => {
               )}
               {aiPreview.missingIds.length > 0 && !aiParsedResult.error && (
                 <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm text-amber-100">
-                  以下 id 在目前題庫中找不到：{aiPreview.missingIds.slice(0, 8).join(", ")}
+                  以下 id 在目前題庫中找不到：
+                  {aiPreview.missingIds.slice(0, 8).join(", ")}
                   {aiPreview.missingIds.length > 8 ? " ..." : ""}
                 </div>
               )}
               <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                {aiPreview.changedItems.length === 0 && !aiParsedResult.error ? (
+                {aiPreview.changedItems.length === 0 &&
+                !aiParsedResult.error ? (
                   <div className="rounded-2xl border border-dashed border-[var(--mc-border)] px-3 py-4 text-sm text-[var(--mc-text-muted)]">
                     貼上有效 JSON 後，這裡會顯示即將更新的答案差異。
                   </div>

@@ -6,9 +6,9 @@ import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { trackEvent } from "../../../shared/analytics/track";
 import {
   isAdminRole,
-  MAX_COLLECTION_ITEMS_PER_COLLECTION,
   MAX_COLLECTIONS_PER_USER,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
+  resolveCollectionItemLimit,
 } from "./collectionLimits";
 
 const resolveItemSource = (
@@ -43,11 +43,13 @@ type UseCollectionEditorParams = {
   authToken: string | null;
   ownerId: string | null;
   authRole?: string | null;
+  authPlan?: string | null;
   authExpired?: boolean;
   collectionTitle: string;
   collectionVisibility: "private" | "public";
   activeCollectionId: string | null;
   activeCollectionStoredVisibility?: "private" | "public" | null;
+  activeCollectionItemLimitOverride?: number | null;
   collectionsCount: number;
   privateCollectionsCount: number;
   playlistItems: EditableItem[];
@@ -76,11 +78,13 @@ export const useCollectionEditor = ({
   authToken,
   ownerId,
   authRole,
+  authPlan,
   authExpired,
   collectionTitle,
   collectionVisibility,
   activeCollectionId,
   activeCollectionStoredVisibility,
+  activeCollectionItemLimitOverride,
   collectionsCount,
   privateCollectionsCount,
   playlistItems,
@@ -104,6 +108,11 @@ export const useCollectionEditor = ({
   onSaved,
 }: UseCollectionEditorParams) => {
   const isAdmin = isAdminRole(authRole);
+  const effectiveItemLimit = resolveCollectionItemLimit({
+    role: authRole,
+    plan: authPlan,
+    itemLimitOverride: activeCollectionItemLimitOverride,
+  });
   const isAuthError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     return message.includes("Unauthorized") || message.includes("401");
@@ -226,6 +235,7 @@ export const useCollectionEditor = ({
     async (mode: "manual" | "auto" = "manual") => {
       if (saveInFlightRef.current) return;
       if (!authToken || !ownerId || authExpired) {
+        void message;
         if (mode === "auto") {
           showAutoSaveNotice("error", "自動保存失敗");
         } else {
@@ -250,10 +260,10 @@ export const useCollectionEditor = ({
       ) {
         const message = `一般使用者最多只能建立 ${MAX_COLLECTIONS_PER_USER} 個收藏庫`;
         if (mode === "auto") {
-          showAutoSaveNotice("error", message);
+          showAutoSaveNotice("error", limitMessage);
         } else {
           setSaveStatus("error");
-          setSaveError(message);
+          setSaveError(limitMessage);
         }
         return;
       }
@@ -272,13 +282,15 @@ export const useCollectionEditor = ({
         }
         return;
       }
-      if (!isAdmin && playlistItems.length > MAX_COLLECTION_ITEMS_PER_COLLECTION) {
-        const message = `一般使用者每個收藏庫最多只能保留 ${MAX_COLLECTION_ITEMS_PER_COLLECTION} 題`;
+      if (effectiveItemLimit !== null && playlistItems.length > effectiveItemLimit) {
+        const limitMessage =
+          `\u4e00\u822c\u4f7f\u7528\u8005\u6bcf\u500b\u6536\u85cf\u5eab\u6700\u591a\u53ea\u80fd\u4fdd\u7559 ${effectiveItemLimit}` +
+          ` \u984c`;
         if (mode === "auto") {
-          showAutoSaveNotice("error", message);
+          showAutoSaveNotice("error", limitMessage);
         } else {
           setSaveStatus("error");
-          setSaveError(message);
+          setSaveError(limitMessage);
         }
         return;
       }
@@ -430,6 +442,7 @@ export const useCollectionEditor = ({
       collectionsCount,
       privateCollectionsCount,
       dirtyCounterRef,
+      effectiveItemLimit,
       playlistItems,
       refreshAuthToken,
       navigateToEdit,

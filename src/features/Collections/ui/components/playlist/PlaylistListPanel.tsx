@@ -12,11 +12,13 @@ import {
   closestCenter,
   useSensor,
   useSensors,
+  type DraggableAttributes,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import Close from "@mui/icons-material/Close";
+import LibraryMusic from "@mui/icons-material/LibraryMusic";
 import {
   SortableContext,
   arrayMove,
@@ -37,10 +39,16 @@ type PlaylistItemView = {
   thumbnail?: string;
   answerStatus?: "original" | "ai_modified" | "manual_reviewed";
   answerAiProvider?: "grok" | "perplexity" | "chatgpt" | null;
+  answerAiUpdatedAt?: number | null;
+  answerAiBatchKey?: string | null;
 };
+
+type PlaylistFilterMode = "all" | "ai" | "manual" | "untouched";
+type SortableBindings = ReturnType<typeof useSortable>;
 
 type PlaylistListPanelProps = {
   items: PlaylistItemView[];
+  maxItems: number | null;
   selectedIndex: number;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
@@ -49,20 +57,6 @@ type PlaylistListPanelProps = {
   highlightIndex: number | null;
   clipDurationLabel: string;
   formatSeconds: (value: number) => string;
-  onAddSingleToggle: () => void;
-  singleTrackOpen: boolean;
-  singleTrackUrl: string;
-  singleTrackTitle: string;
-  singleTrackAnswer: string;
-  singleTrackError: string | null;
-  singleTrackLoading: boolean;
-  isDuplicate: boolean;
-  canEditSingleMeta: boolean;
-  onSingleTrackUrlChange: (value: string) => void;
-  onSingleTrackTitleChange: (value: string) => void;
-  onSingleTrackAnswerChange: (value: string) => void;
-  onSingleTrackCancel: () => void;
-  onAddSingle: () => void;
 };
 
 type SortableRowProps = {
@@ -81,6 +75,7 @@ type SortableRowProps = {
   onRemove: (index: number) => void;
   totalCount: number;
   outerStyle?: CSSProperties;
+  canDrag?: boolean;
 };
 
 const RowCard = ({
@@ -107,8 +102,8 @@ const RowCard = ({
   onRemove?: (index: number) => void;
   totalCount?: number;
   dimmed?: boolean;
-  dragAttributes?: Record<string, unknown>;
-  dragListeners?: Record<string, unknown>;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: SortableBindings["listeners"];
 }) => {
   return (
     <div
@@ -210,6 +205,7 @@ const SortableRow = ({
   onRemove,
   totalCount,
   outerStyle,
+  canDrag,
 }: SortableRowProps) => {
   const {
     attributes,
@@ -218,7 +214,7 @@ const SortableRow = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.localId });
+  } = useSortable({ id: item.localId, disabled: !canDrag });
 
   // Important for virtualization:
   // react-window positions rows using `outerStyle.transform: translate3d(0, y, 0)`.
@@ -253,8 +249,8 @@ const SortableRow = ({
           onRemove={onRemove}
           totalCount={totalCount}
           dimmed={isDragging}
-          dragAttributes={attributes as Record<string, unknown>}
-          dragListeners={listeners as Record<string, unknown>}
+          dragAttributes={canDrag ? attributes : undefined}
+          dragListeners={canDrag ? listeners : undefined}
         />
       </div>
     </div>
@@ -289,6 +285,7 @@ const OverlayCard = ({
 
 const PlaylistListPanel = ({
   items,
+  maxItems,
   selectedIndex,
   onSelect,
   onRemove,
@@ -297,26 +294,14 @@ const PlaylistListPanel = ({
   highlightIndex,
   clipDurationLabel,
   formatSeconds,
-  onAddSingleToggle,
-  singleTrackOpen,
-  singleTrackUrl,
-  singleTrackTitle,
-  singleTrackAnswer,
-  singleTrackError,
-  singleTrackLoading,
-  isDuplicate,
-  canEditSingleMeta,
-  onSingleTrackUrlChange,
-  onSingleTrackTitleChange,
-  onSingleTrackAnswerChange,
-  onSingleTrackCancel,
-  onAddSingle,
 }: PlaylistListPanelProps) => {
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const itemIds = useMemo(
     () => safeItems.map((item) => item.localId),
     [safeItems],
   );
+  const [filterMode, setFilterMode] = useState<PlaylistFilterMode>("all");
+  const canReorder = filterMode === "all";
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
@@ -335,6 +320,74 @@ const PlaylistListPanel = ({
   const pendingRemoveItem = pendingRemoveId
     ? (safeItems.find((item) => item.localId === pendingRemoveId) ?? null)
     : null;
+  const visibleIndexMap = useMemo(() => {
+    return safeItems.reduce<number[]>((result, item, index) => {
+      const hasAiModification =
+        item.answerStatus === "ai_modified" ||
+        item.answerAiProvider != null ||
+        item.answerAiUpdatedAt != null ||
+        item.answerAiBatchKey != null;
+      const hasManualModification = item.answerStatus === "manual_reviewed";
+
+      if (filterMode === "ai" && !hasAiModification) return result;
+      if (filterMode === "manual" && !hasManualModification) return result;
+      if (
+        filterMode === "untouched" &&
+        (hasAiModification || hasManualModification)
+      ) {
+        return result;
+      }
+
+      result.push(index);
+      return result;
+    }, []);
+  }, [filterMode, safeItems]);
+  const visibleItems = useMemo(
+    () => visibleIndexMap.map((index) => safeItems[index]).filter(Boolean),
+    [safeItems, visibleIndexMap],
+  );
+  const aiModifiedCount = useMemo(
+    () =>
+      safeItems.filter(
+        (item) =>
+          item.answerStatus === "ai_modified" ||
+          item.answerAiProvider != null ||
+          item.answerAiUpdatedAt != null ||
+          item.answerAiBatchKey != null,
+      ).length,
+    [safeItems],
+  );
+  const manualModifiedCount = useMemo(
+    () =>
+      safeItems.filter((item) => item.answerStatus === "manual_reviewed")
+        .length,
+    [safeItems],
+  );
+  const untouchedCount = useMemo(
+    () =>
+      safeItems.filter(
+        (item) =>
+          item.answerStatus !== "manual_reviewed" &&
+          item.answerStatus !== "ai_modified" &&
+          item.answerAiProvider == null &&
+          item.answerAiUpdatedAt == null &&
+          item.answerAiBatchKey == null,
+      ).length,
+    [safeItems],
+  );
+  const visibleItemIds = useMemo(
+    () => visibleItems.map((item) => item.localId),
+    [visibleItems],
+  );
+  const visibleSelectedIndex = useMemo(
+    () => visibleIndexMap.indexOf(selectedIndex),
+    [selectedIndex, visibleIndexMap],
+  );
+  const visibleHighlightIndex = useMemo(
+    () =>
+      highlightIndex === null ? null : visibleIndexMap.indexOf(highlightIndex),
+    [highlightIndex, visibleIndexMap],
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -346,11 +399,25 @@ const PlaylistListPanel = ({
       setActiveId(null);
       return;
     }
-    const oldIndex = itemIds.indexOf(String(active.id));
-    const newIndex = itemIds.indexOf(String(over.id));
-    if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
-      const reordered = arrayMove(itemIds, oldIndex, newIndex);
-      const nextIndex = reordered.indexOf(String(active.id));
+    const oldVisibleIndex = visibleItemIds.indexOf(String(active.id));
+    const newVisibleIndex = visibleItemIds.indexOf(String(over.id));
+    if (
+      oldVisibleIndex >= 0 &&
+      newVisibleIndex >= 0 &&
+      oldVisibleIndex !== newVisibleIndex
+    ) {
+      const reordered = arrayMove(
+        visibleItemIds,
+        oldVisibleIndex,
+        newVisibleIndex,
+      );
+      const nextVisibleIndex = reordered.indexOf(String(active.id));
+      const oldIndex = visibleIndexMap[oldVisibleIndex];
+      const nextIndex = visibleIndexMap[nextVisibleIndex];
+      if (oldIndex === undefined || nextIndex === undefined) {
+        setActiveId(null);
+        return;
+      }
       onReorder(oldIndex, nextIndex);
     }
     setActiveId(null);
@@ -393,14 +460,14 @@ const PlaylistListPanel = ({
   }, [listApi, listRef]);
 
   useEffect(() => {
-    if (highlightIndex === null) return;
-    if (highlightIndex < 0 || highlightIndex >= safeItems.length) return;
+    if (visibleHighlightIndex === null || visibleHighlightIndex < 0) return;
+    if (visibleHighlightIndex >= visibleItems.length) return;
     listApi?.scrollToRow({
-      index: highlightIndex,
+      index: visibleHighlightIndex,
       align: "center",
       behavior: "smooth",
     });
-  }, [highlightIndex, listApi, safeItems.length]);
+  }, [listApi, visibleHighlightIndex, visibleItems.length]);
 
   type VirtualRowProps = {
     items: PlaylistItemView[];
@@ -411,9 +478,21 @@ const PlaylistListPanel = ({
     onSelect: (index: number) => void;
     onRemove: (index: number) => void;
     totalCount: number;
+    canDrag?: boolean;
   };
 
   const ROW_HEIGHT = 84;
+
+  const handleFilterToggle = useCallback(
+    (nextMode: Exclude<PlaylistFilterMode, "all">) => {
+      setFilterMode((currentMode) =>
+        currentMode === nextMode ? "all" : nextMode,
+      );
+    },
+    [],
+  );
+
+  const hasActiveFilters = filterMode !== "all";
 
   const Row = useCallback(
     ({
@@ -428,6 +507,7 @@ const PlaylistListPanel = ({
       onSelect,
       onRemove,
       totalCount,
+      canDrag,
     }: {
       ariaAttributes: {
         "aria-posinset": number;
@@ -452,6 +532,7 @@ const PlaylistListPanel = ({
           onRemove={onRemove}
           totalCount={totalCount}
           outerStyle={style}
+          canDrag={canDrag}
         />
       );
     },
@@ -460,105 +541,87 @@ const PlaylistListPanel = ({
 
   return (
     <div className="space-y-2 lg:sticky self-start">
-      <div className="flex items-center justify-between text-[11px] text-[var(--mc-text-muted)] px-2">
-        <span className="uppercase tracking-[0.22em]">播放清單</span>
-        <span>{items.length} 題</span>
-      </div>
-
-      <div className="relative">
-        <button
-          type="button"
-          onClick={onAddSingleToggle}
-          className={`w-full rounded-xl border border-dashed px-3 py-3 text-left text-[12px] text-[var(--mc-text-muted)] transition-colors ${
-            singleTrackOpen
-              ? "border-[var(--mc-accent)]/60 bg-[var(--mc-surface-strong)] opacity-60"
-              : "border-[var(--mc-border)] bg-[var(--mc-surface)]/60 hover:border-[var(--mc-accent)]/60"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-lg text-[var(--mc-text)]">+</span>
-            <span>Add a single track</span>
-          </div>
-        </button>
-
-        <div
-          className={`absolute left-0 top-0 z-20 w-full rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)] p-4 shadow-[0_16px_36px_-20px_rgba(0,0,0,0.8)] transition-all duration-200 ease-out ${
-            singleTrackOpen
-              ? "opacity-100 scale-100"
-              : "pointer-events-none opacity-0 scale-95"
-          }`}
-          aria-hidden={!singleTrackOpen}
-        >
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-              Paste a YouTube link
+      <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/40 px-3 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-2">
+                <span className="inline-flex items-center gap-1.5 text-base font-semibold text-[var(--mc-text)]">
+                  <LibraryMusic sx={{ fontSize: 18 }} />
+                  <span>
+                    {(() => {
+                      const limitLabel = maxItems === null ? "不限" : `${maxItems}`;
+                      return visibleItems.length === items.length
+                        ? `${items.length} / ${limitLabel}`
+                        : `${visibleItems.length} / ${items.length} / ${limitLabel}`;
+                    })()}
+                  </span>
+                </span>
             </div>
-            <button
-              type="button"
-              onClick={onSingleTrackCancel}
-              className="inline-flex items-center rounded-full border border-[var(--mc-border)] px-2 py-0.5 text-[10px] text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-            >
-              Close
-            </button>
-          </div>
-          <div className="mt-2 space-y-2">
-            <div className="relative">
-              <input
-                value={singleTrackUrl}
-                onChange={(event) => onSingleTrackUrlChange(event.target.value)}
-                placeholder="YouTube link"
-                aria-invalid={isDuplicate}
-                className={`w-full rounded-lg border bg-[var(--mc-surface)] px-2.5 py-2 text-xs text-[var(--mc-text)] transition-colors ${
-                  isDuplicate
-                    ? "border-rose-400/70 text-rose-100 placeholder:text-rose-200/70 focus:border-rose-400"
-                    : "border-[var(--mc-border)]"
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--mc-text-muted)]">
+              <button
+                type="button"
+                onClick={() => handleFilterToggle("ai")}
+                disabled={aiModifiedCount === 0}
+                className={`rounded-full border px-2 py-0.5 transition-colors ${
+                  filterMode === "ai"
+                    ? "border-cyan-300/50 bg-cyan-400/18 text-cyan-50"
+                    : aiModifiedCount === 0
+                      ? "cursor-not-allowed border-cyan-400/10 bg-cyan-400/4 text-cyan-100/35"
+                      : "border-cyan-400/20 bg-cyan-400/8 text-cyan-100/85 hover:bg-cyan-400/14"
                 }`}
-              />
-              {isDuplicate && (
-                <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-rose-400/40 bg-rose-950/90 px-2 py-1 text-[10px] text-rose-100 shadow">
-                  This video is already in the list.
-                </div>
-              )}
+              >
+                AI {aiModifiedCount}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFilterToggle("manual")}
+                disabled={manualModifiedCount === 0}
+                className={`rounded-full border px-2 py-0.5 transition-colors ${
+                  filterMode === "manual"
+                    ? "border-emerald-300/50 bg-emerald-400/18 text-emerald-50"
+                    : manualModifiedCount === 0
+                      ? "cursor-not-allowed border-emerald-400/10 bg-emerald-400/4 text-emerald-100/35"
+                      : "border-emerald-400/20 bg-emerald-400/8 text-emerald-100/85 hover:bg-emerald-400/14"
+                }`}
+              >
+                手動 {manualModifiedCount}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFilterToggle("untouched")}
+                disabled={untouchedCount === 0}
+                className={`rounded-full border px-2 py-0.5 transition-colors ${
+                  filterMode === "untouched"
+                    ? "border-amber-200/50 bg-amber-300/18 text-amber-50"
+                    : untouchedCount === 0
+                      ? "cursor-not-allowed border-amber-300/10 bg-amber-300/4 text-amber-50/35"
+                      : "border-amber-300/20 bg-amber-300/8 text-amber-50/85 hover:bg-amber-300/14"
+                }`}
+              >
+                未修改 {untouchedCount}
+              </button>
             </div>
-            <input
-              value={singleTrackTitle}
-              onChange={(event) => onSingleTrackTitleChange(event.target.value)}
-              placeholder="Track title"
-              disabled={!canEditSingleMeta}
-              className="w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)] px-2 py-1.5 text-xs text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <input
-              value={singleTrackAnswer}
-              onChange={(event) =>
-                onSingleTrackAnswerChange(event.target.value)
-              }
-              placeholder="Answer"
-              disabled={!canEditSingleMeta}
-              className="w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)] px-2 py-1.5 text-xs text-[var(--mc-text)] disabled:cursor-not-allowed disabled:opacity-60"
-            />
           </div>
-          {singleTrackError && (
-            <div className="mt-2 text-[11px] text-rose-300">
-              {singleTrackError}
-            </div>
-          )}
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={onAddSingle}
-              disabled={isDuplicate}
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--mc-accent)] px-3 py-1.5 text-[11px] font-semibold text-[#1a1207] hover:bg-[var(--mc-accent-2)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Add
-            </button>
-            {singleTrackLoading && (
-              <span className="text-[11px] text-[var(--mc-text-muted)]">
-                Loading...
-              </span>
+          <div className="flex items-center justify-end gap-2">
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode("all");
+                }}
+                className="text-[11px] text-[var(--mc-text-muted)] transition-colors hover:text-[var(--mc-text)]"
+              >
+                清除
+              </button>
             )}
           </div>
         </div>
       </div>
+      {!canReorder && (
+        <div className="px-2 text-[11px] text-[var(--mc-text-muted)]">
+          篩選中僅顯示符合條件的題目，若要拖曳排序請先清除篩選。
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -581,25 +644,35 @@ const PlaylistListPanel = ({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={visibleItemIds}
+          strategy={verticalListSortingStrategy}
+        >
           <div className="h-[calc(100svh-420px)] lg:h-[calc(100vh-300px)]">
             <List<VirtualRowProps>
               listRef={setListApi}
               className="h-full overflow-y-auto pr-1"
               defaultHeight={420}
-              rowCount={safeItems.length}
+              rowCount={visibleItems.length}
               rowHeight={ROW_HEIGHT}
               overscanCount={6}
               rowComponent={Row}
               rowProps={{
-                items: safeItems,
-                selectedIndex,
-                highlightIndex,
+                items: visibleItems,
+                selectedIndex: visibleSelectedIndex,
+                highlightIndex: visibleHighlightIndex,
                 clipDurationLabel,
                 formatSeconds,
-                onSelect,
-                onRemove: handleRequestRemove,
-                totalCount: safeItems.length,
+                onSelect: (index) => {
+                  const nextIndex = visibleIndexMap[index];
+                  if (nextIndex !== undefined) onSelect(nextIndex);
+                },
+                onRemove: (index) => {
+                  const nextIndex = visibleIndexMap[index];
+                  if (nextIndex !== undefined) handleRequestRemove(nextIndex);
+                },
+                totalCount: visibleItems.length,
+                canDrag: canReorder,
               }}
               style={{ height: "100%" }}
             />
