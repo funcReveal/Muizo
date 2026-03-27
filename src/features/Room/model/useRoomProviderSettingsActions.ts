@@ -183,11 +183,23 @@ export const useRoomProviderSettingsActions = ({
           ? { allowParticipantInvite: payload.allowParticipantInvite }
           : {}),
       };
+      const nextCredentialValue =
+        normalizedPayload.pin !== undefined
+          ? normalizedPayload.pin
+          : normalizedPayload.password;
+      const compatibilityPayload =
+        nextCredentialValue !== undefined
+          ? {
+              ...normalizedPayload,
+              pin: nextCredentialValue,
+              password: nextCredentialValue,
+            }
+          : normalizedPayload;
 
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "updateRoomSettings",
-          { roomId: currentRoom.id, ...normalizedPayload },
+          { roomId: currentRoom.id, ...compatibilityPayload },
           (ack: Ack<{ room: RoomSummary }>) => {
             if (!ack) {
               resolve(false);

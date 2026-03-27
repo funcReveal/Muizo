@@ -101,6 +101,7 @@ interface SocketLifecycleHandlers {
     nextParticipants: RoomParticipant[],
     previousParticipants: RoomParticipant[],
   ) => RoomParticipant[];
+  saveRoomPassword: (roomId: string, password: string | null) => void;
 }
 
 interface UseRoomProviderSocketLifecycleParams {
@@ -201,6 +202,7 @@ export const useRoomProviderSocketLifecycle = ({
     seedPresenceParticipants,
     appendPresenceSystemMessage,
     mergeCachedParticipantPing,
+    saveRoomPassword,
   } = handlers;
   const upsertRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -230,11 +232,33 @@ export const useRoomProviderSocketLifecycle = ({
         removeRoomSummary(room.id);
       }
       if (room.id !== currentRoomIdRef.current) return;
-      setCurrentRoom((prev) =>
-        prev ? mergeRoomSummaryIntoCurrentRoom(prev, room) : prev,
-      );
+      setCurrentRoom((prev) => {
+        if (!prev) return prev;
+        const mergedRoom = mergeRoomSummaryIntoCurrentRoom(prev, room);
+        const serverPassword = (room.pin ?? room.password ?? "").trim();
+        if (serverPassword) {
+          saveRoomPassword(room.id, serverPassword);
+          return mergedRoom;
+        }
+        if (prev.hostClientId !== clientId) {
+          saveRoomPassword(room.id, null);
+          return {
+            ...mergedRoom,
+            pin: null,
+            password: null,
+          };
+        }
+        return mergedRoom;
+      });
     },
-    [currentRoomIdRef, removeRoomSummary, setCurrentRoom, upsertRoomSummary],
+    [
+      clientId,
+      currentRoomIdRef,
+      removeRoomSummary,
+      saveRoomPassword,
+      setCurrentRoom,
+      upsertRoomSummary,
+    ],
   );
 
   useEffect(() => {

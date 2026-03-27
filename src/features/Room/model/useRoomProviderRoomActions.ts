@@ -37,6 +37,7 @@ interface UseRoomProviderRoomActionsParams {
   username: string | null;
   joinPasswordInput: string;
   setJoinPasswordInput: Dispatch<SetStateAction<string>>;
+  saveRoomPassword: (roomId: string, password: string | null) => void;
   clientId: string;
   currentRoom: RoomState["room"] | null;
   gameState: GameState | null;
@@ -99,6 +100,7 @@ export const useRoomProviderRoomActions = ({
   username,
   joinPasswordInput,
   setJoinPasswordInput,
+  saveRoomPassword,
   clientId,
   currentRoom,
   gameState,
@@ -154,6 +156,10 @@ export const useRoomProviderRoomActions = ({
           if (!ack) return;
           if (ack.ok) {
             const state = ack.data;
+            const submittedPin = (pinOverride ?? joinPasswordInput).trim();
+            const serverPin = (state.room.pin ?? state.room.password ?? "").trim();
+            const resolvedRoomPassword =
+              submittedPin || serverPin || null;
             syncServerOffset(state.serverNow);
             setCurrentRoom(applyGameSettingsPatch(state.room, {}));
             setParticipants((prev) =>
@@ -178,6 +184,9 @@ export const useRoomProviderRoomActions = ({
             fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
               reset: true,
             });
+            if (state.room.hasPin ?? state.room.hasPassword) {
+              saveRoomPassword(state.room.id, resolvedRoomPassword);
+            }
             lockSessionClientId(clientId);
             persistRoomId(state.room.id);
             setJoinPasswordInput("");
@@ -221,6 +230,7 @@ export const useRoomProviderRoomActions = ({
       setStatusText,
       setKickedNotice,
       setCurrentRoom,
+      saveRoomPassword,
       syncServerOffset,
       username,
     ],

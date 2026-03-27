@@ -424,24 +424,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     );
     if (hostManagementConfirm.type === "transfer") {
       return {
-        title: `\u8981\u5c07\u623f\u4e3b\u8f49\u79fb\u7d66 ${target} \u55ce\uff1f`,
+        title: `要將房主轉移給 ${target} 嗎？`,
         description:
-          "\u8f49\u79fb\u5f8c\u4f60\u5c07\u5931\u53bb\u623f\u4e3b\u7ba1\u7406\u6b0a\u9650\uff0c\u5c0d\u65b9\u6703\u7acb\u523b\u63a5\u624b\u623f\u9593\u8a2d\u5b9a\u8207\u73a9\u5bb6\u7ba1\u7406\u529f\u80fd\u3002",
-        confirmLabel: "\u78ba\u8a8d\u8f49\u79fb\u623f\u4e3b",
+          "轉移後你將失去房主管理權限，對方會立刻接手房間設定與玩家管理功能。",
+        confirmLabel: "確認轉移房主",
       };
     }
     if (hostManagementConfirm.type === "ban") {
       return {
-        title: `\u8981\u8e22\u51fa\u4e26\u5c01\u9396 ${target} \u55ce\uff1f`,
+        title: `要踢出並封鎖 ${target} 嗎？`,
         description:
-          "\u9019\u4f4d\u73a9\u5bb6\u6703\u7acb\u523b\u96e2\u958b\u623f\u9593\uff0c\u4e26\u5728\u5c01\u9396\u671f\u9593\u7121\u6cd5\u518d\u6b21\u52a0\u5165\u9019\u500b\u623f\u9593\u3002",
-        confirmLabel: "\u78ba\u8a8d\u8e22\u51fa\u4e26\u5c01\u9396",
+          "這位玩家會立刻離開房間，並在封鎖期間無法再次加入這個房間。",
+        confirmLabel: "確認踢出並封鎖",
       };
     }
     return {
-      title: `\u8981\u8e22\u51fa ${target} \u55ce\uff1f`,
-      description: "\u9019\u4f4d\u73a9\u5bb6\u6703\u7acb\u523b\u96e2\u958b\u623f\u9593\uff0c\u4f46\u4e4b\u5f8c\u4ecd\u53ef\u900f\u904e\u9080\u8acb\u6216\u91cd\u65b0\u52a0\u5165\u56de\u5230\u623f\u9593\u3002",
-      confirmLabel: "\u78ba\u8a8d\u8e22\u51fa\u73a9\u5bb6",
+      title: `要踢出 ${target} 嗎？`,
+      description: "這位玩家會立刻離開房間，但之後仍可透過邀請或重新加入回到房間。",
+      confirmLabel: "確認踢出玩家",
     };
   }, [hostManagementConfirm]);
   const handleConfirmHostManagementAction = useCallback(() => {
@@ -1612,7 +1612,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             className="game-room-host-manage-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
             onClick={handleOpenHostManagement}
           >
-            {"\u623f\u4e3b\u7ba1\u7406"}
+            房主管理
           </Button>
         )}
         {playbackVoteButton}
@@ -1622,7 +1622,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     <Stack spacing={1.1} className="game-room-host-manage-list">
       {hostManageParticipants.length === 0 ? (
         <Typography variant="body2" className="text-slate-300">
-          {"\u76ee\u524d\u6c92\u6709\u53ef\u7ba1\u7406\u7684\u73a9\u5bb6\u3002"}
+          目前沒有可管理的玩家。
         </Typography>
       ) : (
         hostManageParticipants.map((participant, index) => {
@@ -1630,8 +1630,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             typeof participant.pingMs === "number"
               ? `${Math.max(0, Math.round(participant.pingMs))} ms`
               : participant.isOnline
-                ? "\u5728\u7dda"
-                : "\u96e2\u7dda";
+                ? "在線"
+                : "離線";
           return (
             <Stack
               key={participant.clientId}
@@ -1661,12 +1661,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     )}
                   </Typography>
                   <Typography variant="caption" className="text-slate-400">
-                    {`\u5206\u6578 ${participant.score.toLocaleString()} \u00b7 ${participantPingText}`}
+                    {`分數 ${participant.score.toLocaleString()} · ${participantPingText}`}
                   </Typography>
                 </div>
                 <Chip
                   size="small"
-                  label={participant.isOnline ? "\u5728\u7dda" : "\u96e2\u7dda"}
+                  label={participant.isOnline ? "在線" : "離線"}
                   color={participant.isOnline ? "success" : "default"}
                   variant="outlined"
                 />
@@ -1687,7 +1687,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     requestHostManagementAction("transfer", participant)
                   }
                 >
-                  {"\u8f49\u79fb\u623f\u4e3b"}
+                  轉移房主
                 </Button>
                 <Button
                   size="small"
@@ -1696,7 +1696,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   startIcon={<PersonRemoveRoundedIcon />}
                   onClick={() => requestHostManagementAction("kick", participant)}
                 >
-                  {"\u53ea\u8e22\u51fa"}
+                  只踢出
                 </Button>
                 <Button
                   size="small"
@@ -1705,7 +1705,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   startIcon={<BlockRoundedIcon />}
                   onClick={() => requestHostManagementAction("ban", participant)}
                 >
-                  {"\u8e22\u51fa\u5c01\u9396"}
+                  踢出封鎖
                 </Button>
               </Stack>
             </Stack>
@@ -1909,9 +1909,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     <span className="game-room-mobile-action-icon" aria-hidden>
                       <ManageAccountsRoundedIcon fontSize="inherit" />
                     </span>
-                    <span>{"\u623f\u4e3b\u7ba1\u7406"}</span>
+                    <span>房主管理</span>
                     <span className="game-room-mobile-action-meta">
-                      {`${hostManageParticipants.length} \u4eba`}
+                      {`${hostManageParticipants.length} 人`}
                     </span>
                   </button>
                 )}
@@ -1936,7 +1936,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                         : playbackExtensionVote?.status === "approved" &&
                           playbackVoteResolvedSeconds > 0
                           ? `+${playbackVoteResolvedSeconds} \u79d2`
-                          : "\u7b49\u5f85\u7d50\u679c"}
+                          : "等待結果"}
                     </span>
                   </button>
                 )}
@@ -2199,9 +2199,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               >
                 <span className="game-room-mobile-drawer-handle-bar" />
               </div>
-              <Typography variant="subtitle2">{"\u623f\u4e3b\u7ba1\u7406"}</Typography>
+              <Typography variant="subtitle2">房主管理</Typography>
               <Typography variant="caption" className="text-slate-400">
-                {`\u53ef\u7ba1\u7406 ${hostManageParticipants.length} \u4f4d\u73a9\u5bb6`}
+                {`可管理 ${hostManageParticipants.length} 位玩家`}
               </Typography>
             </div>
             <div className="game-room-mobile-host-manage-body">
@@ -2214,7 +2214,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 color="inherit"
                 onClick={handleCloseHostManagement}
               >
-                {"\u95dc\u9589"}
+                關閉
               </Button>
             </div>
           </SwipeableDrawer>
@@ -2223,8 +2223,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           open={isHostInGame && Boolean(hostManagementConfirm)}
           title={hostManagementConfirmText?.title ?? ""}
           description={hostManagementConfirmText?.description ?? ""}
-          confirmLabel={hostManagementConfirmText?.confirmLabel ?? "\u78ba\u8a8d"}
-          cancelLabel="\u53d6\u6d88"
+          confirmLabel={hostManagementConfirmText?.confirmLabel ?? "確認"}
+          cancelLabel="取消"
           onConfirm={handleConfirmHostManagementAction}
           onCancel={() => setHostManagementConfirm(null)}
         />

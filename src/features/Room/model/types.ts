@@ -269,6 +269,8 @@ export interface RoomSummary {
   createdAt: number;
   hasPassword: boolean;
   hasPin?: boolean;
+  password?: string | null;
+  pin?: string | null;
   playlistCount: number;
   playlistId?: string | null;
   playlistTitle?: string | null;

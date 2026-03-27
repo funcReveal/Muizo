@@ -108,8 +108,8 @@ export const extractVideoIdFromUrl = (url: string) => {
 };
 
 const GARBLED_TEXT_RE = /[嚙甇蝘撠]/;
-const ESCAPED_UNICODE_RE = /\\u[0-9a-fA-F]{4}/;
-const DOUBLY_ESCAPED_UNICODE_RE = /\\\\u/g;
+const ESCAPED_UNICODE_RE = /\\[uU][0-9a-fA-F]{4}/;
+const DOUBLY_ESCAPED_UNICODE_RE = /\\\\[uU]/g;
 
 const looksBrokenText = (value: string) => {
   if (GARBLED_TEXT_RE.test(value)) return true;
@@ -129,7 +129,7 @@ const decodeEscapedUnicodeText = (value: string) => {
       return collapsed;
     }
     normalized = collapsed.replace(
-      /\\u([0-9a-fA-F]{4})/g,
+      /\\[uU]([0-9a-fA-F]{4})/g,
       (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)),
     );
   }

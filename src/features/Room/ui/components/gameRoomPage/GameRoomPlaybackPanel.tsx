@@ -213,7 +213,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   );
 
   const revealAnswerNode = shouldShowMobileReveal ? (
-    <div className="game-room-reveal-inline" title={`答案：${revealAnswerLabel}`}>
+    <div className="game-room-reveal-inline" title={`答案 ${revealAnswerLabel}`}>
       <span className="game-room-reveal-inline__label">答案</span>
       {shouldUseRevealMarquee ? (
         <span ref={revealMarqueeWrapRef} className="game-room-reveal-title-marquee">
@@ -321,7 +321,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               className="game-room-media-iframe h-full w-full object-contain"
               allow="autoplay; encrypted-media"
               allowFullScreen
-              title="Now playing"
+              title="目前播放中"
               style={{
                 pointerEvents: "none",
                 opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
@@ -332,7 +332,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
           </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-            目前沒有可播放的影片
+            尚未載入影片
           </div>
         )}
 
@@ -354,7 +354,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-cyan-300 border-r-slate-400" />
               <div className="game-room-mask-spinner-core absolute inset-[22%] rounded-full bg-slate-400/10" />
             </div>
-            <p className="mt-2 text-xs text-slate-300">猜歌中</p>
+            <p className="mt-2 text-xs text-slate-300">預覽中</p>
           </div>
         )}
 
@@ -368,34 +368,35 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-amber-300 border-r-slate-400 shadow-[0_0_16px_rgba(148,163,184,0.18)]" />
             </div>
             <p className="mt-2 text-[11px] tracking-[0.12em] text-slate-300">
-              影片載入中
+              載入中
             </p>
           </div>
         )}
 
         {showAudioOnlyMask && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center overflow-hidden bg-[#06070b]">
+          <div className="game-room-thumbnail-mask pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center overflow-hidden bg-[#06070b]">
             {videoId ? (
               <>
                 <img
                   src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
                   alt="影片縮圖"
-                  className="absolute inset-0 h-full w-full object-cover opacity-40"
+                  className="absolute inset-0 h-full w-full object-cover opacity-28"
                   draggable={false}
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-[#06070b]/80 via-transparent to-[#06070b]/40" />
-                <div className="relative z-10 rounded-full border border-slate-600/60 bg-slate-950/70 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300 backdrop-blur-sm">
-                  Thumbnail
+                <div className="absolute inset-0 bg-linear-to-t from-[#06070b]/84 via-[#06070b]/18 to-[#06070b]/52" />
+                <div className="game-room-thumbnail-record relative z-10 rounded-full border border-slate-600/60 bg-slate-950/70 px-3 py-1 text-[11px] tracking-[0.22em] text-slate-300 backdrop-blur-sm">
+                  <img
+                    src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                    alt=""
+                    className="game-room-thumbnail-record__art"
+                    draggable={false}
+                  />
                 </div>
               </>
             ) : (
               <>
-                <div className="rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
-                  Thumbnail
-                </div>
-                <p className="mt-2 text-xs text-slate-300">
-                  目前無法取得影片縮圖，顯示縮圖模式會在有影片時自動更新。
-                </p>
+                <div className="game-room-thumbnail-record rounded-full border border-slate-700 bg-slate-900/75 px-3 py-1 text-[11px] tracking-[0.22em] text-slate-300" />
+                <p className="game-room-thumbnail-mask__hint mt-2 text-xs text-slate-300" />
               </>
             )}
           </div>

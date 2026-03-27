@@ -663,6 +663,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       seedPresenceParticipants,
       appendPresenceSystemMessage,
       mergeCachedParticipantPing,
+      saveRoomPassword,
     },
   });
 
@@ -727,6 +728,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     username,
     joinPasswordInput,
     setJoinPasswordInput,
+    saveRoomPassword,
     clientId,
     currentRoom,
     gameState,
@@ -908,17 +910,32 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
   }, [currentRoom, gameState?.revealDurationMs, playlistViewItems]);
 
   useEffect(() => {
-    const nextPassword =
-      currentRoom?.id &&
-        (currentRoom.hasPin ?? currentRoom.hasPassword)
-        ? readRoomPassword(currentRoom.id)
-        : null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror local-storage password cache for lobby password visibility.
+    if (!currentRoom?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror cached room password immediately when active room is cleared.
+      setHostRoomPassword(null);
+      return;
+    }
+
+    const roomUsesPassword = currentRoom.hasPin ?? currentRoom.hasPassword;
+    if (!roomUsesPassword) {
+      saveRoomPassword(currentRoom.id, null);
+      setHostRoomPassword(null);
+      return;
+    }
+
+    const serverPassword = (currentRoom.pin ?? currentRoom.password ?? "").trim();
+    const nextPassword = serverPassword || readRoomPassword(currentRoom.id);
+    if (serverPassword) {
+      saveRoomPassword(currentRoom.id, serverPassword);
+    }
     setHostRoomPassword(nextPassword);
   }, [
+    currentRoom?.password,
+    currentRoom?.pin,
     currentRoom?.hasPin,
     currentRoom?.hasPassword,
     currentRoom?.id,
+    saveRoomPassword,
   ]);
 
   const setRouteRoomId = useCallback((value: string | null) => {
