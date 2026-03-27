@@ -123,7 +123,7 @@ type HostManagementAction = {
   targetOnline: boolean;
 };
 
-const MOBILE_SCOREBOARD_MIN_HEIGHT_VH = 42;
+const MOBILE_SCOREBOARD_MIN_HEIGHT_VH = 34;
 const MOBILE_SCOREBOARD_MAX_HEIGHT_VH = 72;
 const MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH = 60;
 
@@ -382,7 +382,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     height: 58,
     minHeight: 48,
     maxHeight: 72,
-    threshold: 32,
+    threshold: 54,
+    thresholdBuffer: 22,
   });
   const mobileHostManageDismissState = mobileHostManageDragDismiss.canDismiss
     ? "ready"
@@ -532,7 +533,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     minHeight: MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
     maxHeight: MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
     onHeightChange: handleScoreboardHeightChange,
-    threshold: 34,
+    threshold: 52,
+    thresholdBuffer: 20,
   });
   const mobileScoreboardDismissState = mobileScoreboardDragDismiss.canDismiss
     ? "ready"
@@ -1553,9 +1555,17 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     return (
       <Stack spacing={1.1} className="game-room-host-manage-list">
         {hostManageParticipants.length === 0 ? (
-          <Typography variant="body2" className="text-slate-300">
-            目前沒有可管理的玩家。
-          </Typography>
+          <div className="game-room-host-manage-empty">
+            <span className="game-room-host-manage-empty__eyebrow">
+              管理列表
+            </span>
+            <Typography variant="body1" className="game-room-host-manage-empty__title">
+              目前沒有可管理的玩家
+            </Typography>
+            <Typography variant="body2" className="game-room-host-manage-empty__note">
+              有玩家加入房間後，就可以在這裡進行轉移房主、踢出或封鎖。
+            </Typography>
+          </div>
         ) : (
           hostManageParticipants.map((participant, index) => {
             const participantPingText =
@@ -1572,7 +1582,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 alignItems={{ xs: "stretch", sm: "center" }}
                 className="game-room-host-manage-item"
               >
-                <Stack direction="row" spacing={1} alignItems="center" className="min-w-0 flex-1">
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  className="game-room-host-manage-identity min-w-0 flex-1"
+                >
                   <Avatar
                     sx={{
                       width: 30,
@@ -1585,19 +1600,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   >
                     {index + 1}
                   </Avatar>
-                  <div className="min-w-0">
-                    <Typography variant="body2" className="truncate text-slate-100">
+                  <div className="game-room-host-manage-copy min-w-0">
+                    <Typography
+                      variant="body2"
+                      className="game-room-host-manage-name truncate text-slate-100"
+                    >
                       {normalizeRoomDisplayText(
                         participant.username,
                         `玩家 ${index + 1}`,
                       )}
                     </Typography>
-                    <Typography variant="caption" className="text-slate-400">
+                    <Typography
+                      variant="caption"
+                      className="game-room-host-manage-meta text-slate-400"
+                    >
                       {`分數 ${participant.score.toLocaleString()} · ${participantPingText}`}
                     </Typography>
                   </div>
                   <Chip
                     size="small"
+                    className="game-room-host-manage-status"
                     label={participant.isOnline ? "在線" : "離線"}
                     color={participant.isOnline ? "success" : "default"}
                     variant="outlined"
@@ -2092,12 +2114,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             swipeAreaWidth={26}
             ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
             PaperProps={{
-              className: "game-room-mobile-host-manage-drawer",
+              className:
+                "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single game-room-mobile-host-manage-drawer",
               style: mobileHostManageDragDismiss.paperStyle,
             }}
           >
             <div
-              className="game-room-mobile-host-manage-head"
+              className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard game-room-mobile-host-manage-head"
               role="presentation"
               aria-label="Drag down to collapse host management"
               {...mobileHostManageDragDismiss.dragHandleProps}
@@ -2109,6 +2132,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <span className="game-room-mobile-drawer-handle-bar" />
               </div>
               <div className="game-room-mobile-host-manage-headline">
+                <div className="game-room-mobile-host-manage-title-group">
+                  <Typography variant="subtitle2">房主管理</Typography>
+                  <Typography variant="caption" className="text-slate-400">
+                    {`可管理 ${hostManageParticipants.length} 位玩家`}
+                  </Typography>
+                </div>
                 <button
                   type="button"
                   className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon game-room-mobile-host-manage-close"
@@ -2117,26 +2146,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 >
                   <CloseRoundedIcon fontSize="inherit" />
                 </button>
-                <div className="game-room-mobile-host-manage-title-group">
-                  <Typography variant="subtitle2">房主管理</Typography>
-                  <Typography variant="caption" className="text-slate-400">
-                    {`可管理 ${hostManageParticipants.length} 位玩家`}
-                  </Typography>
-                </div>
               </div>
             </div>
             <div className="game-room-mobile-host-manage-body">
               {hostManagementPanelContent}
-            </div>
-            <div className="game-room-mobile-host-manage-foot">
-              <Button
-                fullWidth
-                variant="outlined"
-                color="inherit"
-                onClick={handleCloseHostManagement}
-              >
-                關閉
-              </Button>
             </div>
           </SwipeableDrawer>
         )}
