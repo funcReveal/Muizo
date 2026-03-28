@@ -22,13 +22,13 @@ const SettingsSectionCard: React.FC<SettingsSectionCardProps> = ({
   return (
     <section
       id={id}
-      className={`relative overflow-hidden rounded-2xl border border-slate-700/70 bg-[linear-gradient(180deg,rgba(9,14,24,0.95),rgba(6,10,18,0.92))] p-4 shadow-[0_24px_60px_-44px_rgba(2,6,23,0.95)] ${className ?? ""}`}
+      className={`settings-section-card relative overflow-hidden rounded-2xl border border-slate-700/70 bg-[linear-gradient(180deg,rgba(9,14,24,0.95),rgba(6,10,18,0.92))] p-4 shadow-[0_24px_60px_-44px_rgba(2,6,23,0.95)] ${className ?? ""}`}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/25 to-transparent" />
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="settings-section-card__rail pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/25 to-transparent" />
+      <div className="settings-section-card__header mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {icon ? (
-            <div className="mt-0.5 inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/5 text-cyan-200">
+            <div className="settings-section-card__icon mt-0.5 inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/5 text-cyan-200">
               {icon}
             </div>
           ) : null}

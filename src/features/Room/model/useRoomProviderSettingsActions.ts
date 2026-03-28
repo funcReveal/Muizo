@@ -38,6 +38,7 @@ type RoomSettingsPayload = {
   revealDurationSec?: number;
   startOffsetSec?: number;
   allowCollectionClipTiming?: boolean;
+  allowParticipantInvite?: boolean;
   playbackExtensionMode?: PlaybackExtensionMode;
   maxPlayers?: number | null;
 };
@@ -178,12 +179,27 @@ export const useRoomProviderSettingsActions = ({
         ...(typeof payload.allowCollectionClipTiming === "boolean"
           ? { allowCollectionClipTiming: payload.allowCollectionClipTiming }
           : {}),
+        ...(typeof payload.allowParticipantInvite === "boolean"
+          ? { allowParticipantInvite: payload.allowParticipantInvite }
+          : {}),
       };
+      const nextCredentialValue =
+        normalizedPayload.pin !== undefined
+          ? normalizedPayload.pin
+          : normalizedPayload.password;
+      const compatibilityPayload =
+        nextCredentialValue !== undefined
+          ? {
+              ...normalizedPayload,
+              pin: nextCredentialValue,
+              password: nextCredentialValue,
+            }
+          : normalizedPayload;
 
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "updateRoomSettings",
-          { roomId: currentRoom.id, ...normalizedPayload },
+          { roomId: currentRoom.id, ...compatibilityPayload },
           (ack: Ack<{ room: RoomSummary }>) => {
             if (!ack) {
               resolve(false);
@@ -210,6 +226,12 @@ export const useRoomProviderSettingsActions = ({
                 ? {
                     allowCollectionClipTiming:
                       normalizedPayload.allowCollectionClipTiming,
+                  }
+                : {}),
+              ...(typeof normalizedPayload.allowParticipantInvite === "boolean"
+                ? {
+                    allowParticipantInvite:
+                      normalizedPayload.allowParticipantInvite,
                   }
                 : {}),
               ...(normalizedPayload.playbackExtensionMode

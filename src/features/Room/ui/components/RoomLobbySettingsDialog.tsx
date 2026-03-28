@@ -26,6 +26,8 @@ import {
   PLAYER_MIN,
   PLAY_DURATION_MAX,
   PLAY_DURATION_MIN,
+  QUESTION_MAX,
+  QUESTION_MIN,
   QUESTION_STEP,
   REVEAL_DURATION_MAX,
   REVEAL_DURATION_MIN,
@@ -121,19 +123,19 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
     { title: string; meta: string; description: string }
   > = {
     manual_vote: {
-      title: "即時延長投票",
-      meta: "作答期間由玩家自行發起",
-      description: "猜歌進行中可投票決定是否延長本題播放時間。",
+      title: "延長投票",
+      meta: "猜歌中投票決定",
+      description: "猜歌中可投票延長本題播放。",
     },
     auto_once: {
       title: "播放結束後自動延長",
-      meta: "有人未作答時自動補一次",
-      description: "播放結束若仍有人未作答，系統會自動延長一次。",
+      meta: "未作答時自動補時",
+      description: "若仍有人未答，系統會自動補一次。",
     },
     disabled: {
       title: "關閉延長功能",
-      meta: "維持原本節奏直接公布",
-      description: "不開放補時，題目會依原定節奏進入公布答案。",
+      meta: "不補時，直接揭曉",
+      description: "不開放補時，依原節奏直接公布答案。",
     },
   };
 
@@ -168,7 +170,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   ];
   const questionCountPresets = Array.from(
     new Set(
-      [questionMinLimit, 10, 20, 30, 50, questionMaxLimit].filter(
+      [10, 20, 30, 50].filter(
         (count) => count >= questionMinLimit && count <= questionMaxLimit,
       ),
     ),
@@ -191,7 +193,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
     {
       key: "playback",
       label: "延長模式",
-      note: "即時投票、自動延長或關閉",
+      note: "投票、自動或關閉",
     },
     {
       key: "timing",
@@ -211,6 +213,22 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
     if (settingsSaving) return;
     onClose();
   };
+
+  const clampOnBlur = React.useCallback(
+    (
+      value: number,
+      min: number,
+      max: number,
+      onChange: (next: number) => void,
+    ) => {
+      if (!Number.isFinite(value)) {
+        onChange(min);
+        return;
+      }
+      onChange(Math.min(max, Math.max(min, value)));
+    },
+    [],
+  );
 
   const scrollToSection = (sectionKey: SettingsSectionKey) => {
     const targetRef =
@@ -512,7 +530,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                         className="room-lobby-settings-chip"
                       />
                       <Typography variant="caption" className="text-slate-500">
-                        最少 {questionMinLimit} / 最多 {questionMaxLimit}
+                        可設定範圍：{QUESTION_MIN} - {QUESTION_MAX} 題
                       </Typography>
                     </Stack>
 
@@ -544,6 +562,12 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     disabled={settingsLocked}
                     onChange={onSettingsQuestionCountChange}
                   />
+
+                  {questionMaxLimit < QUESTION_MAX ? (
+                    <Typography variant="caption" className="text-slate-500">
+                      目前房間可用曲目較少，題數會先依可用上限收斂到 {questionMaxLimit} 題。
+                    </Typography>
+                  ) : null}
                 </Stack>
               </Box>
 
@@ -655,6 +679,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       if (!Number.isFinite(next)) return;
                       onSettingsRevealDurationSecChange(next);
                     }}
+                    onBlur={() =>
+                      clampOnBlur(
+                        settingsRevealDurationSec,
+                        REVEAL_DURATION_MIN,
+                        REVEAL_DURATION_MAX,
+                        onSettingsRevealDurationSecChange,
+                      )
+                    }
                     inputProps={{
                       min: REVEAL_DURATION_MIN,
                       max: REVEAL_DURATION_MAX,
@@ -663,6 +695,10 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     disabled={settingsLocked}
                     fullWidth
                   />
+
+                  <Typography variant="caption" className="text-slate-400">
+                    可設定範圍：{REVEAL_DURATION_MIN} - {REVEAL_DURATION_MAX} 秒
+                  </Typography>
 
                   {settingsUseCollectionSource ? (
                     <>
@@ -702,6 +738,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                             if (!Number.isFinite(next)) return;
                             onSettingsPlayDurationSecChange(next);
                           }}
+                          onBlur={() =>
+                            clampOnBlur(
+                              settingsPlayDurationSec,
+                              PLAY_DURATION_MIN,
+                              PLAY_DURATION_MAX,
+                              onSettingsPlayDurationSecChange,
+                            )
+                          }
                           inputProps={{
                             min: PLAY_DURATION_MIN,
                             max: PLAY_DURATION_MAX,
@@ -721,6 +765,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                             if (!Number.isFinite(next)) return;
                             onSettingsStartOffsetSecChange(next);
                           }}
+                          onBlur={() =>
+                            clampOnBlur(
+                              settingsStartOffsetSec,
+                              START_OFFSET_MIN,
+                              START_OFFSET_MAX,
+                              onSettingsStartOffsetSecChange,
+                            )
+                          }
                           inputProps={{
                             min: START_OFFSET_MIN,
                             max: START_OFFSET_MAX,
@@ -730,6 +782,11 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                           fullWidth
                         />
                       </Stack>
+
+                      <Typography variant="caption" className="text-slate-400">
+                        作答時間範圍：{PLAY_DURATION_MIN} - {PLAY_DURATION_MAX} 秒 ·
+                        起始時間範圍：{START_OFFSET_MIN} - {START_OFFSET_MAX} 秒
+                      </Typography>
 
                       <Typography variant="caption" className="text-slate-400">
                         播放時間會從起始秒數開始計算，適合用來收斂題目的辨識難度。

@@ -1,6 +1,7 @@
 ﻿import React from "react";
 import { Badge, Chip } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
+import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
 import {
   DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID,
@@ -28,9 +29,6 @@ interface GameRoomLeftSidebarProps {
   danmuEnabled: boolean;
   onDanmuEnabledChange: (enabled: boolean) => void;
   recentMessages: ChatMessage[];
-  messageInput: string;
-  onMessageChange?: (value: string) => void;
-  onSendMessage?: () => void;
   chatScrollRef: React.RefObject<HTMLDivElement | null>;
   className?: string;
   showChat?: boolean;
@@ -78,9 +76,6 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   danmuEnabled,
   onDanmuEnabledChange,
   recentMessages,
-  messageInput,
-  onMessageChange,
-  onSendMessage,
   chatScrollRef,
   className,
   showChat = true,
@@ -169,6 +164,11 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   );
 
   React.useLayoutEffect(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      lastDisplayedPlayerOrderRef.current = displayedPlayerOrder;
+      lastScoreByClientIdRef.current = scoreByClientId;
+      return;
+    }
     if (displayedPlayerOrder.length === 0) {
       lastDisplayedPlayerOrderRef.current = [];
       if (rankSwapTimerRef.current !== null) {
@@ -276,6 +276,12 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
 
   React.useLayoutEffect(() => {
     if (mobileOverlayMode) {
+      desktopFlipAnimationsRef.current.forEach((animation) => animation.cancel());
+      desktopFlipAnimationsRef.current = [];
+      previousDesktopTopByClientIdRef.current.clear();
+      return;
+    }
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       desktopFlipAnimationsRef.current.forEach((animation) => animation.cancel());
       desktopFlipAnimationsRef.current = [];
       previousDesktopTopByClientIdRef.current.clear();
@@ -494,6 +500,21 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
           </>
         ) : (
           scoreboardRows.map((row, idx) => {
+            if (row.type === "locked") {
+              return (
+                <div
+                  key={row.key}
+                  className="game-room-score-row game-room-score-row--locked flex items-center justify-between text-sm"
+                  aria-hidden="true"
+                >
+                  <span className="truncate flex items-center gap-1.5 opacity-35">
+                    <LockRoundedIcon sx={{ fontSize: 12 }} />
+                    {idx + 1}. 已鎖定
+                  </span>
+                  <span className="text-[11px] text-slate-600">--</span>
+                </div>
+              );
+            }
             if (row.type === "placeholder") {
               return (
                 <div
@@ -750,14 +771,11 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
 
       {showChat && (
         <>
-          <div className="h-px bg-slate-800/80" />
+          <div className="h-px bg-white/[0.06]" />
           <GameRoomChatPanel
             danmuEnabled={danmuEnabled}
             onDanmuEnabledChange={onDanmuEnabledChange}
             recentMessages={recentMessages}
-            messageInput={messageInput}
-            onMessageChange={onMessageChange}
-            onSendMessage={onSendMessage}
             chatScrollRef={chatScrollRef}
             variant="sidebar"
           />

@@ -64,3 +64,12 @@ export const isProfileConfirmed = (userId: string) =>
 
 export const setProfileConfirmed = (userId: string) =>
   localStorage.setItem(profileConfirmedKey(userId), "1");
+
+export const getStoredShowVideoPreference = (): boolean => {
+  const stored = localStorage.getItem(STORAGE_KEYS.showVideoPreference);
+  if (stored === "false") return false;
+  return true; // default: show video
+};
+
+export const setStoredShowVideoPreference = (show: boolean) =>
+  localStorage.setItem(STORAGE_KEYS.showVideoPreference, String(show));
