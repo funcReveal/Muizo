@@ -1,12 +1,7 @@
-﻿/* eslint-disable @typescript-eslint/no-unused-vars */
-import React from "react";
+﻿import React from "react";
 import { IconButton, Popover } from "@mui/material";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
-import QueryStatsRoundedIcon from "@mui/icons-material/QueryStatsRounded";
-import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
-import SpeedRoundedIcon from "@mui/icons-material/SpeedRounded";
 import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
-import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import AppsRoundedIcon from "@mui/icons-material/AppsRounded";
 import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -64,12 +59,17 @@ interface ReviewRecapSectionProps {
     participantClientId: string | null,
     meClientId?: string,
   ) => RecapAnswerResult;
+  resolveCorrectAnsweredRank?: (
+    recap: SettlementQuestionRecap,
+    participantClientId: string | null,
+  ) => number | null;
   resultMeta: Record<RecapAnswerResult, { label: string; badgeClass: string }>;
   performanceRatingByRecapKey: Map<string, SongPerformanceRating>;
   performanceGradeMeta: Record<
     SongPerformanceGrade,
     { badgeClass: string; detailClass: string }
   >;
+  personalFastestCorrectRecapKeys?: Set<string>;
   reviewStatusBadgeBaseClass: string;
   reviewDetailTransitionKey: string;
   selectedRecapLink: SettlementTrackLink | null;
@@ -79,6 +79,7 @@ interface ReviewRecapSectionProps {
   ) => void;
   selectedRecapAnswer: RecapAnswerSnapshot;
   selectedRecapCorrectRank: number | null;
+  isSelectedRecapFastest?: boolean;
   isSelectedRecapGlobalFastest: boolean;
   selectedRecapFastestBadgeText: string;
   selectedRecapFastestCorrectMeta: {
@@ -433,7 +434,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
           {selectedRecap ? (
             <div key={reviewDetailTransitionKey} style={{ animation: "settlementSwapIn 240ms ease-out both" }}>
               <div className="rounded-[24px] bg-slate-950/20 p-4">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">題目 {selectedRecap.order}{selectedReviewParticipant ? ` ・ ${selectedReviewParticipant.username}` : ""}</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">題目 {selectedRecap.order}{selectedReviewParticipant ? ` ? ${selectedReviewParticipant.username}` : ""}</p>
                 <button type="button" className={`mt-3 w-full text-left text-[2rem] font-black leading-tight transition ${selectedRecapLink?.href ? "text-white underline-offset-4 hover:text-cyan-200 hover:underline" : "cursor-default text-white"}`} onClick={() => { if (selectedRecapLink?.href) onOpenTrackLink(selectedRecapLink, selectedRecap); }} disabled={!selectedRecapLink?.href}>
                   <span className="block" style={multilineEllipsis2Style}>{selectedRecap.title}</span>
                 </button>
@@ -571,3 +572,4 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 };
 
 export default ReviewRecapSection;
+

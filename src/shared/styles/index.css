@@ -13270,60 +13270,130 @@ body {
   --gr-row-hot: rgba(45, 212, 191, 0.46);
   --gr-row-hot-soft: rgba(45, 212, 191, 0.14);
   --gr-row-duration: 2.3s;
+  --gr-row-tier-border-alpha: 0.28;
+  --gr-row-tier-glow-alpha: 0.12;
+  --gr-row-tier-wash-alpha: 0.12;
+  --sb-ring-opacity: 0.34;
+  --sb-secondary-opacity: 0.18;
+  --sb-wash-opacity: 0.28;
+  --sb-particle-opacity: 0.42;
 }
 
 .game-room-score-row--combo-tier-2 {
   --gr-row-hot: rgba(74, 222, 128, 0.58);
   --gr-row-hot-soft: rgba(74, 222, 128, 0.18);
   --gr-row-duration: 2.12s;
+  --gr-row-tier-border-alpha: 0.34;
+  --gr-row-tier-glow-alpha: 0.16;
+  --gr-row-tier-wash-alpha: 0.16;
+  --sb-ring-opacity: 0.4;
+  --sb-secondary-opacity: 0.22;
+  --sb-wash-opacity: 0.32;
+  --sb-particle-opacity: 0.48;
 }
 
 .game-room-score-row--combo-tier-3 {
   --gr-row-hot: rgba(251, 191, 36, 0.72);
   --gr-row-hot-soft: rgba(251, 191, 36, 0.24);
   --gr-row-duration: 1.9s;
+  --gr-row-tier-border-alpha: 0.4;
+  --gr-row-tier-glow-alpha: 0.2;
+  --gr-row-tier-wash-alpha: 0.2;
+  --sb-ring-opacity: 0.46;
+  --sb-secondary-opacity: 0.26;
+  --sb-wash-opacity: 0.38;
+  --sb-particle-opacity: 0.56;
 }
 
 .game-room-score-row--combo-tier-4 {
   --gr-row-hot: rgba(251, 146, 60, 0.84);
   --gr-row-hot-soft: rgba(251, 146, 60, 0.3);
   --gr-row-duration: 1.74s;
+  --gr-row-tier-border-alpha: 0.46;
+  --gr-row-tier-glow-alpha: 0.24;
+  --gr-row-tier-wash-alpha: 0.24;
+  --sb-ring-opacity: 0.52;
+  --sb-secondary-opacity: 0.3;
+  --sb-wash-opacity: 0.44;
+  --sb-particle-opacity: 0.62;
 }
 
 .game-room-score-row--combo-tier-5 {
   --gr-row-hot: rgba(244, 114, 182, 0.96);
   --gr-row-hot-soft: rgba(244, 114, 182, 0.38);
   --gr-row-duration: 1.56s;
+  --gr-row-tier-border-alpha: 0.52;
+  --gr-row-tier-glow-alpha: 0.28;
+  --gr-row-tier-wash-alpha: 0.28;
+  --sb-ring-opacity: 0.58;
+  --sb-secondary-opacity: 0.36;
+  --sb-wash-opacity: 0.5;
+  --sb-particle-opacity: 0.68;
 }
 
 .game-room-score-row--combo-tier-6 {
   --gr-row-hot: rgba(251, 113, 133, 1);
   --gr-row-hot-soft: rgba(251, 113, 133, 0.46);
   --gr-row-duration: 1.38s;
+  --gr-row-tier-border-alpha: 0.58;
+  --gr-row-tier-glow-alpha: 0.32;
+  --gr-row-tier-wash-alpha: 0.32;
+  --sb-ring-opacity: 0.64;
+  --sb-secondary-opacity: 0.42;
+  --sb-wash-opacity: 0.58;
+  --sb-particle-opacity: 0.74;
 }
 
 .game-room-score-row--combo-tier-7 {
   --gr-row-hot: rgba(248, 113, 113, 1);
   --gr-row-hot-soft: rgba(251, 146, 60, 0.52);
   --gr-row-duration: 1.18s;
+  --gr-row-tier-border-alpha: 0.66;
+  --gr-row-tier-glow-alpha: 0.38;
+  --gr-row-tier-wash-alpha: 0.38;
+  --sb-ring-opacity: 0.72;
+  --sb-secondary-opacity: 0.5;
+  --sb-wash-opacity: 0.66;
+  --sb-particle-opacity: 0.82;
 }
 
 .game-room-score-row--combo-tier-8 {
   --gr-row-hot: rgba(251, 191, 36, 1);
   --gr-row-hot-soft: rgba(253, 224, 71, 0.58);
   --gr-row-duration: 1.02s;
+  --gr-row-tier-border-alpha: 0.74;
+  --gr-row-tier-glow-alpha: 0.46;
+  --gr-row-tier-wash-alpha: 0.46;
+  --sb-ring-opacity: 0.82;
+  --sb-secondary-opacity: 0.58;
+  --sb-wash-opacity: 0.76;
+  --sb-particle-opacity: 0.9;
 }
 
 .game-room-score-row--combo-tier-9 {
   --gr-row-hot: rgba(103, 232, 249, 1);
   --gr-row-hot-soft: rgba(196, 181, 253, 0.62);
   --gr-row-duration: 0.92s;
+  --gr-row-tier-border-alpha: 0.82;
+  --gr-row-tier-glow-alpha: 0.56;
+  --gr-row-tier-wash-alpha: 0.56;
+  --sb-ring-opacity: 0.92;
+  --sb-secondary-opacity: 0.7;
+  --sb-wash-opacity: 0.88;
+  --sb-particle-opacity: 0.98;
 }
 
 .game-room-score-row--combo-tier-10 {
   --gr-row-hot: rgba(255, 214, 10, 1);
   --gr-row-hot-soft: rgba(255, 140, 0, 0.74);
   --gr-row-duration: 0.76s;
+  --gr-row-tier-border-alpha: 0.94;
+  --gr-row-tier-glow-alpha: 0.72;
+  --gr-row-tier-wash-alpha: 0.7;
+  --sb-ring-opacity: 1;
+  --sb-secondary-opacity: 0.84;
+  --sb-wash-opacity: 1;
+  --sb-particle-opacity: 1;
   box-shadow:
     inset 0 0 0 1px rgba(255, 214, 10, 0.44),
     0 0 0 1px rgba(255, 173, 51, 0.32),
@@ -21578,6 +21648,371 @@ body {
 .room-lobby-mode-button--auth-required.MuiButton-root .MuiTouchRipple-root {
   overflow: visible;
 }
+
+.game-room-score-row--combo-champion {
+  background:
+    linear-gradient(
+      128deg,
+      color-mix(
+        in srgb,
+        var(--gr-row-hot-soft, rgba(56, 189, 248, 0.22))
+          calc(var(--gr-row-tier-wash-alpha, 0.32) * 100%),
+        rgba(12, 18, 32, 0.84)
+      ),
+      rgba(10, 16, 28, 0.8)
+    ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--gr-row-hot, rgba(148, 163, 184, 0.6))
+      calc(var(--gr-row-tier-border-alpha, 0.36) * 100%),
+    rgba(255, 255, 255, 0.06)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px color-mix(
+      in srgb,
+      var(--gr-row-hot-soft, rgba(56, 189, 248, 0.2))
+        calc(var(--gr-row-tier-border-alpha, 0.3) * 60%),
+      transparent
+    ),
+    0 16px 34px -28px rgba(15, 23, 42, 0.92),
+    0 0 30px -20px color-mix(
+      in srgb,
+      var(--gr-row-hot, rgba(56, 189, 248, 0.34))
+        calc(var(--gr-row-tier-glow-alpha, 0.18) * 100%),
+      transparent
+    ) !important;
+}
+
+.game-room-score-row--combo-champion:hover {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 12px 30px -28px rgba(15, 23, 42, 0.92) !important;
+}
+
+.game-room-score-row--combo-champion::before,
+.game-room-score-row--combo-champion::after {
+  display: none !important;
+}
+
+.scoreboard-border-effect {
+  display: block;
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+  border-radius: inherit;
+  --sb-ring-opacity: 0.08;
+  --sb-secondary-opacity: 0.04;
+  --sb-wash-opacity: 0.9;
+  --sb-particle-opacity: 0.72;
+  --sb-ring-shadow: rgba(255, 92, 72, 0.06);
+  --sb-accent-a: rgba(255, 112, 90, 0.88);
+  --sb-accent-b: rgba(255, 70, 46, 0.9);
+  --sb-accent-c: rgba(255, 216, 176, 0.78);
+  --sb-mask-fill:
+    linear-gradient(
+      108deg,
+      rgba(255, 255, 255, 0.015) 0%,
+      color-mix(in srgb, var(--sb-accent-a) 18%, transparent) 18%,
+      color-mix(in srgb, var(--sb-accent-c) 14%, transparent) 44%,
+      color-mix(in srgb, var(--sb-accent-b) 12%, transparent) 72%,
+      rgba(255, 255, 255, 0.012) 100%
+    );
+  --sb-wash: radial-gradient(
+    240px 132px at 18% 18%,
+    rgba(255, 91, 61, 0.11),
+    transparent 62%
+  );
+}
+
+.scoreboard-border-effect--attached {
+  inset: 0;
+}
+
+.scoreboard-border-effect--preview {
+  inset: 0;
+}
+
+.scoreboard-border-effect__ring,
+.scoreboard-border-effect__ring-secondary,
+.scoreboard-border-effect__wash,
+.scoreboard-border-effect__canvas {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.scoreboard-border-effect__ring {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.008),
+    0 0 8px -16px var(--sb-ring-shadow),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.012);
+  background:
+    radial-gradient(
+      28px 120% at 2% 50%,
+      color-mix(in srgb, var(--sb-accent-a) 42%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      30px 120% at 98% 50%,
+      color-mix(in srgb, var(--sb-accent-b) 42%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      92px 48px at 18% 16%,
+      color-mix(in srgb, var(--sb-accent-c) 22%, transparent),
+      transparent 74%
+    );
+  opacity: calc(var(--sb-ring-opacity) * 0.5);
+}
+
+.scoreboard-border-effect__ring-secondary {
+  inset: 7px;
+  border-radius: calc(inherit - 6px);
+  border: 1px solid transparent;
+  opacity: 0;
+}
+
+.scoreboard-border-effect__wash {
+  inset: 1px;
+  border-radius: calc(inherit - 1px);
+  background:
+    var(--sb-mask-fill),
+    var(--sb-wash);
+  opacity: var(--sb-wash-opacity);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.012),
+    inset 0 22px 42px -34px color-mix(in srgb, var(--sb-accent-a) 22%, transparent),
+    inset 0 -24px 44px -38px color-mix(in srgb, var(--sb-accent-b) 18%, transparent);
+  mix-blend-mode: normal;
+  filter: saturate(1.02);
+  transform-origin: center;
+}
+
+.scoreboard-border-effect--mask-disabled .scoreboard-border-effect__wash {
+  display: none;
+}
+
+.scoreboard-border-effect--mask-disabled .scoreboard-border-effect__ring {
+  opacity: calc(var(--sb-ring-opacity) * 0.92);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.012),
+    0 0 16px -18px var(--sb-ring-shadow),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+}
+
+.scoreboard-border-effect--mask-disabled .scoreboard-border-effect__ring-secondary {
+  inset: 4px;
+  opacity: calc(var(--sb-secondary-opacity) * 0.85);
+  border-color: color-mix(in srgb, var(--sb-accent-c) 24%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 0 18px -26px color-mix(in srgb, var(--sb-accent-a) 30%, transparent);
+}
+
+.scoreboard-border-effect__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: calc(var(--sb-particle-opacity) * 0.9);
+}
+
+.scoreboard-border-effect--motion-none .scoreboard-border-effect__ring {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-none .scoreboard-border-effect__ring-secondary {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-none .scoreboard-border-effect__wash {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-none.scoreboard-border-effect--mask-disabled
+  .scoreboard-border-effect__ring-secondary {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-single-beam .scoreboard-border-effect__ring {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-single-beam .scoreboard-border-effect__wash {
+  animation: scoreboard-border-effect-mask-fill 5.2s ease-in-out infinite;
+}
+
+.scoreboard-border-effect--motion-single-beam.scoreboard-border-effect--mask-disabled
+  .scoreboard-border-effect__ring-secondary {
+  animation: scoreboard-border-effect-secondary-ring 6.4s ease-in-out infinite;
+}
+
+.scoreboard-border-effect--motion-dual-beam .scoreboard-border-effect__ring {
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-dual-beam .scoreboard-border-effect__ring-secondary {
+  opacity: 0;
+  animation: none;
+}
+
+.scoreboard-border-effect--motion-dual-beam .scoreboard-border-effect__wash {
+  animation: scoreboard-border-effect-mask-fill 3.8s ease-in-out infinite;
+}
+
+.scoreboard-border-effect--motion-dual-beam.scoreboard-border-effect--mask-disabled
+  .scoreboard-border-effect__ring-secondary {
+  opacity: calc(var(--sb-secondary-opacity) * 0.95);
+  animation: scoreboard-border-effect-secondary-ring 4.6s ease-in-out infinite;
+}
+
+.scoreboard-border-effect--theme-fire-red {
+  --sb-ring-shadow: rgba(255, 88, 64, 0.34);
+  --sb-accent-a: rgba(255, 156, 116, 0.94);
+  --sb-accent-b: rgba(255, 75, 48, 0.96);
+  --sb-accent-c: rgba(255, 216, 188, 0.84);
+  --sb-mask-fill:
+    linear-gradient(
+      108deg,
+      rgba(255, 255, 255, 0.01) 0%,
+      rgba(255, 171, 130, 0.18) 22%,
+      rgba(255, 132, 96, 0.15) 52%,
+      rgba(255, 96, 64, 0.12) 74%,
+      rgba(255, 255, 255, 0.012) 100%
+    );
+  --sb-wash: radial-gradient(
+    240px 132px at 16% 22%,
+    rgba(255, 89, 61, 0.16),
+    transparent 62%
+  );
+}
+
+.scoreboard-border-effect--theme-dual-water-fire {
+  --sb-ring-shadow: rgba(89, 196, 255, 0.24);
+  --sb-accent-a: rgba(102, 223, 255, 0.96);
+  --sb-accent-b: rgba(255, 90, 62, 0.96);
+  --sb-accent-c: rgba(255, 236, 208, 0.76);
+  --sb-mask-fill:
+    linear-gradient(
+      108deg,
+      rgba(98, 225, 255, 0.1) 0%,
+      rgba(173, 244, 255, 0.16) 24%,
+      rgba(225, 247, 255, 0.09) 48%,
+      rgba(255, 122, 94, 0.12) 72%,
+      rgba(255, 245, 236, 0.02) 100%
+    );
+  --sb-wash:
+    radial-gradient(
+      240px 120px at 16% 18%,
+      rgba(63, 212, 255, 0.14),
+      transparent 62%
+    ),
+    radial-gradient(
+      220px 120px at 84% 80%,
+      rgba(255, 88, 61, 0.14),
+      transparent 58%
+    );
+}
+
+.scoreboard-border-effect--theme-dual-water-fire .scoreboard-border-effect__ring-secondary {
+  opacity: var(--sb-secondary-opacity);
+  border-color: rgba(141, 222, 255, 0.34);
+  box-shadow:
+    0 0 18px -12px rgba(82, 208, 255, 0.4),
+    inset 0 0 0 1px rgba(255, 92, 68, 0.12);
+}
+
+.scoreboard-border-effect--theme-rainbow-prism {
+  --sb-ring-shadow: rgba(122, 97, 255, 0.3);
+  --sb-accent-a: rgba(255, 109, 146, 0.96);
+  --sb-accent-b: rgba(98, 241, 255, 0.96);
+  --sb-accent-c: rgba(255, 214, 92, 0.92);
+  --sb-mask-fill:
+    linear-gradient(
+      108deg,
+      rgba(255, 114, 160, 0.1) 0%,
+      rgba(255, 214, 92, 0.14) 28%,
+      rgba(105, 239, 255, 0.12) 58%,
+      rgba(140, 124, 255, 0.1) 84%,
+      rgba(255, 255, 255, 0.012) 100%
+    );
+  --sb-wash:
+    radial-gradient(
+      240px 140px at 14% 20%,
+      rgba(255, 99, 144, 0.16),
+      transparent 60%
+    ),
+    radial-gradient(
+      210px 118px at 84% 24%,
+      rgba(103, 227, 255, 0.14),
+      transparent 58%
+    ),
+    radial-gradient(
+      220px 120px at 72% 84%,
+      rgba(255, 211, 76, 0.14),
+      transparent 58%
+    );
+}
+
+.scoreboard-border-effect--theme-rainbow-prism .scoreboard-border-effect__ring-secondary {
+  opacity: var(--sb-secondary-opacity);
+  border-color: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 102, 158, 0.14), transparent 34%),
+    linear-gradient(315deg, rgba(96, 244, 255, 0.14), transparent 36%),
+    linear-gradient(90deg, transparent, rgba(255, 214, 92, 0.12), transparent);
+  box-shadow:
+    0 0 18px -12px rgba(122, 97, 255, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+@keyframes scoreboard-border-effect-soft-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+    filter: brightness(0.97);
+  }
+  50% {
+    opacity: 0.96;
+    transform: scale(1.003);
+    filter: brightness(1.03);
+  }
+}
+
+@keyframes scoreboard-border-effect-mask-fill {
+  0%,
+  100% {
+    opacity: calc(var(--sb-wash-opacity) * 0.74);
+    transform: scale(0.994) translateX(-0.5%);
+    filter: brightness(0.98) saturate(0.98);
+  }
+  50% {
+    opacity: calc(var(--sb-wash-opacity) * 1.08);
+    transform: scale(1.003) translateX(0.5%);
+    filter: brightness(1.04) saturate(1.02);
+  }
+}
+
+@keyframes scoreboard-border-effect-secondary-ring {
+  0%,
+  100% {
+    opacity: calc(var(--sb-secondary-opacity) * 0.62);
+    transform: scale(0.998);
+    filter: brightness(0.96);
+  }
+  50% {
+    opacity: calc(var(--sb-secondary-opacity) * 1.08);
+    transform: scale(1.002);
+    filter: brightness(1.06);
+  }
+}
+
 
 /* ===== Room Lobby Header Meta Row ===== */
 .room-lobby-header-copy {

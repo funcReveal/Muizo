@@ -66,6 +66,8 @@ interface RecommendGuideSectionProps {
   isCurrentRecommendationGlobalFastest: boolean;
   currentRecommendationGradeBadgeClass: string | null;
   currentRecommendationGradeLabel: string | null;
+  currentRecommendationAnsweredAtMs?: number | null;
+  currentRecommendationResult?: "correct" | "wrong" | "unanswered";
   hasCurrentRecommendationSpeedDelta: boolean;
   currentRecommendationSpeedValue: string;
   currentRecommendationSpeedNote: string;

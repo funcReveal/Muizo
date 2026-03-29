@@ -112,6 +112,7 @@ interface RoomLobbyPanelProps {
   gameState?: GameState | null;
   canStartGame: boolean;
   hasLastSettlement?: boolean;
+  latestSettlementRoundKey?: string | null;
   onLeave: () => void;
   onLoadMorePlaylist: () => void;
   onStartGame: () => void;
@@ -140,12 +141,12 @@ interface RoomLobbyPanelProps {
     options?: { useSnapshot?: boolean; sourceId?: string | null; title?: string | null },
   ) => Promise<{ ok: boolean; error?: string }>;
   onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
-  onApplyPlaylistUrlDirect: (url: string) => Promise<boolean>;
-  onApplyCollectionDirect: (
+  onApplyPlaylistUrlDirect?: (url: string) => Promise<boolean>;
+  onApplyCollectionDirect?: (
     collectionId: string,
     title?: string | null,
   ) => Promise<boolean>;
-  onApplyYoutubePlaylistDirect: (
+  onApplyYoutubePlaylistDirect?: (
     playlistId: string,
     title?: string | null,
   ) => Promise<boolean>;
@@ -200,9 +201,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onTransferHost,
   onSuggestPlaylist,
   onApplySuggestionSnapshot,
-  onApplyPlaylistUrlDirect,
-  onApplyCollectionDirect,
-  onApplyYoutubePlaylistDirect,
+  onApplyPlaylistUrlDirect = async () => false,
+  onApplyCollectionDirect = async () => false,
+  onApplyYoutubePlaylistDirect = async () => false,
   onPlaylistUrlChange,
   onFetchPlaylistByUrl,
   onFetchCollections,

@@ -4,7 +4,6 @@ import { Button, Chip, LinearProgress } from "@mui/material";
 import RevealChoiceAvatarRow from "./RevealChoiceAvatarRow";
 import type { GameState, PlaylistItem } from "../../../model/types";
 import { normalizeRoomDisplayText } from "../../../model/roomProviderUtils";
-import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 import type {
   ChoiceCommitFxState,
   MyFeedbackModel,
@@ -560,11 +559,9 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
 
 
                         <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
-                          <RoomUiTooltip title={choiceDisplayTitle} wrapperClassName="min-w-0 max-w-full">
-                            <span className="game-room-choice-title">
-                              {choiceDisplayTitle}
-                            </span>
-                          </RoomUiTooltip>
+                          <span className="game-room-choice-title">
+                            {choiceDisplayTitle}
+                          </span>
 
                           <span className="game-room-choice-meta ml-3 inline-flex items-center gap-1">
                             {showGuessLockTag && (

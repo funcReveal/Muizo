@@ -257,6 +257,8 @@ export const useCollectionEditor = ({
         !activeCollectionId &&
         collectionsCount >= MAX_COLLECTIONS_PER_USER
       ) {
+        const limitMessage =
+          `一般使用者最多只能建立 ${MAX_COLLECTIONS_PER_USER} 個收藏庫`;
         if (mode === "auto") {
           showAutoSaveNotice("error", limitMessage);
         } else {

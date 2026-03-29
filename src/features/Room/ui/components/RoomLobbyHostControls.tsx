@@ -71,16 +71,24 @@ interface RoomLobbyHostControlsProps {
   playlistLoadNotice: string | null;
   playlistError?: string | null;
   playlistLoading: boolean;
-  onApplyPlaylistUrlDirect: (url: string) => Promise<boolean>;
-  onApplyCollectionDirect: (
+  onApplyPlaylistUrlDirect?: (url: string) => Promise<boolean>;
+  onPlaylistPaste?: (url: string) => void;
+  onApplyCollectionDirect?: (
     collectionId: string,
     title?: string | null,
   ) => Promise<boolean>;
-  onApplyYoutubePlaylistDirect: (
+  onApplyYoutubePlaylistDirect?: (
     playlistId: string,
     title?: string | null,
   ) => Promise<boolean>;
-  onRequestGoogleLogin: () => void;
+  onLoadCollectionItems?: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<void>;
+  onImportYoutubePlaylist?: (playlistId: string) => Promise<void>;
+  playlistItemsForChangeLength?: number;
+  onChangePlaylist?: () => Promise<void>;
+  onRequestGoogleLogin?: () => void;
 }
 
 const getSuggestionKey = (suggestion: PlaylistSuggestion) =>
@@ -126,10 +134,10 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
   playlistLoadNotice,
   playlistError,
   playlistLoading,
-  onApplyPlaylistUrlDirect,
-  onApplyCollectionDirect,
-  onApplyYoutubePlaylistDirect,
-  onRequestGoogleLogin,
+  onApplyPlaylistUrlDirect = async () => false,
+  onApplyCollectionDirect = async () => false,
+  onApplyYoutubePlaylistDirect = async () => false,
+  onRequestGoogleLogin = () => {},
 }) => {
   const [playlistDraftUrl, setPlaylistDraftUrl] = useState(playlistUrl);
 

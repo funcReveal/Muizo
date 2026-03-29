@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import {
   Button,
   CircularProgress,
@@ -17,6 +18,10 @@ import type {
 
 type PlaylistPreviewRowData = {
   items: PlaylistPreviewItem[];
+};
+
+type PlaylistIssueRowData = {
+  items: PlaylistIssueListItem[];
 };
 
 type PlaylistLinkSourceContentProps = {
@@ -47,10 +52,10 @@ type PlaylistLinkSourceContentProps = {
   playlistPreviewMetaSkippedCount: number;
   PlaylistPreviewRow: (
     props: RowComponentProps<PlaylistPreviewRowData>,
-  ) => JSX.Element;
+  ) => ReactElement;
   PlaylistIssueRow: (
-    props: RowComponentProps<{ items: PlaylistIssueListItem[] }>,
-  ) => JSX.Element;
+    props: RowComponentProps<PlaylistIssueRowData>,
+  ) => ReactElement;
 };
 
 const PlaylistLinkSourceContent = ({
@@ -317,7 +322,7 @@ const PlaylistLinkSourceContent = ({
             <div
               className={`${linkPlaylistTitle || linkPlaylistPreviewItems.length > 0 ? "mt-3" : ""} rounded-[22px] border border-[var(--mc-border)]/70 bg-slate-950/20`}
             >
-              <List<PlaylistPreviewRowProps>
+              <List<PlaylistPreviewRowData>
                 style={{ height: 320, width: "100%" }}
                 rowCount={linkPlaylistPreviewItems.length}
                 rowHeight={64}
@@ -356,7 +361,7 @@ const PlaylistLinkSourceContent = ({
                       {group.title}：{group.items.length} 首
                     </p>
                     <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/15">
-                      <List<PlaylistIssueRowProps>
+                      <List<PlaylistIssueRowData>
                         style={{
                           height: Math.min(group.items.length * 64, 256),
                           width: "100%",

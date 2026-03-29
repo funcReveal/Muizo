@@ -10,7 +10,10 @@ import {
   type SfxPresetId,
 } from "../../Room/model/sfx/gameSfxEngine";
 import {
+  DEFAULT_SCOREBOARD_BORDER_ENABLED_VALUE,
+  DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED_VALUE,
   DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID,
+  DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
   DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID,
   DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   DEFAULT_GAME_VOLUME,
@@ -30,6 +33,9 @@ import {
   type SettingsModelValue,
 } from "./settingsContext";
 import {
+  clampScoreboardBorderParticleCount,
+  parseStoredScoreboardBorderEnabled,
+  parseStoredScoreboardBorderMaskEnabled,
   migrateLegacyScoreboardBorderEffect,
   parseStoredScoreboardBorderAnimation,
   parseStoredScoreboardBorderLineStyle,
@@ -141,45 +147,89 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
       if (typeof window === "undefined") {
         return DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID;
       }
+      const legacyMigration = migrateLegacyScoreboardBorderEffect(
+        window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
+      );
       const storedAnimation = window.localStorage.getItem(
         SCOREBOARD_BORDER_STORAGE_KEYS.animation,
       );
       if (storedAnimation) {
         return parseStoredScoreboardBorderAnimation(storedAnimation);
       }
-      return migrateLegacyScoreboardBorderEffect(
-        window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
-      ).animation;
+      return legacyMigration.animation;
     });
   const [scoreboardBorderLineStyle, setScoreboardBorderLineStyleState] =
     useState<ScoreboardBorderLineStyleId>(() => {
       if (typeof window === "undefined") {
         return DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID;
       }
+      const legacyMigration = migrateLegacyScoreboardBorderEffect(
+        window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
+      );
       const storedLineStyle = window.localStorage.getItem(
         SCOREBOARD_BORDER_STORAGE_KEYS.lineStyle,
       );
       if (storedLineStyle) {
         return parseStoredScoreboardBorderLineStyle(storedLineStyle);
       }
-      return migrateLegacyScoreboardBorderEffect(
-        window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
-      ).lineStyle;
+      return legacyMigration.lineStyle;
     });
   const [scoreboardBorderTheme, setScoreboardBorderThemeState] =
     useState<ScoreboardBorderThemeId>(() => {
       if (typeof window === "undefined") {
         return DEFAULT_SCOREBOARD_BORDER_THEME_ID;
       }
+      const legacyMigration = migrateLegacyScoreboardBorderEffect(
+        window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
+      );
       const storedTheme = window.localStorage.getItem(
         SCOREBOARD_BORDER_STORAGE_KEYS.theme,
       );
       if (storedTheme) {
         return parseStoredScoreboardBorderTheme(storedTheme);
       }
+      return legacyMigration.theme;
+    });
+  const [scoreboardBorderEnabled, setScoreboardBorderEnabledState] =
+    useState<boolean>(() => {
+      if (typeof window === "undefined") {
+        return DEFAULT_SCOREBOARD_BORDER_ENABLED_VALUE;
+      }
+      const storedEnabled = window.localStorage.getItem(
+        SCOREBOARD_BORDER_STORAGE_KEYS.enabled,
+      );
+      if (storedEnabled !== null) {
+        return parseStoredScoreboardBorderEnabled(storedEnabled);
+      }
       return migrateLegacyScoreboardBorderEffect(
         window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.legacyEffect),
-      ).theme;
+      ).enabled;
+    });
+  const [scoreboardBorderMaskEnabled, setScoreboardBorderMaskEnabledState] =
+    useState<boolean>(() => {
+      if (typeof window === "undefined") {
+        return DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED_VALUE;
+      }
+      const storedMaskEnabled = window.localStorage.getItem(
+        SCOREBOARD_BORDER_STORAGE_KEYS.maskEnabled,
+      );
+      if (storedMaskEnabled !== null) {
+        return parseStoredScoreboardBorderMaskEnabled(storedMaskEnabled);
+      }
+      return DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED_VALUE;
+    });
+  const [scoreboardBorderParticleCount, setScoreboardBorderParticleCountState] =
+    useState<number>(() => {
+      if (typeof window === "undefined") {
+        return DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE;
+      }
+      return clampScoreboardBorderParticleCount(
+        Number(
+          window.localStorage.getItem(
+            SCOREBOARD_BORDER_STORAGE_KEYS.particleCount,
+          ),
+        ),
+      );
     });
 
   useEffect(() => {
@@ -233,6 +283,22 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
+      SCOREBOARD_BORDER_STORAGE_KEYS.enabled,
+      scoreboardBorderEnabled ? "1" : "0",
+    );
+  }, [scoreboardBorderEnabled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      SCOREBOARD_BORDER_STORAGE_KEYS.maskEnabled,
+      scoreboardBorderMaskEnabled ? "1" : "0",
+    );
+  }, [scoreboardBorderMaskEnabled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
       SCOREBOARD_BORDER_STORAGE_KEYS.animation,
       scoreboardBorderAnimation,
     );
@@ -253,6 +319,14 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
       scoreboardBorderTheme,
     );
   }, [scoreboardBorderTheme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      SCOREBOARD_BORDER_STORAGE_KEYS.particleCount,
+      String(scoreboardBorderParticleCount),
+    );
+  }, [scoreboardBorderParticleCount]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -314,6 +388,24 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         );
         return;
       }
+      if (event.key === SCOREBOARD_BORDER_STORAGE_KEYS.enabled) {
+        setScoreboardBorderEnabledState(
+          parseStoredScoreboardBorderEnabled(
+            window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.enabled),
+          ),
+        );
+        return;
+      }
+      if (event.key === SCOREBOARD_BORDER_STORAGE_KEYS.maskEnabled) {
+        setScoreboardBorderMaskEnabledState(
+          parseStoredScoreboardBorderMaskEnabled(
+            window.localStorage.getItem(
+              SCOREBOARD_BORDER_STORAGE_KEYS.maskEnabled,
+            ),
+          ),
+        );
+        return;
+      }
       if (event.key === SCOREBOARD_BORDER_STORAGE_KEYS.lineStyle) {
         setScoreboardBorderLineStyleState(
           parseStoredScoreboardBorderLineStyle(
@@ -326,6 +418,18 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         setScoreboardBorderThemeState(
           parseStoredScoreboardBorderTheme(
             window.localStorage.getItem(SCOREBOARD_BORDER_STORAGE_KEYS.theme),
+          ),
+        );
+        return;
+      }
+      if (event.key === SCOREBOARD_BORDER_STORAGE_KEYS.particleCount) {
+        setScoreboardBorderParticleCountState(
+          clampScoreboardBorderParticleCount(
+            Number(
+              window.localStorage.getItem(
+                SCOREBOARD_BORDER_STORAGE_KEYS.particleCount,
+              ),
+            ),
           ),
         );
       }
@@ -366,6 +470,14 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     setSettlementPreviewVolumeState(clampVolume(next));
   }, []);
 
+  const setScoreboardBorderEnabled = useCallback((next: boolean) => {
+    setScoreboardBorderEnabledState(Boolean(next));
+  }, []);
+
+  const setScoreboardBorderMaskEnabled = useCallback((next: boolean) => {
+    setScoreboardBorderMaskEnabledState(Boolean(next));
+  }, []);
+
   const setScoreboardBorderAnimation = useCallback(
     (next: ScoreboardBorderAnimationId) => {
       setScoreboardBorderAnimationState(parseStoredScoreboardBorderAnimation(next));
@@ -386,6 +498,12 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     },
     [],
   );
+
+  const setScoreboardBorderParticleCount = useCallback((next: number) => {
+    setScoreboardBorderParticleCountState(
+      clampScoreboardBorderParticleCount(next),
+    );
+  }, []);
 
   const resetSfxSettings = useCallback(() => {
     setGameVolumeState(DEFAULT_GAME_VOLUME);
@@ -410,12 +528,18 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
       setSettlementPreviewSyncGameVolume,
       settlementPreviewVolume,
       setSettlementPreviewVolume,
+      scoreboardBorderEnabled,
+      setScoreboardBorderEnabled,
+      scoreboardBorderMaskEnabled,
+      setScoreboardBorderMaskEnabled,
       scoreboardBorderAnimation,
       setScoreboardBorderAnimation,
       scoreboardBorderLineStyle,
       setScoreboardBorderLineStyle,
       scoreboardBorderTheme,
       setScoreboardBorderTheme,
+      scoreboardBorderParticleCount,
+      setScoreboardBorderParticleCount,
       resetSfxSettings,
     }),
     [
@@ -433,12 +557,18 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
       setSettlementPreviewSyncGameVolume,
       settlementPreviewVolume,
       setSettlementPreviewVolume,
+      scoreboardBorderEnabled,
+      setScoreboardBorderEnabled,
+      scoreboardBorderMaskEnabled,
+      setScoreboardBorderMaskEnabled,
       scoreboardBorderAnimation,
       setScoreboardBorderAnimation,
       scoreboardBorderLineStyle,
       setScoreboardBorderLineStyle,
       scoreboardBorderTheme,
       setScoreboardBorderTheme,
+      scoreboardBorderParticleCount,
+      setScoreboardBorderParticleCount,
       resetSfxSettings,
     ],
   );
