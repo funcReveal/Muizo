@@ -3351,6 +3351,7 @@ body {
   line-height: 0 !important;
   text-indent: -9999px;
   overflow: hidden;
+  will-change: transform;
   animation: game-room-thumbnail-record-spin 4.8s linear infinite;
 }
 
@@ -11345,7 +11346,6 @@ body {
   box-shadow:
     0 10px 28px -20px rgba(14, 165, 233, 0.8),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
   cursor: pointer;
   transition:
     transform 160ms ease,

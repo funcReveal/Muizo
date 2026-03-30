@@ -363,14 +363,14 @@ const useSettlementRecommendationInsights = <
         confuse: confuseRecommendations.map((entry) =>
           buildRecommendationCard(
             entry.recap,
-            `${entry.changedUsers} 位玩家改過答案，共改答 ${entry.changedTimes} 次`,
-            "容易讓人猶豫",
+            `${entry.changedUsers} 位改答・共 ${entry.changedTimes} 次`,
+            "容易猶豫",
           ),
         ),
         hard: hardRecommendations.map((entry) =>
           buildRecommendationCard(
             entry.recap,
-            `答錯 ${entry.recap.wrongCount ?? 0} 人，未作答 ${entry.recap.unansweredCount ?? 0} 人`,
+            `答錯 ${entry.recap.wrongCount ?? 0}・未答 ${entry.recap.unansweredCount ?? 0}`,
             "高難度挑戰",
           ),
         ),

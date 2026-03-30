@@ -422,7 +422,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 
       <article className="rounded-[28px] border border-cyan-300/18 bg-[radial-gradient(circle_at_16%_8%,rgba(34,211,238,0.14),transparent_18%),radial-gradient(circle_at_88%_100%,rgba(14,165,233,0.08),transparent_20%),linear-gradient(180deg,rgba(11,18,31,0.98),rgba(9,13,24,0.95))] p-5 shadow-[0_24px_70px_-52px_rgba(34,211,238,0.44)]">
         <div className="flex items-start gap-3">
-          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-400/12 text-cyan-100">
+          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center text-cyan-100">
             <EmojiEventsRoundedIcon />
           </div>
           <div className="min-w-0">

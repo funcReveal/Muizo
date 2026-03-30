@@ -85,7 +85,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   }, [isMobileView]);
 
   const activeTabButtonClass = (tab: LiveSettlementTab) =>
-    `rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${activeTab === tab
+    `cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${activeTab === tab
       ? "border-amber-300/60 bg-amber-300/15 text-amber-100"
       : "border-slate-500/60 bg-slate-900/60 text-slate-300"
     }`;
@@ -137,7 +137,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
             )}
             <button
               type="button"
-              className="rounded-full border border-slate-500/70 bg-slate-900/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
+              className="cursor-pointer rounded-full border border-slate-500/70 bg-slate-900/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
               onClick={() => setMobileMetaExpanded((prev) => !prev)}
             >
               {mobileMetaExpanded ? "收合" : "更多"}

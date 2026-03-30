@@ -30,7 +30,6 @@ import {
   PERFORMANCE_GRADE_META,
   QUICK_SOLVE_TIME_CAP_MS,
   RECOMMEND_CATEGORY_THEME,
-  RECOMMEND_CONTROLS_HINT_STORAGE_KEY,
   RECOMMEND_PREVIEW_SECONDS,
   REVIEW_DOUBLE_PLAY_STORAGE_KEY,
   REVIEW_STATUS_BADGE_BASE,
@@ -107,9 +106,6 @@ const RECOMMEND_CATEGORY_SHORT_HINT: Record<RecommendCategory, string> = {
   hard: "答錯或未作答比例較高的題目",
   other: "其餘值得回顧的歌曲",
 };
-
-const RECOMMEND_CONTROLS_TOOLTIP =
-  "切換不同推薦分類、調整自動導覽，並快速檢視推薦題目的亮點。";
 
 const RESULT_META: Record<
   "correct" | "wrong" | "unanswered",
@@ -200,6 +196,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
   const {
     gameVolume,
+    setGameVolume,
     sfxEnabled,
     sfxVolume,
     settlementPreviewSyncGameVolume,
@@ -234,8 +231,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const [previewSwitchNotice, setPreviewSwitchNotice] = useState<string | null>(
     null,
   );
-  const [showRecommendControlsHint, setShowRecommendControlsHint] =
-    useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [tabRenderKey, setTabRenderKey] = useState(0);
   const [tickerNowMs, setTickerNowMs] = useState(() => Date.now());
@@ -248,7 +243,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const autoAdvanceTimeoutRef = useRef<number | null>(null);
   const autoCenteredRecommendRoundKeyRef = useRef<string | null>(null);
   const autoAnchoredSettlementRoundKeyRef = useRef<string | null>(null);
-  const recommendControlsHintTimerRef = useRef<number | null>(null);
   const exitConfirmLockedRef = useRef(false);
 
   const stepIndex = TAB_ORDER.indexOf(activeTab);
@@ -400,11 +394,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     personalFastestCorrectRecapKeys,
     selectedRecapRating,
     selectedRecapAverageCorrectMs,
-    selectedRecapGradeMeta,
-    isSelectedRecapFastest,
-    isSelectedRecapGlobalFastest,
-    selectedRecapFastestBadgeText,
-    selectedRecapRatingBreakdown,
     activeRecommendCategory,
     recommendationCards,
     canNavigateRecommendations,
@@ -428,7 +417,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     selectedRecapFastestCorrectMeta,
     currentRecommendationFastestCorrectMeta,
     hasCurrentRecommendationSpeedDelta,
-    isPreviewFrozen,
     shouldShowPreviewOverlay,
     canAutoGuideLoop,
   } = useSettlementRecommendationInsights<ExtendedRecap, RecommendationCard>({
@@ -484,6 +472,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     setPreviewPlayerState,
     setPreviewCountdownSec,
     setPreviewSwitchNotice,
+    onExternalPreviewVolumeChange: (next) => {
+      if (settlementPreviewSyncGameVolume) {
+        setGameVolume(next);
+        return;
+      }
+      setSettlementPreviewVolume(next);
+    },
   });
   const {
     jumpToRecommendation,
@@ -650,21 +645,33 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
     if (previewPlayerState === "playing") {
       postYouTubeCommand("pauseVideo");
-      setPreviewPlaybackMode("manual");
+      const remainingMs =
+        previewPlaybackMode === "auto" && autoAdvanceAtMs !== null
+          ? Math.max(0, autoAdvanceAtMs - Date.now())
+          : Math.max(
+              0,
+              pausedCountdownRemainingMs ?? RECOMMEND_PREVIEW_SECONDS * 1000,
+            );
+      setPreviewPlaybackMode(
+        previewPlaybackMode === "auto" ? "auto" : "manual",
+      );
       setPreviewPlayerState("paused");
       setAutoAdvanceAtMs(null);
-      setPausedCountdownRemainingMs(RECOMMEND_PREVIEW_SECONDS * 1000);
-      setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+      setPausedCountdownRemainingMs(remainingMs);
+      setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
       return;
     }
 
     handleQuickPlayStart();
   }, [
+    autoAdvanceAtMs,
     currentRecommendation,
     currentRecommendationPreviewUrl,
     handleQuickPlayStart,
     isCurrentRecommendationPreviewOpen,
+    pausedCountdownRemainingMs,
     postYouTubeCommand,
+    previewPlaybackMode,
     previewPlayerState,
   ]);
 
@@ -672,24 +679,45 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     const next = !autoPreviewEnabled;
     setAutoPreviewEnabled(next);
     if (!next) {
-      resetRecommendPreviewState();
+      resetRecommendPreviewState({ preserveCurrentPreview: true });
+      return;
+    }
+
+    if (recommendationCards.length > 0) {
+      jumpToRecommendation(activeRecommendCategory, safeRecommendIndex, {
+        playbackMode: "auto",
+        forcePreview: true,
+      });
     } else {
       startAutoGuideFromPreferredCategory(activeRecommendCategory);
     }
   }, [
     activeRecommendCategory,
     autoPreviewEnabled,
+    jumpToRecommendation,
+    recommendationCards.length,
     resetRecommendPreviewState,
+    safeRecommendIndex,
     startAutoGuideFromPreferredCategory,
   ]);
 
   const handleSelectRecommendationByIndex = useCallback(
     (index: number) => {
       jumpToRecommendation(activeRecommendCategory, index, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: autoPreviewEnabled
+          ? "auto"
+          : previewPlayerState !== "idle" || previewPlaybackMode === "manual"
+            ? "manual"
+            : undefined,
       });
     },
-    [activeRecommendCategory, jumpToRecommendation, previewPlaybackMode],
+    [
+      activeRecommendCategory,
+      autoPreviewEnabled,
+      jumpToRecommendation,
+      previewPlaybackMode,
+      previewPlayerState,
+    ],
   );
 
   const handleOpenRecommendationCardLink = useCallback(
@@ -732,19 +760,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     setTabRenderKey((prev) => prev + 1);
     setActiveTab(tab);
     if (tab === "recommend") {
-      if (typeof window !== "undefined") {
-        if (!readStoredBoolean(RECOMMEND_CONTROLS_HINT_STORAGE_KEY, false)) {
-          setShowRecommendControlsHint(true);
-          window.localStorage.setItem(RECOMMEND_CONTROLS_HINT_STORAGE_KEY, "1");
-          if (recommendControlsHintTimerRef.current !== null) {
-            window.clearTimeout(recommendControlsHintTimerRef.current);
-          }
-          recommendControlsHintTimerRef.current = window.setTimeout(() => {
-            setShowRecommendControlsHint(false);
-            recommendControlsHintTimerRef.current = null;
-          }, 2500);
-        }
-      }
       if (autoPreviewEnabled) {
         startAutoGuideFromPreferredCategory(recommendCategory);
       } else {
@@ -752,19 +767,8 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       }
       return;
     }
-    setShowRecommendControlsHint(false);
     resetRecommendPreviewState();
   };
-
-  useEffect(
-    () => () => {
-      if (recommendControlsHintTimerRef.current !== null) {
-        window.clearTimeout(recommendControlsHintTimerRef.current);
-        recommendControlsHintTimerRef.current = null;
-      }
-    },
-    [],
-  );
 
   const goNextStep = () => {
     if (stepIndex < TAB_ORDER.length - 1) {
@@ -965,8 +969,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 activeRecommendCategory={activeRecommendCategory}
                 recommendCategoryLabels={RECOMMEND_CATEGORY_LABELS}
                 recommendCategoryShortHints={RECOMMEND_CATEGORY_SHORT_HINT}
-                recommendControlsTooltip={RECOMMEND_CONTROLS_TOOLTIP}
-                showRecommendControlsHint={showRecommendControlsHint}
                 recommendationCardsByCategory={recommendationCardsByCategory}
                 onActivateCategory={activateRecommendationCategory}
                 autoPreviewEnabled={autoPreviewEnabled}
@@ -990,12 +992,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 currentRecommendationGradeLabel={
                   currentRecommendationRating?.grade ?? null
                 }
-                currentRecommendationAnsweredAtMs={
-                  currentRecommendationRating?.answeredAtMs ?? null
-                }
-                currentRecommendationResult={
-                  currentRecommendationRating?.result ?? "unanswered"
-                }
                 hasCurrentRecommendationSpeedDelta={hasCurrentRecommendationSpeedDelta}
                 currentRecommendationSpeedValue={currentRecommendationSpeedInsight.value}
                 currentRecommendationSpeedNote={currentRecommendationSpeedInsight.note}
@@ -1010,11 +1006,9 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                   currentRecommendationFastestCorrectMeta
                 }
                 canAutoGuideLoop={canAutoGuideLoop}
-                isPreviewFrozen={isPreviewFrozen}
                 previewCountdownSec={previewCountdownSec}
                 previewSwitchNotice={previewSwitchNotice}
                 effectivePreviewVolume={effectivePreviewVolume}
-                settlementPreviewSyncGameVolume={settlementPreviewSyncGameVolume}
                 onPreviewVolumeChange={(next) => {
                   if (settlementPreviewSyncGameVolume) {
                     setSettlementPreviewSyncGameVolume(false);
@@ -1074,7 +1068,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 onSetSelectedRecapKey={setSelectedRecapKey}
                 onJumpToRecapPreview={jumpToRecapPreview}
                 resolveParticipantResult={resolveParticipantResult}
-                resolveCorrectAnsweredRank={resolveCorrectAnsweredRank}
                 resultMeta={RESULT_META}
                 performanceRatingByRecapKey={performanceRatingByRecapKey}
                 performanceGradeMeta={PERFORMANCE_GRADE_META}
@@ -1084,16 +1077,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 selectedRecapLink={selectedRecapLink}
                 onOpenTrackLink={handleOpenTrackLink}
                 selectedRecapAnswer={selectedRecapAnswer}
-                selectedRecapCorrectRank={selectedRecapCorrectRank}
-                isSelectedRecapFastest={isSelectedRecapFastest}
-                isSelectedRecapGlobalFastest={isSelectedRecapGlobalFastest}
-                selectedRecapFastestBadgeText={selectedRecapFastestBadgeText}
                 selectedRecapFastestCorrectMeta={selectedRecapFastestCorrectMeta}
                 selectedRecapAverageCorrectMs={selectedRecapAverageCorrectMs}
                 formatMs={formatMs}
                 selectedRecapRating={selectedRecapRating}
-                selectedRecapGradeMeta={selectedRecapGradeMeta}
-                selectedRecapRatingBreakdown={selectedRecapRatingBreakdown}
                 multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
                 reviewDoubleClickPlayEnabled={reviewDoubleClickPlayEnabled}
                 onToggleReviewDoubleClickPlay={() =>
