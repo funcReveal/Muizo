@@ -18,10 +18,10 @@ import LockOutlined from "@mui/icons-material/LockOutlined";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import ShareRounded from "@mui/icons-material/ShareRounded";
 import { useRoom } from "../../Room/model/useRoom";
+import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { collectionsApi } from "../model/collectionsApi";
 import {
-  isAdminRole,
   MAX_COLLECTIONS_PER_USER,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
 } from "../model/collectionLimits";

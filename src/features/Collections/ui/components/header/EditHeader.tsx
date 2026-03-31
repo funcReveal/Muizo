@@ -341,7 +341,7 @@ const EditHeader = ({
             onClick={onShare}
             disabled={shareDisabled}
             aria-label="\u5206\u4eab\u6536\u85cf\u5eab"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
           >
             <ShareRounded fontSize="small" />
           </button>

@@ -30,6 +30,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { isAdminRole } from "../../shared/auth/roles";
 import BrandLogo from "../../shared/ui/BrandLogo";
 
 interface AppHeaderProps {
@@ -40,6 +41,7 @@ interface AppHeaderProps {
     email?: string | null;
     display_name?: string | null;
     avatar_url?: string | null;
+    role?: string | null;
   } | null;
   authLoading?: boolean;
   onLogin?: () => void;
@@ -135,6 +137,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   const authSubLabel = authUser?.email ?? null;
   const isAnonymousVisitor = !authUser && !hasGuestIdentity;
   const isGuestVisitor = !authUser && hasGuestIdentity;
+  const isAdmin = isAdminRole(authUser?.role);
 
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [systemOpen, setSystemOpen] = useState(false);
@@ -600,21 +603,23 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
           {!isAnonymousVisitor && (
             <>
-              <MenuItem
-                onClick={() => {
-                  handleMenuClose();
-                  setSystemOpen(true);
-                }}
-                sx={menuItemSx}
-              >
-                <ListItemIcon sx={{ minWidth: 30, color: "#f59e0b" }}>
-                  <Memory fontSize="small" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="系統狀態"
-                  secondary="檢視後端 OS 與執行狀態"
-                />
-              </MenuItem>
+              {isAdmin && (
+                <MenuItem
+                  onClick={() => {
+                    handleMenuClose();
+                    setSystemOpen(true);
+                  }}
+                  sx={menuItemSx}
+                >
+                  <ListItemIcon sx={{ minWidth: 30, color: "#f59e0b" }}>
+                    <Memory fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary="系統狀態"
+                    secondary="檢視後端 OS 與執行狀態"
+                  />
+                </MenuItem>
+              )}
 
               <MenuItem
                 onClick={() => {
@@ -638,7 +643,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </Popover>
 
         <Dialog
-          open={systemOpen}
+          open={isAdmin && systemOpen}
           onClose={() => setSystemOpen(false)}
           fullWidth
           maxWidth="sm"

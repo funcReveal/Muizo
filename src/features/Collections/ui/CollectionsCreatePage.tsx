@@ -2,13 +2,15 @@
 import { useNavigate } from "react-router-dom";
 import { List, type RowComponentProps } from "react-window";
 
-import { Box, Button } from "@mui/material";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import { Box, Button, CircularProgress } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
+import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
 import { trackEvent } from "../../../shared/analytics/track";
 import {
-  isAdminRole,
+  MAX_COLLECTIONS_PER_USER,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
   resolveCollectionItemLimit,
 } from "../model/collectionLimits";
@@ -113,7 +115,7 @@ const PreviewVirtualRow = ({
           </div>
           <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
             {item.uploader || "未知上傳者"}
-            {item.duration ? ` 繚 ${item.duration}` : ""}
+            {item.duration ? ` ． ${item.duration}` : ""}
           </div>
         </div>
       </div>
@@ -131,12 +133,14 @@ const CollectionsCreatePage = () => {
     lastFetchedPlaylistTitle,
     playlistError,
     playlistLoading,
+    playlistProgress,
     playlistPreviewMeta,
     handleFetchPlaylist,
     handleResetPlaylist,
     setPlaylistUrl,
     authLoading,
     refreshAuthToken,
+    collections,
     youtubePlaylists,
     youtubePlaylistsLoading,
     youtubePlaylistsError,
@@ -153,10 +157,13 @@ const CollectionsCreatePage = () => {
     "url",
   );
   const youtubeFetchedRef = useRef(false);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedYoutubePlaylistId, setSelectedYoutubePlaylistId] =
     useState("");
   const [isImportingYoutubePlaylist, setIsImportingYoutubePlaylist] =
     useState(false);
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const [youtubeActionError, setYoutubeActionError] = useState<string | null>(
     null,
   );
@@ -166,6 +173,17 @@ const CollectionsCreatePage = () => {
 
   const ownerId = authUser?.id ?? null;
   const isAdmin = isAdminRole(authUser?.role);
+  const privateCollectionsCount = collections.filter(
+    (item) => item.visibility !== "public",
+  ).length;
+  const remainingCollectionSlots = Math.max(
+    0,
+    MAX_COLLECTIONS_PER_USER - collections.length,
+  );
+  const remainingPrivateCollectionSlots = Math.max(
+    0,
+    MAX_PRIVATE_COLLECTIONS_PER_USER - privateCollectionsCount,
+  );
   const collectionItemLimit = resolveCollectionItemLimit({
     role: authUser?.role,
     plan: authUser?.plan,
@@ -182,7 +200,23 @@ const CollectionsCreatePage = () => {
   useEffect(() => {
     if (!lastFetchedPlaylistTitle) return;
     setCollectionTitle(lastFetchedPlaylistTitle);
+    setTitleDraft(lastFetchedPlaylistTitle);
   }, [lastFetchedPlaylistTitle]);
+
+  useEffect(() => {
+    setTitleDraft(collectionTitle);
+  }, [collectionTitle]);
+
+  useEffect(() => {
+    if (!isTitleEditing) return;
+    window.requestAnimationFrame(() => {
+      const input = titleInputRef.current;
+      if (!input) return;
+      input.focus();
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    });
+  }, [isTitleEditing]);
 
   const collectionPreview = useMemo(() => {
     if (!hasPlaylistItems) return null;
@@ -213,6 +247,27 @@ const CollectionsCreatePage = () => {
     () => ({ items: playlistItems }),
     [playlistItems],
   );
+  const importProgressPercent = useMemo(() => {
+    if (playlistProgress.total <= 0) return null;
+    return Math.min(
+      100,
+      Math.round((playlistProgress.received / playlistProgress.total) * 100),
+    );
+  }, [playlistProgress.received, playlistProgress.total]);
+  const importProgressLabel = useMemo(() => {
+    if (!playlistLoading) return null;
+    if (playlistProgress.total > 0) {
+      return `目前已處理 ${playlistProgress.received} / ${playlistProgress.total} 首`;
+    }
+    return playlistSource === "youtube"
+      ? "正在整理 YouTube 播放清單內容..."
+      : "正在載入播放清單內容...";
+  }, [
+    playlistLoading,
+    playlistProgress.received,
+    playlistProgress.total,
+    playlistSource,
+  ]);
   const playlistIssueSummary = useMemo(() => {
     if (playlistPreviewMeta?.skippedItems?.length) {
       const removed: string[] = [];
@@ -290,6 +345,23 @@ const CollectionsCreatePage = () => {
     }
   };
 
+  const handleTitleSave = () => {
+    const nextTitle = titleDraft.trim();
+    if (!nextTitle) {
+      setTitleDraft(collectionTitle);
+      setIsTitleEditing(false);
+      return;
+    }
+    setCollectionTitle(nextTitle);
+    setTitleDraft(nextTitle);
+    setIsTitleEditing(false);
+  };
+
+  const handleTitleCancel = () => {
+    setTitleDraft(collectionTitle);
+    setIsTitleEditing(false);
+  };
+
   const handleCreateCollection = async () => {
     if (!API_URL) {
       setCreateError("尚未設定收藏 API 位址（VITE_API_URL）");
@@ -307,10 +379,15 @@ const CollectionsCreatePage = () => {
       setCreateError("請先匯入播放清單");
       return;
     }
-      if (collectionItemLimit !== null && playlistItems.length > collectionItemLimit) {
-        setCreateError(`一般使用者每個收藏庫最多只能保留 ${collectionItemLimit} 題`);
-        return;
-      }
+    if (
+      collectionItemLimit !== null &&
+      playlistItems.length > collectionItemLimit
+    ) {
+      setCreateError(
+        `一般使用者每個收藏庫最多只能保留 ${collectionItemLimit} 題`,
+      );
+      return;
+    }
 
     setCreateError(null);
     setIsCreating(true);
@@ -445,8 +522,8 @@ const CollectionsCreatePage = () => {
             </div>
           )}
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="grid gap-3 lg:grid-rows-[auto_auto_auto_1fr]">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid gap-3 lg:grid-rows-[auto_auto_1fr]">
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-[var(--mc-text-muted)]">
@@ -584,29 +661,6 @@ const CollectionsCreatePage = () => {
 
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
                 <div className="text-xs text-[var(--mc-text-muted)]">
-                  收藏標題
-                </div>
-                <input
-                  value={collectionTitle}
-                  onChange={(e) => {
-                    setCollectionTitle(e.target.value);
-                  }}
-                  placeholder="請輸入收藏標題"
-                  className="mt-2 w-full rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-2 text-sm text-[var(--mc-text)]"
-                />
-                <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                  匯入清單後會自動帶入標題，你也可以手動修改
-                </div>
-                {!isAdmin && (
-                  <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                      一般使用者每個收藏庫最多可收錄{" "}
-                      {collectionItemLimit === null ? "無上限" : collectionItemLimit} 題。
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
-                <div className="text-xs text-[var(--mc-text-muted)]">
                   可見性
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -637,10 +691,16 @@ const CollectionsCreatePage = () => {
                   私人收藏僅自己可見，公開收藏可讓其他玩家瀏覽與使用
                 </div>
                 {!isAdmin && (
-                  <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                    一般使用者最多可建立 {MAX_PRIVATE_COLLECTIONS_PER_USER}{" "}
-                    個私人收藏庫。
-                  </div>
+                  <>
+                    <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                      目前已建立 {collections.length} / {MAX_COLLECTIONS_PER_USER} 個收藏庫，還能再建立{" "}
+                      {remainingCollectionSlots} 個。
+                    </div>
+                    <div className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+                      私人收藏目前 {privateCollectionsCount} / {MAX_PRIVATE_COLLECTIONS_PER_USER} 個，還能再建立{" "}
+                      {remainingPrivateCollectionSlots} 個。
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -651,18 +711,107 @@ const CollectionsCreatePage = () => {
               )}
             </div>
 
-            <div className="p-3 h-full">
-              {/* <div className="text-xs text-[var(--mc-text-muted)]">
-                 收藏內容預覽 
-              </div> */}
-              {collectionPreview ? (
-                <div className="mt-3">
-                  <div className="mt-1 flex items-center justify-between text-xs text-[var(--mc-text-muted)]">
-                    <div className="text-base font-semibold text-[var(--mc-text)]">
-                      {collectionPreview.title}
+            <div className="h-full rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/55 p-3">
+              {(playlistLoading || isImportingYoutubePlaylist) && (
+                <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/8 px-3 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="relative inline-flex h-12 w-12 items-center justify-center">
+                      <CircularProgress
+                        size={44}
+                        thickness={4}
+                        variant={
+                          importProgressPercent === null
+                            ? "indeterminate"
+                            : "determinate"
+                        }
+                        value={importProgressPercent ?? undefined}
+                        sx={{ color: "#38bdf8" }}
+                      />
+                      <span className="absolute text-[10px] font-semibold text-[var(--mc-text)]">
+                        {importProgressPercent === null
+                          ? "..."
+                          : `${importProgressPercent}%`}
+                      </span>
                     </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-[var(--mc-text)]">
+                        {playlistSource === "youtube"
+                          ? "正在匯入 YouTube 清單"
+                          : "正在匯入播放清單"}
+                      </div>
+                      <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
+                        {importProgressLabel ?? "正在準備匯入內容..."}
+                      </div>
+                      {playlistProgress.total > 0 && (
+                        <div className="mt-1 text-[11px] text-cyan-100/90">
+                          完成後會自動更新右側清單預覽
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {collectionPreview ? (
+                <div
+                  className={
+                    playlistLoading || isImportingYoutubePlaylist ? "mt-3" : ""
+                  }
+                >
+                  <div className="mt-1 flex items-center justify-between text-xs text-[var(--mc-text-muted)]">
+                    {isTitleEditing ? (
+                      <input
+                        ref={titleInputRef}
+                        value={titleDraft}
+                        onChange={(e) => setTitleDraft(e.target.value)}
+                        onBlur={handleTitleSave}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            handleTitleCancel();
+                            return;
+                          }
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleTitleSave();
+                          }
+                        }}
+                        placeholder="請輸入收藏標題"
+                        className="min-w-0 flex-1 rounded-none border-0 border-b border-[var(--mc-border)] bg-transparent px-0 py-1 text-base font-semibold text-[var(--mc-text)] outline-none"
+                      />
+                    ) : (
+                      <div className="flex min-w-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsTitleEditing(true)}
+                          className="min-w-0 cursor-pointer text-left"
+                          aria-label="編輯收藏標題"
+                        >
+                          <div className="truncate text-base font-semibold text-[var(--mc-text)]">
+                            {collectionPreview.title}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsTitleEditing(true)}
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-[var(--mc-surface)]/60 hover:text-[var(--mc-text)]"
+                          aria-label="編輯收藏標題"
+                        >
+                          <EditOutlined sx={{ fontSize: 16 }} />
+                        </button>
+                      </div>
+                    )}
                     <span>{`${collectionPreview.count} 首歌曲`}</span>
                   </div>
+                  {!isAdmin && (
+                    <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                      一般使用者每個收藏庫最多可收錄{" "}
+                      {collectionItemLimit === null
+                        ? "無上限"
+                        : collectionItemLimit}{" "}
+                      題。
+                    </div>
+                  )}
                   <div className="mt-3 border-t border-[var(--mc-border)]/70 pt-3">
                     <div className="h-full w-full overflow-hidden rounded-lg">
                       <List<PreviewVirtualRowProps>
@@ -731,11 +880,11 @@ const CollectionsCreatePage = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : !(playlistLoading || isImportingYoutubePlaylist) ? (
                 <div className="mt-3 rounded-xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 p-3 text-[11px] text-[var(--mc-text-muted)]">
                   匯入播放清單後，這裡會顯示收藏內容預覽
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
