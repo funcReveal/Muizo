@@ -52,6 +52,7 @@ import {
 } from "../model/roomProviderUtils";
 import {
   resolveCorrectResultSfxEvent,
+  resolveComboMilestoneSfxEvent,
   resolveCountdownSfxEvent,
   resolveGuessDeadlineSfxEvent,
 } from "../model/sfx/gameSfxEngine";
@@ -1022,7 +1023,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     }
     setStatusText("\u5ef6\u9577\u64ad\u653e\u6295\u7968\u672a\u901a\u904e\uff0c\u672c\u984c\u7dad\u6301\u539f\u64ad\u653e\u9577\u5ea6");
   }, [
-    isManualPlaybackExtensionMode,
     playbackExtensionVote,
     playbackVoteResolvedSeconds,
     setStatusText,
@@ -1326,8 +1326,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const sfxKey = `${trackSessionKey}:combo-up:${myComboNow}:${myComboTier}`;
     if (lastComboStateSfxKeyRef.current === sfxKey) return;
     lastComboStateSfxKeyRef.current = sfxKey;
+    const comboMilestoneSfxEvent = resolveComboMilestoneSfxEvent(myComboTier);
     timerId = window.setTimeout(() => {
-      playGameSfx("combo");
+      playGameSfx(comboMilestoneSfxEvent);
       triggerHapticFeedback("combo");
     }, 120);
     return () => {
@@ -1546,6 +1547,47 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     handleRequestPlaybackVote,
     isHostInGame,
     isManualPlaybackExtensionMode,
+    playbackExtensionVote?.status,
+    playbackVoteButtonDisabled,
+    playbackVoteButtonLabel,
+  ]);
+  const mobilePlaybackVoteAction = useMemo(() => {
+    if (
+      !isMobileGameViewport ||
+      gameState.status !== "playing" ||
+      !isManualPlaybackExtensionMode
+    ) {
+      return null;
+    }
+    return (
+      <button
+        type="button"
+        className={`game-room-extend-vote-btn game-room-extend-vote-btn--mobile-inline ${
+          playbackExtensionVote?.status === "active"
+            ? "game-room-extend-vote-btn--active"
+            : playbackExtensionVote?.status === "approved"
+              ? "game-room-extend-vote-btn--approved"
+              : playbackExtensionVote?.status === "rejected"
+                ? "game-room-extend-vote-btn--rejected"
+                : ""
+        } ${canOpenPlaybackVotePrompt ? "game-room-extend-vote-btn--prompt" : ""}`}
+        disabled={playbackVoteButtonDisabled}
+        onClick={handleRequestPlaybackVote}
+      >
+        <span className="game-room-extend-vote-btn__icon" aria-hidden="true">
+          <HowToVoteRoundedIcon fontSize="inherit" />
+        </span>
+        <span className="game-room-extend-vote-btn__copy">
+          {playbackVoteButtonLabel}
+        </span>
+      </button>
+    );
+  }, [
+    canOpenPlaybackVotePrompt,
+    gameState.status,
+    handleRequestPlaybackVote,
+    isManualPlaybackExtensionMode,
+    isMobileGameViewport,
     playbackExtensionVote?.status,
     playbackVoteButtonDisabled,
     playbackVoteButtonLabel,
@@ -1826,6 +1868,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             isRevealPendingOptimisticSync={isRevealPendingOptimisticSync}
             revealChoicePickMap={revealChoicePickMap}
             serverOffsetMs={serverOffsetMs}
+            mobileHeaderAction={mobilePlaybackVoteAction}
           />
           {isMobileGameViewport && (
             <div
@@ -1869,34 +1912,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     </span>
                   </button>
                 )}
-                {gameState.status === "playing" && isManualPlaybackExtensionMode && (
-                  <button
-                    type="button"
-                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--compact game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--vote ${playbackExtensionVote?.status === "active" || canOpenPlaybackVotePrompt
-                      ? "game-room-mobile-toggle-chip--active"
-                      : ""
-                      } ${canOpenPlaybackVotePrompt ? "game-room-mobile-toggle-chip--vote-prompt" : ""
-                      }`}
-                    onClick={handleRequestPlaybackVote}
-                    disabled={playbackVoteButtonDisabled}
-                  >
-                    <span className="game-room-mobile-action-icon" aria-hidden>
-                      <HowToVoteRoundedIcon fontSize="inherit" />
-                    </span>
-                    <span>{playbackVoteButtonLabel}</span>
-                    <span className="game-room-mobile-action-meta">
-                      {playbackExtensionVote?.status === "active"
-                        ? `\u5269 ${playbackVoteRemainingSeconds} \u79d2`
-                        : playbackExtensionVote?.status === "approved" &&
-                          playbackVoteResolvedSeconds > 0
-                          ? `+${playbackVoteResolvedSeconds} \u79d2`
-                          : "等待結果"}
-                    </span>
-                  </button>
-                )}
                 <button
                   type="button"
-                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor game-room-mobile-toggle-chip--anchor ${mobileGuessAnchorEnabled
+                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--half" : ""} game-room-mobile-toggle-chip--anchor ${mobileGuessAnchorEnabled
                     ? "game-room-mobile-toggle-chip--active"
                     : ""
                     }`}
@@ -1915,7 +1933,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </button>
                 <button
                   type="button"
-                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
+                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--wide" : "game-room-mobile-toggle-chip--half"} game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
                     ? "game-room-mobile-toggle-chip--active"
                     : ""
                     }`}

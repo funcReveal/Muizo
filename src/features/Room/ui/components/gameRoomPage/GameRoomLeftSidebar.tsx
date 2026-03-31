@@ -5,12 +5,18 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
 import {
   DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID,
+  DEFAULT_SCOREBOARD_BORDER_ENABLED_VALUE,
+  DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
   DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID,
   DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   SettingsModelContext,
 } from "../../../../Setting/model/settingsContext";
-import { getScoreboardBorderThemeClassName } from "../../../../Setting/model/scoreboardBorderEffects";
+import {
+  getScoreboardBorderThemeClassName,
+  resolveScoreboardBorderMotionByTheme,
+} from "../../../../Setting/model/scoreboardBorderEffects";
 import AnimatedScoreboardBorder from "../../../../../shared/ui/AnimatedScoreboardBorder";
+import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 import type { ChatMessage, RoomParticipant } from "../../../model/types";
 import { normalizeRoomDisplayText } from "../../../model/roomProviderUtils";
 import type { TopTwoSwapState } from "./gameRoomPageTypes";
@@ -90,11 +96,28 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const scoreboardBorderAnimation =
     settingsModel?.scoreboardBorderAnimation ??
     DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID;
+  const scoreboardBorderEnabled =
+    settingsModel?.scoreboardBorderEnabled ??
+    DEFAULT_SCOREBOARD_BORDER_ENABLED_VALUE;
+  const scoreboardBorderMaskEnabled =
+    settingsModel?.scoreboardBorderMaskEnabled ?? true;
   const scoreboardBorderLineStyle =
     settingsModel?.scoreboardBorderLineStyle ??
     DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID;
   const scoreboardBorderTheme =
     settingsModel?.scoreboardBorderTheme ?? DEFAULT_SCOREBOARD_BORDER_THEME_ID;
+  const scoreboardBorderParticleCount =
+    settingsModel?.scoreboardBorderParticleCount ??
+    DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE;
+  const effectiveScoreboardBorderMotion = React.useMemo(() => {
+    if (!scoreboardBorderEnabled) return "none";
+    if (scoreboardBorderAnimation === "none") return "none";
+    return resolveScoreboardBorderMotionByTheme(scoreboardBorderTheme);
+  }, [
+    scoreboardBorderAnimation,
+    scoreboardBorderEnabled,
+    scoreboardBorderTheme,
+  ]);
   const playerRowCount = React.useMemo(
     () => scoreboardRows.filter((row) => row.type === "player").length,
     [scoreboardRows],
@@ -139,13 +162,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const [rankSwapState, setRankSwapState] = React.useState<RankSwapState | null>(
     null,
   );
-  const [comboLeaderFxClientId, setComboLeaderFxClientId] = React.useState<string | null>(
-    null,
-  );
   const lastDisplayedPlayerOrderRef = React.useRef<string[]>([]);
   const lastScoreByClientIdRef = React.useRef<Map<string, number>>(new Map());
   const rankSwapTimerRef = React.useRef<number | null>(null);
-  const comboLeaderFxTimerRef = React.useRef<number | null>(null);
   const rankSwapKeyRef = React.useRef(0);
   const rowElementByClientIdRef = React.useRef(new Map<string, HTMLDivElement>());
   const previousDesktopTopByClientIdRef = React.useRef(new Map<string, number>());
@@ -418,38 +437,11 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         window.clearTimeout(rankSwapTimerRef.current);
         rankSwapTimerRef.current = null;
       }
-      if (comboLeaderFxTimerRef.current !== null) {
-        window.clearTimeout(comboLeaderFxTimerRef.current);
-        comboLeaderFxTimerRef.current = null;
-      }
       desktopFlipAnimationsRef.current.forEach((animation) => animation.cancel());
       desktopFlipAnimationsRef.current = [];
     },
     [],
   );
-
-  React.useEffect(() => {
-    if (!comboLeaderClientId) {
-      setComboLeaderFxClientId(null);
-      return;
-    }
-    setComboLeaderFxClientId(comboLeaderClientId);
-    if (comboLeaderFxTimerRef.current !== null) {
-      window.clearTimeout(comboLeaderFxTimerRef.current);
-    }
-    comboLeaderFxTimerRef.current = window.setTimeout(() => {
-      setComboLeaderFxClientId((current) =>
-        current === comboLeaderClientId ? null : current,
-      );
-      comboLeaderFxTimerRef.current = null;
-    }, 1800);
-    return () => {
-      if (comboLeaderFxTimerRef.current !== null) {
-        window.clearTimeout(comboLeaderFxTimerRef.current);
-        comboLeaderFxTimerRef.current = null;
-      }
-    };
-  }, [comboLeaderClientId]);
 
   return (
     <aside
@@ -659,9 +651,14 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
             const rowComboTier = isComboLeader ? resolveComboTier(p.combo ?? 0) : 0;
             const rowComboTierClass =
               rowComboTier > 0 ? `game-room-score-row--combo-tier-${rowComboTier}` : "";
+            const comboDisplayTier = resolveComboTier(p.combo ?? 0);
+            const comboDisplayClass =
+              comboDisplayTier > 0
+                ? `game-room-score-row-combo-text game-room-score-row-combo-text--tier-${comboDisplayTier}`
+                : "";
             const shouldShowComboFlare = isComboLeader && rowComboTier > 0;
-            const shouldShowComboChampion = shouldShowComboFlare && idx === 0;
-            const isComboFxActive = comboLeaderFxClientId === p.clientId;
+            const shouldShowComboChampion =
+              shouldShowComboFlare && scoreboardBorderEnabled;
             const rowComboThemeClass = shouldShowComboFlare
               ? getScoreboardBorderThemeClassName(scoreboardBorderTheme)
               : "";
@@ -702,39 +699,34 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                     ? "game-room-score-row--rank-swap-focus"
                     : ""
                   } ${rowComboTierClass} ${shouldShowComboFlare ? "game-room-score-row--combo-flare" : ""
-                  } ${shouldShowComboFlare && isComboFxActive
-                    ? "game-room-score-row--combo-flare-active"
-                    : ""
-                  } ${shouldShowComboChampion ? "game-room-score-row--combo-champion" : ""
-                  } ${shouldShowComboChampion && isComboFxActive
-                    ? "game-room-score-row--combo-champion-active"
-                    : ""
+                  } ${shouldShowComboFlare ? "game-room-score-row--combo-flare-active" : ""
+                  } ${shouldShowComboChampion ? "game-room-score-row--combo-champion game-room-score-row--combo-champion-active" : ""
                   } ${rowComboThemeClass}`}
                 style={rowSwapStyle}
               >
-                {shouldShowComboChampion && isComboFxActive ? (
+                {shouldShowComboChampion ? (
                   <AnimatedScoreboardBorder
-                    animationId={scoreboardBorderAnimation}
-                    lineStyleId={scoreboardBorderLineStyle}
-                    themeId={scoreboardBorderTheme}
+                    animationId={effectiveScoreboardBorderMotion}
+          lineStyleId={scoreboardBorderLineStyle}
+          themeId={scoreboardBorderTheme}
+          maskEnabled={scoreboardBorderMaskEnabled}
+          particleCount={scoreboardBorderParticleCount}
+          intensity={rowComboTier / 10}
                     variant="attached"
                     className="scoreboard-border-effect"
                   />
                 ) : null}
                 <span className="truncate flex items-center gap-2">
                   {hasAnswered && (
-                    <span
-                      className={`h-2 w-2 rounded-full ${answerDotClass}`}
-                      title={answerDotTitle}
-                    />
+                    <RoomUiTooltip title={answerDotTitle}>
+                      <span className={`h-2 w-2 rounded-full ${answerDotClass}`} />
+                    </RoomUiTooltip>
                   )}
                   <span className="truncate">
                     {idx + 1}. {displayName}
                   </span>
                   {isMeRow && (
-                    <span className="game-room-score-row-you-badge" title="YOU">
-                      YOU
-                    </span>
+                    <span className="game-room-score-row-you-badge">YOU</span>
                   )}
                 </span>
                 <div className="flex items-center gap-2">
@@ -760,7 +752,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                         {scoreParts.gain > 0 ? `+${scoreParts.gain}` : scoreParts.gain}
                       </span>
                     )}
-                    {p.combo > 0 && <span className="ml-1 text-amber-300">x{p.combo}</span>}
+                    {p.combo > 0 && (
+                      <span className={`ml-1 ${comboDisplayClass}`}>x{p.combo}</span>
+                    )}
                   </span>
                 </div>
               </div>

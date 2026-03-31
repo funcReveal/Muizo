@@ -3,6 +3,7 @@ import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 
 import type { RoomParticipant } from "../../../model/types";
+import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 
 interface ScoreMetrics {
   accuracy: number;
@@ -74,13 +75,14 @@ const renderParticipantName = (
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <span
-        className={`block min-w-0 text-center ${isLongName ? "text-[1.42rem] leading-[1.12]" : ""}`}
-        style={participantNameStyle}
-        title={username}
-      >
-        {username}
-      </span>
+      <RoomUiTooltip title={username} wrapperClassName="block min-w-0 max-w-full">
+        <span
+          className={`block min-w-0 text-center ${isLongName ? "text-[1.42rem] leading-[1.12]" : ""}`}
+          style={participantNameStyle}
+        >
+          {username}
+        </span>
+      </RoomUiTooltip>
       {isMe && useYouBadge && (
         <span className="shrink-0 rounded-full border border-cyan-300/45 bg-cyan-400/16 px-2 py-0.5 text-[10px] font-black tracking-[0.08em] text-cyan-50">
           YOU
@@ -114,13 +116,14 @@ const renderPodiumName = (
   };
 
   return (
-    <span
-      className={`mx-auto block max-w-[10.5rem] text-center font-black tracking-[-0.04em] ${podiumNameClass(username)}`}
-      style={style}
-      title={username}
-    >
-      {username}
-    </span>
+    <RoomUiTooltip title={username} wrapperClassName="mx-auto block max-w-[10.5rem]">
+      <span
+        className={`mx-auto block max-w-[10.5rem] text-center font-black tracking-[-0.04em] ${podiumNameClass(username)}`}
+        style={style}
+      >
+        {username}
+      </span>
+    </RoomUiTooltip>
   );
 };
 
@@ -419,7 +422,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 
       <article className="rounded-[28px] border border-cyan-300/18 bg-[radial-gradient(circle_at_16%_8%,rgba(34,211,238,0.14),transparent_18%),radial-gradient(circle_at_88%_100%,rgba(14,165,233,0.08),transparent_20%),linear-gradient(180deg,rgba(11,18,31,0.98),rgba(9,13,24,0.95))] p-5 shadow-[0_24px_70px_-52px_rgba(34,211,238,0.44)]">
         <div className="flex items-start gap-3">
-          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-400/12 text-cyan-100">
+          <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center text-cyan-100">
             <EmojiEventsRoundedIcon />
           </div>
           <div className="min-w-0">
@@ -494,12 +497,11 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                     </div>
 
                     <div className="flex shrink-0 flex-col items-end justify-between gap-3 text-right">
-                      <span
-                        className="rounded-full border border-white/12 bg-black/26 px-2.5 py-1 text-[10px] font-semibold text-white/84"
-                        title={titleTooltip}
-                      >
-                        {title}
-                      </span>
+                      <RoomUiTooltip title={titleTooltip}>
+                        <span className="rounded-full border border-white/12 bg-black/26 px-2.5 py-1 text-[10px] font-semibold text-white/84">
+                          {title}
+                        </span>
+                      </RoomUiTooltip>
                       <p className="text-[3.2rem] font-black leading-none text-white">
                         {participant.score}
                       </p>

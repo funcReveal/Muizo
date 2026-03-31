@@ -68,7 +68,9 @@ interface UseSettlementRecommendationNavigatorResult<
     recap: TRecap,
     source?: "click" | "doubleClick",
   ) => boolean;
-  startAutoGuideFromPreferredCategory: (preferredCategory: RecommendCategory) => void;
+  startAutoGuideFromPreferredCategory: (
+    preferredCategory: RecommendCategory,
+  ) => void;
   activateRecommendationCategory: (nextCategory: RecommendCategory) => void;
   goPrevRecommendation: () => void;
   goNextRecommendation: () => void;
@@ -106,6 +108,7 @@ const useSettlementRecommendationNavigator = <
   TCard
 >): UseSettlementRecommendationNavigatorResult<TRecap> => {
   const recommendationCardsByCategoryRef = useRef(recommendationCardsByCategory);
+
   useEffect(() => {
     recommendationCardsByCategoryRef.current = recommendationCardsByCategory;
   }, [recommendationCardsByCategory]);
@@ -115,6 +118,17 @@ const useSettlementRecommendationNavigator = <
     const previewIndex = cards.findIndex((card) => Boolean(card.previewUrl));
     return previewIndex >= 0 ? previewIndex : 0;
   }, []);
+
+  const resolveInteractivePlaybackMode = useCallback(
+    (): PreviewPlaybackMode | undefined =>
+      autoPreviewEnabled
+        ? "auto"
+        : previewPlayerStateRef.current !== "idle" ||
+            previewPlaybackMode === "manual"
+          ? "manual"
+          : undefined,
+    [autoPreviewEnabled, previewPlaybackMode, previewPlayerStateRef],
+  );
 
   const jumpToRecommendation = useCallback(
     (
@@ -131,13 +145,14 @@ const useSettlementRecommendationNavigator = <
         setPausedCountdownRemainingMs(null);
         return;
       }
+
       const safeIndex = Math.max(0, Math.min(nextIndex, nextCards.length - 1));
       const targetCard = nextCards[safeIndex];
 
       setRecommendCategory(nextCategory);
       setRecommendIndex(safeIndex);
       setSelectedRecapKey(targetCard?.recap.key ?? null);
-      pushPreviewSwitchNotice(`已切換至第 ${targetCard.recap.order} 題`);
+      pushPreviewSwitchNotice(`已切換到第 ${targetCard.recap.order} 首`);
 
       const nextPlaybackMode =
         options?.playbackMode ?? (autoPreviewEnabled ? "auto" : "idle");
@@ -160,7 +175,8 @@ const useSettlementRecommendationNavigator = <
         setPreviewRecapKey(targetCard.recap.key);
         if (keepPausedWhenSwitching) {
           const frozenMs =
-            pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000;
+            pausedCountdownRemainingMsRef.current ??
+            recommendPreviewSeconds * 1000;
           setPreviewPlayerState("paused");
           setAutoAdvanceAtMs(null);
           setPausedCountdownRemainingMs(frozenMs);
@@ -178,7 +194,8 @@ const useSettlementRecommendationNavigator = <
         setPreviewPlaybackMode("auto");
         if (keepPausedWhenSwitching) {
           const frozenMs =
-            pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000;
+            pausedCountdownRemainingMsRef.current ??
+            recommendPreviewSeconds * 1000;
           setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
           setPreviewPlayerState("paused");
           setAutoAdvanceAtMs(null);
@@ -186,7 +203,7 @@ const useSettlementRecommendationNavigator = <
           setPreviewCountdownSec(Math.max(0, Math.ceil(frozenMs / 1000)));
         } else {
           setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
-          setPreviewPlayerState("idle");
+          setPreviewPlayerState(hasPreview ? "playing" : "idle");
           setAutoAdvanceAtMs(
             hasPreview ? Date.now() + recommendPreviewSeconds * 1000 : null,
           );
@@ -200,7 +217,8 @@ const useSettlementRecommendationNavigator = <
       setAutoAdvanceAtMs(null);
       if (keepPausedWhenSwitching) {
         const frozenMs =
-          pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000;
+          pausedCountdownRemainingMsRef.current ??
+          recommendPreviewSeconds * 1000;
         setPreviewRecapKey(hasPreview ? targetCard.recap.key : null);
         setPreviewPlayerState("paused");
         setPausedCountdownRemainingMs(frozenMs);
@@ -234,7 +252,9 @@ const useSettlementRecommendationNavigator = <
     (recap: TRecap, source: "click" | "doubleClick" = "doubleClick") => {
       for (const category of RECOMMEND_CATEGORY_FLOW) {
         const cards = recommendationCardsByCategoryRef.current[category];
-        const targetIndex = cards.findIndex((card) => card.recap.key === recap.key);
+        const targetIndex = cards.findIndex(
+          (card) => card.recap.key === recap.key,
+        );
         if (targetIndex < 0) continue;
         const navigation = resolveRecapPreviewNavigation(source, {
           autoPreviewEnabled,
@@ -282,14 +302,14 @@ const useSettlementRecommendationNavigator = <
       if (!nextCards.length) return;
       const nextIndex = getFirstAutoPlayableIndex(nextCards);
       jumpToRecommendation(nextCategory, nextIndex, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: resolveInteractivePlaybackMode(),
       });
     },
     [
       getFirstAutoPlayableIndex,
       jumpToRecommendation,
-      previewPlaybackMode,
       recommendationCardsByCategory,
+      resolveInteractivePlaybackMode,
     ],
   );
 
@@ -298,7 +318,7 @@ const useSettlementRecommendationNavigator = <
     if (total <= 0) return;
     if (safeRecommendIndex > 0) {
       jumpToRecommendation(activeRecommendCategory, safeRecommendIndex - 1, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: resolveInteractivePlaybackMode(),
       });
       return;
     }
@@ -312,15 +332,15 @@ const useSettlementRecommendationNavigator = <
       const cards = recommendationCardsByCategoryRef.current[prevCategory];
       if (!cards.length) continue;
       jumpToRecommendation(prevCategory, cards.length - 1, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: resolveInteractivePlaybackMode(),
       });
       return;
     }
   }, [
     activeRecommendCategory,
     jumpToRecommendation,
-    previewPlaybackMode,
     recommendationCards.length,
+    resolveInteractivePlaybackMode,
     safeRecommendIndex,
   ]);
 
@@ -329,7 +349,7 @@ const useSettlementRecommendationNavigator = <
     if (total <= 0) return;
     if (safeRecommendIndex < total - 1) {
       jumpToRecommendation(activeRecommendCategory, safeRecommendIndex + 1, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: resolveInteractivePlaybackMode(),
       });
       return;
     }
@@ -342,15 +362,15 @@ const useSettlementRecommendationNavigator = <
       const cards = recommendationCardsByCategoryRef.current[nextCategory];
       if (!cards.length) continue;
       jumpToRecommendation(nextCategory, 0, {
-        playbackMode: previewPlaybackMode === "manual" ? "manual" : undefined,
+        playbackMode: resolveInteractivePlaybackMode(),
       });
       return;
     }
   }, [
     activeRecommendCategory,
     jumpToRecommendation,
-    previewPlaybackMode,
     recommendationCards.length,
+    resolveInteractivePlaybackMode,
     safeRecommendIndex,
   ]);
 
@@ -362,6 +382,7 @@ const useSettlementRecommendationNavigator = <
     const currentFlowIdx = RECOMMEND_CATEGORY_FLOW.indexOf(activeRecommendCategory);
     let hasPrevCategory = false;
     let hasNextCategory = false;
+
     for (let offset = 1; offset < RECOMMEND_CATEGORY_FLOW.length; offset += 1) {
       const prevCategory =
         RECOMMEND_CATEGORY_FLOW[
@@ -386,10 +407,11 @@ const useSettlementRecommendationNavigator = <
       }
       if (hasPrevCategory && hasNextCategory) break;
     }
+
     return {
-      prev: safeRecommendIndex <= 0 && hasPrevCategory ? "上一類" : "上一首",
+      prev: safeRecommendIndex <= 0 && hasPrevCategory ? "上一組" : "上一首",
       next:
-        safeRecommendIndex >= total - 1 && hasNextCategory ? "下一類" : "下一首",
+        safeRecommendIndex >= total - 1 && hasNextCategory ? "下一組" : "下一首",
     };
   }, [
     activeRecommendCategory,
@@ -404,7 +426,9 @@ const useSettlementRecommendationNavigator = <
       recommendationCardsByCategoryRef.current[activeRecommendCategory];
     if (currentCards.length <= 0) return;
     if (safeRecommendIndex < currentCards.length - 1) {
-      jumpToRecommendation(activeRecommendCategory, safeRecommendIndex + 1);
+      jumpToRecommendation(activeRecommendCategory, safeRecommendIndex + 1, {
+        playbackMode: "auto",
+      });
       return;
     }
     const currentFlowIdx = RECOMMEND_CATEGORY_FLOW.indexOf(activeRecommendCategory);
@@ -417,7 +441,9 @@ const useSettlementRecommendationNavigator = <
       const cards = recommendationCardsByCategoryRef.current[category];
       if (cards.length <= 0) continue;
       const nextIndex = getFirstAutoPlayableIndex(cards);
-      jumpToRecommendation(category, nextIndex);
+      jumpToRecommendation(category, nextIndex, {
+        playbackMode: "auto",
+      });
       return;
     }
   }, [

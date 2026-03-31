@@ -54,6 +54,7 @@ interface GameRoomAnswerPanelProps {
   isRevealPendingOptimisticSync: boolean;
   revealChoicePickMap: RevealChoicePickMap;
   serverOffsetMs: number;
+  mobileHeaderAction?: React.ReactNode;
 }
 
 const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
@@ -96,10 +97,9 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   onOpenExitConfirm,
   isPendingFeedbackCard,
   allAnsweredReadyForReveal,
-  isRevealPendingServerSync,
-  isRevealPendingOptimisticSync,
   revealChoicePickMap,
   serverOffsetMs,
+  mobileHeaderAction,
 }) => {
   const getLocalNowMs = React.useCallback(
     () => Date.now() + serverOffsetMs,
@@ -116,41 +116,77 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     trackSessionKey: string;
     choiceIndex: number;
   } | null>(null);
-  const uiTickMs = React.useMemo(() => {
-    if (
-      gamePhase === "guess" &&
-      !isInterTrackWait &&
-      !isReveal &&
-      !isEnded &&
-      !allAnsweredReadyForReveal
-    ) {
-      return 125;
+  const progressBarFillRef = React.useRef<HTMLDivElement>(null);
+
+  // CSS-driven progress bar: set a single linear CSS transition per phase,
+  // runs entirely on compositor thread — zero React re-renders needed for the bar.
+  React.useLayoutEffect(() => {
+    const fill = progressBarFillRef.current;
+    if (!fill || isInitialCountdown || isInterTrackWait || activePhaseDurationMs <= 0) {
+      return;
     }
-    if (isReveal || isInterTrackWait) {
-      return 250;
+    const now = getLocalNowMs();
+    const elapsed = activePhaseDurationMs - Math.max(0, phaseEndsAt - now);
+    const startFraction = Math.max(0, Math.min(1, elapsed / activePhaseDurationMs));
+    const remainingMs = Math.max(0, phaseEndsAt - now);
+    fill.style.transition = "none";
+    fill.style.transform = `scaleX(${startFraction})`;
+    void fill.offsetWidth;
+    if (remainingMs > 0) {
+      fill.style.transition = `transform ${remainingMs}ms linear`;
+      fill.style.transform = "scaleX(1)";
     }
-    return 250;
-  }, [allAnsweredReadyForReveal, gamePhase, isEnded, isInterTrackWait, isReveal]);
+  }, [
+    phaseEndsAt,
+    activePhaseDurationMs,
+    isInitialCountdown,
+    isInterTrackWait,
+    gamePhase,
+    trackSessionKey,
+    getLocalNowMs,
+  ]);
 
   React.useEffect(() => {
-    setLocalNowMs(getLocalNowMs());
-    const timer = window.setInterval(() => {
-      setLocalNowMs(getLocalNowMs());
-    }, uiTickMs);
-    return () => window.clearInterval(timer);
-  }, [getLocalNowMs, phaseEndsAt, revealEndsAt, startedAt, uiTickMs]);
+    if (!allAnsweredReadyForReveal) return;
+    const fill = progressBarFillRef.current;
+    if (!fill) return;
+    fill.style.transition = "transform 300ms ease-out";
+    fill.style.transform = "scaleX(1)";
+  }, [allAnsweredReadyForReveal]);
+
+  // Timer is now only needed for the countdown chip ("Xs") and urgency state.
+  // 1000ms during main phase is enough for integer-second display.
+  React.useEffect(() => {
+    let timerId: number | null = null;
+    const tick = () => {
+      const now = getLocalNowMs();
+      setLocalNowMs(now);
+      let delay: number;
+      if (
+        gamePhase === "guess" &&
+        !isInterTrackWait &&
+        !isReveal &&
+        !isEnded &&
+        !allAnsweredReadyForReveal
+      ) {
+        const remaining = phaseEndsAt - now;
+        delay = remaining > 4500 ? 1000 : 125;
+      } else {
+        delay = 500;
+      }
+      timerId = window.setTimeout(tick, delay);
+    };
+    tick();
+    return () => {
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
+  }, [allAnsweredReadyForReveal, gamePhase, getLocalNowMs, isEnded, isInterTrackWait, isReveal, phaseEndsAt, revealEndsAt, startedAt]);
 
   const startCountdownSec = Math.max(
     1,
     Math.ceil(Math.max(0, startedAt - localNowMs) / 1000),
   );
   const phaseRemainingMs = Math.max(0, phaseEndsAt - localNowMs);
-  const progressPct =
-    activePhaseDurationMs <= 0
-      ? 0
-      : allAnsweredReadyForReveal
-        ? 100
-        : ((activePhaseDurationMs - phaseRemainingMs) / activePhaseDurationMs) * 100;
   const isGuessUrgency =
     gamePhase === "guess" &&
     !allAnsweredReadyForReveal &&
@@ -187,7 +223,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     const timer = window.setTimeout(() => {
       setSelectedChoiceFxState((current) =>
         current?.trackSessionKey === trackSessionKey &&
-        current.choiceIndex === selectedChoice
+          current.choiceIndex === selectedChoice
           ? null
           : current,
       );
@@ -212,7 +248,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
       setPanelComboFxActive(false);
       setComboChoiceFxState((current) =>
         current?.trackSessionKey === trackSessionKey &&
-        current.choiceIndex === selectedChoice
+          current.choiceIndex === selectedChoice
           ? null
           : current,
       );
@@ -269,65 +305,60 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
         >
           <div className="game-room-answer-body">
             <div className="game-room-answer-head flex items-center gap-3">
-              <div>
+              <div className="game-room-answer-head__main min-w-0 flex-1">
                 <p className="game-room-title">
                   {isInterTrackWait ? "下一題準備中" : phaseLabel}
                 </p>
+                <Chip
+                  label={
+                    isInterTrackWait
+                      ? `${startCountdownSec}s`
+                      : allAnsweredReadyForReveal
+                        ? "READY"
+                        : `${Math.ceil(phaseRemainingMs / 1000)}s`
+                  }
+                  size="small"
+                  color={
+                    isInterTrackWait
+                      ? "info"
+                      : allAnsweredReadyForReveal
+                        ? "success"
+                        : gamePhase === "guess"
+                          ? "warning"
+                          : "success"
+                  }
+                  variant={allAnsweredReadyForReveal ? "filled" : "outlined"}
+                  className={`game-room-chip ${isGuessUrgency ? "game-room-chip--urgent" : ""
+                    } ${urgentChipPingActive ? "game-room-chip--urgent-ping" : ""} ${allAnsweredReadyForReveal ? "game-room-chip--ready" : ""}`}
+                />
               </div>
-              <Chip
-                label={
-                  isInterTrackWait
-                    ? `${startCountdownSec}s`
-                    : allAnsweredReadyForReveal
-                      ? "READY"
-                      : `${Math.ceil(phaseRemainingMs / 1000)}s`
-                }
-                size="small"
-                color={
-                  isInterTrackWait
-                    ? "info"
-                    : allAnsweredReadyForReveal
-                      ? "success"
-                      : gamePhase === "guess"
-                        ? "warning"
-                        : "success"
-                }
-                variant={allAnsweredReadyForReveal ? "filled" : "outlined"}
-                className={`game-room-chip ${isGuessUrgency ? "game-room-chip--urgent" : ""
-                  } ${urgentChipPingActive ? "game-room-chip--urgent-ping" : ""} ${allAnsweredReadyForReveal ? "game-room-chip--ready" : ""}`}
-              />
+              {isMobileView && mobileHeaderAction ? (
+                <div className="game-room-answer-head__action">
+                  {mobileHeaderAction}
+                </div>
+              ) : null}
             </div>
 
             <div
               className={`game-room-phase-progress ${isGuessUrgency ? "game-room-phase-progress--urgent" : ""}`}
             >
-              <LinearProgress
-                variant={isInterTrackWait ? "indeterminate" : "determinate"}
-                value={
-                  isInterTrackWait ? undefined : Math.min(100, Math.max(0, progressPct))
-                }
-                color={
-                  isInterTrackWait
-                    ? "info"
-                    : gamePhase === "guess"
-                      ? "warning"
-                      : "success"
-                }
-                className="game-room-phase-progress-bar"
-              />
+              {isInterTrackWait ? (
+                <LinearProgress
+                  variant="indeterminate"
+                  color="info"
+                  className="game-room-phase-progress-bar"
+                />
+              ) : (
+                <div className="game-room-phase-progress-bar">
+                  <div
+                    ref={progressBarFillRef}
+                    className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
+                  />
+                </div>
+              )}
             </div>
-            {isRevealPendingServerSync && (
-              <div className="mt-2 rounded-lg border border-emerald-300/45 bg-emerald-500/14 px-3 py-1.5 text-xs font-semibold text-emerald-100">
-                正在等待全員同步，答案即將公布...
-              </div>
-            )}
-            {!isRevealPendingServerSync && isRevealPendingOptimisticSync && (
-              <div className="mt-2 rounded-lg border border-sky-300/40 bg-sky-500/14 px-3 py-1.5 text-xs font-semibold text-sky-100">
-                已收到最後作答，正在整理揭曉資訊...
-              </div>
-            )}
             <div
-              className={`game-room-options-grid game-room-options-grid--blaze grid grid-cols-1 gap-2 md:grid-cols-2 ${isMobileView ? "game-room-options-grid--mobile" : ""
+              className={`game-room-options-grid game-room-options-grid--blaze grid grid-cols-1 gap-3 md:grid-cols-2 ${isMobileView ? "game-room-options-grid--mobile" : ""
                 }`}
             >
               {isInterTrackWait
@@ -535,7 +566,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
 
 
                         <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
-                          <span className="game-room-choice-title" title={choiceDisplayTitle}>
+                          <span className="game-room-choice-title">
                             {choiceDisplayTitle}
                           </span>
 
@@ -552,12 +583,11 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                             )}
 
                             {isMyChoice && myComboTier > 0 && (
-                              <span
-                                className={`game-room-choice-tag game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
-                                title={`Combo x${myComboNow}`}
-                              >
-                                Combo x{myComboNow}
-                              </span>
+                          <span
+                            className={`game-room-choice-tag game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
+                          >
+                            Combo x{myComboNow}
+                          </span>
                             )}
 
                             {showCorrectTag && (
@@ -606,7 +636,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                 {isReveal && myFeedback.inlineMeta && (
                   <span
                     className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
-                    title={myFeedback.inlineMeta}
                   >
                     {myFeedback.inlineMeta}
                   </span>
@@ -617,7 +646,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                       ? ""
                       : "game-room-feedback-pill--placeholder"
                       }`}
-                    title={myFeedback.pillText ?? myFeedback.detail ?? ""}
                   >
                     {(myFeedback.pillText ?? myFeedback.detail) || "等待揭曉"}
                   </span>
@@ -633,7 +661,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                       <p
                         key={`${trackSessionKey}-feedback-line-${idx}`}
                         className="game-room-feedback-line"
-                        title={line}
                       >
                         {line}
                       </p>
@@ -656,10 +683,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                 )}
               {isReveal && (
                 <>
-                  <p
-                    className="game-room-reveal-answer mt-1 text-sm text-emerald-50"
-                    title={resolvedAnswerTitle}
-                  >
+                  <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
                     <span className="mr-1 text-[11px] font-semibold text-emerald-200">正解</span>
                     {resolvedAnswerTitle}
                   </p>

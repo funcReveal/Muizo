@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import { Button } from "@mui/material";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 
@@ -197,6 +197,19 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       ? "game-room-media-iframe-wrap--guess-lite"
       : "game-room-media-iframe-wrap--full"
   }`;
+  const handleVolumeChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      onGameVolumeChange(Number(event.target.value));
+    },
+    [onGameVolumeChange],
+  );
+  const iframeStyle = useMemo<React.CSSProperties>(
+    () => ({
+      pointerEvents: "none",
+      opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
+    }),
+    [shouldHideVideoFrame, shouldShowVideo],
+  );
   const previewMode: "video" | "thumbnail" = showVideo ? "video" : "thumbnail";
   const trackCounterNode = (
     <div className="game-room-track-counter mt-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black tracking-[0.14em] text-amber-100">
@@ -213,7 +226,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   );
 
   const revealAnswerNode = shouldShowMobileReveal ? (
-    <div className="game-room-reveal-inline" title={`答案 ${revealAnswerLabel}`}>
+    <div className="game-room-reveal-inline">
       <span className="game-room-reveal-inline__label">答案</span>
       {shouldUseRevealMarquee ? (
         <span ref={revealMarqueeWrapRef} className="game-room-reveal-title-marquee">
@@ -322,10 +335,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               allow="autoplay; encrypted-media"
               allowFullScreen
               title="遊戲影片播放器"
-              style={{
-                pointerEvents: "none",
-                opacity: shouldHideVideoFrame || !shouldShowVideo ? 0 : 1,
-              }}
+              style={iframeStyle}
               ref={iframeRef}
               onLoad={onIframeLoad}
             />
@@ -354,12 +364,24 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-cyan-300 border-r-slate-400" />
               <div className="game-room-mask-spinner-core absolute inset-[22%] rounded-full bg-slate-400/10" />
             </div>
-            <p className="mt-2 text-xs text-slate-300">預覽中</p>
+            <p className="mt-2 text-xs text-slate-300">猜歌中</p>
           </div>
         )}
 
         {showPreStartMask && (
-          <div className="pointer-events-none absolute inset-0 z-20 bg-slate-950" />
+          <div className="pointer-events-none absolute inset-0 z-20">
+            {videoId && (
+              <img
+                src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                alt=""
+                aria-hidden="true"
+                fetchPriority="high"
+                className="absolute inset-0 h-full w-full object-cover opacity-15"
+                draggable={false}
+              />
+            )}
+            <div className="absolute inset-0 bg-slate-950/88" />
+          </div>
         )}
 
         {showLoadingMask && (
@@ -384,7 +406,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
                   draggable={false}
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-[#06070b]/84 via-[#06070b]/18 to-[#06070b]/52" />
-                <div className="game-room-thumbnail-record relative z-10 rounded-full border border-slate-600/60 bg-slate-950/70 px-3 py-1 text-[11px] tracking-[0.22em] text-slate-300 backdrop-blur-sm">
+                <div className="game-room-thumbnail-record relative z-10 rounded-full border border-slate-600/60 bg-slate-950/70 px-3 py-1 text-[11px] tracking-[0.22em] text-slate-300">
                   <img
                     src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
                     alt=""
@@ -414,7 +436,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
                 min={0}
                 max={100}
                 value={gameVolume}
-                onChange={(event) => onGameVolumeChange(Number(event.target.value))}
+                onChange={handleVolumeChange}
                 className="w-full"
               />
             </div>

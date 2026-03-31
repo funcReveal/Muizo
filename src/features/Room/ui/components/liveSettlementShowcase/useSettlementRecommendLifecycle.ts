@@ -35,7 +35,9 @@ interface UseSettlementRecommendLifecycleParams {
 }
 
 interface UseSettlementRecommendLifecycleResult {
-  resetRecommendPreviewState: () => void;
+  resetRecommendPreviewState: (options?: {
+    preserveCurrentPreview?: boolean;
+  }) => void;
 }
 
 const useSettlementRecommendLifecycle = ({
@@ -61,22 +63,38 @@ const useSettlementRecommendLifecycle = ({
   setPausedCountdownRemainingMs,
   setPreviewCountdownSec,
 }: UseSettlementRecommendLifecycleParams): UseSettlementRecommendLifecycleResult => {
-  const resetRecommendPreviewState = useCallback(() => {
-    setPreviewPlaybackMode("idle");
-    setPreviewRecapKey(null);
-    setPreviewPlayerState("idle");
-    setAutoAdvanceAtMs(null);
-    setPausedCountdownRemainingMs(null);
-    setPreviewCountdownSec(recommendPreviewSeconds);
-  }, [
-    recommendPreviewSeconds,
-    setAutoAdvanceAtMs,
-    setPausedCountdownRemainingMs,
-    setPreviewCountdownSec,
-    setPreviewPlaybackMode,
-    setPreviewPlayerState,
-    setPreviewRecapKey,
-  ]);
+  const resetRecommendPreviewState = useCallback(
+    (options?: { preserveCurrentPreview?: boolean }) => {
+      const preserveCurrentPreview = options?.preserveCurrentPreview ?? false;
+      postYouTubeCommand("pauseVideo");
+      autoAdvanceAtMsRef.current = null;
+      pausedCountdownRemainingMsRef.current = null;
+      previewPlayerStateRef.current = "paused";
+      previewLastProgressAtMsRef.current = null;
+      setPreviewPlaybackMode(preserveCurrentPreview ? "manual" : "idle");
+      if (!preserveCurrentPreview) {
+        setPreviewRecapKey(null);
+      }
+      setPreviewPlayerState("paused");
+      setAutoAdvanceAtMs(null);
+      setPausedCountdownRemainingMs(null);
+      setPreviewCountdownSec(recommendPreviewSeconds);
+    },
+    [
+      autoAdvanceAtMsRef,
+      pausedCountdownRemainingMsRef,
+      postYouTubeCommand,
+      previewLastProgressAtMsRef,
+      previewPlayerStateRef,
+      recommendPreviewSeconds,
+      setAutoAdvanceAtMs,
+      setPausedCountdownRemainingMs,
+      setPreviewCountdownSec,
+      setPreviewPlaybackMode,
+      setPreviewPlayerState,
+      setPreviewRecapKey,
+    ],
+  );
 
   useEffect(() => {
     if (activeTab !== "recommend") return;
@@ -89,6 +107,7 @@ const useSettlementRecommendLifecycle = ({
       return;
     }
     if (previewPlayerState === "playing") return;
+
     const timers = [720, 1280, 1960].map((delay) =>
       window.setTimeout(() => {
         if (
@@ -101,6 +120,7 @@ const useSettlementRecommendLifecycle = ({
         postYouTubeCommand("playVideo");
       }, delay),
     );
+
     return () => {
       timers.forEach((timerId) => window.clearTimeout(timerId));
     };
@@ -126,29 +146,38 @@ const useSettlementRecommendLifecycle = ({
       return;
     }
     if (autoAdvanceAtMs === null) return;
+
     let retryTimer: number | null = null;
     const timer = window.setTimeout(() => {
       if (previewPlayerStateRef.current === "playing") return;
+
       const lastProgressAt = previewLastProgressAtMsRef.current;
       if (lastProgressAt !== null && Date.now() - lastProgressAt <= 3200) {
         previewPlayerStateRef.current = "playing";
         setPreviewPlayerState("playing");
         return;
       }
+
       postYouTubeCommand("playVideo");
       retryTimer = window.setTimeout(() => {
         if (previewPlayerStateRef.current === "playing") return;
+
         const retryLastProgressAt = previewLastProgressAtMsRef.current;
-        if (retryLastProgressAt !== null && Date.now() - retryLastProgressAt <= 2800) {
+        if (
+          retryLastProgressAt !== null &&
+          Date.now() - retryLastProgressAt <= 2800
+        ) {
           previewPlayerStateRef.current = "playing";
           setPreviewPlayerState("playing");
           return;
         }
+
         const remainingMs = Math.max(
           0,
           autoAdvanceAtMsRef.current !== null
             ? autoAdvanceAtMsRef.current - Date.now()
-            : pausedCountdownRemainingMsRef.current ?? recommendPreviewSeconds * 1000,
+            : pausedCountdownRemainingMsRef.current ??
+                recommendPreviewSeconds * 1000,
         );
         autoAdvanceAtMsRef.current = null;
         pausedCountdownRemainingMsRef.current = remainingMs;
@@ -156,9 +185,10 @@ const useSettlementRecommendLifecycle = ({
         setPausedCountdownRemainingMs(remainingMs);
         setPreviewCountdownSec(Math.max(0, Math.ceil(remainingMs / 1000)));
         setPreviewPlayerState("paused");
-        pushPreviewSwitchNotice("瀏覽器限制自動播放，點擊影片區即可開始");
+        pushPreviewSwitchNotice("自動導覽已暫停，請點擊播放器繼續播放。");
       }, 1800);
     }, 4200);
+
     return () => {
       window.clearTimeout(timer);
       if (retryTimer !== null) {

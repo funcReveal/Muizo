@@ -310,12 +310,6 @@ export const useRoomProviderPlaylistActions = ({
             sourceId: snapshot?.sourceId ?? options?.sourceId ?? undefined,
             items: snapshot?.items,
             readToken: readToken ?? undefined,
-            sourceType:
-              type === "collection"
-                ? resolveCollectionSourceType(snapshot?.sourceId ?? options?.sourceId ?? value)
-                : authToken
-                  ? "youtube_google_import"
-                  : "youtube_pasted_link",
           },
           (ack: Ack<null>) => {
             if (!ack) {
@@ -345,7 +339,6 @@ export const useRoomProviderPlaylistActions = ({
       fetchYoutubeSnapshot,
       gameStateStatus,
       getSocket,
-      resolveCollectionSourceType,
       setStatusText,
     ],
   );

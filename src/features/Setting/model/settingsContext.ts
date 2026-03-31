@@ -7,7 +7,10 @@ import type {
   ScoreboardBorderThemeId,
 } from "./scoreboardBorderEffects";
 import {
+  DEFAULT_SCOREBOARD_BORDER_ENABLED,
+  DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED,
   DEFAULT_SCOREBOARD_BORDER_ANIMATION,
+  DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT,
   DEFAULT_SCOREBOARD_BORDER_LINE_STYLE,
   DEFAULT_SCOREBOARD_BORDER_THEME,
 } from "./scoreboardBorderEffects";
@@ -45,6 +48,12 @@ export const DEFAULT_SCOREBOARD_BORDER_ANIMATION_ID =
 export const DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID =
   DEFAULT_SCOREBOARD_BORDER_LINE_STYLE;
 export const DEFAULT_SCOREBOARD_BORDER_THEME_ID = DEFAULT_SCOREBOARD_BORDER_THEME;
+export const DEFAULT_SCOREBOARD_BORDER_ENABLED_VALUE =
+  DEFAULT_SCOREBOARD_BORDER_ENABLED;
+export const DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED_VALUE =
+  DEFAULT_SCOREBOARD_BORDER_MASK_ENABLED;
+export const DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE =
+  DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT;
 
 export type KeyBindingSetter = (
   next: KeyBindings | ((prev: KeyBindings) => KeyBindings),
@@ -65,12 +74,18 @@ export type SettingsModelValue = {
   setSettlementPreviewSyncGameVolume: (next: boolean) => void;
   settlementPreviewVolume: number;
   setSettlementPreviewVolume: (next: number) => void;
+  scoreboardBorderEnabled: boolean;
+  setScoreboardBorderEnabled: (next: boolean) => void;
+  scoreboardBorderMaskEnabled: boolean;
+  setScoreboardBorderMaskEnabled: (next: boolean) => void;
   scoreboardBorderAnimation: ScoreboardBorderAnimationId;
   setScoreboardBorderAnimation: (next: ScoreboardBorderAnimationId) => void;
   scoreboardBorderLineStyle: ScoreboardBorderLineStyleId;
   setScoreboardBorderLineStyle: (next: ScoreboardBorderLineStyleId) => void;
   scoreboardBorderTheme: ScoreboardBorderThemeId;
   setScoreboardBorderTheme: (next: ScoreboardBorderThemeId) => void;
+  scoreboardBorderParticleCount: number;
+  setScoreboardBorderParticleCount: (next: number) => void;
   resetSfxSettings: () => void;
 };
 

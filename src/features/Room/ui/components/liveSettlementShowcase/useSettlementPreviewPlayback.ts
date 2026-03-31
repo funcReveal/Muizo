@@ -22,6 +22,7 @@ interface UseSettlementPreviewPlaybackParams {
   >;
   setPreviewCountdownSec: Dispatch<SetStateAction<number>>;
   setPreviewSwitchNotice: Dispatch<SetStateAction<string | null>>;
+  onExternalPreviewVolumeChange: (next: number) => void;
 }
 
 interface UseSettlementPreviewPlaybackResult {
@@ -48,6 +49,7 @@ const useSettlementPreviewPlayback = ({
   setPreviewPlayerState,
   setPreviewCountdownSec,
   setPreviewSwitchNotice,
+  onExternalPreviewVolumeChange,
 }: UseSettlementPreviewPlaybackParams): UseSettlementPreviewPlaybackResult => {
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewVolumeRetryTimersRef = useRef<number[]>([]);
@@ -63,6 +65,7 @@ const useSettlementPreviewPlayback = ({
   const previewCurrentTimeSecRef = useRef<number | null>(null);
   const previewLastProgressAtMsRef = useRef<number | null>(null);
   const canAutoGuideLoopRef = useRef(canAutoGuideLoop);
+  const previewVolumeUpdateSourceRef = useRef<"app" | "iframe" | null>(null);
 
   const postYouTubeCommand = useCallback((func: string, args: unknown[] = []) => {
     const contentWindow = previewIframeRef.current?.contentWindow;
@@ -106,6 +109,7 @@ const useSettlementPreviewPlayback = ({
   const syncPreviewVolume = useCallback(() => {
     if (!previewRecapKey) return;
     const normalizedVolume = Math.max(0, Math.min(100, effectivePreviewVolume));
+    previewVolumeUpdateSourceRef.current = "app";
     const apply = () => {
       postYouTubeCommand("setVolume", [normalizedVolume]);
       if (normalizedVolume <= 0) {
@@ -156,17 +160,24 @@ const useSettlementPreviewPlayback = ({
   }, []);
 
   const readYouTubePlayerSnapshot = useCallback(
-    (rawData: unknown): { state: number | null; currentTime: number | null } => {
+    (
+      rawData: unknown,
+    ): {
+      state: number | null;
+      currentTime: number | null;
+      volume: number | null;
+      muted: boolean | null;
+    } => {
       let payload: unknown = rawData;
       if (typeof payload === "string") {
         try {
           payload = JSON.parse(payload);
         } catch {
-          return { state: null, currentTime: null };
+          return { state: null, currentTime: null, volume: null, muted: null };
         }
       }
       if (!payload || typeof payload !== "object") {
-        return { state: null, currentTime: null };
+        return { state: null, currentTime: null, volume: null, muted: null };
       }
       const eventValue =
         "event" in payload ? (payload as { event?: unknown }).event : null;
@@ -181,16 +192,21 @@ const useSettlementPreviewPlayback = ({
           const state = normalizePlayerNumeric(
             (infoValue as { playerState?: unknown }).playerState,
           );
-          return { state, currentTime: null };
+          return { state, currentTime: null, volume: null, muted: null };
         }
-        return { state: normalizePlayerNumeric(infoValue), currentTime: null };
+        return {
+          state: normalizePlayerNumeric(infoValue),
+          currentTime: null,
+          volume: null,
+          muted: null,
+        };
       }
       if (
         eventValue !== "infoDelivery" ||
         !infoValue ||
         typeof infoValue !== "object"
       ) {
-        return { state: null, currentTime: null };
+        return { state: null, currentTime: null, volume: null, muted: null };
       }
       const state =
         "playerState" in infoValue
@@ -204,7 +220,15 @@ const useSettlementPreviewPlayback = ({
               (infoValue as { currentTime?: unknown }).currentTime,
             )
           : null;
-      return { state, currentTime };
+      const volume =
+        "volume" in infoValue
+          ? normalizePlayerNumeric((infoValue as { volume?: unknown }).volume)
+          : null;
+      const muted =
+        "muted" in infoValue
+          ? Boolean((infoValue as { muted?: unknown }).muted)
+          : null;
+      return { state, currentTime, volume, muted };
     },
     [normalizePlayerNumeric],
   );
@@ -239,6 +263,19 @@ const useSettlementPreviewPlayback = ({
       const snapshot = readYouTubePlayerSnapshot(event.data);
       const state = snapshot.state;
       const currentTime = snapshot.currentTime;
+      if (snapshot.volume !== null) {
+        const nextVolume = snapshot.muted ? 0 : snapshot.volume;
+        const normalizedVolume = Math.max(0, Math.min(100, Math.round(nextVolume)));
+        if (previewVolumeUpdateSourceRef.current === "app") {
+          if (Math.abs(normalizedVolume - effectivePreviewVolume) <= 1) {
+            previewVolumeUpdateSourceRef.current = null;
+          }
+        } else if (Math.abs(normalizedVolume - effectivePreviewVolume) >= 1) {
+          clearPreviewVolumeRetryTimers();
+          previewVolumeUpdateSourceRef.current = "iframe";
+          onExternalPreviewVolumeChange(normalizedVolume);
+        }
+      }
       if (currentTime !== null) {
         const lastCurrentTime = previewCurrentTimeSecRef.current;
         previewCurrentTimeSecRef.current = currentTime;
@@ -335,7 +372,10 @@ const useSettlementPreviewPlayback = ({
       window.removeEventListener("message", onMessage);
     };
   }, [
+    clearPreviewVolumeRetryTimers,
     previewRecapKey,
+    effectivePreviewVolume,
+    onExternalPreviewVolumeChange,
     postYouTubeCommand,
     readYouTubePlayerSnapshot,
     setAutoAdvanceAtMs,
@@ -371,6 +411,10 @@ const useSettlementPreviewPlayback = ({
 
   useEffect(() => {
     if (!previewRecapKey) return;
+    if (previewVolumeUpdateSourceRef.current === "iframe") {
+      previewVolumeUpdateSourceRef.current = null;
+      return;
+    }
     syncPreviewVolume();
     return clearPreviewVolumeRetryTimers;
   }, [
