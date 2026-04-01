@@ -178,36 +178,32 @@ const RowCard = ({
           : "bg-[var(--mc-surface)]/55 hover:bg-[rgba(255,255,255,0.13)]"
       } ${
         isHighlighted ? "shadow-[inset_0_0_0_1px_rgba(245,158,11,0.45)]" : ""
-      } ${dimmed ? "opacity-35" : ""}`}
+      } ${dimmed ? "opacity-35" : ""} ${isTouchDevice ? "pl-8" : ""}`}
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
     >
-      <div
-        className={`relative flex shrink-0 self-stretch items-stretch p-2 ${
-          isTouchDevice ? "w-24" : "w-20"
-        }`}
-      >
-        {dragListeners && isTouchDevice ? (
-          <button
-            type="button"
-            {...(dragAttributes ?? {})}
-            {...(dragListeners ?? {})}
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-            className="mr-2 inline-flex w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--mc-surface-strong)]/60 text-[var(--mc-text)] transition active:scale-95"
-            aria-label="拖曳排序"
-            title="按住拖曳排序"
-          >
-            <DragIndicatorRounded sx={{ fontSize: 18 }} />
-          </button>
-        ) : null}
+      {dragListeners && isTouchDevice ? (
+        <button
+          type="button"
+          {...(dragAttributes ?? {})}
+          {...(dragListeners ?? {})}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          className="absolute left-2 top-1/2 inline-flex h-10 w-5 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--mc-surface-strong)]/60 text-[var(--mc-text)] transition active:scale-95"
+          aria-label="拖曳排序"
+          title="按住拖曳排序"
+        >
+          <DragIndicatorRounded sx={{ fontSize: 18 }} />
+        </button>
+      ) : null}
+      <div className="relative flex w-20 shrink-0 self-stretch items-stretch p-2">
         <span
           className={`absolute top-1 rounded bg-[var(--mc-surface)]/80 px-1 py-0.5 text-[9px] text-[var(--mc-text)] ${
-            isTouchDevice ? "left-8" : "left-1"
+            isTouchDevice ? "left-2" : "left-1"
           }`}
         >
           {index + 1}

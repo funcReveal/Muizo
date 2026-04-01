@@ -2,10 +2,10 @@
 
 import type { DbCollection, EditableItem } from "../ui/lib/editTypes";
 import { collectionsApi } from "./collectionsApi";
+import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { trackEvent } from "../../../shared/analytics/track";
 import {
-  isAdminRole,
   MAX_COLLECTIONS_PER_USER,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
   resolveCollectionItemLimit,

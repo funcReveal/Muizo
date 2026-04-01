@@ -13,6 +13,7 @@ import {
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import LoadingPage from "../../../shared/ui/LoadingPage";
 import { useRoom } from "../../Room/model/useRoom";
+import { isAdminRole } from "../../../shared/auth/roles";
 import type { DbCollection, EditableItem } from "./lib/editTypes";
 import {
   buildEditableItems,
@@ -22,7 +23,6 @@ import { useCollectionEditor } from "../model/useCollectionEditor";
 import { useCollectionLoader } from "../model/useCollectionLoader";
 import { collectionsApi } from "../model/collectionsApi";
 import {
-  isAdminRole,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
   resolveCollectionItemLimit,
 } from "../model/collectionLimits";
