@@ -110,6 +110,58 @@ const countChoiceVotes = (recap: SettlementQuestionRecap, choiceIndex: number) =
     (answer) => answer.choiceIndex === choiceIndex,
   ).length;
 
+const resolveAnswerOrderLabel = (answeredRank: number | null | undefined) => {
+  if (typeof answeredRank !== "number" || answeredRank <= 0) return null;
+  return `第 ${answeredRank} 答`;
+};
+
+const renderParticipantMiniAvatar = (
+  participant: RoomParticipant,
+  sizeClass: string,
+) => {
+  const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-full border border-slate-700/38 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] text-white/88 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${sizeClass}`}
+      aria-label={participant.username}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={participant.username}
+          className="h-full w-full object-cover opacity-[0.88] saturate-[0.9] brightness-[0.98]"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-transparent text-[10px] font-black text-white/88">
+          {participant.username.slice(0, 1).toUpperCase()}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ExtraParticipantsTooltipContent: React.FC<{
+  participants: RoomParticipant[];
+}> = ({ participants }) => (
+  <div className="min-w-[12rem] space-y-2">
+    <div className="text-[11px] font-semibold tracking-[0.14em] text-slate-300">
+      其餘玩家
+    </div>
+    <div className="space-y-1.5">
+      {participants.map((participant) => (
+        <div
+          key={participant.clientId}
+          className="flex items-center gap-2 text-sm text-slate-100"
+        >
+          {renderParticipantMiniAvatar(participant, "h-7 w-7")}
+          <span className="truncate">{participant.username}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const renderResultBadgeContent = (result: RecapAnswerResult) => {
   switch (result) {
     case "correct":
@@ -291,6 +343,8 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 }) => {
   const [filter, setFilter] = React.useState<ReviewListFilter>("all");
   const [recapJumpValue, setRecapJumpValue] = React.useState("1");
+  const [expandedChoiceParticipantsKey, setExpandedChoiceParticipantsKey] =
+    React.useState<number | null>(null);
   const [reviewPlaybackHelpAnchor, setReviewPlaybackHelpAnchor] =
     React.useState<HTMLElement | null>(null);
   const filteredRecaps = React.useMemo(() => {
@@ -451,6 +505,9 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
       selectedRecapRating.answeredRank > 0
       ? `#${selectedRecapRating.answeredRank}`
       : "--";
+  const answerOrderLabel = resolveAnswerOrderLabel(
+    selectedRecapRating?.answeredRank,
+  );
   const reviewSurfaceClass =
     selectedRecapAnswer.result === "correct"
       ? isMobileView
@@ -468,6 +525,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
     : -1;
   const currentRecapDisplayIndex =
     selectedRecapFilteredIndex >= 0 ? selectedRecapFilteredIndex + 1 : 1;
+
+  React.useEffect(() => {
+    setExpandedChoiceParticipantsKey(null);
+  }, [selectedRecap?.key]);
 
   React.useEffect(() => {
     setRecapJumpValue(String(currentRecapDisplayIndex));
@@ -711,6 +772,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                     {selectedReviewParticipant
                       ? ` ・ ${selectedReviewParticipant.username}`
                       : ""}
+                    {answerOrderLabel ? ` ・ ${answerOrderLabel}` : ""}
                   </p>
                   <button
                     type="button"
@@ -915,8 +977,24 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                     const pickedPercent = clampPercent((pickedCount / totalAnswers) * 100);
                     const pickedParticipants = Object.entries(selectedRecap.answersByClientId ?? {})
                       .filter(([, answer]) => answer.choiceIndex === choice.index)
+                      .sort(([, leftAnswer], [, rightAnswer]) => {
+                        const leftMs =
+                          typeof leftAnswer.answeredAtMs === "number"
+                            ? leftAnswer.answeredAtMs
+                            : Number.MAX_SAFE_INTEGER;
+                        const rightMs =
+                          typeof rightAnswer.answeredAtMs === "number"
+                            ? rightAnswer.answeredAtMs
+                            : Number.MAX_SAFE_INTEGER;
+                        if (leftMs !== rightMs) return leftMs - rightMs;
+                        return 0;
+                      })
                       .map(([clientId]) => participantByClientId.get(clientId))
                       .filter((participant): participant is RoomParticipant => Boolean(participant));
+                    const visiblePickedParticipants = pickedParticipants.slice(0, 4);
+                    const hiddenPickedParticipants = pickedParticipants.slice(4);
+                    const isChoiceParticipantsExpanded =
+                      expandedChoiceParticipantsKey === choice.index;
                     const choiceCardClass = `relative ${isMobileView ? "overflow-visible" : "overflow-visible"
                       } rounded-[22px] px-5 py-4 ${isCorrect
                         ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]"
@@ -932,46 +1010,57 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                         {pickedParticipants.length > 0 && (
                           <div
                             className={`z-10 ${isMobileView
-                              ? "pointer-events-auto absolute right-4 top-0 flex -translate-y-[66%] flex-row-reverse"
-                              : "pointer-events-none absolute right-5 top-0 flex -translate-y-[62%] flex-row-reverse"
+                              ? "pointer-events-auto absolute right-4 top-0 flex -translate-y-[66%] items-center"
+                              : "pointer-events-auto absolute right-5 top-0 flex -translate-y-[62%] items-center"
                               }`}
                           >
-                            {pickedParticipants.slice(0, 4).map((participant, index) => {
-                              const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
+                            {visiblePickedParticipants.map((participant, index) => {
                               return (
                                 <RoomUiTooltip
                                   key={`${choice.index}-${participant.clientId}`}
                                   title={participant.username}
                                 >
                                   <div
-                                    className={`relative overflow-hidden rounded-full border border-slate-700/38 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] text-white/88 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${isMobileView ? "h-8 w-8" : "h-10 w-10"}`}
+                                    className="relative"
                                     style={
                                       isMobileView
-                                        ? { marginRight: index === 0 ? 0 : -9 }
-                                        : { marginRight: index === 0 ? 0 : -10 }
+                                        ? { marginLeft: index === 0 ? 0 : -9 }
+                                        : { marginLeft: index === 0 ? 0 : -10 }
                                     }
-                                    aria-label={participant.username}
                                   >
-                                    {avatarUrl ? (
-                                      <img
-                                        src={avatarUrl}
-                                        alt={participant.username}
-                                        className="h-full w-full object-cover opacity-[0.88] saturate-[0.9] brightness-[0.98]"
-                                      />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center bg-transparent text-[10px] font-black text-white/88">
-                                        {participant.username.slice(0, 1).toUpperCase()}
-                                      </div>
+                                    {renderParticipantMiniAvatar(
+                                      participant,
+                                      isMobileView ? "h-8 w-8" : "h-10 w-10",
                                     )}
                                   </div>
                                 </RoomUiTooltip>
                               );
                             })}
-                            {pickedParticipants.length > 4 && (
-                              <RoomUiTooltip title={`另外 ${pickedParticipants.length - 4} 位玩家`}>
-                                <div className={`relative flex items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-2 font-black text-slate-100/92 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${isMobileView ? "h-8 min-w-[1.9rem] text-[9px]" : "ml-2 h-10 min-w-[2.25rem] text-[10px]"}`}>
-                                  +{pickedParticipants.length - 4}
-                                </div>
+                            {hiddenPickedParticipants.length > 0 && (
+                              <RoomUiTooltip
+                                title={
+                                  <ExtraParticipantsTooltipContent
+                                    participants={hiddenPickedParticipants}
+                                  />
+                                }
+                                placement="top"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedChoiceParticipantsKey((current) =>
+                                      current === choice.index ? null : choice.index,
+                                    )
+                                  }
+                                  className={`relative ml-2 inline-flex items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-2 font-black text-slate-100/92 opacity-[0.95] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] transition hover:border-slate-500/60 ${
+                                    isMobileView
+                                      ? "h-8 min-w-[1.9rem] text-[9px]"
+                                      : "h-10 min-w-[2.25rem] text-[10px]"
+                                  }`}
+                                  aria-label={`展開另外 ${hiddenPickedParticipants.length} 位玩家`}
+                                >
+                                  +{hiddenPickedParticipants.length}
+                                </button>
                               </RoomUiTooltip>
                             )}
                           </div>
@@ -1004,6 +1093,21 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                               style={{ width: `${pickedPercent}%` }}
                             />
                           </div>
+                          {isChoiceParticipantsExpanded && hiddenPickedParticipants.length > 0 && (
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {hiddenPickedParticipants.map((participant) => (
+                                <div
+                                  key={`${choice.index}-expanded-${participant.clientId}`}
+                                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/18 px-2.5 py-1.5 text-xs text-slate-100"
+                                >
+                                  {renderParticipantMiniAvatar(participant, "h-7 w-7")}
+                                  <span className="max-w-[9rem] truncate">
+                                    {participant.username}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
