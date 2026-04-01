@@ -8,6 +8,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 
 import type { SettlementTrackLink } from "../../../model/settlementLinks";
 import type { RoomParticipant } from "../../../model/types";
@@ -121,13 +122,23 @@ const REVIEW_BADGE_PILL_CLASS =
 const ChoiceMarqueeTitle: React.FC<{
   text: string;
   className?: string;
-}> = ({ text, className = "" }) => {
+  disableMarquee?: boolean;
+  staticStyle?: React.CSSProperties;
+}> = ({ text, className = "", disableMarquee = false, staticStyle }) => {
   const wrapRef = React.useRef<HTMLSpanElement | null>(null);
   const trackRef = React.useRef<HTMLSpanElement | null>(null);
   const [running, setRunning] = React.useState(false);
   const [style, setStyle] = React.useState<React.CSSProperties>({});
 
+  React.useEffect(() => {
+    if (disableMarquee) {
+      setRunning(false);
+      setStyle({});
+    }
+  }, [disableMarquee]);
+
   React.useLayoutEffect(() => {
+    if (disableMarquee) return;
     const wrap = wrapRef.current;
     const track = trackRef.current;
     if (!wrap || !track) return;
@@ -154,7 +165,15 @@ const ChoiceMarqueeTitle: React.FC<{
     observer.observe(wrap);
     observer.observe(track);
     return () => observer.disconnect();
-  }, [text]);
+  }, [disableMarquee, text]);
+
+  if (disableMarquee) {
+    return (
+      <span className={`block whitespace-normal break-words ${className}`} style={staticStyle}>
+        {text}
+      </span>
+    );
+  }
 
   return (
     <span
@@ -206,6 +225,9 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   onToggleReviewDoubleClickPlay,
 }) => {
   const [filter, setFilter] = React.useState<ReviewListFilter>("all");
+  const [isMobileListOpen, setIsMobileListOpen] = React.useState(false);
+  const [isMobileDetailTopOpen, setIsMobileDetailTopOpen] = React.useState(true);
+  const [recapJumpValue, setRecapJumpValue] = React.useState("1");
   const [reviewPlaybackHelpAnchor, setReviewPlaybackHelpAnchor] =
     React.useState<HTMLElement | null>(null);
   const filteredRecaps = React.useMemo(() => {
@@ -366,14 +388,69 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
       selectedRecapRating.answeredRank > 0
       ? `#${selectedRecapRating.answeredRank}`
       : "--";
+  const selectedRecapFilteredIndex = selectedRecapKey
+    ? filteredRecaps.findIndex((recap) => recap.key === selectedRecapKey)
+    : -1;
+  const currentRecapDisplayIndex =
+    selectedRecapFilteredIndex >= 0 ? selectedRecapFilteredIndex + 1 : 1;
+
+  React.useEffect(() => {
+    setRecapJumpValue(String(currentRecapDisplayIndex));
+  }, [currentRecapDisplayIndex]);
+
+  const goToRecapIndex = (nextIndex: number) => {
+    const targetRecap = filteredRecaps[nextIndex];
+    if (!targetRecap) return;
+    onSetSelectedRecapKey(targetRecap.key);
+    onJumpToRecapPreview(targetRecap, "click");
+  };
+
+  const goPrevRecap = () => {
+    if (filteredRecaps.length <= 0) return;
+    const prevIndex =
+      selectedRecapFilteredIndex <= 0
+        ? filteredRecaps.length - 1
+        : selectedRecapFilteredIndex - 1;
+    goToRecapIndex(prevIndex);
+  };
+
+  const goNextRecap = () => {
+    if (filteredRecaps.length <= 0) return;
+    const nextIndex =
+      selectedRecapFilteredIndex < 0 ||
+      selectedRecapFilteredIndex >= filteredRecaps.length - 1
+        ? 0
+        : selectedRecapFilteredIndex + 1;
+    goToRecapIndex(nextIndex);
+  };
+
+  const commitRecapJumpValue = () => {
+    if (filteredRecaps.length <= 0) return;
+    const parsed = Number.parseInt(recapJumpValue, 10);
+    if (!Number.isFinite(parsed)) {
+      setRecapJumpValue(String(currentRecapDisplayIndex));
+      return;
+    }
+    const clamped = Math.min(filteredRecaps.length, Math.max(1, parsed));
+    setRecapJumpValue(String(clamped));
+    goToRecapIndex(clamped - 1);
+  };
+
   return (
-    <section className={`mt-4 rounded-[22px] border p-2.5 lg:p-3 ${activeCategoryTheme.drawerClass}`}>
+    <section
+      className={`mt-4 ${isMobileView
+        ? "rounded-[22px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(35,20,8,0.94),rgba(10,10,20,0.98))] p-3"
+        : "rounded-[22px] border p-2.5 lg:p-3"
+        } ${activeCategoryTheme.drawerClass}`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <HistoryRoundedIcon className="text-amber-100" />
-          <h3 className="text-[2rem] font-black tracking-tight text-white">題目回顧</h3>
+          <h3 className={`${isMobileView ? "text-[1.8rem]" : "text-[2rem]"} font-black tracking-tight text-white`}>
+            題目回顧
+          </h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${isMobileView ? "ml-auto" : ""}`}>
           <button type="button" onClick={onToggleReviewDoubleClickPlay} className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${reviewDoubleClickPlayEnabled ? "border-cyan-300/45 bg-cyan-400/12 text-cyan-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}>
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current/30 text-[10px]">2x</span>
             雙擊預覽 {reviewDoubleClickPlayEnabled ? "ON" : "OFF"}
@@ -424,15 +501,51 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 
       <div className={`mt-4 grid gap-4 ${isMobileView ? "grid-cols-1" : "lg:grid-cols-[304px_minmax(0,1fr)]"}`}>
         <div className="flex min-h-0 flex-col">
-          <div className="mb-3 flex flex-wrap items-center gap-1">
-            <button type="button" onClick={() => setFilter("all")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "all" ? "border-sky-300/55 bg-sky-500/16 text-sky-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><AppsRoundedIcon className="text-[0.92rem]" /><span className="text-[11px] font-semibold">{totalRecapCount}</span></button>
-            <button type="button" onClick={() => setFilter("correct")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "correct" ? "border-emerald-300/55 bg-emerald-500/16 text-emerald-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RadioButtonUncheckedRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.correct}</span></button>
-            <button type="button" onClick={() => setFilter("wrong")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "wrong" ? "border-rose-300/55 bg-rose-500/16 text-rose-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><CloseRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.wrong}</span></button>
-            <button type="button" onClick={() => setFilter("unanswered")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "unanswered" ? "border-slate-300/55 bg-slate-500/16 text-slate-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RemoveRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.unanswered}</span></button>
-          </div>
+          {!isMobileView && (
+            <div className="mb-3 flex flex-wrap items-center gap-1">
+              <button type="button" onClick={() => setFilter("all")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "all" ? "border-sky-300/55 bg-sky-500/16 text-sky-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><AppsRoundedIcon className="text-[0.92rem]" /><span className="text-[11px] font-semibold">{totalRecapCount}</span></button>
+              <button type="button" onClick={() => setFilter("correct")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "correct" ? "border-emerald-300/55 bg-emerald-500/16 text-emerald-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RadioButtonUncheckedRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.correct}</span></button>
+              <button type="button" onClick={() => setFilter("wrong")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "wrong" ? "border-rose-300/55 bg-rose-500/16 text-rose-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><CloseRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.wrong}</span></button>
+              <button type="button" onClick={() => setFilter("unanswered")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "unanswered" ? "border-slate-300/55 bg-slate-500/16 text-slate-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RemoveRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.unanswered}</span></button>
+            </div>
+          )}
+          {isMobileView && (
+            <button
+              type="button"
+              onClick={() => setIsMobileListOpen((current) => !current)}
+              className="mb-3 inline-flex w-full cursor-pointer items-center justify-between rounded-[18px] border border-white/8 bg-black/16 px-4 py-3 text-left transition hover:border-white/14"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
+                <AppsRoundedIcon className="text-[1rem] text-cyan-200" />
+                題目清單
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                  {filteredRecaps.length}
+                </span>
+              </span>
+              <ExpandMoreRoundedIcon
+                className={`text-slate-300 transition ${isMobileListOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+          )}
 
-          <div key={`review-list-${reviewContextTransitionKey}`} className={`${isMobileView ? "h-[clamp(280px,42vh,380px)]" : "lg:h-[min(880px,calc(100vh-14rem))]"} overflow-hidden`} style={{ animation: "settlementSwapIn 220ms ease-out both" }}>
+          <div
+            key={`review-list-${reviewContextTransitionKey}`}
+            className={`overflow-hidden ${isMobileView
+              ? `transition-[grid-template-rows,opacity] duration-300 ${isMobileListOpen ? "grid grid-rows-[1fr] opacity-100" : "grid grid-rows-[0fr] opacity-0"
+              }`
+              : "lg:h-[min(880px,calc(100vh-14rem))]"
+              }`}
+            style={{ animation: "settlementSwapIn 220ms ease-out both" }}
+          >
             <div className="h-full overflow-y-auto pr-1.5">
+              {isMobileView && (
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setFilter("all")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "all" ? "border-sky-300/55 bg-sky-500/16 text-sky-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><AppsRoundedIcon className="text-[0.92rem]" /><span className="text-[11px] font-semibold">{totalRecapCount}</span></button>
+                  <button type="button" onClick={() => setFilter("correct")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "correct" ? "border-emerald-300/55 bg-emerald-500/16 text-emerald-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RadioButtonUncheckedRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.correct}</span></button>
+                  <button type="button" onClick={() => setFilter("wrong")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "wrong" ? "border-rose-300/55 bg-rose-500/16 text-rose-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><CloseRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.wrong}</span></button>
+                  <button type="button" onClick={() => setFilter("unanswered")} className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3 transition ${filter === "unanswered" ? "border-slate-300/55 bg-slate-500/16 text-slate-50" : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}><RemoveRoundedIcon className="text-[0.82rem]" /><span className="text-[11px] font-semibold">{reviewRecapSummary.unanswered}</span></button>
+                </div>
+              )}
               <div className="space-y-3">
                 {filteredRecaps.map((recap) => {
                   const result = resolveParticipantResult(recap, effectiveSelectedReviewParticipantClientId, meClientId);
@@ -467,18 +580,36 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
           </div>
         </div>
 
-        <div className="relative min-h-0 overflow-visible rounded-[28px] bg-[linear-gradient(180deg,rgba(9,15,29,0.94),rgba(8,13,24,0.98))] p-4">
+        <div
+          className={`relative min-h-0 ${isMobileView
+            ? "overflow-visible rounded-[22px] border border-white/6 bg-[linear-gradient(180deg,rgba(15,15,26,0.96),rgba(9,12,22,0.98))] p-3"
+            : "overflow-visible rounded-[28px] bg-[linear-gradient(180deg,rgba(9,15,29,0.94),rgba(8,13,24,0.98))] p-4"
+            }`}
+        >
           {selectedRecap ? (
             <div
               key={reviewDetailTransitionKey}
-              className="relative overflow-visible p-2"
+              className={`relative ${isMobileView ? "overflow-visible p-0" : "overflow-visible p-2"}`}
               style={{ animation: "settlementSwapIn 240ms ease-out both" }}
             >
-              <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
+              <div
+                className={`relative z-10 ${isMobileView
+                  ? "flex flex-col gap-4"
+                  : "flex flex-wrap items-start justify-between gap-5"
+                  }`}
+              >
                 <div className="relative min-w-0 flex-1 pr-2">
-                  <div className="pointer-events-none absolute -left-6 -top-6 h-[13.5rem] w-[18.5rem] overflow-hidden rounded-tl-[25px] rounded-br-[6.25rem]">
+                  <div
+                    className={`pointer-events-none absolute overflow-hidden rounded-tl-[25px] rounded-br-[6.25rem] ${isMobileView
+                      ? "-left-4 -top-4 h-[13rem] w-[15rem]"
+                      : "-left-6 -top-6 h-[15.5rem] w-[20.5rem]"
+                      }`}
+                  >
                     <div
-                      className={`absolute -left-[4.75rem] -top-[4.75rem] h-[12rem] w-[17rem] rounded-full opacity-70 blur-[72px] ${scoreVisualTone.statusGlowClass}`}
+                      className={`absolute rounded-full opacity-70 ${scoreVisualTone.statusGlowClass} ${isMobileView
+                        ? "-left-[5.5rem] -top-[5.5rem] h-[11.5rem] w-[15rem] blur-[66px]"
+                        : "-left-[4.75rem] -top-[4.75rem] h-[12rem] w-[17rem] blur-[72px]"
+                        }`}
                     />
                   </div>
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
@@ -489,146 +620,195 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                   </p>
                   <button
                     type="button"
-                    className={`mt-3 inline-flex max-w-full text-left text-[2rem] font-black leading-tight transition ${selectedRecapLink?.href
-                      ? "cursor-pointer text-white underline-offset-4 hover:text-cyan-200 hover:underline"
-                      : "cursor-default text-white"}`}
+                    className={`mt-3 inline-flex max-w-full text-left ${isMobileView ? "text-[1.5rem]" : "text-[2rem]"
+                      } font-black leading-tight transition ${selectedRecapLink?.href
+                        ? "cursor-pointer text-white underline-offset-4 hover:text-cyan-200 hover:underline"
+                        : "cursor-default text-white"
+                      }`}
                     onClick={() => {
                       if (selectedRecapLink?.href) onOpenTrackLink(selectedRecapLink, selectedRecap);
                     }}
                     disabled={!selectedRecapLink?.href}
                   >
-                    <span className="block" style={multilineEllipsis2Style}>
-                      {selectedRecap.title}
-                    </span>
+                    {isMobileView ? (
+                      <ChoiceMarqueeTitle
+                        text={selectedRecap.title}
+                        className="w-full text-[1.5rem] font-black leading-tight text-white"
+                      />
+                    ) : (
+                      <span className="block" style={multilineEllipsis2Style}>
+                        {selectedRecap.title}
+                      </span>
+                    )}
                   </button>
                   <p className="mt-2 text-lg text-slate-300">
                     {selectedRecap.uploader || "未知來源"}
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-10 pr-3">
-                  <div className="flex min-h-[8rem] items-center justify-center">
-                    <p className={`text-[6rem] font-black leading-[0.88] ${scoreVisualTone.gradeClass}`}>
-                      {selectedRecapRating?.grade ?? "E"}
-                    </p>
-                  </div>
-                  <div className="group/score relative isolate overflow-visible px-2 py-1">
-                    <div
-                      className={`pointer-events-none absolute -inset-6 rounded-full opacity-65 blur-[34px] transition duration-300 ease-out group-hover/score:opacity-100 ${scoreVisualTone.statusGlowClass}`}
-                    />
-                    <div
-                      className={`relative flex h-32 w-32 items-center justify-center rounded-full transition duration-300 ease-out ${scoreVisualTone.ringGlowClass}`}
-                      style={{ background: scoreRingGradient }}
+                <div
+                  className={
+                    isMobileView
+                      ? "rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-4 py-3"
+                      : ""
+                  }
+                >
+                  {isMobileView && (
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileDetailTopOpen((current) => !current)}
+                      className="inline-flex w-full cursor-pointer items-center justify-between text-left transition"
                     >
-                      <div className="absolute inset-[6px] rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08),transparent_74%)] opacity-70" />
-                      <div className="pointer-events-none absolute inset-[2px] rounded-full bg-[conic-gradient(from_220deg,rgba(255,255,255,0.18),transparent_18%,transparent_72%,rgba(255,255,255,0.12)_86%,transparent)] mix-blend-screen opacity-55" />
-                      <div className={`absolute inset-[22px] rounded-full transition duration-300 ease-out ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
-                      <div className="pointer-events-none absolute inset-[10px] rounded-full border border-cyan-200/0 opacity-0 transition duration-300 ease-out group-hover/score:opacity-100">
-                        <div className="absolute inset-0 rounded-full border border-cyan-300/18" />
+                      <span className="text-sm font-semibold text-white">題目數據</span>
+                      <ExpandMoreRoundedIcon
+                        className={`text-slate-300 transition ${isMobileDetailTopOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  )}
+
+                  <div
+                    className={`transition-[max-height,opacity,margin] duration-300 ${
+                      !isMobileView || isMobileDetailTopOpen
+                        ? "mt-3 max-h-[60rem] opacity-100"
+                        : "mt-0 max-h-0 opacity-0"
+                    } ${isMobileView ? "overflow-visible" : ""}`}
+                  >
+                    <div className={`min-h-0 ${isMobileView ? "overflow-visible" : "overflow-hidden"}`}>
+                      <div
+                        className={
+                          isMobileView
+                            ? "flex items-center justify-end gap-7 pr-2"
+                            : "flex shrink-0 items-center gap-10 pr-3"
+                        }
+                      >
+                        <div className={`flex ${isMobileView ? "min-h-0" : "min-h-[8rem]"} items-center justify-center`}>
+                          <p
+                            className={`${isMobileView ? "-translate-x-3 text-[4.5rem]" : "text-[6rem]"} font-black leading-[0.88] ${scoreVisualTone.gradeClass}`}
+                          >
+                            {selectedRecapRating?.grade ?? "E"}
+                          </p>
+                        </div>
+                        <div className="group/score relative isolate overflow-visible px-2 py-1">
+                          <div
+                            className={`pointer-events-none absolute -inset-6 rounded-full opacity-65 blur-[34px] transition duration-300 ease-out group-hover/score:opacity-100 ${scoreVisualTone.statusGlowClass}`}
+                          />
+                          <div
+                            className={`relative flex h-32 w-32 items-center justify-center rounded-full transition duration-300 ease-out ${scoreVisualTone.ringGlowClass}`}
+                            style={{ background: scoreRingGradient }}
+                          >
+                            <div className="absolute inset-[6px] rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.08),transparent_74%)] opacity-70" />
+                            <div className="pointer-events-none absolute inset-[2px] rounded-full bg-[conic-gradient(from_220deg,rgba(255,255,255,0.18),transparent_18%,transparent_72%,rgba(255,255,255,0.12)_86%,transparent)] mix-blend-screen opacity-55" />
+                            <div className={`absolute inset-[22px] rounded-full transition duration-300 ease-out ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
+                            <div className="pointer-events-none absolute inset-[10px] rounded-full border border-cyan-200/0 opacity-0 transition duration-300 ease-out group-hover/score:opacity-100">
+                              <div className="absolute inset-0 rounded-full border border-cyan-300/18" />
+                            </div>
+                            <div className="relative z-10 flex h-[5.7rem] w-[5.7rem] flex-col items-center justify-center rounded-full bg-slate-950/100 transition duration-300 ease-out">
+                              <span className="text-[9px] font-semibold tracking-[0.24em] text-slate-400">
+                                SCORE
+                              </span>
+                              <span className={`mt-1 text-[2.1rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>
+                                {displayScore}
+                              </span>
+                              <span className="mt-1 text-[9px] font-semibold tracking-[0.18em] text-slate-500 transition duration-200 group-hover/score:text-cyan-100/70">
+                                {scoreRankLabel}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="pointer-events-none absolute left-[calc(100%+0.85rem)] top-1/2 z-20 hidden min-w-[12rem] -translate-y-1/2 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,13,24,0.96),rgba(3,8,18,0.98))] px-3 py-3 shadow-[0_24px_50px_-26px_rgba(15,23,42,0.9)] opacity-0 transition duration-150 group-hover/score:block group-hover/score:opacity-100 max-lg:hidden">
+                            <div className="space-y-2.5">
+                              {scoreSegments
+                                .filter((segment) => segment.max > 0)
+                                .map((segment) => (
+                                  <div key={segment.label} className="flex items-center gap-2.5">
+                                    <span
+                                      className="h-2.5 w-2.5 shrink-0 rounded-full opacity-90 shadow-[0_0_12px_-2px_currentColor]"
+                                      style={{ background: segment.color, color: segment.color }}
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-white">
+                                        <span>{segment.label}</span>
+                                        <span className="text-slate-300">
+                                          {segment.value}/{segment.max}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="relative z-10 flex h-[5.7rem] w-[5.7rem] flex-col items-center justify-center rounded-full bg-slate-950/100 transition duration-300 ease-out">
-                        <span className="text-[9px] font-semibold tracking-[0.24em] text-slate-400">
-                          SCORE
-                        </span>
-                        <span className={`mt-1 text-[2.1rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>
-                          {displayScore}
-                        </span>
-                        <span className="mt-1 text-[9px] font-semibold tracking-[0.18em] text-slate-500 transition duration-200 group-hover/score:text-cyan-100/70">
-                          {scoreRankLabel}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="pointer-events-none absolute left-[calc(100%+0.85rem)] top-1/2 z-20 hidden min-w-[12rem] -translate-y-1/2 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,13,24,0.96),rgba(3,8,18,0.98))] px-3 py-3 shadow-[0_24px_50px_-26px_rgba(15,23,42,0.9)] opacity-0 transition duration-150 group-hover/score:block group-hover/score:opacity-100">
-                      <div className="space-y-2.5">
-                        {scoreSegments
-                          .filter((segment) => segment.max > 0)
-                          .map((segment) => (
-                            <div key={segment.label} className="flex items-center gap-2.5">
-                              <span
-                                className="h-2.5 w-2.5 shrink-0 rounded-full opacity-90 shadow-[0_0_12px_-2px_currentColor]"
-                                style={{ background: segment.color, color: segment.color }}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-white">
-                                  <span>{segment.label}</span>
-                                  <span className="text-slate-300">
-                                    {segment.value}/{segment.max}
-                                  </span>
-                                </div>
+
+                      <div className={`relative z-10 mt-5 ${isMobileView ? "p-0" : "p-1"}`}>
+                        <div className="grid gap-4">
+                          <div className={`grid gap-3 rounded-[18px] ${isMobileView ? "grid-cols-2" : "border border-white/6 bg-black/18 p-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1fr]"}`}>
+                            <div className={isMobileView ? "rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3" : ""}>
+                              <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><EmojiEventsRoundedIcon className="text-[1rem] text-amber-200" />全場最快</div>
+                              <p className="mt-2 text-sm font-black text-white">{selectedRecapFastestCorrectMeta ? selectedRecapFastestCorrectMeta.username : "--"}</p>
+                              <p className="mt-1 text-xs text-slate-300">{selectedRecapFastestCorrectMeta ? formatMs(selectedRecapFastestCorrectMeta.answeredAtMs) : "--"}</p>
+                            </div>
+                            <div className={isMobileView ? "rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3" : ""}>
+                              <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><TimerRoundedIcon className="text-[1rem] text-cyan-200" />中位作答</div>
+                              <p className="mt-2 text-sm font-black text-white">{typeof medianMs === "number" ? formatMs(medianMs) : "--"}</p>
+                            </div>
+                            <div className={isMobileView ? "rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3" : ""}>
+                              <div className="text-[11px] tracking-[0.16em] text-slate-400">你的作答</div>
+                              <div className="mt-2 text-sm font-black text-white">{answeredAtMs !== null ? formatMs(answeredAtMs) : "--"}</div>
+                            </div>
+                            <div className={isMobileView ? "rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3" : ""}>
+                              <div className="text-[11px] tracking-[0.16em] text-slate-400">比中位快慢</div>
+                              <div className={`mt-2 text-sm font-black ${speedDeltaMs === null ? "text-white" : speedDeltaMs >= 0 ? "text-emerald-100" : "text-rose-100"}`}>{speedDeltaMs === null ? "--" : `${speedDeltaMs >= 0 ? "+" : "-"}${formatMs(Math.abs(speedDeltaMs))}`}</div>
+                            </div>
+                            <div className={isMobileView ? "col-span-2 rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3" : ""}>
+                              <div className="text-[11px] tracking-[0.16em] text-slate-400">贏過比例</div>
+                              <div className="mt-2 text-sm font-black text-white">{beatPercent > 0 ? `${beatPercent}%` : "--"}</div>
+                            </div>
+                          </div>
+                          <div className="group px-1 pt-1">
+                            <div className="overflow-hidden rounded-[16px]">
+                              <div className="flex h-8 w-full overflow-hidden rounded-[16px]">
+                                {(selectedRecap.correctCount ?? 0) > 0 && (
+                                  <div
+                                    className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))] px-3 text-sm font-black text-emerald-50"
+                                    style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
+                                  >
+                                    <span className="group-hover:hidden">{selectedRecap.correctCount ?? 0}</span>
+                                    <span className="hidden group-hover:inline">
+                                      {globalResultTotal > 0 ? clampPercent(((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100) : 0}%
+                                    </span>
+                                  </div>
+                                )}
+                                {(selectedRecap.wrongCount ?? 0) > 0 && (
+                                  <div
+                                    className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(244,63,94,0.95),rgba(251,113,133,0.92))] px-3 text-sm font-black text-rose-50"
+                                    style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
+                                  >
+                                    <span className="group-hover:hidden">{selectedRecap.wrongCount ?? 0}</span>
+                                    <span className="hidden group-hover:inline">
+                                      {globalResultTotal > 0 ? clampPercent(((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100) : 0}%
+                                    </span>
+                                  </div>
+                                )}
+                                {(selectedRecap.unansweredCount ?? 0) > 0 && (
+                                  <div
+                                    className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(100,116,139,0.92),rgba(148,163,184,0.88))] px-3 text-sm font-black text-slate-100"
+                                    style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
+                                  >
+                                    <span className="group-hover:hidden">{selectedRecap.unansweredCount ?? 0}</span>
+                                    <span className="hidden group-hover:inline">
+                                      {globalResultTotal > 0 ? clampPercent(((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100) : 0}%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="relative z-10 mt-5 p-1">
-                <div className="grid gap-4">
-                  <div className="grid gap-3 rounded-[18px] border border-white/6 bg-black/18 p-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1fr]">
-                    <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><EmojiEventsRoundedIcon className="text-[1rem] text-amber-200" />全場最快</div>
-                      <p className="mt-2 text-sm font-black text-white">{selectedRecapFastestCorrectMeta ? selectedRecapFastestCorrectMeta.username : "--"}</p>
-                      <p className="mt-1 text-xs text-slate-300">{selectedRecapFastestCorrectMeta ? formatMs(selectedRecapFastestCorrectMeta.answeredAtMs) : "--"}</p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><TimerRoundedIcon className="text-[1rem] text-cyan-200" />中位作答</div>
-                      <p className="mt-2 text-sm font-black text-white">{typeof medianMs === "number" ? formatMs(medianMs) : "--"}</p>
-                    </div>
-                    <div>
-                      <div className="text-[11px] tracking-[0.16em] text-slate-400">你的作答</div>
-                      <div className="mt-2 text-sm font-black text-white">{answeredAtMs !== null ? formatMs(answeredAtMs) : "--"}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] tracking-[0.16em] text-slate-400">比中位快慢</div>
-                      <div className={`mt-2 text-sm font-black ${speedDeltaMs === null ? "text-white" : speedDeltaMs >= 0 ? "text-emerald-100" : "text-rose-100"}`}>{speedDeltaMs === null ? "--" : `${speedDeltaMs >= 0 ? "+" : "-"}${formatMs(Math.abs(speedDeltaMs))}`}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] tracking-[0.16em] text-slate-400">贏過比例</div>
-                      <div className="mt-2 text-sm font-black text-white">{beatPercent > 0 ? `${beatPercent}%` : "--"}</div>
-                    </div>
-                  </div>
-                  <div className="group px-1 pt-1">
-                    <div className="overflow-hidden rounded-[16px]">
-                      <div className="flex h-8 w-full overflow-hidden rounded-[16px]">
-                        {(selectedRecap.correctCount ?? 0) > 0 && (
-                          <div
-                            className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))] px-3 text-sm font-black text-emerald-50"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
-                          >
-                            <span className="group-hover:hidden">{selectedRecap.correctCount ?? 0}</span>
-                            <span className="hidden group-hover:inline">
-                              {globalResultTotal > 0 ? clampPercent(((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100) : 0}%
-                            </span>
-                          </div>
-                        )}
-                        {(selectedRecap.wrongCount ?? 0) > 0 && (
-                          <div
-                            className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(244,63,94,0.95),rgba(251,113,133,0.92))] px-3 text-sm font-black text-rose-50"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
-                          >
-                            <span className="group-hover:hidden">{selectedRecap.wrongCount ?? 0}</span>
-                            <span className="hidden group-hover:inline">
-                              {globalResultTotal > 0 ? clampPercent(((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100) : 0}%
-                            </span>
-                          </div>
-                        )}
-                        {(selectedRecap.unansweredCount ?? 0) > 0 && (
-                          <div
-                            className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(100,116,139,0.92),rgba(148,163,184,0.88))] px-3 text-sm font-black text-slate-100"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100 : 0}%` }}
-                          >
-                            <span className="group-hover:hidden">{selectedRecap.unansweredCount ?? 0}</span>
-                            <span className="hidden group-hover:inline">
-                              {globalResultTotal > 0 ? clampPercent(((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100) : 0}%
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               <div className="mt-6">
@@ -643,18 +823,27 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                       .filter(([, answer]) => answer.choiceIndex === choice.index)
                       .map(([clientId]) => participantByClientId.get(clientId))
                       .filter((participant): participant is RoomParticipant => Boolean(participant));
+                    const choiceCardClass = `relative ${
+                      isMobileView ? "overflow-visible" : "overflow-visible"
+                    } rounded-[22px] px-5 py-4 ${
+                      isCorrect
+                        ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]"
+                        : isMine
+                          ? "border border-rose-300/30 bg-[linear-gradient(180deg,rgba(64,16,28,0.68),rgba(26,10,18,0.62))]"
+                          : "bg-black/18"
+                    }`;
                     return (
                       <div
                         key={`${selectedRecap.key}-${choice.index}`}
-                        className={`relative overflow-visible rounded-[22px] px-5 py-4 ${isCorrect
-                          ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]"
-                          : isMine
-                            ? "border border-rose-300/30 bg-[linear-gradient(180deg,rgba(64,16,28,0.68),rgba(26,10,18,0.62))]"
-                            : "bg-black/18"
-                          }`}
+                        className={choiceCardClass}
                       >
                         {pickedParticipants.length > 0 && (
-                          <div className="absolute right-5 top-0 z-10 flex -translate-y-[58%] flex-row-reverse pointer-events-auto">
+                          <div
+                            className={`z-10 pointer-events-auto ${isMobileView
+                              ? "absolute right-4 top-0 flex -translate-y-[66%] flex-row-reverse"
+                              : "absolute right-5 top-0 flex -translate-y-[58%] flex-row-reverse"
+                              }`}
+                          >
                             {pickedParticipants.slice(0, 4).map((participant, index) => {
                               const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
                               return (
@@ -663,8 +852,12 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                                   title={participant.username}
                                 >
                                   <div
-                                    className="relative h-9 w-9 overflow-hidden rounded-full border border-slate-700/38 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] text-white/88 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)]"
-                                    style={{ marginRight: index === 0 ? 0 : -9 }}
+                                    className={`relative overflow-hidden rounded-full border border-slate-700/38 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] text-white/88 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${isMobileView ? "h-8 w-8" : "h-9 w-9"}`}
+                                    style={
+                                      isMobileView
+                                        ? { marginRight: index === 0 ? 0 : -9 }
+                                        : { marginRight: index === 0 ? 0 : -9 }
+                                    }
                                     aria-label={participant.username}
                                   >
                                     {avatarUrl ? (
@@ -684,7 +877,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                             })}
                             {pickedParticipants.length > 4 && (
                               <RoomUiTooltip title={`另外 ${pickedParticipants.length - 4} 位玩家`}>
-                                <div className="relative ml-2 flex h-9 min-w-[2.1rem] items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-2 text-[9px] font-black text-slate-100/92 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)]">
+                                <div className={`relative flex items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-2 text-[9px] font-black text-slate-100/92 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${isMobileView ? "h-8 min-w-[1.9rem]" : "ml-2 h-9 min-w-[2.1rem]"}`}>
                                   +{pickedParticipants.length - 4}
                                 </div>
                               </RoomUiTooltip>
@@ -692,21 +885,34 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                           </div>
                         )}
                         <div className="space-y-3.5">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className={`flex items-start gap-4 ${isMobileView ? "flex-col" : "justify-between"}`}>
                             <div className="min-w-0 flex-1 pr-2">
                               <ChoiceMarqueeTitle
                                 text={choice.title}
-                                className="text-[1.02rem] font-semibold leading-relaxed text-white"
+                                disableMarquee={isMobileView}
+                                className="text-[1.02rem] font-semibold leading-[1.38] text-white"
+                                staticStyle={isMobileView ? multilineEllipsis2Style : undefined}
                               />
                             </div>
-                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 self-start">
+                            <div className={`flex shrink-0 flex-wrap items-center gap-2 self-start ${isMobileView ? "justify-start" : "justify-end"}`}>
                               {isCorrect && <span className={`${reviewStatusBadgeBaseClass} h-6 border-emerald-300/45 bg-emerald-400/15 px-2.5 text-[10px] text-emerald-100`}>正確答案</span>}
                               {isMine && <span className={`${reviewStatusBadgeBaseClass} h-6 border-rose-300/45 bg-rose-400/18 px-2.5 text-[10px] text-rose-100`}>你的選擇</span>}
                               <span className="inline-flex h-6 items-center justify-center rounded-full border border-slate-500/65 bg-slate-900/75 px-2.5 text-[10px] font-semibold text-slate-200">{pickedCount} 票</span>
                               <span className="inline-flex h-6 items-center justify-center rounded-full border border-white/10 bg-black/20 px-2.5 text-[10px] font-semibold text-slate-200">{pickedPercent}%</span>
                             </div>
                           </div>
-                          <div className="h-3 w-full overflow-hidden rounded-full bg-black/25"><div className={`h-full rounded-full ${isCorrect ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))]" : isMine ? "bg-[linear-gradient(90deg,rgba(56,189,248,0.95),rgba(96,165,250,0.95))]" : "bg-[linear-gradient(90deg,rgba(100,116,139,0.9),rgba(148,163,184,0.85))]"}`} style={{ width: `${pickedPercent}%` }} /></div>
+                          <div className="h-3 w-full overflow-hidden rounded-full bg-black/25">
+                            <div
+                              className={`h-full rounded-full ${
+                                isCorrect
+                                  ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))]"
+                                  : isMine
+                                    ? "bg-[linear-gradient(90deg,rgba(56,189,248,0.95),rgba(96,165,250,0.95))]"
+                                    : "bg-[linear-gradient(90deg,rgba(100,116,139,0.9),rgba(148,163,184,0.85))]"
+                              }`}
+                              style={{ width: `${pickedPercent}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
                     );
@@ -718,6 +924,48 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
             <div className="flex min-h-[240px] items-center justify-center rounded-[24px] border border-dashed border-slate-700/70 bg-slate-950/55 px-4 text-sm text-slate-400">選擇一題後即可查看回顧</div>
           )}
         </div>
+        {isMobileView && filteredRecaps.length > 0 && (
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              className="flex-1 rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={goPrevRecap}
+            >
+              上一題
+            </button>
+            <div className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/18 px-3 py-2 text-sm font-semibold text-white">
+              <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={recapJumpValue}
+                onChange={(event) => {
+                  const nextValue = event.target.value.replace(/\D/g, "");
+                  setRecapJumpValue(nextValue === "" ? "" : String(Number.parseInt(nextValue, 10)));
+                }}
+                onBlur={commitRecapJumpValue}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitRecapJumpValue();
+                  }
+                }}
+                className="w-[1.8rem] border-0 bg-transparent text-center text-sm font-semibold text-white outline-none"
+                aria-label="跳至題目"
+              />
+              <span className="text-slate-400">/</span>
+              <span className="min-w-[1.8rem] text-left text-slate-300">
+                {filteredRecaps.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="flex-1 rounded-full border border-cyan-300/28 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-50 transition hover:border-cyan-200/44 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={goNextRecap}
+            >
+              下一題
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

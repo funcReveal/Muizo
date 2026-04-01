@@ -319,12 +319,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         <BrandLogo compact />
       </button>
 
-      <div className="relative inline-flex min-w-0 shrink-0 items-center">
+      <div className="relative flex min-w-0 flex-1 items-center justify-end">
         {authUser ? (
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="app-header-profile-pill group"
+            className="app-header-profile-pill group max-w-full"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
@@ -345,7 +345,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 {authLabel?.[0]?.toUpperCase() ?? "?"}
               </span>
             )}
-            <span className="max-w-[120px] truncate text-sm font-semibold text-[var(--mc-text)] sm:max-w-[180px]">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--mc-text)]">
               {authLabel}
             </span>
             <span
@@ -360,7 +360,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="group inline-flex min-w-0 items-center gap-2 rounded-full border border-amber-300/45 bg-amber-300/10 px-3 py-1.5 text-sm font-medium text-amber-100 shadow-[0_10px_30px_-24px_rgba(245,158,11,0.45)] transition hover:border-amber-300/65 hover:bg-amber-300/16"
+            className="group inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-amber-300/45 bg-amber-300/10 px-3 py-1.5 text-sm font-medium text-amber-100 shadow-[0_10px_30px_-24px_rgba(245,158,11,0.45)] transition hover:border-amber-300/65 hover:bg-amber-300/16"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
@@ -369,7 +369,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               Menu
             </span>
             <span className="h-4 w-[1px] bg-amber-200/40" />
-            <span className="max-w-[120px] truncate text-sm text-amber-100 sm:max-w-[180px]">
+            <span className="min-w-0 flex-1 truncate text-sm text-amber-100">
               訪客 {authLabel}
             </span>
             <span

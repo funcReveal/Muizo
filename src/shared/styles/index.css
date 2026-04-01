@@ -982,6 +982,7 @@ body {
 }
 
 .app-header-profile-kicker {
+  flex: 0 0 auto;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.32em;
@@ -989,6 +990,7 @@ body {
 }
 
 .app-header-profile-divider {
+  flex: 0 0 auto;
   height: 22px;
   width: 1px;
   background: linear-gradient(
@@ -1002,6 +1004,7 @@ body {
 
 .app-header-profile-avatar-fallback {
   display: inline-flex;
+  flex: 0 0 auto;
   height: 28px;
   width: 28px;
   align-items: center;
@@ -1018,6 +1021,7 @@ body {
 }
 
 .app-header-profile-chevron {
+  flex: 0 0 auto;
   font-size: 10px;
   color: rgba(226, 232, 240, 0.72);
   transition:
@@ -12160,6 +12164,15 @@ body {
     padding-bottom: calc(env(safe-area-inset-bottom) + 6.25rem);
   }
 
+  .game-settlement-mobile-shell--immersive {
+    width: 100vw;
+    max-width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    padding-inline: 0;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 7.25rem);
+    overflow-x: clip;
+  }
+
   .game-settlement-mobile-stage {
     border-radius: 22px;
     padding: 0.9rem 0.85rem 1rem;
@@ -12167,6 +12180,18 @@ body {
     box-shadow:
       0 20px 64px -40px rgba(245, 158, 11, 0.56),
       inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .game-settlement-mobile-stage--immersive {
+    border-radius: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    padding: 0.55rem 0.15rem 1rem;
+  }
+
+  .game-settlement-mobile-stage--immersive::before {
+    display: none;
   }
 
   .game-settlement-stage-header {
@@ -12407,6 +12432,17 @@ body {
     padding: 0.8rem;
   }
 
+  .game-settlement-mobile-stage--immersive .game-settlement-overview-podium,
+  .game-settlement-mobile-stage--immersive .game-settlement-overview-ranking {
+    border-radius: 18px;
+    padding: 0.95rem;
+  }
+
+  .game-settlement-mobile-stage--immersive .game-settlement-recommend-shell,
+  .game-settlement-mobile-stage--immersive .game-settlement-review-shell {
+    border-radius: 22px;
+  }
+
   .game-settlement-review-detail .game-settlement-choice-marquee-track {
     padding-right: 1.5rem;
   }
@@ -12448,7 +12484,7 @@ body {
 
   .game-settlement-mobile-footer .MuiButton-root {
     border-radius: 999px;
-    min-height: 34px;
+    min-height: 36px;
     font-size: 12px;
     font-weight: 700;
   }
@@ -12490,6 +12526,7 @@ body {
     border-color 180ms ease,
     background-color 180ms ease,
     color 180ms ease;
+  justify-content: center;
 }
 
 .game-settlement-desktop-action.MuiButton-root:hover,
@@ -12635,6 +12672,10 @@ body {
   .game-settlement-mobile-stage {
     border-radius: 18px;
     padding: 0.75rem;
+  }
+
+  .game-settlement-mobile-stage--immersive {
+    padding-inline: 0.08rem;
   }
 
   .game-settlement-stage-tab-list {

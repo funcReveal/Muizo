@@ -159,6 +159,7 @@ const statDisplayName = (participant: RoomParticipant | null) => {
 };
 
 const OverviewSection: React.FC<OverviewSectionProps> = ({
+  isMobileView = false,
   winner,
   runnerUp,
   thirdPlace,
@@ -181,43 +182,43 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
       participant: runnerUp,
       rank: 2,
       orderClass: "order-1",
-      heightClass: "min-h-[420px]",
+      heightClass: isMobileView ? "min-h-[320px]" : "min-h-[420px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-[2rem]",
+      topPadClass: isMobileView ? "pt-[1.1rem]" : "pt-[2rem]",
     },
     {
       participant: winner,
       rank: 1,
       orderClass: "order-2",
-      heightClass: "min-h-[450px]",
+      heightClass: isMobileView ? "min-h-[352px]" : "min-h-[450px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-3",
+      topPadClass: isMobileView ? "pt-2" : "pt-3",
     },
     {
       participant: thirdPlace,
       rank: 3,
       orderClass: "order-3",
-      heightClass: "min-h-[390px]",
+      heightClass: isMobileView ? "min-h-[302px]" : "min-h-[390px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-[2rem]",
+      topPadClass: isMobileView ? "pt-[1.1rem]" : "pt-[2rem]",
     },
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-      <article className="relative overflow-hidden rounded-[28px] border border-amber-300/18 bg-[radial-gradient(circle_at_50%_-8%,rgba(250,204,21,0.24),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(52,35,10,0.98),rgba(22,16,24,0.98))] p-5 shadow-[0_28px_80px_-48px_rgba(245,158,11,0.54)]">
+    <section className={`grid ${isMobileView ? "gap-3" : "gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]"}`}>
+      <article className={`relative overflow-hidden rounded-[28px] border border-amber-300/18 bg-[radial-gradient(circle_at_50%_-8%,rgba(250,204,21,0.24),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(52,35,10,0.98),rgba(22,16,24,0.98))] ${isMobileView ? "p-4" : "p-5"} shadow-[0_28px_80px_-48px_rgba(245,158,11,0.54)]`}>
         <div className="pointer-events-none absolute inset-x-[28%] top-0 h-16 rounded-full bg-amber-200/8 blur-[38px]" />
 
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-3xl font-black tracking-tight text-white">本場冠軍榜</h3>
+            <h3 className={`${isMobileView ? "text-[2.2rem]" : "text-3xl"} font-black tracking-tight text-white`}>本場冠軍榜</h3>
           </div>
           <span className="rounded-full border border-amber-200/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-100">
             前 3 名玩家
           </span>
         </div>
 
-        <div className="relative mt-6 grid min-h-[430px] grid-cols-3 items-end gap-4 px-1">
+        <div className={`relative ${isMobileView ? "mt-4 min-h-[340px] gap-2 px-0" : "mt-6 min-h-[430px] gap-4 px-1"} grid grid-cols-3 items-end`}>
           {podium.map(
             ({ participant, rank, orderClass, heightClass, widthClass, topPadClass }) => {
               const combo = participant
@@ -236,7 +237,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               return (
                 <div
                   key={`podium-${rank}`}
-                  className={`relative overflow-hidden ${orderClass} ${heightClass} ${widthClass} ${topPadClass} rounded-[28px] px-4 pb-4 text-center ${rankSurfaceClass(rank)} ${podiumAuraClass(rank)} ${isMe ? "ring-1 ring-white/18" : ""
+                  className={`relative overflow-hidden ${orderClass} ${heightClass} ${widthClass} ${topPadClass} ${isMobileView ? "rounded-[22px] px-2.5 pb-3" : "rounded-[28px] px-4 pb-4"} text-center ${rankSurfaceClass(rank)} ${podiumAuraClass(rank)} ${isMe ? "ring-1 ring-white/18" : ""
                     } ${rank === 1 ? "z-20" : rank === 2 ? "z-10" : "z-0"
                     }`}
                   style={rank === 1 ? { animation: "settlementChampionGlow 2.8s ease-in-out infinite" } : undefined}
@@ -309,12 +310,12 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                     {podiumLabel(rank)}
                   </div>
 
-                  <div className={`relative z-10 mt-4 min-h-[4.9rem] px-1 ${nameToneClass}`}>
+                  <div className={`relative z-10 ${isMobileView ? "mt-3 min-h-[3.55rem] px-0.5" : "mt-4 min-h-[4.9rem] px-1"} ${nameToneClass}`}>
                     {renderPodiumName(participant, multilineEllipsis2Style)}
                   </div>
 
                   <div
-                    className={`mx-auto mt-5 flex w-full max-w-[176px] flex-col items-center justify-center rounded-[24px] px-4 py-5 ${
+                    className={`mx-auto ${isMobileView ? "mt-3 max-w-[132px] rounded-[18px] px-2 py-3.5" : "mt-5 max-w-[176px] rounded-[24px] px-4 py-5"} flex w-full flex-col items-center justify-center ${
                       rank === 1
                         ? "bg-[linear-gradient(180deg,rgba(11,10,14,0.08),rgba(11,10,14,0.22))] shadow-[inset_0_1px_0_rgba(255,245,190,0.06),0_16px_34px_-28px_rgba(250,204,21,0.14)]"
                         : rank === 2
@@ -322,17 +323,17 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                           : "bg-[linear-gradient(180deg,rgba(14,10,10,0.12),rgba(14,10,10,0.24))] shadow-[inset_0_1px_0_rgba(249,115,22,0.04)]"
                       }`}
                   >
-                    <p className="text-[3.25rem] font-black leading-none text-white">
+                    <p className={`${isMobileView ? "text-[2.25rem]" : "text-[3.25rem]"} font-black leading-none text-white`}>
                       {participant?.score ?? "--"}
                     </p>
-                    <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-white/78">
+                    <p className={`${isMobileView ? "mt-1.5 text-[9px]" : "mt-2 text-[11px]"} font-semibold tracking-[0.08em] text-white/78`}>
                       {correctCount}/{playedQuestionCount || "--"} 題答對
                     </p>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <div className={`${isMobileView ? "mt-3 gap-1.5" : "mt-5 gap-3"} flex flex-wrap items-center justify-center`}>
                     <span
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${comboTierClass(combo)}`}
+                      className={`rounded-full border ${isMobileView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-[11px]"} font-semibold ${comboTierClass(combo)}`}
                     >
                       Combo x{combo}
                     </span>
@@ -342,7 +343,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             })}
         </div>
 
-        <div className="mt-3 rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(251,191,36,0.05),rgba(15,23,42,0.42))] p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.03)]">
+        <div className={`mt-3 rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(251,191,36,0.05),rgba(15,23,42,0.42))] ${isMobileView ? "p-3.5" : "p-4"} shadow-[inset_0_0_0_1px_rgba(251,191,36,0.03)]`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold tracking-[0.18em] text-amber-100/72">
@@ -367,27 +368,27 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className={`mt-4 grid gap-3 ${isMobileView ? "grid-cols-3" : "sm:grid-cols-3"}`}>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">排名</p>
-              <p className="mt-3 text-4xl font-black text-white">
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>
                 {myRank > 0 ? `${myRank}/${Math.max(1, participantsLength)}` : "--"}
               </p>
             </div>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">分數</p>
-              <p className="mt-3 text-4xl font-black text-white">{me?.score ?? 0}</p>
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>{me?.score ?? 0}</p>
             </div>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">COMBO</p>
-              <p className="mt-3 text-4xl font-black text-white">
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>
                 x{me ? Math.max(me.maxCombo ?? 0, me.combo) : 0}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className={`mt-5 grid gap-3 ${isMobileView ? "grid-cols-1" : "sm:grid-cols-3"}`}>
           <div className="rounded-[22px] border border-cyan-300/10 bg-cyan-500/10 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]">
             <p className="text-[11px] font-semibold text-cyan-100/88">最高準度</p>
             <p className="mt-3 text-4xl font-black text-cyan-50">

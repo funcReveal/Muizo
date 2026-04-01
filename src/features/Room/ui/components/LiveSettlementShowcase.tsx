@@ -200,7 +200,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     sfxEnabled,
     sfxVolume,
     settlementPreviewSyncGameVolume,
-    setSettlementPreviewSyncGameVolume,
     settlementPreviewVolume,
     setSettlementPreviewVolume,
   } = useSettingsModel();
@@ -603,6 +602,15 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     handleOpenTrackLink(currentRecommendationLink, currentRecommendation.recap);
   };
 
+  const dispatchPreviewCommand = useCallback(
+    (command: "playVideo" | "pauseVideo") => {
+      postYouTubeCommand(command);
+      window.setTimeout(() => postYouTubeCommand(command), 180);
+      window.setTimeout(() => postYouTubeCommand(command), 420);
+    },
+    [postYouTubeCommand],
+  );
+
   const handleQuickPlayStart = useCallback(() => {
     if (!currentRecommendationPreviewUrl || !currentRecommendation) return;
     const keepAutoMode = autoPreviewEnabled && previewPlaybackMode === "auto";
@@ -610,7 +618,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     if (!isCurrentRecommendationPreviewOpen) {
       setPreviewRecapKey(currentRecommendation.recap.key);
     } else {
-      postYouTubeCommand("playVideo");
+      dispatchPreviewCommand("playVideo");
     }
     setPreviewPlayerState("playing");
     if (!keepAutoMode) {
@@ -629,10 +637,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     autoPreviewEnabled,
     currentRecommendation,
     currentRecommendationPreviewUrl,
+    dispatchPreviewCommand,
     isCurrentRecommendationPreviewOpen,
     pausedCountdownRemainingMs,
     previewPlaybackMode,
-    postYouTubeCommand,
   ]);
 
   const handlePreviewSurfaceClick = useCallback(() => {
@@ -644,7 +652,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     }
 
     if (previewPlayerState === "playing") {
-      postYouTubeCommand("pauseVideo");
+      dispatchPreviewCommand("pauseVideo");
       const remainingMs =
         previewPlaybackMode === "auto" && autoAdvanceAtMs !== null
           ? Math.max(0, autoAdvanceAtMs - Date.now())
@@ -670,7 +678,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     handleQuickPlayStart,
     isCurrentRecommendationPreviewOpen,
     pausedCountdownRemainingMs,
-    postYouTubeCommand,
+    dispatchPreviewCommand,
     previewPlaybackMode,
     previewPlayerState,
   ]);
@@ -743,12 +751,11 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         autoAdvanceAtMsRef.current !== null &&
         pausedCountdownRemainingMsRef.current === null);
     if (!shouldAttemptPlay) return;
-    window.setTimeout(() => postYouTubeCommand("playVideo"), 180);
-    window.setTimeout(() => postYouTubeCommand("playVideo"), 520);
+    window.setTimeout(() => dispatchPreviewCommand("playVideo"), 180);
   }, [
     autoAdvanceAtMsRef,
+    dispatchPreviewCommand,
     pausedCountdownRemainingMsRef,
-    postYouTubeCommand,
     previewPlaybackMode,
     previewPlayerStateRef,
     registerYouTubeBridge,
@@ -773,8 +780,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         setAutoAdvanceAtMs(null);
         setPausedCountdownRemainingMs(null);
         setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
-        postYouTubeCommand("playVideo");
-        window.setTimeout(() => postYouTubeCommand("playVideo"), 180);
+        dispatchPreviewCommand("playVideo");
         return true;
       }
 
@@ -783,8 +789,8 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [
       currentRecommendation,
       currentRecommendationPreviewUrl,
+      dispatchPreviewCommand,
       jumpToRecapPreview,
-      postYouTubeCommand,
       previewRecapKey,
       reviewDoubleClickPlayEnabled,
       setAutoAdvanceAtMs,
@@ -922,10 +928,16 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   }, [endedAt, isMobileSettlementViewport, room.id, startedAt]);
 
   return (
-    <div className="game-settlement-mobile-shell mx-auto w-full max-w-[1456px] min-w-0 px-0 pb-28 lg:pb-4">
+    <div
+      className={`game-settlement-mobile-shell mx-auto w-full max-w-[1456px] min-w-0 px-0 pb-28 lg:pb-4 ${
+        isMobileSettlementViewport ? "game-settlement-mobile-shell--immersive" : ""
+      }`}
+    >
       <section
         ref={settlementStageRef}
-        className="game-settlement-mobile-stage relative min-w-0 px-0 py-2 sm:py-3"
+        className={`game-settlement-mobile-stage relative min-w-0 px-0 py-2 sm:py-3 ${
+          isMobileSettlementViewport ? "game-settlement-mobile-stage--immersive" : ""
+        }`}
       >
         <div className="relative space-y-4">
           <SettlementStageHeader
@@ -1048,13 +1060,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 canAutoGuideLoop={canAutoGuideLoop}
                 previewCountdownSec={previewCountdownSec}
                 previewSwitchNotice={previewSwitchNotice}
-                effectivePreviewVolume={effectivePreviewVolume}
-                onPreviewVolumeChange={(next) => {
-                  if (settlementPreviewSyncGameVolume) {
-                    setSettlementPreviewSyncGameVolume(false);
-                  }
-                  setSettlementPreviewVolume(next);
-                }}
                 recommendPreviewStageRef={recommendPreviewStageRef}
                 isCurrentRecommendationPreviewOpen={isCurrentRecommendationPreviewOpen}
                 previewPlayerState={previewPlayerState}
