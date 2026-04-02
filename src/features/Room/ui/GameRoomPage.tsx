@@ -102,7 +102,7 @@ interface GameRoomPageProps {
   onExitGame: () => void;
   onBackToLobby?: () => void;
   onSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
-  onRequestPlaybackExtensionVote?: () => Promise<boolean>;
+  onRequestPlaybackExtensionVote?: (remainingMs?: number) => Promise<boolean>;
   onCastPlaybackExtensionVote?: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;
@@ -452,16 +452,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     }
     if (hostManagementConfirm.type === "ban") {
       return {
-        title: `要踢出並封鎖 ${target} 嗎？`,
+        title: `要將 ${target} 踢出 5 分鐘嗎？`,
         description:
-          "這位玩家會立刻離開房間，並在封鎖期間無法再次加入這個房間。",
-        confirmLabel: "確認踢出並封鎖",
+          "這位玩家會立刻離開房間，並在一段時間內無法再次加入這個房間。",
+        confirmLabel: "確認踢出 5 分鐘",
       };
     }
     return {
-      title: `要踢出 ${target} 嗎？`,
-      description: "這位玩家會立刻離開房間，但之後仍可透過邀請或重新加入回到房間。",
-      confirmLabel: "確認踢出玩家",
+      title: `要將 ${target} 永久封鎖嗎？`,
+      description: "這位玩家會立刻離開房間，並被永久封鎖無法再次加入這個房間。",
+      confirmLabel: "確認永久封鎖",
     };
   }, [hostManagementConfirm]);
   const handleClosePlaybackVoteDialog = useCallback(() => {
@@ -712,9 +712,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isReveal = gameState.phase === "reveal";
   const showVideo = showVideoOverride ?? gameState.showVideo ?? true;
   const clipIdentityStartSec = Math.round(clipStartSec * 1000) / 1000;
-  const clipIdentityEndSec = Math.round(clipEndSec * 1000) / 1000;
-  const trackLoadKey = `${videoId ?? "none"}:${clipIdentityStartSec}-${clipIdentityEndSec}`;
   const trackSessionKey = `${gameState.startedAt}:${trackCursor}:${currentTrackIndex}`;
+  const trackLoadKey = `${videoId ?? "none"}:${trackSessionKey}:${clipIdentityStartSec}`;
   const {
     liveParticipantCount,
     liveAnsweredCount,
@@ -1105,7 +1104,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!canRequestPlaybackExtensionVote || !onRequestPlaybackExtensionVote) return;
     setPlaybackVoteRequestPending(true);
     try {
-      await onRequestPlaybackExtensionVote();
+      await onRequestPlaybackExtensionVote(
+        phaseRemainingMs > 0 ? phaseRemainingMs : undefined,
+      );
     } finally {
       setPlaybackVoteRequestPending(false);
     }
@@ -1113,6 +1114,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     canOpenPlaybackVotePrompt,
     canRequestPlaybackExtensionVote,
     onRequestPlaybackExtensionVote,
+    phaseRemainingMs,
   ]);
 
   const handleCastPlaybackVote = useCallback(
@@ -1689,7 +1691,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     startIcon={<PersonRemoveRoundedIcon />}
                     onClick={() => requestHostManagementAction("kick", participant)}
                   >
-                    只踢出
+                    踢出(永久封鎖)
                   </Button>
                   <Button
                     size="small"
@@ -1698,7 +1700,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     startIcon={<BlockRoundedIcon />}
                     onClick={() => requestHostManagementAction("ban", participant)}
                   >
-                    踢出封鎖
+                    踢出(5分鐘)
                   </Button>
                 </Stack>
               </Stack>

@@ -1,5 +1,6 @@
 ﻿
 import PlayCircleOutlineRoundedIcon from "@mui/icons-material/PlayCircleOutlineRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
 import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -46,7 +47,8 @@ interface HistoryReplayCompactViewProps {
 
 const HISTORY_PREVIEW_AUTOPLAY_STORAGE_KEY = "mq_history_preview_autoplay";
 const HISTORY_PREVIEW_VOLUME_STORAGE_KEY = "mq_history_preview_volume";
-const PREVIEW_OVERLAY_COPY = "點一下開始預覽片段";
+const PREVIEW_OVERLAY_COPY = "如果喜歡這首音樂，別忘了到 YouTube 支持創作者喲！";
+const HISTORY_PREVIEW_BRIDGE_ID = "history-replay-preview";
 
 const RESULT_TONE: Record<
   ParticipantResult,
@@ -84,18 +86,18 @@ const readStoredPreviewAutoplay = () => {
   return raw === "1";
 };
 
-const formatDuration = (startedAt?: number, endedAt?: number) => {
-  if (!startedAt || !endedAt || endedAt <= startedAt) return "-";
-  const totalSec = Math.floor((endedAt - startedAt) / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${String(sec).padStart(2, "0")}`;
-};
-
 const formatMs = (value: number | null | undefined) => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "--";
   if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
   return `${Math.round(value)}ms`;
+};
+
+const formatPlayedOnDate = (timestamp?: number) => {
+  if (!timestamp || !Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  return `遊玩於 ${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 };
 
 const normalizeParticipantResult = (value: unknown): ParticipantResult => {
@@ -210,11 +212,9 @@ const HoverMarqueeText: React.FC<{
 const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
   room,
   participants,
-  messages,
   playlistItems = [],
   trackOrder = [],
   playedQuestionCount,
-  startedAt,
   endedAt,
   meClientId,
   questionRecaps = [],
@@ -253,6 +253,11 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
   );
   const [previewPlaybackSource, setPreviewPlaybackSource] = useState<string | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const previewPlaybackIntentRef = useRef<"idle" | "playing" | "paused">("idle");
+  const previewBridgeRetryTimersRef = useRef<number[]>([]);
+  const previewVolumeRetryTimersRef = useRef<number[]>([]);
+  const previewPlayRetryTimersRef = useRef<number[]>([]);
+  const previewVolumeUpdateSourceRef = useRef<"app" | "iframe" | null>(null);
   const recaps = useMemo<ExtendedRecap[]>(() => {
     if (questionRecaps.length > 0) {
       return questionRecaps.map((recap) => {
@@ -383,10 +388,9 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
     if (!selectedRecap || !selectedRecapLink) return null;
     return resolvePreviewEmbedUrl(selectedRecap, selectedRecapLink);
   }, [selectedRecap, selectedRecapLink]);
-  const selectedRecapProviderLabel =
-    selectedRecapLink?.provider && selectedRecapLink.provider !== "unknown"
-      ? selectedRecapLink.providerLabel || null
-      : null;
+  const selectedPreviewTitle = selectedRecap?.title?.trim() || "未提供歌名";
+  const selectedPreviewMeta = selectedRecap?.uploader?.trim() || "";
+  const playedOnLabel = formatPlayedOnDate(endedAt);
 
   const openLink = useCallback(
     (link: SettlementTrackLink, recap: ExtendedRecap) => {
@@ -410,33 +414,169 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
     contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), "*");
   }, []);
 
+  const clearPreviewBridgeRetryTimers = useCallback(() => {
+    previewBridgeRetryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    previewBridgeRetryTimersRef.current = [];
+  }, []);
+
+  const clearPreviewVolumeRetryTimers = useCallback(() => {
+    previewVolumeRetryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    previewVolumeRetryTimersRef.current = [];
+  }, []);
+
+  const clearPreviewPlayRetryTimers = useCallback(() => {
+    previewPlayRetryTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    previewPlayRetryTimersRef.current = [];
+  }, []);
+
+  const registerYouTubeBridge = useCallback(() => {
+    const contentWindow = previewIframeRef.current?.contentWindow;
+    if (!contentWindow) return;
+    const send = () => {
+      contentWindow.postMessage(
+        JSON.stringify({ event: "listening", id: HISTORY_PREVIEW_BRIDGE_ID }),
+        "*",
+      );
+    };
+    send();
+    clearPreviewBridgeRetryTimers();
+    previewBridgeRetryTimersRef.current = [220, 520, 1100].map((delay) =>
+      window.setTimeout(send, delay),
+    );
+  }, [clearPreviewBridgeRetryTimers]);
+
   const syncPreviewVolume = useCallback(() => {
     const normalizedVolume = Math.max(0, Math.min(100, previewVolume));
-    postYouTubeCommand("setVolume", [normalizedVolume]);
-    if (normalizedVolume <= 0) {
-      postYouTubeCommand("mute");
-    } else {
-      postYouTubeCommand("unMute");
-    }
-  }, [postYouTubeCommand, previewVolume]);
+    previewVolumeUpdateSourceRef.current = "app";
+    const apply = () => {
+      postYouTubeCommand("setVolume", [normalizedVolume]);
+      if (normalizedVolume <= 0) {
+        postYouTubeCommand("mute");
+      } else {
+        postYouTubeCommand("unMute");
+      }
+    };
+    clearPreviewVolumeRetryTimers();
+    apply();
+    previewVolumeRetryTimersRef.current = [140, 360, 760].map((delay) =>
+      window.setTimeout(apply, delay),
+    );
+  }, [clearPreviewVolumeRetryTimers, postYouTubeCommand, previewVolume]);
 
   const handlePreviewStart = useCallback(() => {
+    previewPlaybackIntentRef.current = "playing";
+    registerYouTubeBridge();
+    clearPreviewPlayRetryTimers();
     postYouTubeCommand("playVideo");
     syncPreviewVolume();
+    previewPlayRetryTimersRef.current = [180, 420, 920].map((delay) =>
+      window.setTimeout(() => {
+        postYouTubeCommand("playVideo");
+        syncPreviewVolume();
+      }, delay),
+    );
     setPreviewPlaybackSource(selectedRecapPreviewUrl ?? null);
     setPreviewPlayerState("playing");
-  }, [postYouTubeCommand, selectedRecapPreviewUrl, syncPreviewVolume]);
+  }, [
+    clearPreviewPlayRetryTimers,
+    postYouTubeCommand,
+    registerYouTubeBridge,
+    selectedRecapPreviewUrl,
+    syncPreviewVolume,
+  ]);
 
   const handlePreviewFrameLoad = useCallback(() => {
+    registerYouTubeBridge();
     window.setTimeout(() => {
       syncPreviewVolume();
-      if (previewAutoplayEnabled) handlePreviewStart();
-    }, 220);
-  }, [handlePreviewStart, previewAutoplayEnabled, syncPreviewVolume]);
+      const shouldResumePlayback =
+        previewPlaybackIntentRef.current === "playing" ||
+        (previewPlaybackIntentRef.current === "idle" && previewAutoplayEnabled);
+      if (shouldResumePlayback) handlePreviewStart();
+    }, 260);
+  }, [
+    handlePreviewStart,
+    previewAutoplayEnabled,
+    registerYouTubeBridge,
+    syncPreviewVolume,
+  ]);
+
+  const normalizePlayerNumeric = useCallback((value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number(value.trim());
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  }, []);
+
+  const readYouTubePlayerSnapshot = useCallback(
+    (
+      rawData: unknown,
+    ): { state: number | null; volume: number | null; muted: boolean | null } => {
+      let payload: unknown = rawData;
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return { state: null, volume: null, muted: null };
+        }
+      }
+      if (!payload || typeof payload !== "object") {
+        return { state: null, volume: null, muted: null };
+      }
+      const eventValue =
+        "event" in payload ? (payload as { event?: unknown }).event : null;
+      const infoValue =
+        "info" in payload ? (payload as { info?: unknown }).info : null;
+      if (eventValue === "onStateChange") {
+        return {
+          state:
+            infoValue &&
+            typeof infoValue === "object" &&
+            "playerState" in infoValue
+              ? normalizePlayerNumeric(
+                  (infoValue as { playerState?: unknown }).playerState,
+                )
+              : normalizePlayerNumeric(infoValue),
+          volume: null,
+          muted: null,
+        };
+      }
+      if (
+        eventValue !== "infoDelivery" ||
+        !infoValue ||
+        typeof infoValue !== "object"
+      ) {
+        return { state: null, volume: null, muted: null };
+      }
+      return {
+        state:
+          "playerState" in infoValue
+            ? normalizePlayerNumeric(
+                (infoValue as { playerState?: unknown }).playerState,
+              )
+            : null,
+        volume:
+          "volume" in infoValue
+            ? normalizePlayerNumeric((infoValue as { volume?: unknown }).volume)
+            : null,
+        muted:
+          "muted" in infoValue
+            ? Boolean((infoValue as { muted?: unknown }).muted)
+            : null,
+      };
+    },
+    [normalizePlayerNumeric],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(HISTORY_PREVIEW_VOLUME_STORAGE_KEY, String(previewVolume));
+    if (previewVolumeUpdateSourceRef.current === "iframe") {
+      previewVolumeUpdateSourceRef.current = null;
+      return;
+    }
     syncPreviewVolume();
   }, [previewVolume, syncPreviewVolume]);
 
@@ -448,26 +588,117 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
     );
   }, [previewAutoplayEnabled]);
 
+  useEffect(() => {
+    previewPlaybackIntentRef.current = previewPlayerState;
+  }, [previewPlayerState]);
+
   const collectionTitle = room.playlist.title?.trim() || room.name || "回放紀錄";
-  const endedAtLabel = endedAt || messages[messages.length - 1]?.timestamp;
   const meRank =
     meParticipant && meParticipant.clientId
       ? rankedParticipants.findIndex((item) => item.clientId === meParticipant.clientId) + 1
       : 0;
   const supportCtaLabel =
-    selectedRecapLink?.href && selectedRecapProviderLabel
-      ? `前往 ${selectedRecapProviderLabel}`
-      : selectedRecapLink?.href
-        ? "前往來源"
-        : null;
+    selectedRecapLink?.href
+      ? "前往 YouTube 支持作者"
+      : null;
+  const previewTitleButtonClassName = selectedRecapLink?.href
+    ? "cursor-pointer transition hover:text-rose-100"
+    : "";
   const previewIsPlaying =
     Boolean(selectedRecapPreviewUrl) &&
     previewPlaybackSource === selectedRecapPreviewUrl &&
     previewPlayerState === "playing";
   React.useEffect(() => {
+    clearPreviewPlayRetryTimers();
+    clearPreviewVolumeRetryTimers();
+    clearPreviewBridgeRetryTimers();
     setPreviewPlaybackSource(null);
-    setPreviewPlayerState("idle");
-  }, [selectedRecap?.key, selectedRecapPreviewUrl]);
+    if (!selectedRecapPreviewUrl) {
+      previewPlaybackIntentRef.current = "idle";
+      setPreviewPlayerState("idle");
+      return;
+    }
+    const carriedState = previewPlaybackIntentRef.current;
+    setPreviewPlayerState(
+      carriedState === "playing"
+        ? "playing"
+        : carriedState === "paused"
+          ? "paused"
+          : "idle",
+    );
+  }, [
+    clearPreviewBridgeRetryTimers,
+    clearPreviewPlayRetryTimers,
+    clearPreviewVolumeRetryTimers,
+    selectedRecap?.key,
+    selectedRecapPreviewUrl,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !selectedRecapPreviewUrl) return;
+    const onMessage = (event: MessageEvent) => {
+      const origin = event.origin || "";
+      const trusted =
+        origin.includes("youtube.com") || origin.includes("youtube-nocookie.com");
+      if (!trusted) return;
+      const frameWindow = previewIframeRef.current?.contentWindow;
+      if (frameWindow && event.source !== frameWindow) return;
+      const snapshot = readYouTubePlayerSnapshot(event.data);
+      if (snapshot.volume !== null) {
+        const nextVolume = snapshot.muted ? 0 : snapshot.volume;
+        const normalizedVolume = Math.max(0, Math.min(100, Math.round(nextVolume)));
+        if (previewVolumeUpdateSourceRef.current === "app") {
+          if (Math.abs(normalizedVolume - previewVolume) <= 1) {
+            previewVolumeUpdateSourceRef.current = null;
+          }
+        } else if (Math.abs(normalizedVolume - previewVolume) >= 1) {
+          clearPreviewVolumeRetryTimers();
+          previewVolumeUpdateSourceRef.current = "iframe";
+          setPreviewVolume(normalizedVolume);
+        }
+      }
+      if (snapshot.state === 1) {
+        clearPreviewPlayRetryTimers();
+        setPreviewPlaybackSource(selectedRecapPreviewUrl);
+        setPreviewPlayerState("playing");
+        return;
+      }
+      if (snapshot.state === 2) {
+        setPreviewPlaybackSource(selectedRecapPreviewUrl);
+        setPreviewPlayerState("paused");
+        return;
+      }
+      if (snapshot.state === 0 || snapshot.state === -1) {
+        if (previewPlaybackIntentRef.current !== "idle") {
+          return;
+        }
+        setPreviewPlayerState("idle");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+    };
+  }, [
+    clearPreviewPlayRetryTimers,
+    clearPreviewVolumeRetryTimers,
+    previewVolume,
+    readYouTubePlayerSnapshot,
+    selectedRecapPreviewUrl,
+  ]);
+
+  useEffect(
+    () => () => {
+      clearPreviewBridgeRetryTimers();
+      clearPreviewPlayRetryTimers();
+      clearPreviewVolumeRetryTimers();
+    },
+    [
+      clearPreviewBridgeRetryTimers,
+      clearPreviewPlayRetryTimers,
+      clearPreviewVolumeRetryTimers,
+    ],
+  );
   const primaryParticipants = playersExpanded
     ? rankedParticipants
     : rankedParticipants.filter((participant) => participant.clientId === resolvedParticipantId);
@@ -478,29 +709,11 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
         <section className="rounded-[24px] border border-slate-700/70 bg-[linear-gradient(180deg,rgba(8,14,24,0.9),rgba(4,8,16,0.96))] p-4 sm:p-5">
           <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(176px,208px)] sm:items-start">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-sky-300/28 bg-sky-500/10 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-sky-100">
-                  收藏庫回放
-                </span>
-                <span className="rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1 text-[11px] text-slate-300">
-                  {participants.length} 人
-                </span>
-                <span className="rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1 text-[11px] text-slate-300">
-                  {playedQuestionCount} 題
-                </span>
-                <span className="rounded-full border border-slate-600/70 bg-slate-900/65 px-3 py-1 text-[11px] text-slate-300">
-                  局長 {formatDuration(startedAt, endedAt)}
-                </span>
-              </div>
-              <p className="mt-3 truncate text-lg font-semibold text-slate-100 sm:text-xl">
+              <p className="truncate text-lg font-semibold text-slate-100 sm:text-xl">
                 {collectionTitle}
               </p>
               <p className="mt-1 text-sm text-slate-400">
-                {endedAtLabel
-                  ? `回放時間 ${new Date(endedAtLabel).toLocaleString("zh-TW", {
-                      hour12: false,
-                    })}`
-                  : "可切換玩家視角、題目與作答分布。"}
+                {playedOnLabel ?? "可切換玩家視角、題目與作答分布。"}
               </p>
             </div>
 
@@ -587,7 +800,6 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                       type="button"
                       onClick={() => {
                         setSelectedRecapKey(recap.key);
-                        setPreviewPlayerState("idle");
                       }}
                       className={`w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition ${
                         active
@@ -787,22 +999,40 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
 
                     <div className="rounded-2xl border border-slate-700/75 bg-[linear-gradient(180deg,rgba(10,16,28,0.92),rgba(6,10,18,0.98))] p-3 sm:p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-                            歌曲預覽
-                          </p>
-                          {selectedRecapProviderLabel ? (
-                            <span className="rounded-full border border-slate-600/70 bg-slate-900/65 px-2.5 py-1 text-[10px] font-semibold text-slate-200">
-                              {selectedRecapProviderLabel}
-                            </span>
-                          ) : null}
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="min-w-0">
+                            {selectedRecapLink?.href ? (
+                              <button
+                                type="button"
+                                onClick={() => openLink(selectedRecapLink, selectedRecap)}
+                                className={`block min-w-0 max-w-full bg-transparent p-0 text-left text-sm font-semibold text-slate-100 ${previewTitleButtonClassName}`}
+                                title={selectedPreviewTitle}
+                              >
+                                <HoverMarqueeText
+                                  text={selectedPreviewTitle}
+                                  className="min-w-0 max-w-full"
+                                />
+                              </button>
+                            ) : (
+                              <HoverMarqueeText
+                                text={selectedPreviewTitle}
+                                className="min-w-0 max-w-full text-sm font-semibold text-slate-100"
+                              />
+                            )}
+                            {selectedPreviewMeta ? (
+                              <p className="mt-1 truncate text-[11px] text-slate-400">
+                                {selectedPreviewMeta}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
                         {selectedRecapLink?.href && supportCtaLabel ? (
                           <button
                             type="button"
-                            className="inline-flex cursor-pointer items-center justify-center rounded-full border border-sky-300/35 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-200/55 hover:bg-sky-500/20 hover:text-white"
+                            className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-rose-300/35 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-50 transition hover:border-rose-200/55 hover:bg-rose-500/16 hover:text-white"
                             onClick={() => openLink(selectedRecapLink, selectedRecap)}
                           >
+                            <OpenInNewRoundedIcon className="text-[0.95rem]" />
                             {supportCtaLabel}
                           </button>
                         ) : null}
@@ -830,7 +1060,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                                 >
                                   <span className="max-w-[30rem]">
                                     <span className="block text-sm font-semibold text-slate-100">
-                                      點一下開始預覽片段
+                                      {PREVIEW_OVERLAY_COPY}
                                     </span>
                                   </span>
                                 </button>
@@ -936,29 +1166,13 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
   return (
     <div className="space-y-3 overflow-x-hidden sm:space-y-4">
       <section className="rounded-[20px] border border-slate-700/70 bg-[linear-gradient(180deg,rgba(8,14,24,0.94),rgba(4,8,16,0.98))] p-3 sm:rounded-[24px] sm:p-4">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-200">
-          <span className="rounded-full border border-amber-300/28 bg-amber-500/10 px-3 py-1">
-            第 {selectedRecap?.order ?? 1} 題
-          </span>
-          <span className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1">
-            {participants.length} 人
-          </span>
-          <span className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1">
-            {playedQuestionCount} 題
-          </span>
-          <span className="rounded-full border border-slate-600/70 bg-slate-900/70 px-3 py-1">
-            局長 {formatDuration(startedAt, endedAt)}
-          </span>
-        </div>
         <HoverMarqueeText
           text={collectionTitle}
-          className="mt-3 w-full text-[1.45rem] font-semibold leading-tight text-slate-100 sm:text-[1.7rem]"
+          className="w-full text-[1.45rem] font-semibold leading-tight text-slate-100 sm:text-[1.7rem]"
           autoRunOnTouch
         />
         <p className="mt-2 text-xs text-slate-400">
-          {endedAtLabel
-            ? `結束於 ${new Date(endedAtLabel).toLocaleString("zh-TW", { hour12: false })}`
-            : "尚未取得結束時間"}
+          {playedOnLabel ?? "尚未取得遊玩日期"}
         </p>
       </section>
 
@@ -1038,7 +1252,6 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                 type="button"
                 onClick={() => {
                   setSelectedRecapKey(recap.key);
-                  setPreviewPlayerState("idle");
                 }}
                 className={`w-full cursor-pointer rounded-[18px] border px-3 py-3 text-left transition ${
                   active
@@ -1167,15 +1380,41 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
             <div className="mt-4 rounded-[18px] border border-slate-700/75 bg-slate-900/55 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">歌曲預覽</p>
-                  {selectedRecapProviderLabel ? <span className="mt-1 inline-flex rounded-full border border-slate-600/70 bg-slate-900/65 px-2.5 py-1 text-[10px] font-semibold text-slate-200">{selectedRecapProviderLabel}</span> : null}
+                  {selectedRecapLink?.href ? (
+                    <button
+                      type="button"
+                      onClick={() => openLink(selectedRecapLink, selectedRecap)}
+                      className={`block min-w-0 max-w-full bg-transparent p-0 text-left text-sm font-semibold text-slate-100 ${previewTitleButtonClassName}`}
+                      title={selectedPreviewTitle}
+                    >
+                      <HoverMarqueeText
+                        text={selectedPreviewTitle}
+                        className="min-w-0 max-w-full"
+                        autoRunOnTouch
+                      />
+                    </button>
+                  ) : (
+                    <HoverMarqueeText
+                      text={selectedPreviewTitle}
+                      className="min-w-0 max-w-full text-sm font-semibold text-slate-100"
+                      autoRunOnTouch
+                    />
+                  )}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {selectedPreviewMeta ? (
+                      <span className="truncate text-[11px] text-slate-400">
+                        {selectedPreviewMeta}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 {selectedRecapLink?.href && supportCtaLabel ? (
                   <button
                     type="button"
-                    className="inline-flex cursor-pointer items-center justify-center rounded-full border border-sky-300/35 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:border-sky-200/55 hover:bg-sky-500/20 hover:text-white"
+                    className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-rose-300/35 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-50 transition hover:border-rose-200/55 hover:bg-rose-500/16 hover:text-white"
                     onClick={() => openLink(selectedRecapLink, selectedRecap)}
                   >
+                    <OpenInNewRoundedIcon className="text-[0.9rem]" />
                     {supportCtaLabel}
                   </button>
                 ) : null}

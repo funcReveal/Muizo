@@ -1,13 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
-import {
-  Button,
-  CircularProgress,
-  Drawer,
-  IconButton,
-  Typography,
-} from "@mui/material";
+import { Button, Drawer, IconButton, Typography } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -17,6 +11,7 @@ import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
 import HistoryReplayModal from "./components/HistoryReplayModal";
 import LiveSettlementShowcase from "./components/LiveSettlementShowcase";
 import HistoryReplayCompactView from "./components/HistoryReplayCompactView";
+import { HistoryReplaySkeleton } from "./components/roomHistoryPage/HistoryReplayDialog";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import {
@@ -29,6 +24,7 @@ import type {
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
 } from "../model/types";
+import { translateRoomErrorDetail } from "../model/roomErrorText";
 import { useRoom } from "../model/useRoom";
 
 const SETTLEMENT_SESSION_CACHE_KEY_PREFIX = "mq:settlement-cache:v1:";
@@ -218,6 +214,116 @@ const hasCompleteSettlementRecaps = (
   const expectedCount = Math.max(0, snapshot.playedQuestionCount);
   if (expectedCount <= 0) return recapCount > 0;
   return recapCount >= expectedCount;
+};
+
+const hasReplayPlaybackData = (
+  snapshot:
+    | Pick<RoomSettlementSnapshot, "playlistItems" | "questionRecaps">
+    | null
+    | undefined,
+) => {
+  if (!snapshot) return false;
+  if (
+    Array.isArray(snapshot.playlistItems) &&
+    snapshot.playlistItems.some(
+      (item) =>
+        Boolean(item?.provider) ||
+        Boolean(item?.sourceId) ||
+        Boolean(item?.videoId) ||
+        Boolean(item?.url),
+    )
+  ) {
+    return true;
+  }
+  if (!Array.isArray(snapshot.questionRecaps)) return false;
+  return snapshot.questionRecaps.some((recap) => {
+    const extended = recap as SettlementQuestionRecap & {
+      provider?: string;
+      sourceId?: string | null;
+      videoId?: string;
+      url?: string;
+    };
+    return (
+      Boolean(extended.provider) ||
+      Boolean(extended.sourceId) ||
+      Boolean(extended.videoId) ||
+      Boolean(extended.url)
+    );
+  });
+};
+
+const hasRecapPlaybackData = (
+  recaps: SettlementQuestionRecap[] | null | undefined,
+) => {
+  if (!Array.isArray(recaps) || recaps.length === 0) return false;
+  return recaps.some((recap) => {
+    const extended = recap as SettlementQuestionRecap & {
+      provider?: string;
+      sourceId?: string | null;
+      videoId?: string;
+      url?: string;
+    };
+    return (
+      Boolean(extended.provider) ||
+      Boolean(extended.sourceId) ||
+      Boolean(extended.videoId) ||
+      Boolean(extended.url)
+    );
+  });
+};
+
+const choosePreferredSettlementRecaps = (
+  localRecaps: SettlementQuestionRecap[] | null | undefined,
+  snapshotRecaps: SettlementQuestionRecap[] | null | undefined,
+) => {
+  const safeLocalRecaps = Array.isArray(localRecaps) ? localRecaps : [];
+  const safeSnapshotRecaps = Array.isArray(snapshotRecaps) ? snapshotRecaps : [];
+  if (safeLocalRecaps.length === 0) return safeSnapshotRecaps;
+  if (safeSnapshotRecaps.length === 0) return safeLocalRecaps;
+
+  const localHasPlayback = hasRecapPlaybackData(safeLocalRecaps);
+  const snapshotHasPlayback = hasRecapPlaybackData(safeSnapshotRecaps);
+  if (localHasPlayback !== snapshotHasPlayback) {
+    return snapshotHasPlayback ? safeSnapshotRecaps : safeLocalRecaps;
+  }
+
+  return safeLocalRecaps.length >= safeSnapshotRecaps.length
+    ? safeLocalRecaps
+    : safeSnapshotRecaps;
+};
+
+const choosePreferredSettlementSnapshot = (
+  current: RoomSettlementSnapshot | null,
+  candidate: RoomSettlementSnapshot | null,
+) => {
+  if (!current) return candidate;
+  if (!candidate) return current;
+
+  const currentHasPlayback = hasReplayPlaybackData(current);
+  const candidateHasPlayback = hasReplayPlaybackData(candidate);
+  if (candidateHasPlayback !== currentHasPlayback) {
+    return candidateHasPlayback ? candidate : current;
+  }
+
+  const currentHasCompleteRecaps = hasCompleteSettlementRecaps(current);
+  const candidateHasCompleteRecaps = hasCompleteSettlementRecaps(candidate);
+  if (candidateHasCompleteRecaps !== currentHasCompleteRecaps) {
+    return candidateHasCompleteRecaps ? candidate : current;
+  }
+
+  const currentPlaylistCount = current.playlistItems?.length ?? 0;
+  const candidatePlaylistCount = candidate.playlistItems?.length ?? 0;
+  if (candidatePlaylistCount !== currentPlaylistCount) {
+    return candidatePlaylistCount > currentPlaylistCount ? candidate : current;
+  }
+
+  const currentRecapCount = getSnapshotRecapCount(current);
+  const candidateRecapCount = getSnapshotRecapCount(candidate);
+  if (candidateRecapCount !== currentRecapCount) {
+    return candidateRecapCount > currentRecapCount ? candidate : current;
+  }
+
+  return current;
 };
 
 const getSettlementSessionCacheKey = (roomId: string, clientId: string) =>
@@ -557,7 +663,7 @@ const RoomLobbyPage: React.FC = () => {
     });
   }, [kickedNotice?.bannedUntil]);
   const kickedReasonLabel = useMemo(() => {
-    const reason = kickedNotice?.reason?.trim();
+    const reason = translateRoomErrorDetail(kickedNotice?.reason).trim();
     if (!reason) return "你已被房主移出房間。";
     if (
       reason ===
@@ -1149,13 +1255,19 @@ const RoomLobbyPage: React.FC = () => {
 
     const roomSnapshotByRoundKey: Record<string, RoomSettlementSnapshot> = {};
     roomScopedSettlementHistory.forEach((snapshot) => {
-      roomSnapshotByRoundKey[snapshot.roundKey] = snapshot;
+      roomSnapshotByRoundKey[snapshot.roundKey] =
+        choosePreferredSettlementSnapshot(
+          roomSnapshotByRoundKey[snapshot.roundKey] ?? null,
+          snapshot,
+        ) ?? snapshot;
     });
     Object.entries(roomScopedSettlementReplayByRoundKey).forEach(
       ([roundKey, snapshot]) => {
-        if (!roomSnapshotByRoundKey[roundKey]) {
-          roomSnapshotByRoundKey[roundKey] = snapshot;
-        }
+        roomSnapshotByRoundKey[roundKey] =
+          choosePreferredSettlementSnapshot(
+            roomSnapshotByRoundKey[roundKey] ?? null,
+            snapshot,
+          ) ?? snapshot;
       },
     );
 
@@ -1231,12 +1343,25 @@ const RoomLobbyPage: React.FC = () => {
     if (!historyReplaySummary) return null;
     return roomSnapshotByRoundKey[historyReplaySummary.roundKey] ?? null;
   }, [historyReplaySummary, roomSnapshotByRoundKey]);
+  const historyReplayQuestionRecaps = useMemo(() => {
+    if (!historyReplaySnapshot) return [];
+    return choosePreferredSettlementRecaps(
+      settlementRecapsByRoundKey[historyReplaySnapshot.roundKey],
+      historyReplaySnapshot.questionRecaps ?? [],
+    );
+  }, [historyReplaySnapshot, settlementRecapsByRoundKey]);
 
   const openHistoryReplayModal = useCallback(
     async (summary: RoomSettlementHistorySummary) => {
       setHistoryReplaySummary(summary);
       const cached = roomSnapshotByRoundKey[summary.roundKey] ?? null;
-      if (cached) return;
+      if (
+        cached &&
+        hasCompleteSettlementRecaps(cached) &&
+        hasReplayPlaybackData(cached)
+      ) {
+        return;
+      }
       setHistoryReplayLoadingRoundKey(summary.roundKey);
       try {
         const snapshot = await fetchSettlementReplay(summary.matchId);
@@ -1334,6 +1459,16 @@ const RoomLobbyPage: React.FC = () => {
     }, delayMs);
     return () => window.clearTimeout(timer);
   }, [activeSettlementRoundKey, gameState, serverOffsetMs, setIsGameView]);
+
+  useEffect(() => {
+    if (!isKickedFromActiveRoom) return;
+    setActiveSettlementRoundKey(null);
+    setLoadingSettlementRoundKey(null);
+    setHistoryReplaySummary(null);
+    setHistoryReplayLoadingRoundKey(null);
+    setHistoryDrawerOpen(false);
+    setIsGameView(false);
+  }, [isKickedFromActiveRoom, setIsGameView]);
 
   const removeSettlementCacheForRoom = useCallback(
     (targetRoomId: string | null) => {
@@ -1700,16 +1835,7 @@ const RoomLobbyPage: React.FC = () => {
       {historyReplaySummary &&
         historyReplayLoadingRoundKey === historyReplaySummary.roundKey &&
         !historyReplaySnapshot ? (
-        <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/55">
-          <div className="inline-flex items-center gap-3 text-sm text-[var(--mc-text-muted)]">
-            <CircularProgress
-              size={18}
-              thickness={4.8}
-              sx={{ color: "#38bdf8" }}
-            />
-            正在載入回放內容...
-          </div>
-        </div>
+        <HistoryReplaySkeleton />
       ) : historyReplaySnapshot ? (
         <HistoryReplayCompactView
           key={historyReplaySummary?.roundKey ?? historyReplaySummary?.matchId}
@@ -1722,11 +1848,7 @@ const RoomLobbyPage: React.FC = () => {
           startedAt={historyReplaySnapshot.startedAt}
           endedAt={historyReplaySnapshot.endedAt}
           meClientId={clientId}
-          questionRecaps={
-            settlementRecapsByRoundKey[historyReplaySnapshot.roundKey] ??
-            historyReplaySnapshot.questionRecaps ??
-            []
-          }
+          questionRecaps={historyReplayQuestionRecaps}
         />
       ) : (
         <div className="rounded-xl border border-amber-300/20 bg-amber-400/6 px-4 py-5 text-sm text-amber-100/90">
@@ -1816,7 +1938,7 @@ const RoomLobbyPage: React.FC = () => {
 
             <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4 sm:p-5">
               <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                Next Steps
+                接下來可以這樣做
               </div>
               <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
                 <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
@@ -2023,7 +2145,7 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (activeSettlementSnapshot) {
+  if (currentRoom && activeSettlementSnapshot) {
     return (
       <>
         <div className="flex w-full min-w-0 justify-center">
@@ -2161,3 +2283,4 @@ const RoomLobbyPage: React.FC = () => {
 };
 
 export default RoomLobbyPage;
+

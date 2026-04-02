@@ -366,7 +366,7 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
                   closeActionMenu();
                 }}
               >
-                踢出並封鎖
+                踢出(5分鐘)
               </Button>
             </ListItem>
             <ListItem>
@@ -379,7 +379,7 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
                   closeActionMenu();
                 }}
               >
-                只踢出玩家
+                踢出(永久封鎖)
               </Button>
             </ListItem>
           </MUIList>

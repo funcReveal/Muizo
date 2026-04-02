@@ -195,7 +195,7 @@ export interface RoomContextValue {
   handleLeaveRoom: (onLeft?: () => void) => void;
   handleStartGame: () => void;
   handleSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
-  handleRequestPlaybackExtensionVote: () => Promise<boolean>;
+  handleRequestPlaybackExtensionVote: (remainingMs?: number) => Promise<boolean>;
   handleCastPlaybackExtensionVote: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;

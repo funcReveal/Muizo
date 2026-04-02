@@ -999,6 +999,9 @@ const useGameRoomPlayerSync = ({
             lastSyncMsRef.current = getServerNowMs();
             setLoadedTrackKey(trackLoadKey);
             debugSync("player-state-playing");
+            if (initialAudioSyncPendingRef.current) {
+              scheduleInitialAudioHoldRelease(220);
+            }
             requestPlayerTime("state-playing");
             schedulePostStartDriftChecks();
             startSilentAudio();
@@ -1132,6 +1135,7 @@ const useGameRoomPlayerSync = ({
     phase,
     postCommand,
     requestPlayerTime,
+    scheduleInitialAudioHoldRelease,
     schedulePlaybackStart,
     schedulePostStartDriftChecks,
     scheduleResumeResync,
@@ -1274,12 +1278,27 @@ const useGameRoomPlayerSync = ({
         resumeNeedsSyncRef.current = true;
         return;
       }
-      resumeNeedsSyncRef.current = false;
-      postCommand("playVideo");
-      applyVolume(gameVolume);
       startSilentAudio();
+      resumeNeedsSyncRef.current = false;
+      const didSeek = syncToServerPosition(
+        "visibility",
+        true,
+        RESUME_DRIFT_TOLERANCE_SEC,
+        true,
+      );
       requestPlayerTime("visibility");
-      resumeNeedsSyncRef.current = true;
+      if (didSeek) {
+        scheduleResumeResync();
+        return;
+      }
+      if (initialAudioSyncPendingRef.current) {
+        scheduleInitialAudioHoldRelease(180);
+      } else {
+        postCommand("playVideo");
+        postCommand("unMute");
+        applyVolume(gameVolume);
+      }
+      scheduleResumeResync();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleVisibility);
@@ -1293,8 +1312,11 @@ const useGameRoomPlayerSync = ({
     getServerNowMs,
     postCommand,
     requestPlayerTime,
+    scheduleInitialAudioHoldRelease,
+    scheduleResumeResync,
     startSilentAudio,
     startedAt,
+    syncToServerPosition,
   ]);
 
   const handlePlaybackIframeLoad = useCallback(() => {

@@ -447,6 +447,9 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
                 onChange={handleVolumeChange}
                 className="w-full"
               />
+              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-300">
+                {Math.round(gameVolume)}%
+              </span>
             </div>
           ) : null}
         </div>

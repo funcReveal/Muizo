@@ -11,6 +11,7 @@ import {
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_REVEAL_DURATION_SEC,
 } from "./roomConstants";
+import { translateRoomErrorDetail } from "./roomErrorText";
 import { formatAckError, applyGameSettingsPatch } from "./roomProviderUtils";
 import { clampPlayDurationSec, clampRevealDurationSec } from "./roomUtils";
 import type {
@@ -204,7 +205,12 @@ export const useRoomProviderRoomActions = ({
               has_pin: hasPin,
               reason: ack.error ?? "unknown_error",
             });
-            setStatusText(formatAckError("加入房間失敗", ack.error));
+            setStatusText(
+              formatAckError(
+                "加入房間失敗",
+                translateRoomErrorDetail(ack.error),
+              ),
+            );
           }
         },
       );
@@ -448,16 +454,25 @@ export const useRoomProviderRoomActions = ({
   );
 
   const handleRequestPlaybackExtensionVote =
-    useCallback(async (): Promise<boolean> => {
+    useCallback(async (remainingMs?: number): Promise<boolean> => {
       const socket = getSocket();
       if (!socket || !currentRoom) {
         setStatusText("目前不在房間內");
         return false;
       }
+      const normalizedRemainingMs =
+        typeof remainingMs === "number" && Number.isFinite(remainingMs)
+          ? Math.max(0, Math.floor(remainingMs))
+          : undefined;
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "requestPlaybackExtensionVote",
-          { roomId: currentRoom.id },
+          {
+            roomId: currentRoom.id,
+            ...(typeof normalizedRemainingMs === "number"
+              ? { remainingMs: normalizedRemainingMs }
+              : {}),
+          },
           (ack: Ack<{ gameState: GameState; serverNow: number }>) => {
             if (!ack) {
               setStatusText("發起延長投票失敗，請稍後再試");
