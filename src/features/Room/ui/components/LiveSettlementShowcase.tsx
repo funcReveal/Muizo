@@ -740,6 +740,11 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [postYouTubeCommand],
   );
 
+  const clearQueuedPreviewCommands = useCallback(() => {
+    previewCommandTimersRef.current.forEach((id) => window.clearTimeout(id));
+    previewCommandTimersRef.current = [];
+  }, []);
+
   const handleQuickPlayStart = useCallback(() => {
     if (!currentRecommendationPreviewUrl || !currentRecommendation) return;
     const keepAutoMode = autoPreviewEnabled && previewPlaybackMode === "auto";
@@ -814,23 +819,43 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
   const handleToggleAutoPreview = useCallback(() => {
     const next = !autoPreviewEnabled;
-    setAutoPreviewEnabled(next);
     if (!next) {
-      resetRecommendPreviewState({ preserveCurrentPreview: true });
+      clearQueuedPreviewCommands();
+      if (currentRecommendationPreviewUrl && isCurrentRecommendationPreviewOpen) {
+        setPreviewPlaybackMode("manual");
+        setPreviewPlayerState("paused");
+        setAutoAdvanceAtMs(null);
+        setPausedCountdownRemainingMs(null);
+        setPreviewCountdownSec(RECOMMEND_PREVIEW_SECONDS);
+        dispatchPreviewCommand("pauseVideo");
+      } else {
+        resetRecommendPreviewState({ preserveCurrentPreview: true });
+      }
+      setAutoPreviewEnabled(false);
       return;
     }
 
-    if (recommendationCards.length > 0) {
+    setAutoPreviewEnabled(true);
+    clearQueuedPreviewCommands();
+    if (recommendationCards.length > 0 && currentRecommendationPreviewUrl) {
       jumpToRecommendation(activeRecommendCategory, safeRecommendIndex, {
         playbackMode: "auto",
         forcePreview: true,
       });
+      window.setTimeout(
+        () => dispatchPreviewCommand("playVideo"),
+        isCurrentRecommendationPreviewOpen ? 120 : 260,
+      );
     } else {
       startAutoGuideFromPreferredCategory(activeRecommendCategory);
     }
   }, [
     activeRecommendCategory,
     autoPreviewEnabled,
+    clearQueuedPreviewCommands,
+    currentRecommendationPreviewUrl,
+    dispatchPreviewCommand,
+    isCurrentRecommendationPreviewOpen,
     jumpToRecommendation,
     recommendationCards.length,
     resetRecommendPreviewState,

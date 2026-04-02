@@ -211,13 +211,15 @@ const GameRoomRevealCountdownText = React.memo(function GameRoomRevealCountdownT
   React.useEffect(() => {
     let timerId: number | null = null;
     const tick = () => {
-      const nextCountdownSec = Math.max(
-        0,
-        Math.ceil(Math.max(0, revealEndsAt - getLocalNowMs()) / 1000),
-      );
-      setCountdownSec((current) =>
-        current === nextCountdownSec ? current : nextCountdownSec,
-      );
+      if (document.visibilityState === "visible") {
+        const nextCountdownSec = Math.max(
+          0,
+          Math.ceil(Math.max(0, revealEndsAt - getLocalNowMs()) / 1000),
+        );
+        setCountdownSec((current) =>
+          current === nextCountdownSec ? current : nextCountdownSec,
+        );
+      }
       timerId = window.setTimeout(tick, 250);
     };
     tick();

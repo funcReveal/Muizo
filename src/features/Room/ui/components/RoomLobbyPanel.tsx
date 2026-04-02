@@ -1069,10 +1069,19 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       setLastSuggestionSeenAt(latestSuggestionAt);
     }
   };
+  const newSuggestionCount = useMemo(
+    () =>
+      playlistSuggestions.reduce(
+        (count, suggestion) =>
+          suggestion.suggestedAt > lastSuggestionSeenAt ? count + 1 : count,
+        0,
+      ),
+    [lastSuggestionSeenAt, playlistSuggestions],
+  );
   const hasNewSuggestions =
     isHost &&
     !(isHostPanelExpanded && hostSourceType === "suggestions") &&
-    latestSuggestionAt > lastSuggestionSeenAt;
+    newSuggestionCount > 0;
 
   useEffect(() => {
     if (!isHost) return;
@@ -1086,6 +1095,20 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     isHostPanelCollapsible,
     lastSuggestionSeenAt,
     latestSuggestionAt,
+  ]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    if (!isMobileTabletLobbyLayout) return;
+    if (mobileLobbyTab !== "host") return;
+    if (latestSuggestionAt <= lastSuggestionSeenAt) return;
+    setLastSuggestionSeenAt(latestSuggestionAt);
+  }, [
+    isHost,
+    isMobileTabletLobbyLayout,
+    lastSuggestionSeenAt,
+    latestSuggestionAt,
+    mobileLobbyTab,
   ]);
 
   const closeActionMenu = () => {
@@ -1781,6 +1804,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     <RoomLobbyHostControls
       isHostPanelExpanded={isHostPanelExpanded}
       hasNewSuggestions={hasNewSuggestions}
+      newSuggestionCount={newSuggestionCount}
       playlistSuggestions={playlistSuggestions}
       gameStatus={gameState?.status}
       hostSourceType={hostSourceType}
@@ -2139,10 +2163,20 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   aria-label="操作"
                   className={`room-lobby-mobile-tab ${mobileLobbyTab === "host" ? "is-active" : ""
                     }`}
-                  onClick={() => setMobileLobbyTab("host")}
+                  onClick={() => {
+                    setMobileLobbyTab("host");
+                    if (isHost) {
+                      markSuggestionsSeen();
+                    }
+                  }}
                 >
                   <span className="room-lobby-mobile-tab__icon" aria-hidden="true">
                     <PlaylistPlayRoundedIcon fontSize="inherit" />
+                    {hasNewSuggestions && (
+                      <span className="room-lobby-mobile-tab__badge">
+                        {newSuggestionCount > 99 ? "99+" : newSuggestionCount}
+                      </span>
+                    )}
                   </span>
                   <span className="room-lobby-mobile-tab__label">操作</span>
                 </button>

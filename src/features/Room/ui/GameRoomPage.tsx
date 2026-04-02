@@ -323,6 +323,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastComboStateSfxKeyRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
   const lastAutoOverlayTransitionAtRef = useRef(0);
+  const mobileScoreboardAutoOpenedRef = useRef(false);
   const lastPlaybackVotePromptKeyRef = useRef<string | null>(null);
   const lastPlaybackVoteActiveKeyRef = useRef<string | null>(null);
   const lastPlaybackVoteResolvedKeyRef = useRef<string | null>(null);
@@ -386,12 +387,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     };
   }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
+    mobileScoreboardAutoOpenedRef.current = false;
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
       current === "scoreboard" ? null : "scoreboard",
     );
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
+    mobileScoreboardAutoOpenedRef.current = false;
     blurActiveInteractiveElement();
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
@@ -1409,9 +1412,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     let transitionResetTimer: number | null = null;
     if (previousPhase !== currentPhase) {
       const shouldOpenRevealOverlay =
-        currentPhase === "reveal" && mobileRevealAutoOverlayEnabled;
+        currentPhase === "reveal" &&
+        mobileRevealAutoOverlayEnabled &&
+        mobileBottomPanel !== "scoreboard";
       const shouldCloseRevealOverlay =
-        currentPhase === "guess" && previousPhase === "reveal";
+        currentPhase === "guess" &&
+        previousPhase === "reveal" &&
+        mobileScoreboardAutoOpenedRef.current;
       if (
         (shouldOpenRevealOverlay || shouldCloseRevealOverlay) &&
         !isMobileDrawerGestureActive
@@ -1426,10 +1433,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             shouldOpenRevealOverlay ? "opening" : "closing",
           );
           if (shouldOpenRevealOverlay) {
+            mobileScoreboardAutoOpenedRef.current = true;
             setMobileScoreboardSwapArmed(false);
             setMobileBottomPanel("scoreboard");
           }
           if (shouldCloseRevealOverlay) {
+            mobileScoreboardAutoOpenedRef.current = false;
             setMobileBottomPanel(null);
             setMobileScoreboardSwapArmed(false);
           }
@@ -1458,6 +1467,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase,
     isMobileDrawerGestureActive,
     isMobileGameViewport,
+    mobileBottomPanel,
     mobileRevealAutoOverlayEnabled,
   ]);
 
@@ -1888,7 +1898,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 {isHostInGame && (
                   <button
                     type="button"
-                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--compact game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--host ${hostManagementOpen ? "game-room-mobile-toggle-chip--active" : ""
+                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--wide game-room-mobile-toggle-chip--host ${hostManagementOpen ? "game-room-mobile-toggle-chip--active" : ""
                       }`}
                     onClick={handleOpenHostManagement}
                   >
@@ -1901,6 +1911,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     </span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--half" : ""} game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
+                    ? "game-room-mobile-toggle-chip--active"
+                    : ""
+                    }`}
+                  onClick={() =>
+                    setMobileRevealAutoOverlayEnabled((current) => !current)
+                  }
+                  aria-pressed={mobileRevealAutoOverlayEnabled}
+                >
+                  <span className="game-room-mobile-action-icon" aria-hidden>
+                    <AutoAwesomeRoundedIcon fontSize="inherit" />
+                  </span>
+                  <span>{"自動彈出分數榜"}</span>
+                  <span className="game-room-mobile-action-meta">
+                    {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
+                  </span>
+                </button>
                 <button
                   type="button"
                   className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--half" : ""} game-room-mobile-toggle-chip--anchor ${mobileGuessAnchorEnabled
@@ -1918,25 +1947,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <span>{"猜歌時自動對齊"}</span>
                   <span className="game-room-mobile-action-meta">
                     {mobileGuessAnchorEnabled ? "ON" : "OFF"}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--wide" : "game-room-mobile-toggle-chip--half"} game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
-                    ? "game-room-mobile-toggle-chip--active"
-                    : ""
-                    }`}
-                  onClick={() =>
-                    setMobileRevealAutoOverlayEnabled((current) => !current)
-                  }
-                  aria-pressed={mobileRevealAutoOverlayEnabled}
-                >
-                  <span className="game-room-mobile-action-icon" aria-hidden>
-                    <AutoAwesomeRoundedIcon fontSize="inherit" />
-                  </span>
-                  <span>{"\u81ea\u52d5\u5f48\u51fa\u5206\u6578\u699c"}</span>
-                  <span className="game-room-mobile-action-meta">
-                    {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
                   </span>
                 </button>
               </div>

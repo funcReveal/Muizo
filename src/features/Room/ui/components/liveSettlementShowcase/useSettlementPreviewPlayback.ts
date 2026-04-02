@@ -64,12 +64,18 @@ const useSettlementPreviewPlayback = ({
   );
   const previewCurrentTimeSecRef = useRef<number | null>(null);
   const previewLastProgressAtMsRef = useRef<number | null>(null);
+  const playCommandGraceUntilMsRef = useRef<number | null>(null);
   const canAutoGuideLoopRef = useRef(canAutoGuideLoop);
   const previewVolumeUpdateSourceRef = useRef<"app" | "iframe" | null>(null);
 
   const postYouTubeCommand = useCallback((func: string, args: unknown[] = []) => {
     const contentWindow = previewIframeRef.current?.contentWindow;
     if (!contentWindow) return;
+    if (func === "playVideo") {
+      playCommandGraceUntilMsRef.current = Date.now() + 2200;
+    } else if (func === "pauseVideo") {
+      playCommandGraceUntilMsRef.current = null;
+    }
     contentWindow.postMessage(
       JSON.stringify({ event: "command", func, args }),
       "*",
@@ -263,6 +269,9 @@ const useSettlementPreviewPlayback = ({
       const snapshot = readYouTubePlayerSnapshot(event.data);
       const state = snapshot.state;
       const currentTime = snapshot.currentTime;
+      const isPlayCommandGraceActive =
+        playCommandGraceUntilMsRef.current !== null &&
+        Date.now() < playCommandGraceUntilMsRef.current;
       if (snapshot.volume !== null) {
         const nextVolume = snapshot.muted ? 0 : snapshot.volume;
         const normalizedVolume = Math.max(0, Math.min(100, Math.round(nextVolume)));
@@ -289,6 +298,7 @@ const useSettlementPreviewPlayback = ({
           return;
         }
         if (progressed) {
+          playCommandGraceUntilMsRef.current = null;
           previewLastProgressAtMsRef.current = Date.now();
           if (previewPlayerStateRef.current !== "playing") {
             previewPlayerStateRef.current = "playing";
@@ -311,6 +321,7 @@ const useSettlementPreviewPlayback = ({
       }
       if (state === null) return;
       if (state === 1) {
+        playCommandGraceUntilMsRef.current = null;
         const shouldKeepFrozen =
           previewPlayerStateRef.current === "paused" &&
           pausedCountdownRemainingMsRef.current !== null;
@@ -340,6 +351,15 @@ const useSettlementPreviewPlayback = ({
         return;
       }
       if (state === 2) {
+        const shouldIgnoreTransientPause =
+          isPlayCommandGraceActive &&
+          !(
+            previewPlayerStateRef.current === "paused" &&
+            pausedCountdownRemainingMsRef.current !== null
+          );
+        if (shouldIgnoreTransientPause) {
+          return;
+        }
         const wasPaused = previewPlayerStateRef.current === "paused";
         previewPlayerStateRef.current = "paused";
         if (!wasPaused) {
@@ -361,6 +381,9 @@ const useSettlementPreviewPlayback = ({
         return;
       }
       if (state === 0 || state === -1) {
+        if (isPlayCommandGraceActive) {
+          return;
+        }
         if (previewPlayerStateRef.current !== "idle") {
           previewPlayerStateRef.current = "idle";
           setPreviewPlayerState("idle");
@@ -407,6 +430,7 @@ const useSettlementPreviewPlayback = ({
   useEffect(() => {
     previewCurrentTimeSecRef.current = null;
     previewLastProgressAtMsRef.current = null;
+    playCommandGraceUntilMsRef.current = null;
   }, [previewRecapKey]);
 
   useEffect(() => {

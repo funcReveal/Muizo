@@ -6,7 +6,6 @@ import {
   CircularProgress,
   Drawer,
   IconButton,
-  Stack,
   Typography,
 } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -1506,6 +1505,8 @@ const RoomLobbyPage: React.FC = () => {
         sx: {
           width: isTabletOrMobileLobby ? "100%" : 440,
           maxWidth: "100vw",
+          height: "100dvh",
+          overflow: "hidden",
         },
       }}
     >
@@ -1620,7 +1621,7 @@ const RoomLobbyPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+                  <div className="room-battle-history-actions">
                     <Button
                       size="small"
                       variant="outlined"
@@ -1651,7 +1652,7 @@ const RoomLobbyPage: React.FC = () => {
                         {isLoading ? "載入中..." : "結算頁面"}
                       </Button>
                     ) : null}
-                  </Stack>
+                  </div>
                 </div>
               );
             })
