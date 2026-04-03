@@ -147,7 +147,8 @@ const renderParticipantMiniAvatar = (
 
 const ExtraParticipantsTooltipContent: React.FC<{
   participants: RoomParticipant[];
-}> = ({ participants }) => (
+  avatarEffectLevel: "off" | "simple" | "full";
+}> = ({ participants, avatarEffectLevel }) => (
   <div className="min-w-[12rem] space-y-2">
     <div className="text-[11px] font-semibold tracking-[0.14em] text-slate-300">
       其餘玩家
@@ -1098,6 +1099,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                                 title={
                                   <ExtraParticipantsTooltipContent
                                     participants={hiddenPickedParticipants}
+                                    avatarEffectLevel={avatarEffectLevel}
                                   />
                                 }
                                 placement="top"
