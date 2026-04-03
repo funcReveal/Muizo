@@ -7,7 +7,6 @@
   useState,
 } from "react";
 import {
-  Avatar,
   Button,
   Chip,
   Dialog,
@@ -59,6 +58,10 @@ import {
 } from "../model/sfx/gameSfxEngine";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";
 import { useSfxSettings } from "../../Setting/ui/components/useSfxSettings";
+import {
+  DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
+  useSettingsModel,
+} from "../../Setting/model/settingsContext";
 import { useGameSfx } from "./hooks/useGameSfx";
 import LiveSettlementShowcase from "./components/LiveSettlementShowcase";
 import GameRoomAnswerPanel from "./components/gameRoomPage/GameRoomAnswerPanel";
@@ -88,6 +91,7 @@ import useGameRoomStats from "./components/gameRoomPage/useGameRoomStats";
 import useSettlementSnapshot from "./components/gameRoomPage/useSettlementSnapshot";
 import useTopTwoSwapState from "./components/gameRoomPage/useTopTwoSwapState";
 import useGameRoomDanmu from "./components/gameRoomPage/useGameRoomDanmu";
+import PlayerAvatar from "../../../shared/ui/playerAvatar/PlayerAvatar";
 import useGameRoomChoiceHotkeys from "./components/gameRoomPage/useGameRoomChoiceHotkeys";
 import useGameRoomAnswerPanelAutoScroll from "./components/gameRoomPage/useGameRoomAnswerPanelAutoScroll";
 import useMobileDrawerDragDismiss from "./components/gameRoomPage/useMobileDrawerDragDismiss";
@@ -276,6 +280,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   });
   const { gameVolume, setGameVolume, sfxEnabled, sfxVolume, sfxPreset } =
     useSfxSettings();
+  const { avatarEffectLevel = DEFAULT_AVATAR_EFFECT_LEVEL_VALUE } =
+    useSettingsModel();
   const requiresAudioGesture = useMemo(() => {
     if (typeof window === "undefined") return false;
     return isMobileDevice();
@@ -801,7 +807,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const {
     selectedChoiceState,
     selectedChoice,
-    choiceCommitFxState,
     myHasChangedAnswer,
     submitChoiceWithFeedback,
     answeredOrderForCurrentParticipants,
@@ -1207,7 +1212,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     myComboNow,
     myComboTier,
     myComboMilestone,
-    hasActiveComboStreak,
     comboBreakTier,
     isComboBreakThisQuestion,
     myFeedback,
@@ -1629,18 +1633,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   alignItems="center"
                   className="game-room-host-manage-identity min-w-0 flex-1"
                 >
-                  <Avatar
-                    sx={{
-                      width: 30,
-                      height: 30,
-                      fontSize: 12,
-                      bgcolor: "rgba(30,41,59,0.75)",
-                      color: "rgba(226,232,240,0.95)",
-                      border: "1px solid rgba(148,163,184,0.25)",
-                    }}
-                  >
-                    {index + 1}
-                  </Avatar>
+                  <PlayerAvatar
+                    username={normalizeRoomDisplayText(
+                      participant.username,
+                      `玩家 ${index + 1}`,
+                    )}
+                    clientId={participant.clientId}
+                    avatarUrl={participant.avatar_url ?? participant.avatarUrl ?? undefined}
+                    size={30}
+                    rank={index < 3 ? index + 1 : null}
+                    combo={participant.combo}
+                    effectLevel={avatarEffectLevel}
+                  />
                   <div className="game-room-host-manage-copy min-w-0">
                     <Typography
                       variant="body2"
@@ -1709,7 +1713,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         )}
       </Stack>
     );
-  }, [hostManageParticipants, hostManagementOpen, requestHostManagementAction]);
+  }, [
+    avatarEffectLevel,
+    hostManageParticipants,
+    hostManagementOpen,
+    requestHostManagementAction,
+  ]);
 
   if (isEnded) {
     return (
@@ -1843,14 +1852,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             correctChoiceIndex={correctChoiceIndex}
             isEnded={isEnded}
             playlist={playlist}
-            choiceCommitFxState={choiceCommitFxState}
             trackSessionKey={trackSessionKey}
-            hasActiveComboStreak={hasActiveComboStreak}
             myComboTier={myComboTier}
             myComboNow={myComboNow}
             isComboBreakThisQuestion={isComboBreakThisQuestion}
-            myIsCorrect={myIsCorrect}
-            myComboMilestone={myComboMilestone}
             comboBreakTier={comboBreakTier}
             waitingToStart={waitingToStart}
             shouldShowGestureOverlay={shouldShowGestureOverlay}

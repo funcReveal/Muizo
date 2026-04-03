@@ -5,7 +5,6 @@ import RevealChoiceAvatarRow from "./RevealChoiceAvatarRow";
 import type { GameState, PlaylistItem } from "../../../model/types";
 import { normalizeRoomDisplayText } from "../../../model/roomProviderUtils";
 import type {
-  ChoiceCommitFxState,
   MyFeedbackModel,
   RevealChoicePickMap,
 } from "./gameRoomPageTypes";
@@ -28,14 +27,10 @@ interface GameRoomAnswerPanelProps {
   correctChoiceIndex: number;
   isEnded: boolean;
   playlist: PlaylistItem[];
-  choiceCommitFxState: ChoiceCommitFxState | null;
   trackSessionKey: string;
-  hasActiveComboStreak: boolean;
   myComboTier: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   myComboNow: number;
   isComboBreakThisQuestion: boolean;
-  myIsCorrect: boolean;
-  myComboMilestone: boolean;
   comboBreakTier: 0 | 1 | 2 | 3 | 4;
   waitingToStart: boolean;
   shouldShowGestureOverlay: boolean;
@@ -249,14 +244,10 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   correctChoiceIndex,
   isEnded,
   playlist,
-  choiceCommitFxState,
   trackSessionKey,
-  hasActiveComboStreak,
   myComboTier,
   myComboNow,
   isComboBreakThisQuestion,
-  myIsCorrect,
-  myComboMilestone,
   comboBreakTier,
   waitingToStart,
   shouldShowGestureOverlay,
@@ -293,15 +284,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     return remainingMs > 0 && remainingMs <= 3000;
   });
   const [urgentChipPingActive, setUrgentChipPingActive] = React.useState(false);
-  const [panelComboFxActive, setPanelComboFxActive] = React.useState(false);
-  const [selectedChoiceFxState, setSelectedChoiceFxState] = React.useState<{
-    trackSessionKey: string;
-    choiceIndex: number;
-  } | null>(null);
-  const [comboChoiceFxState, setComboChoiceFxState] = React.useState<{
-    trackSessionKey: string;
-    choiceIndex: number;
-  } | null>(null);
   const progressBarFillRef = React.useRef<HTMLDivElement>(null);
 
   // CSS-driven progress bar: set a single linear CSS transition per phase,
@@ -391,57 +373,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [isGuessUrgency, trackSessionKey]);
 
-  React.useEffect(() => {
-    if (selectedChoice === null || isReveal || waitingToStart) {
-      setSelectedChoiceFxState(null);
-      return;
-    }
-    setSelectedChoiceFxState({
-      trackSessionKey,
-      choiceIndex: selectedChoice,
-    });
-    const timer = window.setTimeout(() => {
-      setSelectedChoiceFxState((current) =>
-        current?.trackSessionKey === trackSessionKey &&
-          current.choiceIndex === selectedChoice
-          ? null
-          : current,
-      );
-    }, 1400);
-    return () => window.clearTimeout(timer);
-  }, [isReveal, selectedChoice, trackSessionKey, waitingToStart]);
-
-  React.useEffect(() => {
-    const shouldTrigger =
-      !isReveal && hasActiveComboStreak && myComboTier > 0 && selectedChoice !== null;
-    if (!shouldTrigger) {
-      setPanelComboFxActive(false);
-      setComboChoiceFxState(null);
-      return;
-    }
-    setPanelComboFxActive(true);
-    setComboChoiceFxState({
-      trackSessionKey,
-      choiceIndex: selectedChoice,
-    });
-    const timer = window.setTimeout(() => {
-      setPanelComboFxActive(false);
-      setComboChoiceFxState((current) =>
-        current?.trackSessionKey === trackSessionKey &&
-          current.choiceIndex === selectedChoice
-          ? null
-          : current,
-      );
-    }, 1600);
-    return () => window.clearTimeout(timer);
-  }, [
-    hasActiveComboStreak,
-    isReveal,
-    myComboTier,
-    selectedChoice,
-    trackSessionKey,
-  ]);
-
   const handleChoiceClick = React.useCallback(
     (choiceIndex: number) => {
       if (isReveal || isEnded || !canAnswerNow) return;
@@ -450,19 +381,10 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     [canAnswerNow, isEnded, isReveal, onSubmitChoice],
   );
 
-  const showGuessComboAtmosphere =
-    !isReveal && hasActiveComboStreak && myComboTier > 0;
-  const guessComboPanelClass = showGuessComboAtmosphere
-    ? `game-room-panel--combo-live game-room-panel--combo-tier-${myComboTier}`
-    : "";
-  const guessComboLayoutClass = showGuessComboAtmosphere
-    ? `game-room-answer-layout--combo-live game-room-answer-layout--combo-tier-${myComboTier}`
-    : "";
-
   return (
     <div
       ref={answerPanelRef}
-      className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${guessComboPanelClass} ${panelComboFxActive ? "game-room-panel--combo-live-active" : ""} ${isMobileView ? "game-room-answer-panel--mobile" : ""
+      className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${isMobileView ? "game-room-answer-panel--mobile" : ""
         } flex min-h-0 flex-col p-3 text-slate-50 lg:flex-1`}
     >
       {isInitialCountdown ? (
@@ -479,7 +401,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
             } ${!isReveal && revealTone === "neutral"
               ? "game-room-answer-layout--neutral"
               : ""
-            } ${guessComboLayoutClass} ${isMobileView ? "game-room-answer-layout--mobile" : ""
+            } ${isMobileView ? "game-room-answer-layout--mobile" : ""
             }`}
         >
           <div className="game-room-answer-body">
@@ -567,42 +489,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                   const showCorrectTag = isReveal && isCorrect;
                   const showMyChoiceTag = isReveal && isMyChoice;
                   const showMyCorrectTag = isReveal && isMyChoice && isCorrect;
-                  const choiceCommitFxKind =
-                    choiceCommitFxState &&
-                      choiceCommitFxState.trackSessionKey === trackSessionKey &&
-                      choiceCommitFxState.choiceIndex === choice.index
-                      ? choiceCommitFxState.kind
-                      : null;
                   const showGuessLockTag = !isReveal && isMyChoice;
-                  const showComboLiveStyle =
-                    !isReveal && isMyChoice && hasActiveComboStreak;
-                  const showComboOverdriveStyle =
-                    showComboLiveStyle && myComboTier >= 10 && myComboNow >= 10;
-                  const isSelectedFxActive =
-                    selectedChoiceFxState?.trackSessionKey === trackSessionKey &&
-                    selectedChoiceFxState.choiceIndex === choice.index;
-                  const isComboFxActive =
-                    comboChoiceFxState?.trackSessionKey === trackSessionKey &&
-                    comboChoiceFxState.choiceIndex === choice.index;
-                  const showComboBreakStyle =
-                    isReveal && isMyChoice && isComboBreakThisQuestion;
-                  const showComboMilestoneStyle =
-                    isReveal &&
-                    isMyChoice &&
-                    myIsCorrect &&
-                    myComboTier > 0 &&
-                    myComboMilestone;
-                  const comboLiveTierClass =
-                    showComboLiveStyle && myComboTier > 0
-                      ? `game-room-choice-button--combo-live-tier-${myComboTier}`
-                      : "";
-                  const comboBreakTierClass =
-                    showComboBreakStyle && comboBreakTier > 0
-                      ? `game-room-choice-button--combo-break-tier-${comboBreakTier}`
-                      : "";
-                  const comboMilestoneTierClass = showComboMilestoneStyle
-                    ? `game-room-choice-button--combo-milestone-tier-${myComboTier}`
-                    : "";
 
                   return (
                     <div
@@ -643,90 +530,16 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                               ? "info"
                               : "info"
                         }
-                        className={`game-room-choice-button justify-start ${choiceCommitFxKind === "lock"
-                          ? "game-room-choice-button--commit-lock"
-                          : choiceCommitFxKind === "reselect"
-                            ? "game-room-choice-button--commit-reselect"
-                            : ""
-                          } ${choiceCommitFxKind
-                            ? "game-room-choice-button--commit-burst"
-                            : ""
-                          } ${choiceCommitFxKind
-                            ? "game-room-choice-button--press-hit"
-                            : ""
-                          } ${!isReveal && isSelected
+                        className={`game-room-choice-button justify-start ${!isReveal && isSelected
                             ? "game-room-choice-button--selected-live"
                             : ""
-                          } ${isSelectedFxActive
-                            ? "game-room-choice-button--selected-live-active"
-                            : ""
-                          } ${showComboLiveStyle
-                            ? "game-room-choice-button--combo-live"
-                            : ""
-                          } ${isComboFxActive
-                            ? "game-room-choice-button--combo-live-active"
-                            : ""
-                          } ${comboLiveTierClass} ${showComboOverdriveStyle
-                            ? "game-room-choice-button--combo-overdrive"
-                            : ""
-                          } ${showComboOverdriveStyle && isComboFxActive
-                            ? "game-room-choice-button--combo-overdrive-active"
-                            : ""
-                          } ${showComboBreakStyle
-                            ? "game-room-choice-button--combo-break"
-                            : ""
-                          } ${comboBreakTierClass} ${showComboMilestoneStyle
-                            ? "game-room-choice-button--combo-milestone"
-                            : ""
-                          } ${comboMilestoneTierClass} ${isLocked || waitingToStart || shouldShowGestureOverlay
+                          } ${isLocked || waitingToStart || shouldShowGestureOverlay
                             ? "pointer-events-none"
                             : ""
                           } ${isMobileView ? "game-room-choice-button--mobile" : ""}`}
                         disabled={false}
                         onClick={() => handleChoiceClick(choice.index)}
                       >
-                        {choiceCommitFxKind && (
-                          <span aria-hidden="true" className="game-room-choice-press-flash" />
-                        )}
-                        {choiceCommitFxKind && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-burst game-room-choice-burst--${choiceCommitFxKind}`}
-                          />
-                        )}
-                        {choiceCommitFxKind && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-particle-burst game-room-choice-particle-burst--${choiceCommitFxKind}`}
-                          />
-                        )}
-                        {showComboMilestoneStyle && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-burst game-room-choice-burst--combo-milestone game-room-choice-burst--combo-tier-${myComboTier}`}
-                          />
-                        )}
-                        {showComboMilestoneStyle && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-particle-burst game-room-choice-particle-burst--combo-tier-${myComboTier}`}
-                          />
-                        )}
-                        {showComboBreakStyle && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-particle-burst game-room-choice-particle-burst--combo-break game-room-choice-particle-burst--combo-break-tier-${comboBreakTier}`}
-                          />
-                        )}
-                        {showComboLiveStyle && isComboFxActive && (
-                          <span
-                            aria-hidden="true"
-                            className={`game-room-choice-combo-aura game-room-choice-combo-aura--tier-${myComboTier} ${showComboOverdriveStyle
-                              ? "game-room-choice-combo-aura--overdrive"
-                              : ""
-                              }`}
-                          />
-                        )}
                         <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
                           <span className="game-room-choice-title">
                             {choiceDisplayTitle}

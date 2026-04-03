@@ -70,9 +70,11 @@ import RoomLobbyHostControls from "./RoomLobbyHostControls";
 import RoomLobbySettingsDialog from "./RoomLobbySettingsDialog";
 import RoomLobbySuggestionPanel from "./RoomLobbySuggestionPanel";
 import RoomUiTooltip from "../../../../shared/ui/RoomUiTooltip";
+import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 
 import { useGameSfx } from "../hooks/useGameSfx";
 import {
+  DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
   DEFAULT_GAME_VOLUME,
   DEFAULT_SFX_ENABLED,
   DEFAULT_SFX_PRESET,
@@ -217,6 +219,7 @@ interface RoomLobbyParticipantsPanelProps {
   openSlotCount: number;
   canDecreasePlayers: boolean;
   canIncreasePlayers: boolean;
+  avatarEffectLevel: "off" | "simple" | "full";
   actionAnchorEl: HTMLElement | null;
   actionTargetId: string | null;
   closeActionMenu: () => void;
@@ -233,6 +236,7 @@ interface RoomLobbyParticipantRowProps {
   selfClientId: string;
   selfAvatarUrl?: string | null;
   isHost: boolean;
+  avatarEffectLevel: "off" | "simple" | "full";
   isActionOpen: boolean;
   actionAnchorEl: HTMLElement | null;
   closeActionMenu: () => void;
@@ -247,6 +251,7 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
   selfClientId,
   selfAvatarUrl,
   isHost,
+  avatarEffectLevel,
   isActionOpen,
   actionAnchorEl,
   closeActionMenu,
@@ -258,7 +263,6 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
   const isParticipantHost = participant.clientId === hostClientId;
   const showActions = isHost && !isSelf;
   const participantName = normalizeDisplayText(participant.username, "玩家");
-  const participantInitial = participantName.trim().slice(0, 1).toUpperCase();
   const participantAvatarUrl = isSelf
     ? selfAvatarUrl ?? participant.avatar_url ?? participant.avatarUrl ?? null
     : participant.avatar_url ?? participant.avatarUrl ?? null;
@@ -274,13 +278,15 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
           overlap="circular"
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
-          <Avatar
+          <PlayerAvatar
             className="room-lobby-player-avatar"
-            src={participantAvatarUrl ?? undefined}
-            alt={participantName}
-          >
-            {participantInitial || "P"}
-          </Avatar>
+            username={participantName}
+            clientId={participant.clientId}
+            avatarUrl={participantAvatarUrl ?? undefined}
+            size={56}
+            effectLevel={avatarEffectLevel}
+            isMe={isSelf}
+          />
         </Badge>
         <div className="room-lobby-player-copy">
           <div className="room-lobby-player-title-row">
@@ -393,6 +399,7 @@ const RoomLobbyParticipantRow = React.memo(function RoomLobbyParticipantRow({
   prevProps.selfClientId === nextProps.selfClientId &&
   prevProps.selfAvatarUrl === nextProps.selfAvatarUrl &&
   prevProps.isHost === nextProps.isHost &&
+  prevProps.avatarEffectLevel === nextProps.avatarEffectLevel &&
   prevProps.isActionOpen === nextProps.isActionOpen &&
   prevProps.actionAnchorEl === nextProps.actionAnchorEl
 ));
@@ -471,6 +478,7 @@ const RoomLobbyParticipantsPanel = React.memo(function RoomLobbyParticipantsPane
   selfClientId,
   selfAvatarUrl,
   isHost,
+  avatarEffectLevel,
   playerCountLabel,
   openSlotCount,
   canDecreasePlayers,
@@ -515,6 +523,7 @@ const RoomLobbyParticipantsPanel = React.memo(function RoomLobbyParticipantsPane
               selfClientId={selfClientId}
               selfAvatarUrl={selfAvatarUrl}
               isHost={isHost}
+              avatarEffectLevel={avatarEffectLevel}
               isActionOpen={
                 Boolean(actionAnchorEl) && actionTargetId === participant.clientId
               }
@@ -697,6 +706,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const sfxEnabled = settingsModel?.sfxEnabled ?? DEFAULT_SFX_ENABLED;
   const sfxVolume = settingsModel?.sfxVolume ?? DEFAULT_SFX_VOLUME;
   const sfxPreset = settingsModel?.sfxPreset ?? DEFAULT_SFX_PRESET;
+  const avatarEffectLevel =
+    settingsModel?.avatarEffectLevel ?? DEFAULT_AVATAR_EFFECT_LEVEL_VALUE;
   const { primeSfxAudio, playGameSfx } = useGameSfx({
     enabled: sfxEnabled,
     volume: Math.round((sfxVolume * gameVolume) / 100),
@@ -1780,11 +1791,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
 
   const participantsPanel = (
     <RoomLobbyParticipantsPanel
-            hostClientId={currentRoom?.hostClientId}
+      hostClientId={currentRoom?.hostClientId}
       participants={participants}
       selfClientId={selfClientId}
       selfAvatarUrl={selfAvatarUrl}
       isHost={isHost}
+      avatarEffectLevel={avatarEffectLevel}
       playerCountLabel={playerCountLabel}
       openSlotCount={openSlotCount}
       canDecreasePlayers={canDecreasePlayers}

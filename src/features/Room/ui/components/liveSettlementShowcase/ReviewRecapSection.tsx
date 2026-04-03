@@ -13,11 +13,16 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import type { SettlementTrackLink } from "../../../model/settlementLinks";
 import type { RoomParticipant } from "../../../model/types";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
+import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
 import type { SettlementQuestionRecap } from "../GameSettlementPanel";
 import {
   resolveSongPerformanceSegments,
   type SongPerformanceGrade,
 } from "../liveSettlementUtils";
+import {
+  DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
+  useSettingsModel,
+} from "../../../../Setting/model/settingsContext";
 
 type RecapAnswerResult = "correct" | "wrong" | "unanswered";
 type ReviewListFilter = "all" | "correct" | "wrong" | "unanswered";
@@ -118,26 +123,25 @@ const resolveAnswerOrderLabel = (answeredRank: number | null | undefined) => {
 const renderParticipantMiniAvatar = (
   participant: RoomParticipant,
   sizeClass: string,
+  avatarEffectLevel: "off" | "simple" | "full",
 ) => {
   const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
+  const size =
+    sizeClass === "h-10 w-10"
+      ? 40
+      : sizeClass === "h-8 w-8"
+        ? 32
+        : 28;
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-full border border-slate-700/38 bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.1),transparent_42%),linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] text-white/88 opacity-[0.9] shadow-[0_10px_24px_-14px_rgba(15,23,42,0.9)] ${sizeClass}`}
-      aria-label={participant.username}
-    >
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={participant.username}
-          className="h-full w-full object-cover opacity-[0.88] saturate-[0.9] brightness-[0.98]"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-transparent text-[10px] font-black text-white/88">
-          {participant.username.slice(0, 1).toUpperCase()}
-        </div>
-      )}
-    </div>
+    <PlayerAvatar
+      username={participant.username}
+      clientId={participant.clientId}
+      avatarUrl={avatarUrl ?? undefined}
+      size={size}
+      effectLevel={avatarEffectLevel}
+      className={sizeClass}
+    />
   );
 };
 
@@ -154,7 +158,11 @@ const ExtraParticipantsTooltipContent: React.FC<{
           key={participant.clientId}
           className="flex items-center gap-2 text-sm text-slate-100"
         >
-          {renderParticipantMiniAvatar(participant, "h-7 w-7")}
+          {renderParticipantMiniAvatar(
+            participant,
+            "h-7 w-7",
+            avatarEffectLevel,
+          )}
           <span className="truncate">{participant.username}</span>
         </div>
       ))}
@@ -343,6 +351,9 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   isMobileDetailTopOpen,
   onToggleMobileDetailTopOpen,
 }) => {
+  const settingsModel = useSettingsModel();
+  const avatarEffectLevel =
+    settingsModel.avatarEffectLevel ?? DEFAULT_AVATAR_EFFECT_LEVEL_VALUE;
   const [filter, setFilter] = React.useState<ReviewListFilter>("all");
   const [recapJumpValue, setRecapJumpValue] = React.useState("1");
   const [expandedChoiceParticipantsKey, setExpandedChoiceParticipantsKey] =
@@ -1076,6 +1087,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                                     {renderParticipantMiniAvatar(
                                       participant,
                                       isMobileView ? "h-8 w-8" : "h-10 w-10",
+                                      avatarEffectLevel,
                                     )}
                                   </div>
                                 </RoomUiTooltip>
@@ -1145,7 +1157,11 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                                   key={`${choice.index}-expanded-${participant.clientId}`}
                                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/18 px-2.5 py-1.5 text-xs text-slate-100"
                                 >
-                                  {renderParticipantMiniAvatar(participant, "h-7 w-7")}
+                                  {renderParticipantMiniAvatar(
+                                    participant,
+                                    "h-7 w-7",
+                                    avatarEffectLevel,
+                                  )}
                                   <span className="max-w-[9rem] truncate">
                                     {participant.username}
                                   </span>

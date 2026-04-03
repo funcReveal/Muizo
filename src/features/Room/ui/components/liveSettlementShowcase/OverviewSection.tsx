@@ -4,6 +4,11 @@ import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRou
 
 import type { RoomParticipant } from "../../../model/types";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
+import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
+import {
+  DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
+  useSettingsModel,
+} from "../../../../Setting/model/settingsContext";
 
 interface ScoreMetrics {
   accuracy: number;
@@ -97,6 +102,7 @@ const renderPodiumAvatar = (
   rank: number,
   isMobileView: boolean,
   meClientId?: string,
+  avatarEffectLevel: "off" | "simple" | "full" = DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
 ) => {
   if (!participant) {
     return (
@@ -116,75 +122,31 @@ const renderPodiumAvatar = (
     );
   }
 
-  const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
   const isMe = Boolean(meClientId && participant.clientId === meClientId);
-  const shellClass = avatarUrl
-    ? rank === 1
-      ? isMobileView
-        ? "h-20 w-20 shadow-[0_14px_28px_-24px_rgba(250,204,21,0.28)]"
-        : "h-24 w-24 shadow-[0_16px_34px_-26px_rgba(250,204,21,0.3)]"
-      : isMobileView
-        ? "h-16 w-16 shadow-[0_10px_18px_-20px_rgba(15,23,42,0.34)]"
-        : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.34)]"
-    : rank === 1
-      ? isMobileView
-        ? "h-20 w-20 shadow-[0_10px_24px_-22px_rgba(250,204,21,0.18)]"
-        : "h-24 w-24 shadow-[0_14px_28px_-24px_rgba(250,204,21,0.18)]"
-      : rank === 2
-        ? isMobileView
-          ? "h-16 w-16 shadow-[0_10px_20px_-20px_rgba(15,23,42,0.28)]"
-          : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.28)]"
-        : isMobileView
-        ? "h-16 w-16 shadow-[0_10px_20px_-20px_rgba(120,53,15,0.16)]"
-        : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(120,53,15,0.16)]";
-  const shellSurfaceClass = avatarUrl
-    ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))]"
-    : "bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.035))]";
+  const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
+  const avatarSize = rank === 1 ? (isMobileView ? 80 : 96) : isMobileView ? 64 : 80;
 
   return (
     <RoomUiTooltip title={participant.username} wrapperClassName="mx-auto inline-flex">
       <div className="relative inline-flex">
-        <div
-          className={`inline-flex items-center justify-center overflow-hidden rounded-full ${shellSurfaceClass} text-white ${shellClass}`}
+        <PlayerAvatar
+          username={participant.username}
+          clientId={participant.clientId}
+          avatarUrl={avatarUrl ?? undefined}
+          rank={rank}
+          combo={Math.max(participant.maxCombo ?? 0, participant.combo)}
+          size={avatarSize}
+          isMe={isMe}
+          effectLevel={avatarEffectLevel}
+          hideRankMark
+          className="player-avatar--settlement-podium"
+        />
+        <span
+          className={`settlement-podium-rank-mark settlement-podium-rank-mark--${rank}`}
+          aria-hidden="true"
         >
-          {avatarUrl ? (
-            <div className="relative h-full w-full overflow-hidden rounded-full">
-              <img
-                src={avatarUrl}
-                alt={participant.username}
-                className="h-full w-full object-cover opacity-[0.84] saturate-[0.92] brightness-[1.08] contrast-[0.98]"
-              />
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,12,22,0.02),rgba(8,12,22,0.12))]" />
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(255,255,255,0.22),transparent_52%)]" />
-            </div>
-          ) : (
-            <div
-              className={`relative inline-flex h-full w-full items-center justify-center rounded-full ${
-                rank === 1
-                  ? "bg-[linear-gradient(180deg,rgba(255,247,214,0.2),rgba(250,204,21,0.1)_24%,rgba(23,27,37,0.26)_100%)]"
-                  : rank === 2
-                    ? "bg-[linear-gradient(180deg,rgba(248,250,252,0.15),rgba(148,163,184,0.08)_24%,rgba(22,28,40,0.26)_100%)]"
-                    : "bg-[linear-gradient(180deg,rgba(253,186,116,0.14),rgba(217,119,6,0.07)_24%,rgba(34,24,21,0.26)_100%)]"
-              }`}
-            >
-              <span className={`relative font-black tracking-[-0.04em] ${
-                rank === 1
-                  ? isMobileView
-                    ? "text-[1.7rem] text-amber-50"
-                    : "text-[2rem] text-amber-50"
-                  : rank === 2
-                    ? isMobileView
-                      ? "text-[1.2rem] text-slate-50"
-                      : "text-[1.5rem] text-slate-50"
-                    : isMobileView
-                      ? "text-[1.2rem] text-orange-50"
-                      : "text-[1.5rem] text-orange-50"
-              }`}>
-                {participant.username.slice(0, 1).toUpperCase()}
-              </span>
-            </div>
-          )}
-        </div>
+          {rank}
+        </span>
         {isMe && (
           <span className={`absolute left-1/2 -translate-x-1/2 rounded-full border border-cyan-300/45 bg-cyan-400/16 font-black tracking-[0.08em] text-cyan-50 ${
             isMobileView
@@ -249,6 +211,9 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
   formatMs,
   multilineEllipsis2Style,
 }) => {
+  const settingsModel = useSettingsModel();
+  const avatarEffectLevel =
+    settingsModel.avatarEffectLevel ?? DEFAULT_AVATAR_EFFECT_LEVEL_VALUE;
   const podium = [
     {
       participant: runnerUp,
@@ -380,7 +345,13 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                   </div>
 
                   <div className={`relative z-10 ${isMobileView ? "mt-3 min-h-[5.8rem]" : "mt-4 min-h-[6.8rem]"} ${nameToneClass}`}>
-                    {renderPodiumAvatar(participant, rank, isMobileView, meClientId)}
+                    {renderPodiumAvatar(
+                      participant,
+                      rank,
+                      isMobileView,
+                      meClientId,
+                      avatarEffectLevel,
+                    )}
                   </div>
 
                   <div

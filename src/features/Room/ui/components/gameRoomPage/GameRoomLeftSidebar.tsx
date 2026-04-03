@@ -17,12 +17,14 @@ import {
 } from "../../../../Setting/model/scoreboardBorderEffects";
 import AnimatedScoreboardBorder from "../../../../../shared/ui/AnimatedScoreboardBorder";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
+import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
 import type { ChatMessage, RoomParticipant } from "../../../model/types";
 import { normalizeRoomDisplayText } from "../../../model/roomProviderUtils";
 import type { TopTwoSwapState } from "./gameRoomPageTypes";
 import { resolveComboTier } from "../../gameRoomUiUtils";
 import type { ScoreboardRow } from "./gameRoomPageDerivations";
 import GameRoomChatPanel from "./GameRoomChatPanel";
+import { DEFAULT_AVATAR_EFFECT_LEVEL_VALUE } from "../../../../Setting/model/settingsContext";
 
 interface GameRoomLeftSidebarProps {
   scoreboardRows: ScoreboardRow[];
@@ -80,6 +82,7 @@ interface GameRoomScorePlayerRowProps {
   scoreboardBorderMaskEnabled: boolean;
   scoreboardBorderLineStyle: string;
   scoreboardBorderParticleCount: number;
+  avatarEffectLevel: "off" | "simple" | "full";
 }
 
 const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
@@ -104,6 +107,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   scoreboardBorderMaskEnabled,
   scoreboardBorderLineStyle,
   scoreboardBorderParticleCount,
+  avatarEffectLevel,
 }: GameRoomScorePlayerRowProps) {
   return (
     <div className={rowClassName} style={rowSwapStyle}>
@@ -120,11 +124,24 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
         />
       )}
       <span className="truncate flex items-center gap-2">
-        {hasAnswered && (
+        <span className="game-room-score-row-avatar-wrap">
+          <PlayerAvatar
+            username={displayName}
+            clientId={player.clientId}
+            avatarUrl={player.avatar_url ?? player.avatarUrl ?? undefined}
+            rank={rowIndex < 3 ? rowIndex + 1 : null}
+            combo={player.combo}
+            isMe={isMeRow}
+            size={26}
+            effectLevel={avatarEffectLevel}
+            className="player-avatar--scoreboard"
+          />
           <RoomUiTooltip title={answerDotTitle}>
-            <span className={`h-2 w-2 rounded-full ${answerDotClass}`} />
+            <span
+              className={`game-room-score-row-answer-dot-badge ${hasAnswered ? answerDotClass : "game-room-score-row-answer-dot-badge--pending"}`}
+            />
           </RoomUiTooltip>
-        )}
+        </span>
         <span className="truncate">
           {rowIndex + 1}. {displayName}
         </span>
@@ -215,6 +232,8 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const scoreboardBorderParticleCount =
     settingsModel?.scoreboardBorderParticleCount ??
     DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE;
+  const avatarEffectLevel =
+    settingsModel?.avatarEffectLevel ?? DEFAULT_AVATAR_EFFECT_LEVEL_VALUE;
   const effectiveScoreboardBorderMotion = React.useMemo(() => {
     if (!scoreboardBorderEnabled) return "none";
     if (scoreboardBorderAnimation === "none") return "none";
@@ -599,7 +618,17 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   className="game-room-score-row game-room-score-row--locked flex items-center justify-between text-sm"
                   aria-hidden="true"
                 >
-                  <span className="truncate flex items-center gap-1.5 opacity-35">
+                  <span className="truncate flex items-center gap-2 opacity-35">
+                    <span className="game-room-score-row-avatar-wrap">
+                      <PlayerAvatar
+                        username="已鎖定"
+                        clientId={row.key}
+                        size={26}
+                        effectLevel="off"
+                        className="player-avatar--scoreboard player-avatar--scoreboard-placeholder"
+                      />
+                      <span className="game-room-score-row-answer-dot-badge game-room-score-row-answer-dot-badge--locked" />
+                    </span>
                     <LockRoundedIcon sx={{ fontSize: 12 }} />
                     {idx + 1}. 已鎖定
                   </span>
@@ -614,7 +643,19 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   className="game-room-score-row game-room-score-row--placeholder flex items-center justify-between text-sm"
                   aria-hidden="true"
                 >
-                  <span className="truncate">{idx + 1}. 等待加入</span>
+                  <span className="truncate flex items-center gap-2">
+                    <span className="game-room-score-row-avatar-wrap">
+                      <PlayerAvatar
+                        username="待加入"
+                        clientId={row.key}
+                        size={26}
+                        effectLevel="off"
+                        className="player-avatar--scoreboard player-avatar--scoreboard-placeholder"
+                      />
+                      <span className="game-room-score-row-answer-dot-badge game-room-score-row-answer-dot-badge--vacant" />
+                    </span>
+                    <span className="truncate">{idx + 1}. 等待加入</span>
+                  </span>
                   <span className="text-[11px] text-slate-500">--</span>
                 </div>
               );
@@ -826,6 +867,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   scoreboardBorderMaskEnabled={scoreboardBorderMaskEnabled}
                   scoreboardBorderLineStyle={scoreboardBorderLineStyle}
                   scoreboardBorderParticleCount={scoreboardBorderParticleCount}
+                  avatarEffectLevel={avatarEffectLevel}
                 />
               </div>
             );
