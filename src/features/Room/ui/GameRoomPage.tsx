@@ -1,4 +1,5 @@
 ﻿import React, {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -13,8 +14,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Drawer,
   Stack,
-  SwipeableDrawer,
   Typography,
 } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -74,7 +75,6 @@ import {
   triggerHapticFeedback,
 } from "./components/gameRoomPage/gameRoomPageUtils";
 import {
-  buildRevealChoicePickMap,
   buildScoreboardRows,
   sortParticipantsByScore,
 } from "./components/gameRoomPage/gameRoomPageDerivations";
@@ -82,6 +82,7 @@ import GameRoomExitDialog from "./components/gameRoomPage/GameRoomExitDialog";
 import { DanmuContext } from "./components/gameRoomPage/DanmuContext";
 import useGameRoomPlayerSync from "./components/gameRoomPage/useGameRoomPlayerSync";
 import useGameRoomAnswerFlow from "./components/gameRoomPage/useGameRoomAnswerFlow";
+import useGameRoomQuestionDerivedState from "./components/gameRoomPage/useGameRoomQuestionDerivedState";
 import useGameRoomRecaps from "./components/gameRoomPage/useGameRoomRecaps";
 import useGameRoomStats from "./components/gameRoomPage/useGameRoomStats";
 import useSettlementSnapshot from "./components/gameRoomPage/useSettlementSnapshot";
@@ -92,7 +93,7 @@ import useGameRoomAnswerPanelAutoScroll from "./components/gameRoomPage/useGameR
 import useMobileDrawerDragDismiss from "./components/gameRoomPage/useMobileDrawerDragDismiss";
 import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
-import { useRoom } from "../model/useRoom";
+import { useRoomUi } from "../model/useRoomUi";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -101,7 +102,7 @@ interface GameRoomPageProps {
   onExitGame: () => void;
   onBackToLobby?: () => void;
   onSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
-  onRequestPlaybackExtensionVote?: () => Promise<boolean>;
+  onRequestPlaybackExtensionVote?: (remainingMs?: number) => Promise<boolean>;
   onCastPlaybackExtensionVote?: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;
@@ -162,11 +163,20 @@ const readInitialGameRoomGuessAnchorEnabled = () => {
 
 const GAME_ROOM_DRAWER_MODAL_PROPS = {
   hideBackdrop: true,
+  keepMounted: true,
   disableAutoFocus: true,
   disableEnforceFocus: true,
   disableRestoreFocus: true,
   disableScrollLock: true,
 } as const;
+
+const blurActiveInteractiveElement = () => {
+  if (typeof document === "undefined") return;
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLElement) {
+    activeElement.blur();
+  }
+};
 
 const useGameRoomUiClock = ({
   getServerNowMs,
@@ -193,7 +203,9 @@ const useGameRoomUiClock = ({
     let timerId: number | null = null;
     const scheduleTick = (delayMs: number) => {
       timerId = window.setTimeout(() => {
-        setNowMs(getServerNowMs());
+        startTransition(() => {
+          setNowMs(getServerNowMs());
+        });
       }, Math.max(40, delayMs));
     };
 
@@ -257,7 +269,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   serverOffsetMs = 0,
   onSettlementRecapChange,
 }) => {
-  const { setStatusText } = useRoom();
+  const { setStatusText, authUser } = useRoomUi();
   const { danmuEnabled, setDanmuEnabled, danmuItems } = useGameRoomDanmu({
     roomId: room.id,
     messages,
@@ -276,6 +288,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const [mobileBottomPanel, setMobileBottomPanel] =
     useState<MobileBottomPanel>(null);
   const [mobileScoreboardHeight, setMobileScoreboardHeight] = useState(
+    MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
+  );
+  const mobileScoreboardHeightRafRef = useRef<number | null>(null);
+  const mobileScoreboardHeightPendingRef = useRef<number>(
     MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
   );
   const [mobileScoreboardSwapReplayToken, setMobileScoreboardSwapReplayToken] =
@@ -307,6 +323,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const lastComboStateSfxKeyRef = useRef<string | null>(null);
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
   const lastAutoOverlayTransitionAtRef = useRef(0);
+  const mobileScoreboardAutoOpenedRef = useRef(false);
   const lastPlaybackVotePromptKeyRef = useRef<string | null>(null);
   const lastPlaybackVoteActiveKeyRef = useRef<string | null>(null);
   const lastPlaybackVoteResolvedKeyRef = useRef<string | null>(null);
@@ -351,29 +368,45 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
       MOBILE_SCOREBOARD_MAX_HEIGHT_VH,
     );
-    setMobileScoreboardHeight(clampedNext);
+    mobileScoreboardHeightPendingRef.current = clampedNext;
+    if (mobileScoreboardHeightRafRef.current !== null) return;
+    mobileScoreboardHeightRafRef.current = window.requestAnimationFrame(() => {
+      mobileScoreboardHeightRafRef.current = null;
+      setMobileScoreboardHeight((prev) => {
+        const next = mobileScoreboardHeightPendingRef.current;
+        return Math.abs(prev - next) < 0.05 ? prev : next;
+      });
+    });
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (mobileScoreboardHeightRafRef.current !== null) {
+        window.cancelAnimationFrame(mobileScoreboardHeightRafRef.current);
+        mobileScoreboardHeightRafRef.current = null;
+      }
+    };
   }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
+    mobileScoreboardAutoOpenedRef.current = false;
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
       current === "scoreboard" ? null : "scoreboard",
     );
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
+    mobileScoreboardAutoOpenedRef.current = false;
+    blurActiveInteractiveElement();
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
       current === "scoreboard" ? null : current,
     );
-  }, []);
-  const handleOpenMobileScoreboard = useCallback(() => {
-    setMobileScoreboardSwapArmed(false);
-    setMobileBottomPanel("scoreboard");
   }, []);
   const handleOpenHostManagement = useCallback(() => {
     if (!isHostInGame) return;
     setHostManagementOpen(true);
   }, [isHostInGame]);
   const handleCloseHostManagement = useCallback(() => {
+    blurActiveInteractiveElement();
     setHostManagementOpen(false);
   }, []);
   const mobileHostManageDragDismiss = useMobileDrawerDragDismiss({
@@ -419,16 +452,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     }
     if (hostManagementConfirm.type === "ban") {
       return {
-        title: `要踢出並封鎖 ${target} 嗎？`,
+        title: `要將 ${target} 踢出 5 分鐘嗎？`,
         description:
-          "這位玩家會立刻離開房間，並在封鎖期間無法再次加入這個房間。",
-        confirmLabel: "確認踢出並封鎖",
+          "這位玩家會立刻離開房間，並在一段時間內無法再次加入這個房間。",
+        confirmLabel: "確認踢出 5 分鐘",
       };
     }
     return {
-      title: `要踢出 ${target} 嗎？`,
-      description: "這位玩家會立刻離開房間，但之後仍可透過邀請或重新加入回到房間。",
-      confirmLabel: "確認踢出玩家",
+      title: `要將 ${target} 永久封鎖嗎？`,
+      description: "這位玩家會立刻離開房間，並被永久封鎖無法再次加入這個房間。",
+      confirmLabel: "確認永久封鎖",
     };
   }, [hostManagementConfirm]);
   const handleClosePlaybackVoteDialog = useCallback(() => {
@@ -679,69 +712,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isReveal = gameState.phase === "reveal";
   const showVideo = showVideoOverride ?? gameState.showVideo ?? true;
   const clipIdentityStartSec = Math.round(clipStartSec * 1000) / 1000;
-  const clipIdentityEndSec = Math.round(clipEndSec * 1000) / 1000;
-  const trackLoadKey = `${videoId ?? "none"}:${clipIdentityStartSec}-${clipIdentityEndSec}`;
   const trackSessionKey = `${gameState.startedAt}:${trackCursor}:${currentTrackIndex}`;
-  const participantCount = participants.length;
-  const participantClientIdSet = useMemo(
-    () => new Set(participants.map((participant) => participant.clientId)),
-    [participants],
-  );
-  const questionParticipantCount =
-    typeof gameState.questionStats?.participantCount === "number" &&
-      Number.isFinite(gameState.questionStats.participantCount)
-      ? Math.max(0, Math.floor(gameState.questionStats.participantCount))
-      : participantCount;
-  const requiredAnswerCount =
-    participantCount > 0 && questionParticipantCount > 0
-      ? Math.min(participantCount, questionParticipantCount)
-      : Math.max(participantCount, questionParticipantCount);
-  const serverAnsweredCount =
-    typeof gameState.questionStats?.answeredCount === "number" &&
-      Number.isFinite(gameState.questionStats.answeredCount)
-      ? Math.max(0, Math.floor(gameState.questionStats.answeredCount))
-      : Array.isArray(gameState.questionStats?.answerOrderLatest)
-        ? gameState.questionStats.answerOrderLatest.length
-        : 0;
-  const serverAnsweredCurrentParticipantCount = useMemo(() => {
-    const answersByClientId = gameState.questionStats?.answersByClientId;
-    if (
-      answersByClientId &&
-      typeof answersByClientId === "object" &&
-      participantClientIdSet.size > 0
-    ) {
-      return Object.entries(answersByClientId).reduce((count, [clientId, answer]) => {
-        if (!participantClientIdSet.has(clientId)) return count;
-        const hasChoiceIndex =
-          typeof answer?.choiceIndex === "number" &&
-          Number.isFinite(answer.choiceIndex);
-        const hasResolvedResult =
-          answer?.result === "correct" || answer?.result === "wrong";
-        return hasChoiceIndex || hasResolvedResult ? count + 1 : count;
-      }, 0);
-    }
-    const answerOrderLatest = gameState.questionStats?.answerOrderLatest;
-    if (Array.isArray(answerOrderLatest) && participantClientIdSet.size > 0) {
-      const seen = new Set<string>();
-      let count = 0;
-      answerOrderLatest.forEach((clientId) => {
-        if (!participantClientIdSet.has(clientId) || seen.has(clientId)) return;
-        seen.add(clientId);
-        count += 1;
-      });
-      return count;
-    }
-    return serverAnsweredCount;
-  }, [
-    gameState.questionStats?.answerOrderLatest,
-    gameState.questionStats?.answersByClientId,
-    participantClientIdSet,
-    serverAnsweredCount,
-  ]);
-  const allAnsweredByServer =
-    gameState.phase === "guess" &&
-    requiredAnswerCount > 0 &&
-    serverAnsweredCurrentParticipantCount >= requiredAnswerCount;
+  const trackLoadKey = `${videoId ?? "none"}:${trackSessionKey}:${clipIdentityStartSec}`;
+  const {
+    liveParticipantCount,
+    liveAnsweredCount,
+    liveAccuracyPct,
+    requiredAnswerCount,
+    allAnsweredByServer,
+    revealChoicePickMap,
+  } = useGameRoomQuestionDerivedState({
+    gamePhase: gameState.phase,
+    questionStats: gameState.questionStats,
+    participants,
+    meClientId,
+  });
   const uiNowMs = useGameRoomUiClock({
     getServerNowMs,
     startedAt: gameState.startedAt,
@@ -898,21 +883,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => sortParticipantsByScore(participants),
     [participants],
   );
-  const revealChoicePickMap = useMemo(
-    () =>
-      buildRevealChoicePickMap({
-        phase: gameState.phase,
-        answersByClientId: gameState.questionStats?.answersByClientId,
-        participants,
-        meClientId,
-      }),
-    [
-      gameState.phase,
-      gameState.questionStats?.answersByClientId,
-      participants,
-      meClientId,
-    ],
-  );
   const { topTwoSwapState, resetTopTwoSwapState } =
     useTopTwoSwapState(sortedParticipants);
   const { questionRecaps, resetQuestionRecaps } = useGameRoomRecaps({
@@ -923,6 +893,20 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     correctChoiceIndex,
     choices: gameState.choices,
     questionStats: gameState.questionStats,
+    liveParticipantCount,
+    liveAnsweredCount,
+    liveCorrectCount:
+      typeof gameState.questionStats?.correctCount === "number"
+        ? Math.max(0, Math.floor(gameState.questionStats.correctCount))
+        : null,
+    liveWrongCount:
+      typeof gameState.questionStats?.wrongCount === "number"
+        ? Math.max(0, Math.floor(gameState.questionStats.wrongCount))
+        : null,
+    liveUnansweredCount:
+      typeof gameState.questionStats?.unansweredCount === "number"
+        ? Math.max(0, Math.floor(gameState.questionStats.unansweredCount))
+        : null,
     meClientId,
     selectedChoiceState,
     answeredOrderForCurrentParticipants,
@@ -1120,7 +1104,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (!canRequestPlaybackExtensionVote || !onRequestPlaybackExtensionVote) return;
     setPlaybackVoteRequestPending(true);
     try {
-      await onRequestPlaybackExtensionVote();
+      await onRequestPlaybackExtensionVote(
+        phaseRemainingMs > 0 ? phaseRemainingMs : undefined,
+      );
     } finally {
       setPlaybackVoteRequestPending(false);
     }
@@ -1128,6 +1114,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     canOpenPlaybackVotePrompt,
     canRequestPlaybackExtensionVote,
     onRequestPlaybackExtensionVote,
+    phaseRemainingMs,
   ]);
 
   const handleCastPlaybackVote = useCallback(
@@ -1232,10 +1219,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     scorePartsByClientId,
     answeredRankByClientId,
     answeredClientIdSet,
-    answeredCount,
+    liveParticipantCount,
+    liveAnsweredCount,
+    liveAccuracyPct,
     selectedChoice,
     correctChoiceIndex,
-    questionStats: gameState.questionStats,
+    myBackendScoreBreakdown:
+      meClientId && gameState.questionStats?.scoreBreakdownsByClientId
+        ? gameState.questionStats.scoreBreakdownsByClientId[meClientId] ?? null
+        : null,
     gamePhase: gameState.phase,
     isReveal,
     isInterTrackWait,
@@ -1422,9 +1414,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     let transitionResetTimer: number | null = null;
     if (previousPhase !== currentPhase) {
       const shouldOpenRevealOverlay =
-        currentPhase === "reveal" && mobileRevealAutoOverlayEnabled;
+        currentPhase === "reveal" &&
+        mobileRevealAutoOverlayEnabled &&
+        mobileBottomPanel !== "scoreboard";
       const shouldCloseRevealOverlay =
-        currentPhase === "guess" && previousPhase === "reveal";
+        currentPhase === "guess" &&
+        previousPhase === "reveal" &&
+        mobileScoreboardAutoOpenedRef.current;
       if (
         (shouldOpenRevealOverlay || shouldCloseRevealOverlay) &&
         !isMobileDrawerGestureActive
@@ -1439,10 +1435,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             shouldOpenRevealOverlay ? "opening" : "closing",
           );
           if (shouldOpenRevealOverlay) {
+            mobileScoreboardAutoOpenedRef.current = true;
             setMobileScoreboardSwapArmed(false);
             setMobileBottomPanel("scoreboard");
           }
           if (shouldCloseRevealOverlay) {
+            mobileScoreboardAutoOpenedRef.current = false;
             setMobileBottomPanel(null);
             setMobileScoreboardSwapArmed(false);
           }
@@ -1471,6 +1469,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase,
     isMobileDrawerGestureActive,
     isMobileGameViewport,
+    mobileBottomPanel,
     mobileRevealAutoOverlayEnabled,
   ]);
 
@@ -1692,7 +1691,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     startIcon={<PersonRemoveRoundedIcon />}
                     onClick={() => requestHostManagementAction("kick", participant)}
                   >
-                    只踢出
+                    踢出(永久封鎖)
                   </Button>
                   <Button
                     size="small"
@@ -1701,7 +1700,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     startIcon={<BlockRoundedIcon />}
                     onClick={() => requestHostManagementAction("ban", participant)}
                   >
-                    踢出封鎖
+                    踢出(5分鐘)
                   </Button>
                 </Stack>
               </Stack>
@@ -1719,6 +1718,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           <LiveSettlementShowcase
             room={settlementSnapshot?.room ?? room}
             participants={settlementSnapshot?.participants ?? participants}
+            participantAvatarFallbacks={participants}
             messages={settlementSnapshot?.messages ?? messages}
             playlistItems={settlementSnapshot?.playlistItems ?? playlist}
             trackOrder={settlementSnapshot?.trackOrder ?? gameState.trackOrder}
@@ -1729,6 +1729,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             endedAt={settlementSnapshot?.endedAt}
             meClientId={meClientId}
             questionRecaps={settlementSnapshot?.questionRecaps ?? questionRecaps}
+            selfAvatarUrl={authUser?.avatar_url ?? null}
             onBackToLobby={onBackToLobby}
             onRequestExit={openExitConfirm}
           />
@@ -1899,7 +1900,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 {isHostInGame && (
                   <button
                     type="button"
-                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--compact game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--host ${hostManagementOpen ? "game-room-mobile-toggle-chip--active" : ""
+                    className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--wide game-room-mobile-toggle-chip--host ${hostManagementOpen ? "game-room-mobile-toggle-chip--active" : ""
                       }`}
                     onClick={handleOpenHostManagement}
                   >
@@ -1912,6 +1913,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     </span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--half" : ""} game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
+                    ? "game-room-mobile-toggle-chip--active"
+                    : ""
+                    }`}
+                  onClick={() =>
+                    setMobileRevealAutoOverlayEnabled((current) => !current)
+                  }
+                  aria-pressed={mobileRevealAutoOverlayEnabled}
+                >
+                  <span className="game-room-mobile-action-icon" aria-hidden>
+                    <AutoAwesomeRoundedIcon fontSize="inherit" />
+                  </span>
+                  <span>{"自動彈出分數榜"}</span>
+                  <span className="game-room-mobile-action-meta">
+                    {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
+                  </span>
+                </button>
                 <button
                   type="button"
                   className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--half" : ""} game-room-mobile-toggle-chip--anchor ${mobileGuessAnchorEnabled
@@ -1929,25 +1949,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   <span>{"猜歌時自動對齊"}</span>
                   <span className="game-room-mobile-action-meta">
                     {mobileGuessAnchorEnabled ? "ON" : "OFF"}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--minor ${isHostInGame ? "game-room-mobile-toggle-chip--wide" : "game-room-mobile-toggle-chip--half"} game-room-mobile-toggle-chip--overlay ${mobileRevealAutoOverlayEnabled
-                    ? "game-room-mobile-toggle-chip--active"
-                    : ""
-                    }`}
-                  onClick={() =>
-                    setMobileRevealAutoOverlayEnabled((current) => !current)
-                  }
-                  aria-pressed={mobileRevealAutoOverlayEnabled}
-                >
-                  <span className="game-room-mobile-action-icon" aria-hidden>
-                    <AutoAwesomeRoundedIcon fontSize="inherit" />
-                  </span>
-                  <span>{"\u81ea\u52d5\u5f48\u51fa\u5206\u6578\u699c"}</span>
-                  <span className="game-room-mobile-action-meta">
-                    {mobileRevealAutoOverlayEnabled ? "ON" : "OFF"}
                   </span>
                 </button>
               </div>
@@ -1972,25 +1973,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 aria-hidden="true"
               />
             )}
-            <SwipeableDrawer
+            <Drawer
               className={`game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden ${mobileAutoOverlayTransition !== "idle"
                 ? `game-room-mobile-drawer-root--${mobileAutoOverlayTransition}`
                 : ""
                 }`}
               anchor="bottom"
               open={mobileScoreboardOpen}
-              onOpen={handleOpenMobileScoreboard}
               onClose={handleCloseMobileScoreboard}
-              disableSwipeToOpen
-              disableDiscovery
-              allowSwipeInChildren
-              swipeAreaWidth={0}
               ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
               PaperProps={{
                 className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single ${
                   mobileScoreboardOpen
                     ? "game-room-mobile-scoreboard-drawer--open"
                     : "game-room-mobile-scoreboard-drawer--closed"
+                } ${
+                  isMobileDrawerGestureActive
+                    ? "game-room-mobile-scoreboard-drawer--dragging"
+                    : ""
                 }`,
                 style: {
                   ...mobileScoreboardDragDismiss.paperStyle,
@@ -2048,12 +2048,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   mobileOverlayMode
                   mobileMinimalHeader
                   swapAnimationEnabled={
-                    mobileScoreboardOpen && mobileScoreboardSwapArmed
+                    mobileScoreboardOpen &&
+                    mobileScoreboardSwapArmed &&
+                    !isMobileDrawerGestureActive
                   }
                   swapReplayToken={mobileScoreboardSwapReplayToken}
                 />
               </div>
-            </SwipeableDrawer>
+            </Drawer>
           </>
         )}
         <Dialog
@@ -2122,14 +2124,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           </Dialog>
         )}
         {isHostInGame && isMobileGameViewport && (
-          <SwipeableDrawer
+          <Drawer
             className="game-room-mobile-drawer-root game-room-mobile-drawer-root--host-manage lg:!hidden"
             anchor="bottom"
             open={hostManagementOpen}
-            onOpen={handleOpenHostManagement}
             onClose={handleCloseHostManagement}
-            disableSwipeToOpen={false}
-            swipeAreaWidth={26}
             ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
             PaperProps={{
               className:
@@ -2169,7 +2168,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <div className="game-room-mobile-host-manage-body">
               {hostManagementPanelContent}
             </div>
-          </SwipeableDrawer>
+          </Drawer>
         )}
         <ConfirmDialog
           open={isHostInGame && Boolean(hostManagementConfirm)}

@@ -28,6 +28,7 @@ import { normalizeDisplayText } from "./roomLobbyPanelUtils";
 interface RoomLobbyHostControlsProps {
   isHostPanelExpanded: boolean;
   hasNewSuggestions: boolean;
+  newSuggestionCount: number;
   playlistSuggestions: PlaylistSuggestion[];
   gameStatus?: GameState["status"];
   hostSourceType: "suggestions" | "playlist" | "collection" | "youtube";
@@ -97,6 +98,7 @@ const getSuggestionKey = (suggestion: PlaylistSuggestion) =>
 const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
   isHostPanelExpanded,
   hasNewSuggestions,
+  newSuggestionCount,
   playlistSuggestions,
   gameStatus,
   hostSourceType,
@@ -167,6 +169,9 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
   const switchSourceType = (
     nextType: "suggestions" | "playlist" | "collection" | "youtube",
   ) => {
+    if (nextType === "suggestions") {
+      markSuggestionsSeen();
+    }
     if (
       isHostPanelExpanded &&
       hostSourceType === "suggestions" &&
@@ -269,6 +274,10 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
     return hostSourceStatus;
   })();
 
+  const suggestionPromptMessage = hasNewSuggestions
+    ? `目前有 ${newSuggestionCount} 份推薦歌單可查看。`
+    : null;
+
   return (
     <Accordion
       disableGutters
@@ -280,14 +289,16 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
           <span className="room-lobby-host-heading__icon" aria-hidden="true">
             <PlaylistPlayRoundedIcon fontSize="small" />
           </span>
-          <Typography variant="subtitle2" className="text-slate-200">
-            播放清單來源
-          </Typography>
-          {hasNewSuggestions && (
-            <span className="room-lobby-host-heading__badge">
-              {playlistSuggestions.length}
-            </span>
-          )}
+          <div className="room-lobby-host-heading__copy">
+            <Typography variant="subtitle2" className="text-slate-200">
+              播放清單來源
+            </Typography>
+            {suggestionPromptMessage && (
+              <span className="room-lobby-host-heading__meta">
+                {suggestionPromptMessage}
+              </span>
+            )}
+          </div>
         </div>
       </AccordionSummary>
       <AccordionDetails>
@@ -297,9 +308,16 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
               <span className="room-lobby-host-heading__icon">
                 <PlaylistPlayRoundedIcon fontSize="small" />
               </span>
-              <Typography variant="subtitle2" className="text-slate-200">
-                播放清單來源
-              </Typography>
+              <div className="room-lobby-host-heading__copy">
+                <Typography variant="subtitle2" className="text-slate-200">
+                  播放清單來源
+                </Typography>
+                {suggestionPromptMessage && (
+                  <span className="room-lobby-host-heading__meta">
+                    {suggestionPromptMessage}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -321,6 +339,11 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                   onClick={() => switchSourceType("suggestions")}
                 >
                   推薦
+                  {hasNewSuggestions && (
+                    <span className="room-lobby-mode-button__badge">
+                      {newSuggestionCount}
+                    </span>
+                  )}
                 </Button>
                 <Button
                   size="small"

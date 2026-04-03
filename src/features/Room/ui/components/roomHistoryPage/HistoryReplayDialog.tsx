@@ -23,7 +23,7 @@ interface HistoryReplayDialogProps {
   formatDuration: (durationMs: number | null) => string;
 }
 
-const HistoryReplaySkeleton: React.FC = () => (
+export const HistoryReplaySkeleton: React.FC = () => (
   <div className="animate-pulse space-y-4">
     <section className="rounded-[24px] border border-slate-700/70 bg-[linear-gradient(180deg,rgba(8,14,24,0.9),rgba(4,8,16,0.96))] p-4 sm:p-5">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-start">

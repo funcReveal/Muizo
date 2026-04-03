@@ -808,45 +808,57 @@ const useGameRoomPlayerSync = ({
   }, [debugSync, waitingToStart]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    let timerId: number | null = null;
+    const tick = () => {
+      const visibilityHidden =
+        typeof document !== "undefined" && document.visibilityState !== "visible";
       const now = getServerNowMs();
       if (resumeNeedsSyncRef.current && playerReadyRef.current && now >= startedAt) {
-        if (document.visibilityState !== "visible") {
-          return;
-        }
         resumeNeedsSyncRef.current = false;
         requestPlayerTime("interval-resume");
+        timerId = window.setTimeout(tick, 420);
         return;
       }
-      const playerState = lastPlayerStateRef.current;
-      const canAutoResumeNow =
-        now - lastAutoResumeAttemptAtMsRef.current >= AUTO_RESUME_MIN_INTERVAL_MS;
-      if (
-        playerReadyRef.current &&
-        now >= startedAt &&
-        !isEnded
-      ) {
-        if (playerState === 2 && canAutoResumeNow) {
-          lastAutoResumeAttemptAtMsRef.current = now;
-          postCommand("playVideo");
-          postCommand("unMute");
-          applyVolume(gameVolume);
-        } else if ((playerState === null || playerState === -1) && canAutoResumeNow) {
-          lastAutoResumeAttemptAtMsRef.current = now;
-          startPlayback();
+      if (!visibilityHidden) {
+        const playerState = lastPlayerStateRef.current;
+        const canAutoResumeNow =
+          now - lastAutoResumeAttemptAtMsRef.current >= AUTO_RESUME_MIN_INTERVAL_MS;
+        if (
+          playerReadyRef.current &&
+          now >= startedAt &&
+          !isEnded
+        ) {
+          if (playerState === 2 && canAutoResumeNow) {
+            lastAutoResumeAttemptAtMsRef.current = now;
+            postCommand("playVideo");
+            postCommand("unMute");
+            applyVolume(gameVolume);
+          } else if ((playerState === null || playerState === -1) && canAutoResumeNow) {
+            lastAutoResumeAttemptAtMsRef.current = now;
+            startPlayback();
+          }
+        }
+        if (
+          ENABLE_STEADY_STATE_WATCHDOG &&
+          playerReadyRef.current &&
+          hasStartedPlaybackRef.current &&
+          now >= startedAt &&
+          now - lastTimeRequestAtMsRef.current >= WATCHDOG_REQUEST_INTERVAL_MS
+        ) {
+          requestPlayerTime("watchdog");
         }
       }
-      if (
-        ENABLE_STEADY_STATE_WATCHDOG &&
-        playerReadyRef.current &&
-        hasStartedPlaybackRef.current &&
-        now >= startedAt &&
-        now - lastTimeRequestAtMsRef.current >= WATCHDOG_REQUEST_INTERVAL_MS
-      ) {
-        requestPlayerTime("watchdog");
-      }
-    }, 500);
-    return () => clearInterval(interval);
+      const nextDelay = visibilityHidden
+        ? 1400
+        : waitingToStart || !playerReadyRef.current || isEnded
+          ? 900
+          : 420;
+      timerId = window.setTimeout(tick, nextDelay);
+    };
+    tick();
+    return () => {
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
   }, [
     applyVolume,
     gameVolume,
@@ -856,6 +868,7 @@ const useGameRoomPlayerSync = ({
     requestPlayerTime,
     startPlayback,
     startedAt,
+    waitingToStart,
   ]);
 
   useEffect(() => {
@@ -986,6 +999,9 @@ const useGameRoomPlayerSync = ({
             lastSyncMsRef.current = getServerNowMs();
             setLoadedTrackKey(trackLoadKey);
             debugSync("player-state-playing");
+            if (initialAudioSyncPendingRef.current) {
+              scheduleInitialAudioHoldRelease(220);
+            }
             requestPlayerTime("state-playing");
             schedulePostStartDriftChecks();
             startSilentAudio();
@@ -1119,6 +1135,7 @@ const useGameRoomPlayerSync = ({
     phase,
     postCommand,
     requestPlayerTime,
+    scheduleInitialAudioHoldRelease,
     schedulePlaybackStart,
     schedulePostStartDriftChecks,
     scheduleResumeResync,
@@ -1261,12 +1278,27 @@ const useGameRoomPlayerSync = ({
         resumeNeedsSyncRef.current = true;
         return;
       }
-      resumeNeedsSyncRef.current = false;
-      postCommand("playVideo");
-      applyVolume(gameVolume);
       startSilentAudio();
+      resumeNeedsSyncRef.current = false;
+      const didSeek = syncToServerPosition(
+        "visibility",
+        true,
+        RESUME_DRIFT_TOLERANCE_SEC,
+        true,
+      );
       requestPlayerTime("visibility");
-      resumeNeedsSyncRef.current = true;
+      if (didSeek) {
+        scheduleResumeResync();
+        return;
+      }
+      if (initialAudioSyncPendingRef.current) {
+        scheduleInitialAudioHoldRelease(180);
+      } else {
+        postCommand("playVideo");
+        postCommand("unMute");
+        applyVolume(gameVolume);
+      }
+      scheduleResumeResync();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleVisibility);
@@ -1280,8 +1312,11 @@ const useGameRoomPlayerSync = ({
     getServerNowMs,
     postCommand,
     requestPlayerTime,
+    scheduleInitialAudioHoldRelease,
+    scheduleResumeResync,
     startSilentAudio,
     startedAt,
+    syncToServerPosition,
   ]);
 
   const handlePlaybackIframeLoad = useCallback(() => {

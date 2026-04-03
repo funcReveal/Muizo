@@ -92,37 +92,109 @@ const renderParticipantName = (
   );
 };
 
-const podiumNameClass = (username: string) => {
-  if (username.length >= 14) return "text-[1.6rem] leading-[1.08]";
-  if (username.length >= 10) return "text-[1.9rem] leading-[1.08]";
-  return "text-[2.35rem] leading-[1]";
-};
-
-const renderPodiumName = (
+const renderPodiumAvatar = (
   participant: RoomParticipant | null,
-  multilineEllipsis2Style?: React.CSSProperties,
+  rank: number,
+  isMobileView: boolean,
+  meClientId?: string,
 ) => {
-  if (!participant?.username) return <span>--</span>;
-  const username = participant.username;
-  const style: React.CSSProperties = {
-    ...multilineEllipsis2Style,
-    display: "-webkit-box",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: 2,
-    overflow: "hidden",
-    textWrap: "balance",
-    wordBreak: "keep-all",
-    overflowWrap: "anywhere",
-  };
+  if (!participant) {
+    return (
+      <div
+        className={`mx-auto inline-flex items-center justify-center rounded-full text-white/78 ${
+          rank === 1
+            ? isMobileView
+              ? "h-20 w-20 bg-[radial-gradient(circle_at_35%_28%,rgba(255,248,214,0.2),rgba(250,204,21,0.08)_32%,rgba(12,18,30,0.22)_72%,transparent_100%)] text-[1.7rem]"
+              : "h-24 w-24 bg-[radial-gradient(circle_at_35%_28%,rgba(255,248,214,0.2),rgba(250,204,21,0.08)_32%,rgba(12,18,30,0.22)_72%,transparent_100%)] text-[2rem]"
+            : isMobileView
+              ? "h-16 w-16 bg-[radial-gradient(circle_at_35%_28%,rgba(241,245,249,0.14),rgba(148,163,184,0.05)_36%,rgba(12,18,30,0.18)_72%,transparent_100%)] text-[1.2rem]"
+              : "h-20 w-20 bg-[radial-gradient(circle_at_35%_28%,rgba(241,245,249,0.14),rgba(148,163,184,0.05)_36%,rgba(12,18,30,0.18)_72%,transparent_100%)] text-[1.5rem]"
+        }`}
+      >
+        --
+      </div>
+    );
+  }
+
+  const avatarUrl = participant.avatar_url ?? participant.avatarUrl ?? null;
+  const isMe = Boolean(meClientId && participant.clientId === meClientId);
+  const shellClass = avatarUrl
+    ? rank === 1
+      ? isMobileView
+        ? "h-20 w-20 shadow-[0_14px_28px_-24px_rgba(250,204,21,0.28)]"
+        : "h-24 w-24 shadow-[0_16px_34px_-26px_rgba(250,204,21,0.3)]"
+      : isMobileView
+        ? "h-16 w-16 shadow-[0_10px_18px_-20px_rgba(15,23,42,0.34)]"
+        : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.34)]"
+    : rank === 1
+      ? isMobileView
+        ? "h-20 w-20 shadow-[0_10px_24px_-22px_rgba(250,204,21,0.18)]"
+        : "h-24 w-24 shadow-[0_14px_28px_-24px_rgba(250,204,21,0.18)]"
+      : rank === 2
+        ? isMobileView
+          ? "h-16 w-16 shadow-[0_10px_20px_-20px_rgba(15,23,42,0.28)]"
+          : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(15,23,42,0.28)]"
+        : isMobileView
+        ? "h-16 w-16 shadow-[0_10px_20px_-20px_rgba(120,53,15,0.16)]"
+        : "h-20 w-20 shadow-[0_12px_24px_-22px_rgba(120,53,15,0.16)]";
+  const shellSurfaceClass = avatarUrl
+    ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))]"
+    : "bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.035))]";
 
   return (
-    <RoomUiTooltip title={username} wrapperClassName="mx-auto block max-w-[10.5rem]">
-      <span
-        className={`mx-auto block max-w-[10.5rem] text-center font-black tracking-[-0.04em] ${podiumNameClass(username)}`}
-        style={style}
-      >
-        {username}
-      </span>
+    <RoomUiTooltip title={participant.username} wrapperClassName="mx-auto inline-flex">
+      <div className="relative inline-flex">
+        <div
+          className={`inline-flex items-center justify-center overflow-hidden rounded-full ${shellSurfaceClass} text-white ${shellClass}`}
+        >
+          {avatarUrl ? (
+            <div className="relative h-full w-full overflow-hidden rounded-full">
+              <img
+                src={avatarUrl}
+                alt={participant.username}
+                className="h-full w-full object-cover opacity-[0.84] saturate-[0.92] brightness-[1.08] contrast-[0.98]"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,12,22,0.02),rgba(8,12,22,0.12))]" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(255,255,255,0.22),transparent_52%)]" />
+            </div>
+          ) : (
+            <div
+              className={`relative inline-flex h-full w-full items-center justify-center rounded-full ${
+                rank === 1
+                  ? "bg-[linear-gradient(180deg,rgba(255,247,214,0.2),rgba(250,204,21,0.1)_24%,rgba(23,27,37,0.26)_100%)]"
+                  : rank === 2
+                    ? "bg-[linear-gradient(180deg,rgba(248,250,252,0.15),rgba(148,163,184,0.08)_24%,rgba(22,28,40,0.26)_100%)]"
+                    : "bg-[linear-gradient(180deg,rgba(253,186,116,0.14),rgba(217,119,6,0.07)_24%,rgba(34,24,21,0.26)_100%)]"
+              }`}
+            >
+              <span className={`relative font-black tracking-[-0.04em] ${
+                rank === 1
+                  ? isMobileView
+                    ? "text-[1.7rem] text-amber-50"
+                    : "text-[2rem] text-amber-50"
+                  : rank === 2
+                    ? isMobileView
+                      ? "text-[1.2rem] text-slate-50"
+                      : "text-[1.5rem] text-slate-50"
+                    : isMobileView
+                      ? "text-[1.2rem] text-orange-50"
+                      : "text-[1.5rem] text-orange-50"
+              }`}>
+                {participant.username.slice(0, 1).toUpperCase()}
+              </span>
+            </div>
+          )}
+        </div>
+        {isMe && (
+          <span className={`absolute left-1/2 -translate-x-1/2 rounded-full border border-cyan-300/45 bg-cyan-400/16 font-black tracking-[0.08em] text-cyan-50 ${
+            isMobileView
+              ? "-bottom-1 px-1.5 py-0.5 text-[9px]"
+              : "-bottom-1.5 px-2 py-0.5 text-[10px]"
+          }`}>
+            YOU
+          </span>
+        )}
+      </div>
     </RoomUiTooltip>
   );
 };
@@ -159,6 +231,7 @@ const statDisplayName = (participant: RoomParticipant | null) => {
 };
 
 const OverviewSection: React.FC<OverviewSectionProps> = ({
+  isMobileView = false,
   winner,
   runnerUp,
   thirdPlace,
@@ -181,43 +254,47 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
       participant: runnerUp,
       rank: 2,
       orderClass: "order-1",
-      heightClass: "min-h-[420px]",
+      heightClass: isMobileView ? "min-h-[320px]" : "min-h-[420px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-[2rem]",
+      topPadClass: isMobileView ? "pt-[1.1rem]" : "pt-[2rem]",
     },
     {
       participant: winner,
       rank: 1,
       orderClass: "order-2",
-      heightClass: "min-h-[450px]",
+      heightClass: isMobileView ? "min-h-[352px]" : "min-h-[450px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-3",
+      topPadClass: isMobileView ? "pt-2" : "pt-3",
     },
     {
       participant: thirdPlace,
       rank: 3,
       orderClass: "order-3",
-      heightClass: "min-h-[390px]",
+      heightClass: isMobileView ? "min-h-[302px]" : "min-h-[390px]",
       widthClass: "mx-auto w-full",
-      topPadClass: "pt-[2rem]",
+      topPadClass: isMobileView ? "pt-[1.1rem]" : "pt-[2rem]",
     },
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-      <article className="relative overflow-hidden rounded-[28px] border border-amber-300/18 bg-[radial-gradient(circle_at_50%_-8%,rgba(250,204,21,0.24),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(52,35,10,0.98),rgba(22,16,24,0.98))] p-5 shadow-[0_28px_80px_-48px_rgba(245,158,11,0.54)]">
+    <section className={`grid ${isMobileView ? "gap-3" : "gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]"}`}>
+      <article className={`relative overflow-hidden rounded-[28px] border border-amber-300/18 bg-[radial-gradient(circle_at_50%_-8%,rgba(250,204,21,0.24),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(52,35,10,0.98),rgba(22,16,24,0.98))] ${isMobileView ? "p-4" : "p-5"} shadow-[0_28px_80px_-48px_rgba(245,158,11,0.54)]`}>
         <div className="pointer-events-none absolute inset-x-[28%] top-0 h-16 rounded-full bg-amber-200/8 blur-[38px]" />
 
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-3xl font-black tracking-tight text-white">本場冠軍榜</h3>
+          <div className="flex items-center gap-3">
+            <div className={`inline-flex shrink-0 items-center justify-center text-amber-100 ${
+              isMobileView ? "h-10 w-10" : "h-11 w-11"
+            }`}>
+              <WorkspacePremiumRoundedIcon fontSize="small" />
+            </div>
+            <div>
+            <h3 className={`${isMobileView ? "text-[2.2rem]" : "text-3xl"} font-black tracking-tight text-white`}>本場冠軍榜</h3>
+            </div>
           </div>
-          <span className="rounded-full border border-amber-200/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-100">
-            前 3 名玩家
-          </span>
         </div>
 
-        <div className="relative mt-6 grid min-h-[430px] grid-cols-3 items-end gap-4 px-1">
+        <div className={`relative ${isMobileView ? "mt-4 min-h-[340px] gap-2 px-0" : "mt-6 min-h-[430px] gap-4 px-1"} grid grid-cols-3 items-end`}>
           {podium.map(
             ({ participant, rank, orderClass, heightClass, widthClass, topPadClass }) => {
               const combo = participant
@@ -236,10 +313,9 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
               return (
                 <div
                   key={`podium-${rank}`}
-                  className={`relative overflow-hidden ${orderClass} ${heightClass} ${widthClass} ${topPadClass} rounded-[28px] px-4 pb-4 text-center ${rankSurfaceClass(rank)} ${podiumAuraClass(rank)} ${isMe ? "ring-1 ring-white/18" : ""
-                    } ${rank === 1 ? "z-20" : rank === 2 ? "z-10" : "z-0"
+                  className={`relative overflow-hidden ${orderClass} ${heightClass} ${widthClass} ${topPadClass} ${isMobileView ? "rounded-[22px] px-2.5 pb-3" : "rounded-[28px] px-4 pb-4"} text-center ${rankSurfaceClass(rank)} ${podiumAuraClass(rank)} ${isMe ? "ring-1 ring-white/18" : ""
+                    } ${rank === 1 ? "z-20 settlement-champion-glow" : rank === 2 ? "z-10" : "z-0"
                     }`}
-                  style={rank === 1 ? { animation: "settlementChampionGlow 2.8s ease-in-out infinite" } : undefined}
                 >
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/8" />
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent,rgba(10,10,16,0.08)_55%,rgba(10,10,16,0.14))]" />
@@ -247,6 +323,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                     <>
                       <div
                         className="pointer-events-none absolute left-1/2 top-0 h-[356px] w-[252px] -translate-x-1/2 opacity-[0.8]"
+                        className="settlement-champion-spotlight"
                         style={{
                           background:
                             "linear-gradient(90deg, rgba(250,204,21,0) 0%, rgba(255,244,194,0.06) 18%, rgba(255,249,226,0.26) 50%, rgba(255,244,194,0.06) 82%, rgba(250,204,21,0) 100%), linear-gradient(180deg, rgba(255,248,214,0.26) 0%, rgba(255,239,170,0.15) 18%, rgba(250,204,21,0.08) 42%, rgba(250,204,21,0.03) 68%, rgba(250,204,21,0) 100%)",
@@ -254,7 +331,6 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                           filter: "blur(5px)",
                           maskImage:
                             "linear-gradient(180deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.86) 38%, rgba(0,0,0,0.48) 72%, rgba(0,0,0,0.12) 90%, rgba(0,0,0,0) 100%)",
-                          animation: "settlementChampionSpotlight 3.8s ease-in-out infinite",
                         }}
                       />
                       <div
@@ -269,29 +345,23 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                         }}
                       />
                       <div
-                        className="pointer-events-none absolute left-1/2 top-5 h-24 w-[68%] -translate-x-1/2 rounded-full border border-amber-200/12 bg-[radial-gradient(circle,rgba(253,224,71,0.08),transparent_66%)] blur-[1px]"
-                        style={{ animation: "settlementChampionHalo 3.2s ease-in-out infinite" }}
+                        className="settlement-champion-halo pointer-events-none absolute left-1/2 top-5 h-24 w-[68%] -translate-x-1/2 rounded-full border border-amber-200/12 bg-[radial-gradient(circle,rgba(253,224,71,0.08),transparent_66%)] blur-[1px]"
                       />
                       <div
-                        className="pointer-events-none absolute left-1/2 top-[43%] h-24 w-[58%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.12),rgba(250,204,21,0.03)_52%,transparent_74%)] blur-[12px]"
-                        style={{ animation: "settlementChampionHalo 3.2s ease-in-out infinite 0.4s" }}
+                        className="settlement-champion-halo--delayed pointer-events-none absolute left-1/2 top-[43%] h-24 w-[58%] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(250,204,21,0.12),rgba(250,204,21,0.03)_52%,transparent_74%)] blur-xs"
                       />
                       <div className="pointer-events-none absolute inset-x-[24%] top-0 h-8 rounded-[18px] bg-[radial-gradient(circle_at_50%_0%,rgba(255,245,190,0.2),rgba(255,228,136,0.03)_56%,transparent_80%)] blur-[1.5px]" />
                       <div
-                        className="pointer-events-none absolute left-[18%] top-20 h-3.5 w-3.5 rounded-full bg-amber-100/60 blur-[1px]"
-                        style={{ animation: "settlementChampionSpark 1.8s ease-out infinite" }}
+                        className="settlement-champion-spark--a pointer-events-none absolute left-[18%] top-20 h-3.5 w-3.5 rounded-full bg-amber-100/60 blur-[1px]"
                       />
                       <div
-                        className="pointer-events-none absolute right-[18%] top-24 h-3 w-3 rounded-full bg-amber-50/66 blur-[1px]"
-                        style={{ animation: "settlementChampionSpark 2.1s ease-out infinite 0.45s" }}
+                        className="settlement-champion-spark--b pointer-events-none absolute right-[18%] top-24 h-3 w-3 rounded-full bg-amber-50/66 blur-[1px]"
                       />
                       <div
-                        className="pointer-events-none absolute left-1/2 top-28 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-200/44 blur-[1px]"
-                        style={{ animation: "settlementChampionSpark 1.9s ease-out infinite 0.9s" }}
+                        className="settlement-champion-spark--c pointer-events-none absolute left-1/2 top-28 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-200/44 blur-[1px]"
                       />
                       <div
-                        className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-amber-200/22 p-2 shadow-[0_0_38px_rgba(250,204,21,0.5)]"
-                        style={{ animation: "settlementCrownFloat 2.1s ease-in-out infinite" }}
+                        className="settlement-crown-float pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-amber-200/22 p-2 shadow-[0_0_38px_rgba(250,204,21,0.5)]"
                       >
                         <WorkspacePremiumRoundedIcon className="text-[1.15rem] text-amber-50" />
                       </div>
@@ -309,12 +379,12 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                     {podiumLabel(rank)}
                   </div>
 
-                  <div className={`relative z-10 mt-4 min-h-[4.9rem] px-1 ${nameToneClass}`}>
-                    {renderPodiumName(participant, multilineEllipsis2Style)}
+                  <div className={`relative z-10 ${isMobileView ? "mt-3 min-h-[5.8rem]" : "mt-4 min-h-[6.8rem]"} ${nameToneClass}`}>
+                    {renderPodiumAvatar(participant, rank, isMobileView, meClientId)}
                   </div>
 
                   <div
-                    className={`mx-auto mt-5 flex w-full max-w-[176px] flex-col items-center justify-center rounded-[24px] px-4 py-5 ${
+                    className={`mx-auto ${isMobileView ? "mt-3 max-w-[132px] rounded-[18px] px-2 py-3.5" : "mt-5 max-w-[176px] rounded-[24px] px-4 py-5"} flex w-full flex-col items-center justify-center ${
                       rank === 1
                         ? "bg-[linear-gradient(180deg,rgba(11,10,14,0.08),rgba(11,10,14,0.22))] shadow-[inset_0_1px_0_rgba(255,245,190,0.06),0_16px_34px_-28px_rgba(250,204,21,0.14)]"
                         : rank === 2
@@ -322,17 +392,17 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                           : "bg-[linear-gradient(180deg,rgba(14,10,10,0.12),rgba(14,10,10,0.24))] shadow-[inset_0_1px_0_rgba(249,115,22,0.04)]"
                       }`}
                   >
-                    <p className="text-[3.25rem] font-black leading-none text-white">
+                    <p className={`${isMobileView ? "text-[2.25rem]" : "text-[3.25rem]"} font-black leading-none text-white`}>
                       {participant?.score ?? "--"}
                     </p>
-                    <p className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-white/78">
+                    <p className={`${isMobileView ? "mt-1.5 text-[9px]" : "mt-2 text-[11px]"} font-semibold tracking-[0.08em] text-white/78`}>
                       {correctCount}/{playedQuestionCount || "--"} 題答對
                     </p>
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <div className={`${isMobileView ? "mt-3 gap-1.5" : "mt-5 gap-3"} flex flex-wrap items-center justify-center`}>
                     <span
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${comboTierClass(combo)}`}
+                      className={`rounded-full border ${isMobileView ? "px-2 py-0.5 text-[10px]" : "px-3 py-1 text-[11px]"} font-semibold ${comboTierClass(combo)}`}
                     >
                       Combo x{combo}
                     </span>
@@ -342,7 +412,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             })}
         </div>
 
-        <div className="mt-3 rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(251,191,36,0.05),rgba(15,23,42,0.42))] p-4 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.03)]">
+        <div className={`mt-3 rounded-[24px] border border-amber-300/10 bg-[linear-gradient(180deg,rgba(251,191,36,0.05),rgba(15,23,42,0.42))] ${isMobileView ? "p-3.5" : "p-4"} shadow-[inset_0_0_0_1px_rgba(251,191,36,0.03)]`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-semibold tracking-[0.18em] text-amber-100/72">
@@ -367,27 +437,27 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className={`mt-4 grid gap-3 ${isMobileView ? "grid-cols-3" : "sm:grid-cols-3"}`}>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">排名</p>
-              <p className="mt-3 text-4xl font-black text-white">
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>
                 {myRank > 0 ? `${myRank}/${Math.max(1, participantsLength)}` : "--"}
               </p>
             </div>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">分數</p>
-              <p className="mt-3 text-4xl font-black text-white">{me?.score ?? 0}</p>
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>{me?.score ?? 0}</p>
             </div>
             <div className="rounded-[20px] border border-white/5 bg-white/[0.035] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
               <p className="text-[11px] tracking-[0.18em] text-white/58">COMBO</p>
-              <p className="mt-3 text-4xl font-black text-white">
+              <p className={`${isMobileView ? "mt-2 text-[2rem]" : "mt-3 text-4xl"} font-black text-white`}>
                 x{me ? Math.max(me.maxCombo ?? 0, me.combo) : 0}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className={`mt-5 grid gap-3 ${isMobileView ? "grid-cols-1" : "sm:grid-cols-3"}`}>
           <div className="rounded-[22px] border border-cyan-300/10 bg-cyan-500/10 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.04)]">
             <p className="text-[11px] font-semibold text-cyan-100/88">最高準度</p>
             <p className="mt-3 text-4xl font-black text-cyan-50">
@@ -421,7 +491,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
       </article>
 
       <article className="rounded-[28px] border border-cyan-300/18 bg-[radial-gradient(circle_at_16%_8%,rgba(34,211,238,0.14),transparent_18%),radial-gradient(circle_at_88%_100%,rgba(14,165,233,0.08),transparent_20%),linear-gradient(180deg,rgba(11,18,31,0.98),rgba(9,13,24,0.95))] p-5 shadow-[0_24px_70px_-52px_rgba(34,211,238,0.44)]">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center text-cyan-100">
             <EmojiEventsRoundedIcon />
           </div>
@@ -517,5 +587,5 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
   );
 };
 
-export default OverviewSection;
+export default React.memo(OverviewSection);
 

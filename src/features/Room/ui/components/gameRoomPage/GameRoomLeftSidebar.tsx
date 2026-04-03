@@ -58,6 +58,112 @@ type RankSwapState = {
   offsetByClientId: Record<string, number>;
 };
 
+interface GameRoomScorePlayerRowProps {
+  player: RoomParticipant;
+  rowIndex: number;
+  isReveal: boolean;
+  hasAnswered: boolean;
+  answerRank?: number;
+  scoreParts: { base: number; gain: number };
+  isMeRow: boolean;
+  answerDotClass: string;
+  answerDotTitle: string;
+  answerChipColor: "default" | "success" | "error" | "warning";
+  rowSwapStyle?: React.CSSProperties;
+  rowClassName: string;
+  displayName: string;
+  comboDisplayClass: string;
+  shouldShowComboChampion: boolean;
+  rowComboTier: number;
+  effectiveScoreboardBorderMotion: string;
+  scoreboardBorderTheme: string;
+  scoreboardBorderMaskEnabled: boolean;
+  scoreboardBorderLineStyle: string;
+  scoreboardBorderParticleCount: number;
+}
+
+const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
+  player,
+  rowIndex,
+  isReveal,
+  hasAnswered,
+  answerRank,
+  scoreParts,
+  isMeRow,
+  answerDotClass,
+  answerDotTitle,
+  answerChipColor,
+  rowSwapStyle,
+  rowClassName,
+  displayName,
+  comboDisplayClass,
+  shouldShowComboChampion,
+  rowComboTier,
+  effectiveScoreboardBorderMotion,
+  scoreboardBorderTheme,
+  scoreboardBorderMaskEnabled,
+  scoreboardBorderLineStyle,
+  scoreboardBorderParticleCount,
+}: GameRoomScorePlayerRowProps) {
+  return (
+    <div className={rowClassName} style={rowSwapStyle}>
+      {shouldShowComboChampion && (
+        <AnimatedScoreboardBorder
+          animationId={effectiveScoreboardBorderMotion}
+          lineStyleId={scoreboardBorderLineStyle}
+          themeId={scoreboardBorderTheme}
+          maskEnabled={scoreboardBorderMaskEnabled}
+          particleCount={scoreboardBorderParticleCount}
+          intensity={rowComboTier / 10}
+          variant="attached"
+          className="scoreboard-border-effect"
+        />
+      )}
+      <span className="truncate flex items-center gap-2">
+        {hasAnswered && (
+          <RoomUiTooltip title={answerDotTitle}>
+            <span className={`h-2 w-2 rounded-full ${answerDotClass}`} />
+          </RoomUiTooltip>
+        )}
+        <span className="truncate">
+          {rowIndex + 1}. {displayName}
+        </span>
+        {isMeRow && (
+          <span className="game-room-score-row-you-badge">YOU</span>
+        )}
+      </span>
+      <div className="flex items-center gap-2">
+        {typeof answerRank === "number" ? (
+          <Chip
+            label={`第 ${answerRank} 答`}
+            size="small"
+            color={answerChipColor}
+            variant="filled"
+          />
+        ) : (
+          <Chip label="待答" size="small" variant="outlined" />
+        )}
+        <span className="font-semibold text-emerald-300 tabular-nums">
+          {player.score.toLocaleString()}
+          {isReveal && scoreParts.gain !== 0 && (
+            <span
+              className={`ml-1 ${scoreParts.gain > 0
+                ? "text-sky-300 game-room-score-gain-pop"
+                : "text-rose-300 game-room-score-loss-pop"
+                }`}
+            >
+              {scoreParts.gain > 0 ? `+${scoreParts.gain}` : scoreParts.gain}
+            </span>
+          )}
+          {player.combo > 0 && (
+            <span className={`ml-1 ${comboDisplayClass}`}>x{player.combo}</span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+});
+
 const clampRankSwapOffsetRows = (value: number) =>
   Math.max(-MAX_RANK_SWAP_OFFSET_ROWS, Math.min(MAX_RANK_SWAP_OFFSET_ROWS, value));
 
@@ -169,6 +275,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const rowElementByClientIdRef = React.useRef(new Map<string, HTMLDivElement>());
   const previousDesktopTopByClientIdRef = React.useRef(new Map<string, number>());
   const desktopFlipAnimationsRef = React.useRef<Animation[]>([]);
+  const flipPrevScoreByClientIdRef = React.useRef<Map<string, number>>(new Map());
 
   const debugScoreboard = React.useCallback(
     (label: string, payload: Record<string, unknown>) => {
@@ -308,7 +415,6 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     }
 
     const nextTopByClientId = new Map<string, number>();
-    const previousScoreByClientId = lastScoreByClientIdRef.current;
     displayedPlayerOrder.forEach((clientId) => {
       const rowElement = rowElementByClientIdRef.current.get(clientId);
       if (!rowElement) return;
@@ -321,9 +427,12 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
       return;
     }
 
+    const flipPrevScore = flipPrevScoreByClientIdRef.current;
+
     const movedRows: Array<{
       element: HTMLDivElement;
       deltaY: number;
+      clientId: string;
     }> = [];
     nextTopByClientId.forEach((nextTop, clientId) => {
       const prevTop = previousTopByClientId.get(clientId);
@@ -332,35 +441,24 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
       if (Math.abs(deltaY) < 1) return;
       const rowElement = rowElementByClientIdRef.current.get(clientId);
       if (!rowElement) return;
-      movedRows.push({ element: rowElement, deltaY });
+      movedRows.push({ element: rowElement, deltaY, clientId });
     });
-    const movedClientIds = movedRows.flatMap(({ element }) => {
-      const found = Array.from(rowElementByClientIdRef.current.entries()).find(
-        ([, candidate]) => candidate === element,
-      );
-      return found ? [found[0]] : [];
-    });
+
+    if (movedRows.length === 0) {
+      previousDesktopTopByClientIdRef.current = nextTopByClientId;
+      flipPrevScoreByClientIdRef.current = new Map(scoreByClientId);
+      return;
+    }
+
+    const movedClientIds = movedRows.map((r) => r.clientId);
     const didScoreChangeForMovedClients = movedClientIds.some((clientId) => {
-      const prevScore = previousScoreByClientId.get(clientId);
+      const prevScore = flipPrevScore.get(clientId);
       const nextScore = scoreByClientId.get(clientId);
       return typeof prevScore === "number" && typeof nextScore === "number" && prevScore !== nextScore;
     });
     if (!didScoreChangeForMovedClients) {
       previousDesktopTopByClientIdRef.current = nextTopByClientId;
-      if (movedClientIds.length > 0) {
-        debugScoreboard("flip-skipped", {
-          trigger: "flip",
-          prevOrder: lastDisplayedPlayerOrderRef.current,
-          nextOrder: displayedPlayerOrder,
-          movedClientIds,
-          prevScores: Object.fromEntries(
-            movedClientIds.map((clientId) => [clientId, previousScoreByClientId.get(clientId) ?? null]),
-          ),
-          nextScores: Object.fromEntries(
-            movedClientIds.map((clientId) => [clientId, scoreByClientId.get(clientId) ?? null]),
-          ),
-        });
-      }
+      flipPrevScoreByClientIdRef.current = new Map(scoreByClientId);
       return;
     }
 
@@ -383,26 +481,22 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
       const animation = element.animate(
         [
           {
-            transform: `translateY(${deltaY}px)`,
-            opacity: 0.88,
-            filter: "brightness(0.9) saturate(0.95)",
+            transform: `translateY(${deltaY}px) scale(0.97)`,
+            opacity: 0.72,
           },
           {
-            transform: `translateY(${Math.round(deltaY * 0.5)}px)`,
+            transform: `translateY(${Math.round(deltaY * 0.5)}px) scale(1.02)`,
             opacity: 1,
-            filter: "brightness(1.04) saturate(1.02)",
             offset: 0.48,
           },
           {
-            transform: `translateY(${overshootY}px)`,
+            transform: `translateY(${overshootY}px) scale(1.01)`,
             opacity: 1,
-            filter: "brightness(1.02) saturate(1.01)",
             offset: 0.82,
           },
           {
-            transform: "translateY(0)",
+            transform: "translateY(0) scale(1)",
             opacity: 1,
-            filter: "brightness(1) saturate(1)",
           },
         ],
         {
@@ -411,10 +505,16 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
           fill: "both",
         },
       );
+      animation.onfinish = () => {
+        desktopFlipAnimationsRef.current = desktopFlipAnimationsRef.current.filter(
+          (a) => a !== animation,
+        );
+      };
       desktopFlipAnimationsRef.current.push(animation);
     });
 
     previousDesktopTopByClientIdRef.current = nextTopByClientId;
+    flipPrevScoreByClientIdRef.current = new Map(scoreByClientId);
     if (movedClientIds.length > 0) {
       debugScoreboard("flip", {
         trigger: "flip",
@@ -422,7 +522,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         nextOrder: displayedPlayerOrder,
         movedClientIds,
         prevScores: Object.fromEntries(
-          movedClientIds.map((clientId) => [clientId, previousScoreByClientId.get(clientId) ?? null]),
+          movedClientIds.map((clientId) => [clientId, flipPrevScore.get(clientId) ?? null]),
         ),
         nextScores: Object.fromEntries(
           movedClientIds.map((clientId) => [clientId, scoreByClientId.get(clientId) ?? null]),
@@ -667,6 +767,32 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
               `玩家 ${idx + 1}`,
             );
 
+            const rowClassName = `game-room-score-row flex items-center justify-between text-sm ${isReveal ? "game-room-score-row--revealed" : ""
+              } ${rowAnswerState === "correct"
+                ? "game-room-score-row--correct"
+                : rowAnswerState === "wrong"
+                  ? "game-room-score-row--wrong"
+                  : rowAnswerState === "answered"
+                    ? "game-room-score-row--answered"
+                    : ""
+              } ${isMeRow ? "game-room-score-row--me" : ""} ${shouldUseCssSwapAnimation && hasTopSwapAnimation
+                ? topSwapRole === "first"
+                  ? "game-room-score-row--top-swap-first"
+                  : "game-room-score-row--top-swap-second"
+                : ""
+              } ${shouldUseCssSwapAnimation && hasRowSwapAnimation
+                ? rowSwapOffsetRows > 0
+                  ? "game-room-score-row--rank-swap-up"
+                  : "game-room-score-row--rank-swap-down"
+                : ""
+              } ${hasRowSwapAnimation && isTopSwapParticipant
+                ? "game-room-score-row--rank-swap-focus"
+                : ""
+              } ${rowComboTierClass} ${shouldShowComboFlare ? "game-room-score-row--combo-flare" : ""
+              } ${shouldShowComboFlare ? "game-room-score-row--combo-flare-active" : ""
+              } ${shouldShowComboChampion ? "game-room-score-row--combo-champion game-room-score-row--combo-champion-active" : ""
+              } ${rowComboThemeClass}`;
+
             return (
               <div
                 key={p.clientId}
@@ -677,86 +803,30 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   }
                   rowElementByClientIdRef.current.delete(p.clientId);
                 }}
-                className={`game-room-score-row flex items-center justify-between text-sm ${isReveal ? "game-room-score-row--revealed" : ""
-                  } ${rowAnswerState === "correct"
-                    ? "game-room-score-row--correct"
-                    : rowAnswerState === "wrong"
-                      ? "game-room-score-row--wrong"
-                      : rowAnswerState === "answered"
-                        ? "game-room-score-row--answered"
-                        : ""
-                  } ${isMeRow ? "game-room-score-row--me" : ""} ${shouldUseCssSwapAnimation && hasTopSwapAnimation
-                    ? topSwapRole === "first"
-                      ? "game-room-score-row--top-swap-first"
-                      : "game-room-score-row--top-swap-second"
-                    : ""
-                  } ${shouldUseCssSwapAnimation && hasRowSwapAnimation
-                    ? rowSwapOffsetRows > 0
-                      ? "game-room-score-row--rank-swap-up"
-                      : "game-room-score-row--rank-swap-down"
-                    : ""
-                  } ${hasRowSwapAnimation && isTopSwapParticipant
-                    ? "game-room-score-row--rank-swap-focus"
-                    : ""
-                  } ${rowComboTierClass} ${shouldShowComboFlare ? "game-room-score-row--combo-flare" : ""
-                  } ${shouldShowComboFlare ? "game-room-score-row--combo-flare-active" : ""
-                  } ${shouldShowComboChampion ? "game-room-score-row--combo-champion game-room-score-row--combo-champion-active" : ""
-                  } ${rowComboThemeClass}`}
-                style={rowSwapStyle}
               >
-                {shouldShowComboChampion ? (
-                  <AnimatedScoreboardBorder
-                    animationId={effectiveScoreboardBorderMotion}
-          lineStyleId={scoreboardBorderLineStyle}
-          themeId={scoreboardBorderTheme}
-          maskEnabled={scoreboardBorderMaskEnabled}
-          particleCount={scoreboardBorderParticleCount}
-          intensity={rowComboTier / 10}
-                    variant="attached"
-                    className="scoreboard-border-effect"
-                  />
-                ) : null}
-                <span className="truncate flex items-center gap-2">
-                  {hasAnswered && (
-                    <RoomUiTooltip title={answerDotTitle}>
-                      <span className={`h-2 w-2 rounded-full ${answerDotClass}`} />
-                    </RoomUiTooltip>
-                  )}
-                  <span className="truncate">
-                    {idx + 1}. {displayName}
-                  </span>
-                  {isMeRow && (
-                    <span className="game-room-score-row-you-badge">YOU</span>
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  {typeof answerRank === "number" ? (
-                    <Chip
-                      label={`第 ${answerRank} 答`}
-                      size="small"
-                      color={answerChipColor}
-                      variant="filled"
-                    />
-                  ) : (
-                    <Chip label="待答" size="small" variant="outlined" />
-                  )}
-                  <span className="font-semibold text-emerald-300 tabular-nums">
-                    {p.score.toLocaleString()}
-                    {isReveal && scoreParts.gain !== 0 && (
-                      <span
-                        className={`ml-1 ${scoreParts.gain > 0
-                          ? "text-sky-300 game-room-score-gain-pop"
-                          : "text-rose-300 game-room-score-loss-pop"
-                          }`}
-                      >
-                        {scoreParts.gain > 0 ? `+${scoreParts.gain}` : scoreParts.gain}
-                      </span>
-                    )}
-                    {p.combo > 0 && (
-                      <span className={`ml-1 ${comboDisplayClass}`}>x{p.combo}</span>
-                    )}
-                  </span>
-                </div>
+                <GameRoomScorePlayerRow
+                  player={p}
+                  rowIndex={idx}
+                  isReveal={isReveal}
+                  hasAnswered={hasAnswered}
+                  answerRank={answerRank}
+                  scoreParts={scoreParts}
+                  isMeRow={isMeRow}
+                  answerDotClass={answerDotClass}
+                  answerDotTitle={answerDotTitle}
+                  answerChipColor={answerChipColor}
+                  rowSwapStyle={rowSwapStyle}
+                  rowClassName={rowClassName}
+                  displayName={displayName}
+                  comboDisplayClass={comboDisplayClass}
+                  shouldShowComboChampion={shouldShowComboChampion}
+                  rowComboTier={rowComboTier}
+                  effectiveScoreboardBorderMotion={effectiveScoreboardBorderMotion}
+                  scoreboardBorderTheme={scoreboardBorderTheme}
+                  scoreboardBorderMaskEnabled={scoreboardBorderMaskEnabled}
+                  scoreboardBorderLineStyle={scoreboardBorderLineStyle}
+                  scoreboardBorderParticleCount={scoreboardBorderParticleCount}
+                />
               </div>
             );
           })

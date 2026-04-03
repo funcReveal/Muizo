@@ -1,4 +1,4 @@
-import {
+﻿import {
   startTransition,
   useCallback,
   useEffect,
@@ -10,6 +10,7 @@ import {
 
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { connectRoomSocket, disconnectRoomSocket } from "./roomSocket";
+import { translateRoomErrorDetail } from "./roomErrorText";
 import { applyGameSettingsPatch, formatAckError, mergeRoomSummaryIntoCurrentRoom } from "./roomProviderUtils";
 import type {
   Ack,
@@ -224,6 +225,63 @@ export const useRoomProviderSocketLifecycle = ({
       setRooms((prev) => prev.filter((room) => room.id !== roomId));
     },
     [setRooms],
+  );
+  const clearActiveRoomState = useCallback(
+    ({
+      kickedNotice,
+      statusText,
+    }: {
+      kickedNotice?: {
+        roomId: string;
+        reason: string;
+        bannedUntil: number | null;
+        kickedAt: number;
+      } | null;
+      statusText?: string | null;
+    } = {}) => {
+      if (kickedNotice !== undefined) {
+        setKickedNotice(kickedNotice);
+      }
+      if (statusText !== undefined) {
+        setStatusText(statusText);
+      }
+      setCurrentRoom(null);
+      setParticipants([]);
+      lastLatencyProbeRoomIdRef.current = null;
+      resetPresenceParticipants();
+      setMessages([]);
+      setSettlementHistory([]);
+      setGameState(null);
+      setGamePlaylist([]);
+      setIsGameView(false);
+      setRouteRoomResolved(true);
+      setPlaylistViewItems([]);
+      setPlaylistHasMore(false);
+      setPlaylistLoadingMore(false);
+      setPlaylistSuggestions([]);
+      persistRoomId(null);
+      resetSessionClientId();
+    },
+    [
+      lastLatencyProbeRoomIdRef,
+      persistRoomId,
+      resetPresenceParticipants,
+      resetSessionClientId,
+      setCurrentRoom,
+      setGamePlaylist,
+      setGameState,
+      setIsGameView,
+      setKickedNotice,
+      setMessages,
+      setParticipants,
+      setPlaylistHasMore,
+      setPlaylistLoadingMore,
+      setPlaylistSuggestions,
+      setPlaylistViewItems,
+      setRouteRoomResolved,
+      setSettlementHistory,
+      setStatusText,
+    ],
   );
   const applyIncomingRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -466,6 +524,21 @@ export const useRoomProviderSocketLifecycle = ({
             }
             seedPresenceParticipants(roomId, participants);
           }
+          const selfStillInRoom = participants.some(
+            (participant) => participant.clientId === clientId,
+          );
+          if (!selfStillInRoom) {
+            clearActiveRoomState({
+              kickedNotice: {
+                roomId,
+                reason: "你已被房主移出房間",
+                bannedUntil: null,
+                kickedAt: Date.now(),
+              },
+              statusText: "你已被房主移出房間",
+            });
+            return;
+          }
           setParticipants((prev) =>
             mergeCachedParticipantPing(participants, prev),
           );
@@ -481,14 +554,19 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onRoomPingUpdated: ({ roomId, pings }) => {
           if (roomId !== currentRoomIdRef.current) return;
-          setParticipants((prev) =>
-            prev.map((participant) => {
-              if (!(participant.clientId in pings)) return participant;
-              const nextPing = pings[participant.clientId];
-              if (participant.pingMs === nextPing) return participant;
-              return { ...participant, pingMs: nextPing };
-            }),
-          );
+          startTransition(() => {
+            setParticipants((prev) => {
+              let changed = false;
+              const next = prev.map((participant) => {
+                if (!(participant.clientId in pings)) return participant;
+                const nextPing = pings[participant.clientId];
+                if (participant.pingMs === nextPing) return participant;
+                changed = true;
+                return { ...participant, pingMs: nextPing };
+              });
+              return changed ? next : prev;
+            });
+          });
         },
         onUserLeft: ({ roomId, clientId: leftId }) => {
           if (roomId !== currentRoomIdRef.current) return;
@@ -524,7 +602,9 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onMessageAdded: ({ roomId, message }) => {
           if (roomId !== currentRoomIdRef.current) return;
-          setMessages((prev) => [...prev, message]);
+          startTransition(() => {
+            setMessages((prev) => [...prev, message]);
+          });
         },
         onGameStarted: ({ roomId, gameState, serverNow }) => {
           if (roomId !== currentRoomIdRef.current) return;
@@ -586,34 +666,21 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onKicked: ({ roomId, reason, bannedUntil }) => {
           if (roomId !== currentRoomIdRef.current) return;
-          setKickedNotice({
-            roomId,
-            reason,
-            bannedUntil,
-            kickedAt: Date.now(),
+          const translatedReason = translateRoomErrorDetail(reason);
+          clearActiveRoomState({
+            kickedNotice: {
+              roomId,
+              reason: translatedReason,
+              bannedUntil,
+              kickedAt: Date.now(),
+            },
+            statusText:
+              typeof bannedUntil === "number"
+                ? `${translatedReason} 封鎖至 ${new Date(bannedUntil).toLocaleTimeString("zh-TW", {
+                    hour12: false,
+                  })}`
+                : translatedReason,
           });
-          setStatusText(
-            typeof bannedUntil === "number"
-              ? `${reason} 封鎖至 ${new Date(bannedUntil).toLocaleTimeString("zh-TW", {
-                  hour12: false,
-                })}`
-              : reason,
-          );
-          setCurrentRoom(null);
-          setParticipants([]);
-          resetPresenceParticipants();
-          setMessages([]);
-          setSettlementHistory([]);
-          setGameState(null);
-          setGamePlaylist([]);
-          setIsGameView(false);
-          setRouteRoomResolved(true);
-          setPlaylistViewItems([]);
-          setPlaylistHasMore(false);
-          setPlaylistLoadingMore(false);
-          setPlaylistSuggestions([]);
-          persistRoomId(null);
-          resetSessionClientId();
         },
         onPlaylistSuggestionsUpdated: ({ roomId, suggestions }) => {
           if (roomId !== currentRoomIdRef.current) return;
@@ -688,6 +755,7 @@ export const useRoomProviderSocketLifecycle = ({
     setIsConnected,
     socketRef,
     applyIncomingRoomSummary,
+    clearActiveRoomState,
     removeRoomSummary,
   ]);
 
@@ -700,13 +768,18 @@ export const useRoomProviderSocketLifecycle = ({
         if (!ack?.ok) return;
         const measuredMs = Math.max(0, Math.round(performance.now() - startedAt));
         syncServerOffset(ack.data.serverNow);
-        setParticipants((prev) =>
-          prev.map((participant) =>
-            participant.clientId === clientId
-              ? { ...participant, pingMs: measuredMs }
-              : participant,
-          ),
-        );
+        startTransition(() => {
+          setParticipants((prev) => {
+            let changed = false;
+            const next = prev.map((participant) => {
+              if (participant.clientId !== clientId) return participant;
+              if (participant.pingMs === measuredMs) return participant;
+              changed = true;
+              return { ...participant, pingMs: measuredMs };
+            });
+            return changed ? next : prev;
+          });
+        });
       });
     },
     [clientId, setParticipants, socketRef, syncServerOffset],

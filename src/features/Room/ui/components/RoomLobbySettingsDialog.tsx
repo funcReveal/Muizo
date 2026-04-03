@@ -249,6 +249,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
       fullScreen={isMobileDialog}
       fullWidth
       maxWidth="lg"
+      sx={{ zIndex: 1505 }}
       PaperProps={{
         className: "room-lobby-settings-dialog",
         sx: {

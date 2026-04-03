@@ -1,14 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
-import {
-  Button,
-  CircularProgress,
-  Drawer,
-  IconButton,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Button, Drawer, IconButton, Typography } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
@@ -18,6 +11,7 @@ import type { SettlementQuestionRecap } from "./components/GameSettlementPanel";
 import HistoryReplayModal from "./components/HistoryReplayModal";
 import LiveSettlementShowcase from "./components/LiveSettlementShowcase";
 import HistoryReplayCompactView from "./components/HistoryReplayCompactView";
+import { HistoryReplaySkeleton } from "./components/roomHistoryPage/HistoryReplayDialog";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import {
@@ -30,6 +24,7 @@ import type {
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
 } from "../model/types";
+import { translateRoomErrorDetail } from "../model/roomErrorText";
 import { useRoom } from "../model/useRoom";
 
 const SETTLEMENT_SESSION_CACHE_KEY_PREFIX = "mq:settlement-cache:v1:";
@@ -39,6 +34,39 @@ const SETTLEMENT_RECAP_CACHE_LIMIT = 1;
 const HISTORY_DRAWER_PAGE_SIZE = 24;
 type RoomHistoryLocationState = {
   roomHistoryDrawerKey?: number;
+};
+
+const mergeSortedLobbyMessages = (
+  baseMessages: ChatMessage[],
+  settlementMessages: ChatMessage[],
+) => {
+  if (settlementMessages.length === 0) return baseMessages;
+  const merged: ChatMessage[] = [];
+  let baseIndex = 0;
+  let settlementIndex = 0;
+
+  while (
+    baseIndex < baseMessages.length &&
+    settlementIndex < settlementMessages.length
+  ) {
+    const base = baseMessages[baseIndex];
+    const settlement = settlementMessages[settlementIndex];
+    if (base.timestamp <= settlement.timestamp) {
+      merged.push(base);
+      baseIndex += 1;
+    } else {
+      merged.push(settlement);
+      settlementIndex += 1;
+    }
+  }
+
+  if (baseIndex < baseMessages.length) {
+    merged.push(...baseMessages.slice(baseIndex));
+  }
+  if (settlementIndex < settlementMessages.length) {
+    merged.push(...settlementMessages.slice(settlementIndex));
+  }
+  return merged;
 };
 
 type SelfSettlementStats = LobbySettlementStats & {
@@ -186,6 +214,116 @@ const hasCompleteSettlementRecaps = (
   const expectedCount = Math.max(0, snapshot.playedQuestionCount);
   if (expectedCount <= 0) return recapCount > 0;
   return recapCount >= expectedCount;
+};
+
+const hasReplayPlaybackData = (
+  snapshot:
+    | Pick<RoomSettlementSnapshot, "playlistItems" | "questionRecaps">
+    | null
+    | undefined,
+) => {
+  if (!snapshot) return false;
+  if (
+    Array.isArray(snapshot.playlistItems) &&
+    snapshot.playlistItems.some(
+      (item) =>
+        Boolean(item?.provider) ||
+        Boolean(item?.sourceId) ||
+        Boolean(item?.videoId) ||
+        Boolean(item?.url),
+    )
+  ) {
+    return true;
+  }
+  if (!Array.isArray(snapshot.questionRecaps)) return false;
+  return snapshot.questionRecaps.some((recap) => {
+    const extended = recap as SettlementQuestionRecap & {
+      provider?: string;
+      sourceId?: string | null;
+      videoId?: string;
+      url?: string;
+    };
+    return (
+      Boolean(extended.provider) ||
+      Boolean(extended.sourceId) ||
+      Boolean(extended.videoId) ||
+      Boolean(extended.url)
+    );
+  });
+};
+
+const hasRecapPlaybackData = (
+  recaps: SettlementQuestionRecap[] | null | undefined,
+) => {
+  if (!Array.isArray(recaps) || recaps.length === 0) return false;
+  return recaps.some((recap) => {
+    const extended = recap as SettlementQuestionRecap & {
+      provider?: string;
+      sourceId?: string | null;
+      videoId?: string;
+      url?: string;
+    };
+    return (
+      Boolean(extended.provider) ||
+      Boolean(extended.sourceId) ||
+      Boolean(extended.videoId) ||
+      Boolean(extended.url)
+    );
+  });
+};
+
+const choosePreferredSettlementRecaps = (
+  localRecaps: SettlementQuestionRecap[] | null | undefined,
+  snapshotRecaps: SettlementQuestionRecap[] | null | undefined,
+) => {
+  const safeLocalRecaps = Array.isArray(localRecaps) ? localRecaps : [];
+  const safeSnapshotRecaps = Array.isArray(snapshotRecaps) ? snapshotRecaps : [];
+  if (safeLocalRecaps.length === 0) return safeSnapshotRecaps;
+  if (safeSnapshotRecaps.length === 0) return safeLocalRecaps;
+
+  const localHasPlayback = hasRecapPlaybackData(safeLocalRecaps);
+  const snapshotHasPlayback = hasRecapPlaybackData(safeSnapshotRecaps);
+  if (localHasPlayback !== snapshotHasPlayback) {
+    return snapshotHasPlayback ? safeSnapshotRecaps : safeLocalRecaps;
+  }
+
+  return safeLocalRecaps.length >= safeSnapshotRecaps.length
+    ? safeLocalRecaps
+    : safeSnapshotRecaps;
+};
+
+const choosePreferredSettlementSnapshot = (
+  current: RoomSettlementSnapshot | null,
+  candidate: RoomSettlementSnapshot | null,
+) => {
+  if (!current) return candidate;
+  if (!candidate) return current;
+
+  const currentHasPlayback = hasReplayPlaybackData(current);
+  const candidateHasPlayback = hasReplayPlaybackData(candidate);
+  if (candidateHasPlayback !== currentHasPlayback) {
+    return candidateHasPlayback ? candidate : current;
+  }
+
+  const currentHasCompleteRecaps = hasCompleteSettlementRecaps(current);
+  const candidateHasCompleteRecaps = hasCompleteSettlementRecaps(candidate);
+  if (candidateHasCompleteRecaps !== currentHasCompleteRecaps) {
+    return candidateHasCompleteRecaps ? candidate : current;
+  }
+
+  const currentPlaylistCount = current.playlistItems?.length ?? 0;
+  const candidatePlaylistCount = candidate.playlistItems?.length ?? 0;
+  if (candidatePlaylistCount !== currentPlaylistCount) {
+    return candidatePlaylistCount > currentPlaylistCount ? candidate : current;
+  }
+
+  const currentRecapCount = getSnapshotRecapCount(current);
+  const candidateRecapCount = getSnapshotRecapCount(candidate);
+  if (candidateRecapCount !== currentRecapCount) {
+    return candidateRecapCount > currentRecapCount ? candidate : current;
+  }
+
+  return current;
 };
 
 const getSettlementSessionCacheKey = (roomId: string, clientId: string) =>
@@ -431,7 +569,9 @@ const RoomLobbyPage: React.FC = () => {
     useState<RoomSettlementHistorySummary | null>(null);
   const [historyReplayLoadingRoundKey, setHistoryReplayLoadingRoundKey] =
     useState<string | null>(null);
-  const [uiNowMs, setUiNowMs] = useState(() => Date.now() + serverOffsetMs);
+  const [settlementStartBroadcastNowMs, setSettlementStartBroadcastNowMs] = useState(
+    () => Date.now() + serverOffsetMs,
+  );
   const isTabletOrMobileLobby = useMediaQuery("(max-width:1024px)");
   const autoOpenedEndedRoundRef = useRef<string | null>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
@@ -523,7 +663,7 @@ const RoomLobbyPage: React.FC = () => {
     });
   }, [kickedNotice?.bannedUntil]);
   const kickedReasonLabel = useMemo(() => {
-    const reason = kickedNotice?.reason?.trim();
+    const reason = translateRoomErrorDetail(kickedNotice?.reason).trim();
     if (!reason) return "你已被房主移出房間。";
     if (
       reason ===
@@ -662,6 +802,22 @@ const RoomLobbyPage: React.FC = () => {
     }
     return next;
   }, [currentRoom?.id, settlementReplayByRoundKey]);
+
+  const liveSettlementSnapshotByRoundKey = useMemo(() => {
+    const next: Record<string, RoomSettlementSnapshot> = {};
+    roomScopedSettlementHistory.forEach((snapshot) => {
+      next[snapshot.roundKey] = snapshot;
+    });
+    return next;
+  }, [roomScopedSettlementHistory]);
+
+  const settlementSummaryByRoundKey = useMemo(() => {
+    const next: Record<string, RoomSettlementHistorySummary> = {};
+    roomScopedSettlementHistorySummaries.forEach((summary) => {
+      next[summary.roundKey] = summary;
+    });
+    return next;
+  }, [roomScopedSettlementHistorySummaries]);
 
   useEffect(() => {
     if (!currentRoom?.id || roomScopedSettlementHistory.length === 0) return;
@@ -802,28 +958,20 @@ const RoomLobbyPage: React.FC = () => {
       setActiveSettlementRoundKey(roundKey);
       const cachedReplaySnapshot =
         roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
-      const cachedLiveSnapshot =
-        roomScopedSettlementHistory.find(
-          (item) => item.roundKey === roundKey,
-        ) ?? null;
+      const cachedLiveSnapshot = liveSettlementSnapshotByRoundKey[roundKey] ?? null;
       const hasReplayRecaps = hasCompleteSettlementRecaps(cachedReplaySnapshot);
       const hasLiveRecaps = hasCompleteSettlementRecaps(cachedLiveSnapshot);
       if (hasReplayRecaps || hasLiveRecaps) {
         return;
       }
 
-      let summary =
-        roomScopedSettlementHistorySummaries.find(
-          (item) => item.roundKey === roundKey,
-        ) ?? null;
+      let summary = settlementSummaryByRoundKey[roundKey] ?? null;
       if (!summary) {
         try {
           const loaded = await ensureSettlementSummaryListLoaded();
           summary =
             loaded.find((item) => item.roundKey === roundKey) ??
-            roomScopedSettlementHistorySummaries.find(
-              (item) => item.roundKey === roundKey,
-            ) ??
+            settlementSummaryByRoundKey[roundKey] ??
             null;
         } catch (error) {
           setStatusText(
@@ -876,11 +1024,11 @@ const RoomLobbyPage: React.FC = () => {
     [
       ensureSettlementSummaryListLoaded,
       fetchSettlementReplay,
-      roomScopedSettlementHistory,
       roomScopedSettlementReplayByRoundKey,
-      roomScopedSettlementHistorySummaries,
       activeSettlementRoundKey,
       currentRoom?.id,
+      liveSettlementSnapshotByRoundKey,
+      settlementSummaryByRoundKey,
       setStatusText,
     ],
   );
@@ -1015,12 +1163,10 @@ const RoomLobbyPage: React.FC = () => {
     useMemo<RoomSettlementSnapshot | null>(() => {
       if (!resolvedActiveSettlementRoundKey) return null;
       const liveSnapshot =
-        roomScopedSettlementHistory.find(
-          (item) => item.roundKey === resolvedActiveSettlementRoundKey,
-        ) ?? null;
+        liveSettlementSnapshotByRoundKey[resolvedActiveSettlementRoundKey] ?? null;
       const replaySnapshot =
         roomScopedSettlementReplayByRoundKey[
-        resolvedActiveSettlementRoundKey
+          resolvedActiveSettlementRoundKey
         ] ?? null;
       if (!liveSnapshot) return replaySnapshot;
       if (!replaySnapshot) return liveSnapshot;
@@ -1028,8 +1174,8 @@ const RoomLobbyPage: React.FC = () => {
       const replayRecapCount = getSnapshotRecapCount(replaySnapshot);
       return replayRecapCount > liveRecapCount ? replaySnapshot : liveSnapshot;
     }, [
+      liveSettlementSnapshotByRoundKey,
       resolvedActiveSettlementRoundKey,
-      roomScopedSettlementHistory,
       roomScopedSettlementReplayByRoundKey,
     ]);
 
@@ -1051,9 +1197,7 @@ const RoomLobbyPage: React.FC = () => {
     if (loadingSettlementRoundKey === resolvedActiveSettlementRoundKey) return;
     const snapshot =
       roomScopedSettlementReplayByRoundKey[resolvedActiveSettlementRoundKey] ??
-      roomScopedSettlementHistory.find(
-        (item) => item.roundKey === resolvedActiveSettlementRoundKey,
-      ) ??
+      liveSettlementSnapshotByRoundKey[resolvedActiveSettlementRoundKey] ??
       null;
     const localRecaps =
       settlementRecapsByRoundKey[resolvedActiveSettlementRoundKey];
@@ -1066,87 +1210,68 @@ const RoomLobbyPage: React.FC = () => {
     if (snapshotHasCompleteRecaps || localHasCompleteRecaps) return;
     void openSettlementReviewByRoundKey(resolvedActiveSettlementRoundKey);
   }, [
+    liveSettlementSnapshotByRoundKey,
     loadingSettlementRoundKey,
     openSettlementReviewByRoundKey,
     resolvedActiveSettlementRoundKey,
-    roomScopedSettlementHistory,
     roomScopedSettlementReplayByRoundKey,
     settlementRecapsByRoundKey,
   ]);
 
   const latestSettlementSnapshot = roomScopedSettlementHistory[0] ?? null;
 
-  const latestSettlementSummary =
-    useMemo<RoomSettlementHistorySummary | null>(() => {
-      if (!latestSettlementSnapshot) return null;
-      return {
-        matchId: `${latestSettlementSnapshot.room.id}:${latestSettlementSnapshot.roundNo}`,
-        roundKey: latestSettlementSnapshot.roundKey,
-        roundNo: latestSettlementSnapshot.roundNo,
-        roomId: latestSettlementSnapshot.room.id,
-        roomName: latestSettlementSnapshot.room.name,
-        startedAt: latestSettlementSnapshot.startedAt,
-        endedAt: latestSettlementSnapshot.endedAt,
-        status: "ended",
-        playerCount: latestSettlementSnapshot.participants.length,
-        questionCount: latestSettlementSnapshot.playedQuestionCount,
-        summaryJson: null,
-      };
-    }, [latestSettlementSnapshot]);
+  const settlementHistoryModel = useMemo(() => {
+    const latestSettlementSummary = latestSettlementSnapshot
+      ? {
+          matchId: `${latestSettlementSnapshot.room.id}:${latestSettlementSnapshot.roundNo}`,
+          roundKey: latestSettlementSnapshot.roundKey,
+          roundNo: latestSettlementSnapshot.roundNo,
+          roomId: latestSettlementSnapshot.room.id,
+          roomName: latestSettlementSnapshot.room.name,
+          startedAt: latestSettlementSnapshot.startedAt,
+          endedAt: latestSettlementSnapshot.endedAt,
+          status: "ended" as const,
+          playerCount: latestSettlementSnapshot.participants.length,
+          questionCount: latestSettlementSnapshot.playedQuestionCount,
+          summaryJson: null,
+        }
+      : null;
 
-  const mergedSettlementSummaries = useMemo(() => {
-    const next = new Map<string, RoomSettlementHistorySummary>();
+    const mergedByRoundKey = new Map<string, RoomSettlementHistorySummary>();
     roomScopedSettlementHistorySummaries.forEach((item) => {
-      next.set(item.roundKey, item);
+      mergedByRoundKey.set(item.roundKey, item);
     });
     if (latestSettlementSummary) {
-      next.set(latestSettlementSummary.roundKey, latestSettlementSummary);
+      mergedByRoundKey.set(latestSettlementSummary.roundKey, latestSettlementSummary);
     }
-    return Array.from(next.values()).sort(
+    const mergedSettlementSummaries = Array.from(mergedByRoundKey.values()).sort(
       (a, b) => a.endedAt - b.endedAt || a.roundNo - b.roundNo,
     );
-  }, [latestSettlementSummary, roomScopedSettlementHistorySummaries]);
-
-  const latestSettlementRoundKey = useMemo(() => {
-    if (mergedSettlementSummaries.length === 0) return null;
-    return (
-      mergedSettlementSummaries[mergedSettlementSummaries.length - 1]
-        ?.roundKey ?? null
+    const latestSettlementRoundKey =
+      mergedSettlementSummaries[mergedSettlementSummaries.length - 1]?.roundKey ?? null;
+    const historyDrawerSummaries = [...mergedSettlementSummaries].sort(
+      (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
     );
-  }, [mergedSettlementSummaries]);
 
-  const historyDrawerSummaries = useMemo(
-    () =>
-      [...mergedSettlementSummaries].sort(
-        (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
-      ),
-    [mergedSettlementSummaries],
-  );
-  const showHistoryDrawerInitialLoading =
-    historyDrawerLoading && historyDrawerSummaries.length === 0;
-  const isSettlementReviewLoading = Boolean(
-    resolvedActiveSettlementRoundKey &&
-    loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
-    !activeSettlementSnapshot,
-  );
-
-  const roomSnapshotByRoundKey = useMemo(() => {
-    const next: Record<string, RoomSettlementSnapshot> = {};
+    const roomSnapshotByRoundKey: Record<string, RoomSettlementSnapshot> = {};
     roomScopedSettlementHistory.forEach((snapshot) => {
-      next[snapshot.roundKey] = snapshot;
+      roomSnapshotByRoundKey[snapshot.roundKey] =
+        choosePreferredSettlementSnapshot(
+          roomSnapshotByRoundKey[snapshot.roundKey] ?? null,
+          snapshot,
+        ) ?? snapshot;
     });
     Object.entries(roomScopedSettlementReplayByRoundKey).forEach(
       ([roundKey, snapshot]) => {
-        if (!next[roundKey]) {
-          next[roundKey] = snapshot;
-        }
+        roomSnapshotByRoundKey[roundKey] =
+          choosePreferredSettlementSnapshot(
+            roomSnapshotByRoundKey[roundKey] ?? null,
+            snapshot,
+          ) ?? snapshot;
       },
     );
-    return next;
-  }, [roomScopedSettlementHistory, roomScopedSettlementReplayByRoundKey]);
 
-  const selfStatsByRoundKey = useMemo(() => {
-    const next: Record<string, SelfSettlementStats> = {};
+    const selfStatsByRoundKey: Record<string, SelfSettlementStats> = {};
     mergedSettlementSummaries.forEach((summary) => {
       const snapshot = roomSnapshotByRoundKey[summary.roundKey] ?? null;
       let rank = summary.selfRank ?? null;
@@ -1155,9 +1280,7 @@ const RoomLobbyPage: React.FC = () => {
       let correctCount = summary.selfPlayer?.correctCount ?? null;
 
       if (snapshot && clientId) {
-        const sortedParticipants = sortSettlementParticipants(
-          snapshot.participants,
-        );
+        const sortedParticipants = sortSettlementParticipants(snapshot.participants);
         const selfParticipant =
           sortedParticipants.find((item) => item.clientId === clientId) ?? null;
         if (selfParticipant) {
@@ -1177,7 +1300,7 @@ const RoomLobbyPage: React.FC = () => {
         }
       }
 
-      next[summary.roundKey] = {
+      selfStatsByRoundKey[summary.roundKey] = {
         rank,
         score,
         maxCombo,
@@ -1185,34 +1308,60 @@ const RoomLobbyPage: React.FC = () => {
         playerCount: summary.playerCount,
       };
     });
-    return next;
-  }, [clientId, mergedSettlementSummaries, roomSnapshotByRoundKey]);
+
+    return {
+      latestSettlementSummary,
+      mergedSettlementSummaries,
+      latestSettlementRoundKey,
+      historyDrawerSummaries,
+      roomSnapshotByRoundKey,
+      selfStatsByRoundKey,
+    };
+  }, [
+    clientId,
+    latestSettlementSnapshot,
+    roomScopedSettlementHistory,
+    roomScopedSettlementHistorySummaries,
+    roomScopedSettlementReplayByRoundKey,
+  ]);
+  const {
+    mergedSettlementSummaries,
+    latestSettlementRoundKey,
+    historyDrawerSummaries,
+    roomSnapshotByRoundKey,
+    selfStatsByRoundKey,
+  } = settlementHistoryModel;
+  const showHistoryDrawerInitialLoading =
+    historyDrawerLoading && historyDrawerSummaries.length === 0;
+  const isSettlementReviewLoading = Boolean(
+    resolvedActiveSettlementRoundKey &&
+    loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
+    !activeSettlementSnapshot,
+  );
 
   const historyReplaySnapshot = useMemo(() => {
     if (!historyReplaySummary) return null;
-    return (
-      roomSnapshotByRoundKey[historyReplaySummary.roundKey] ??
-      roomScopedSettlementHistory.find(
-        (item) => item.roundKey === historyReplaySummary.roundKey,
-      ) ??
-      null
+    return roomSnapshotByRoundKey[historyReplaySummary.roundKey] ?? null;
+  }, [historyReplaySummary, roomSnapshotByRoundKey]);
+  const historyReplayQuestionRecaps = useMemo(() => {
+    if (!historyReplaySnapshot) return [];
+    return choosePreferredSettlementRecaps(
+      settlementRecapsByRoundKey[historyReplaySnapshot.roundKey],
+      historyReplaySnapshot.questionRecaps ?? [],
     );
-  }, [
-    historyReplaySummary,
-    roomScopedSettlementHistory,
-    roomSnapshotByRoundKey,
-  ]);
+  }, [historyReplaySnapshot, settlementRecapsByRoundKey]);
 
   const openHistoryReplayModal = useCallback(
     async (summary: RoomSettlementHistorySummary) => {
       setHistoryReplaySummary(summary);
-      const cached =
-        roomSnapshotByRoundKey[summary.roundKey] ??
-        roomScopedSettlementHistory.find(
-          (item) => item.roundKey === summary.roundKey,
-        ) ??
-        null;
-      if (cached) return;
+      const cached = roomSnapshotByRoundKey[summary.roundKey] ?? null;
+      if (
+        cached &&
+        hasCompleteSettlementRecaps(cached) &&
+        hasReplayPlaybackData(cached)
+      ) {
+        return;
+      }
       setHistoryReplayLoadingRoundKey(summary.roundKey);
       try {
         const snapshot = await fetchSettlementReplay(summary.matchId);
@@ -1242,7 +1391,6 @@ const RoomLobbyPage: React.FC = () => {
       activeSettlementRoundKey,
       currentRoom?.id,
       fetchSettlementReplay,
-      roomScopedSettlementHistory,
       roomSnapshotByRoundKey,
       setStatusText,
     ],
@@ -1284,23 +1432,9 @@ const RoomLobbyPage: React.FC = () => {
   }, [currentRoom, mergedSettlementSummaries, selfStatsByRoundKey]);
 
   const lobbyMessages = useMemo(() => {
-    if (settlementReviewMessages.length === 0) return messages;
-    return [...messages, ...settlementReviewMessages].sort(
-      (a, b) => a.timestamp - b.timestamp,
-    );
+    return mergeSortedLobbyMessages(messages, settlementReviewMessages);
   }, [messages, settlementReviewMessages]);
   const isHost = currentRoom?.hostClientId === clientId;
-
-  useEffect(() => {
-    if (!activeSettlementSnapshot) {
-      setUiNowMs(Date.now() + serverOffsetMs);
-      return;
-    }
-    const tick = () => setUiNowMs(Date.now() + serverOffsetMs);
-    tick();
-    const timer = window.setInterval(tick, 250);
-    return () => window.clearInterval(timer);
-  }, [activeSettlementSnapshot, serverOffsetMs]);
 
   useEffect(() => {
     setRouteRoomId(roomId ?? null);
@@ -1325,6 +1459,16 @@ const RoomLobbyPage: React.FC = () => {
     }, delayMs);
     return () => window.clearTimeout(timer);
   }, [activeSettlementRoundKey, gameState, serverOffsetMs, setIsGameView]);
+
+  useEffect(() => {
+    if (!isKickedFromActiveRoom) return;
+    setActiveSettlementRoundKey(null);
+    setLoadingSettlementRoundKey(null);
+    setHistoryReplaySummary(null);
+    setHistoryReplayLoadingRoundKey(null);
+    setHistoryDrawerOpen(false);
+    setIsGameView(false);
+  }, [isKickedFromActiveRoom, setIsGameView]);
 
   const removeSettlementCacheForRoom = useCallback(
     (targetRoomId: string | null) => {
@@ -1429,9 +1573,31 @@ const RoomLobbyPage: React.FC = () => {
     openHistoryDrawer();
   }, [currentRoom, openHistoryDrawer, roomHistoryDrawerKey]);
 
+  useEffect(() => {
+    if (
+      !activeSettlementSnapshot ||
+      gameState?.status !== "playing" ||
+      typeof gameState.startedAt !== "number" ||
+      !Number.isFinite(gameState.startedAt)
+    ) {
+      return;
+    }
+    let timerId: number | null = null;
+    const tick = () => {
+      setSettlementStartBroadcastNowMs(Date.now() + serverOffsetMs);
+      const remainingMs = Math.max(0, gameState.startedAt - (Date.now() + serverOffsetMs));
+      if (remainingMs <= 0) return;
+      timerId = window.setTimeout(tick, remainingMs <= 5000 ? 250 : 1000);
+    };
+    tick();
+    return () => {
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
+  }, [activeSettlementSnapshot, gameState?.startedAt, gameState?.status, serverOffsetMs]);
+
   const settlementStartBroadcastRemainingSec =
     gameState?.status === "playing"
-      ? Math.max(0, Math.ceil((gameState.startedAt - uiNowMs) / 1000))
+      ? Math.max(0, Math.ceil((gameState.startedAt - settlementStartBroadcastNowMs) / 1000))
       : 0;
   const shouldShowSettlementStartBroadcast =
     Boolean(activeSettlementSnapshot) &&
@@ -1474,6 +1640,8 @@ const RoomLobbyPage: React.FC = () => {
         sx: {
           width: isTabletOrMobileLobby ? "100%" : 440,
           maxWidth: "100vw",
+          height: "100dvh",
+          overflow: "hidden",
         },
       }}
     >
@@ -1588,7 +1756,7 @@ const RoomLobbyPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.2 }}>
+                  <div className="room-battle-history-actions">
                     <Button
                       size="small"
                       variant="outlined"
@@ -1619,7 +1787,7 @@ const RoomLobbyPage: React.FC = () => {
                         {isLoading ? "載入中..." : "結算頁面"}
                       </Button>
                     ) : null}
-                  </Stack>
+                  </div>
                 </div>
               );
             })
@@ -1667,16 +1835,7 @@ const RoomLobbyPage: React.FC = () => {
       {historyReplaySummary &&
         historyReplayLoadingRoundKey === historyReplaySummary.roundKey &&
         !historyReplaySnapshot ? (
-        <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/55">
-          <div className="inline-flex items-center gap-3 text-sm text-[var(--mc-text-muted)]">
-            <CircularProgress
-              size={18}
-              thickness={4.8}
-              sx={{ color: "#38bdf8" }}
-            />
-            正在載入回放內容...
-          </div>
-        </div>
+        <HistoryReplaySkeleton />
       ) : historyReplaySnapshot ? (
         <HistoryReplayCompactView
           key={historyReplaySummary?.roundKey ?? historyReplaySummary?.matchId}
@@ -1689,11 +1848,7 @@ const RoomLobbyPage: React.FC = () => {
           startedAt={historyReplaySnapshot.startedAt}
           endedAt={historyReplaySnapshot.endedAt}
           meClientId={clientId}
-          questionRecaps={
-            settlementRecapsByRoundKey[historyReplaySnapshot.roundKey] ??
-            historyReplaySnapshot.questionRecaps ??
-            []
-          }
+          questionRecaps={historyReplayQuestionRecaps}
         />
       ) : (
         <div className="rounded-xl border border-amber-300/20 bg-amber-400/6 px-4 py-5 text-sm text-amber-100/90">
@@ -1783,7 +1938,7 @@ const RoomLobbyPage: React.FC = () => {
 
             <div className="rounded-2xl border border-[var(--mc-border)] bg-[color-mix(in_srgb,var(--mc-surface)_88%,black_12%)] p-4 sm:p-5">
               <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--mc-text-muted)]">
-                Next Steps
+                接下來可以這樣做
               </div>
               <ul className="mt-3 space-y-3 text-sm leading-6 text-[var(--mc-text-muted)]">
                 <li className="rounded-xl border border-[var(--mc-border)]/70 bg-black/15 px-3 py-2">
@@ -1990,13 +2145,14 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
-  if (activeSettlementSnapshot) {
+  if (currentRoom && activeSettlementSnapshot) {
     return (
       <>
         <div className="flex w-full min-w-0 justify-center">
           <LiveSettlementShowcase
             room={activeSettlementSnapshot.room}
             participants={activeSettlementSnapshot.participants}
+            participantAvatarFallbacks={participants}
             messages={activeSettlementSnapshot.messages}
             playlistItems={activeSettlementSnapshot.playlistItems ?? []}
             trackOrder={activeSettlementSnapshot.trackOrder}
@@ -2008,7 +2164,7 @@ const RoomLobbyPage: React.FC = () => {
             upcomingGameStartAt={
               gameState?.status === "playing" ? gameState.startedAt : null
             }
-            nowMs={uiNowMs}
+            selfAvatarUrl={authUser?.avatar_url ?? null}
             onBackToLobby={() => setActiveSettlementRoundKey(null)}
             onRequestExit={() => leaveRoomAndNavigate()}
           />
@@ -2127,3 +2283,4 @@ const RoomLobbyPage: React.FC = () => {
 };
 
 export default RoomLobbyPage;
+

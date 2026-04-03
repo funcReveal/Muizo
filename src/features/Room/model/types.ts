@@ -402,7 +402,7 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<SubmitAnswerAckData>) => void
   ) => void;
   requestPlaybackExtensionVote: (
-    payload: { roomId: string },
+    payload: { roomId: string; remainingMs?: number },
     callback?: (ack: Ack<{ gameState: GameState; serverNow: number }>) => void
   ) => void;
   castPlaybackExtensionVote: (
