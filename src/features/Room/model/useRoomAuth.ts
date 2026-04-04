@@ -113,25 +113,12 @@ export const useRoomAuth = ({
       if (elapsed < 30_000) return null;
     }
     if (refreshInFlightRef.current) {
-      console.debug("[mq-auth] refresh reuse in-flight request");
       return refreshInFlightRef.current;
     }
     const run = async () => {
       const startedAt = performance.now();
-      console.debug("[mq-auth] refresh start", {
-        apiUrl,
-        startedAt: new Date().toISOString(),
-      });
       try {
         const { ok, status, payload } = await apiRefreshAuthToken(apiUrl);
-        console.debug("[mq-auth] refresh response", {
-          ok,
-          status,
-          elapsedMs: Math.round(performance.now() - startedAt),
-          hasToken: Boolean(payload?.token),
-          hasUser: Boolean(payload?.user),
-          error: payload?.error ?? null,
-        });
         if (!ok || !payload?.token || !payload.user) {
           setAuthExpired(true);
           lastRefreshFailAtRef.current = Date.now();
@@ -150,9 +137,6 @@ export const useRoomAuth = ({
         lastRefreshFailAtRef.current = Date.now();
         return null;
       } finally {
-        console.debug("[mq-auth] refresh end", {
-          elapsedMs: Math.round(performance.now() - startedAt),
-        });
         refreshInFlightRef.current = null;
       }
     };

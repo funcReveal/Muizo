@@ -7,6 +7,7 @@ import {
   FormControlLabel,
   MenuItem,
   Select,
+  Tooltip,
 } from "@mui/material";
 
 import {
@@ -28,6 +29,7 @@ import Close from "@mui/icons-material/Close";
 import DragIndicatorRounded from "@mui/icons-material/DragIndicatorRounded";
 import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import LibraryMusic from "@mui/icons-material/LibraryMusic";
+import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import {
   SortableContext,
@@ -98,6 +100,8 @@ type PlaylistListPanelProps = {
   highlightIndex: number | null;
   clipDurationLabel: string;
   formatSeconds: (value: number) => string;
+  onOpenSourceModal: () => void;
+  sourceModalOpen: boolean;
 };
 
 type SortableRowProps = {
@@ -192,8 +196,9 @@ const RowCard = ({
           }}
           onPointerDown={(event) => {
             event.stopPropagation();
+            dragListeners.onPointerDown?.(event);
           }}
-          className="absolute left-2 top-1/2 inline-flex h-10 w-5 -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--mc-surface-strong)]/60 text-[var(--mc-text)] transition active:scale-95"
+          className="absolute left-2 top-1/2 inline-flex h-10 w-5 touch-none -translate-y-1/2 items-center justify-center rounded-lg bg-[var(--mc-surface-strong)]/60 text-[var(--mc-text)] transition active:scale-95"
           aria-label="拖曳排序"
           title="按住拖曳排序"
         >
@@ -411,6 +416,8 @@ const PlaylistListPanel = ({
   highlightIndex,
   clipDurationLabel,
   formatSeconds,
+  onOpenSourceModal,
+  sourceModalOpen,
 }: PlaylistListPanelProps) => {
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const itemIds = useMemo(
@@ -712,6 +719,20 @@ const PlaylistListPanel = ({
               </span>
             </div>
           </div>
+          <Tooltip title={sourceModalOpen ? "新增題目來源已開啟" : "新增題目來源"}>
+            <button
+              type="button"
+              onClick={onOpenSourceModal}
+              aria-label="新增題目來源"
+              className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text)] outline-none transition focus:outline-none ${
+                sourceModalOpen
+                  ? "bg-[var(--mc-surface-strong)]/95 ring-1 ring-[var(--mc-accent)]/45"
+                  : "bg-[var(--mc-surface-strong)]/70 hover:bg-[var(--mc-surface-strong)]/90"
+              }`}
+            >
+              <PlaylistAddRounded fontSize="medium" />
+            </button>
+          </Tooltip>
           <div className="flex w-full items-center gap-2">
             <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 py-1.5 text-[var(--mc-text)]">
               <SearchRounded sx={{ fontSize: 16 }} className="shrink-0" />
@@ -814,39 +835,52 @@ const PlaylistListPanel = ({
           strategy={verticalListSortingStrategy}
         >
           <div className="h-[calc(100svh-420px)] lg:h-[calc(100vh-300px)]">
-            <List<VirtualRowProps>
-              listRef={setListApi}
-              className="collection-edit-scrollbar h-full overflow-y-auto pr-1"
-              defaultHeight={420}
-              rowCount={visibleItems.length}
-              rowHeight={ROW_HEIGHT}
-              overscanCount={6}
-              rowComponent={Row}
-              rowProps={{
-                items: visibleItems,
-                selectedIndex: visibleSelectedIndex,
-                highlightIndex: visibleHighlightIndex,
-                clipDurationLabel,
-                formatSeconds,
-                onSelect: (index) => {
-                  const nextIndex = visibleIndexMap[index];
-                  if (nextIndex !== undefined) onSelect(nextIndex);
-                },
-                onRemove: (index) => {
-                  const nextIndex = visibleIndexMap[index];
-                  if (nextIndex !== undefined) handleRequestRemove(nextIndex);
-                },
-                onToggleNoChange: (index) => {
-                  const nextIndex = visibleIndexMap[index];
-                  if (nextIndex !== undefined) onToggleNoChange(nextIndex);
-                },
-                totalCount: visibleItems.length,
-                canDrag: canReorder,
-                showQuestionForNoChange: filterMode !== "manual",
-                isTouchDevice,
-              }}
-              style={{ height: "100%" }}
-            />
+            {visibleItems.length > 0 ? (
+              <List<VirtualRowProps>
+                listRef={setListApi}
+                className="collection-edit-scrollbar h-full overflow-y-auto pr-1"
+                defaultHeight={420}
+                rowCount={visibleItems.length}
+                rowHeight={ROW_HEIGHT}
+                overscanCount={6}
+                rowComponent={Row}
+                rowProps={{
+                  items: visibleItems,
+                  selectedIndex: visibleSelectedIndex,
+                  highlightIndex: visibleHighlightIndex,
+                  clipDurationLabel,
+                  formatSeconds,
+                  onSelect: (index) => {
+                    const nextIndex = visibleIndexMap[index];
+                    if (nextIndex !== undefined) onSelect(nextIndex);
+                  },
+                  onRemove: (index) => {
+                    const nextIndex = visibleIndexMap[index];
+                    if (nextIndex !== undefined) handleRequestRemove(nextIndex);
+                  },
+                  onToggleNoChange: (index) => {
+                    const nextIndex = visibleIndexMap[index];
+                    if (nextIndex !== undefined) onToggleNoChange(nextIndex);
+                  },
+                  totalCount: visibleItems.length,
+                  canDrag: canReorder,
+                  showQuestionForNoChange: filterMode !== "manual",
+                  isTouchDevice,
+                }}
+                style={{ height: "100%" }}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[var(--mc-border)]/70 bg-[var(--mc-surface)]/30 px-6 text-center">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-[var(--mc-text)]">
+                    目前還沒有題目
+                  </div>
+                  <div className="text-xs text-[var(--mc-text-muted)]">
+                    從右上角新增題目來源，匯入播放清單或補一首單曲進收藏庫。
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </SortableContext>
 

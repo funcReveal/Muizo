@@ -39,6 +39,7 @@ import {
   createLocalId,
   createServerId,
   extractVideoId,
+  extractYoutubeChannelId,
   formatSeconds,
   getPlaylistItemKey,
   parseDurationToSeconds,
@@ -175,6 +176,7 @@ const EditPage = () => {
   const [singleTrackDuration, setSingleTrackDuration] = useState("");
   const [singleTrackAnswer, setSingleTrackAnswer] = useState("");
   const [singleTrackUploader, setSingleTrackUploader] = useState("");
+  const [singleTrackChannelId, setSingleTrackChannelId] = useState("");
   const [singleTrackError, setSingleTrackError] = useState<string | null>(null);
   const [singleTrackLoading, setSingleTrackLoading] = useState(false);
   const lastResolvedUrlRef = useRef<string | null>(null);
@@ -228,6 +230,8 @@ const EditPage = () => {
   const volumeRef = useRef<number>(volume);
   const isMutedRef = useRef<boolean>(isMuted);
   const lastVolumeRef = useRef<number>(volume);
+  const lastAppliedPlayerVolumeRef = useRef<number | null>(null);
+  const lastAppliedPlayerMutedRef = useRef<boolean | null>(null);
   const [autoPlayOnSwitch, setAutoPlayOnSwitch] = useState(() => {
     if (typeof window === "undefined") return false;
     const saved = window.localStorage.getItem(EDIT_AUTOPLAY_STORAGE_KEY);
@@ -285,6 +289,7 @@ const EditPage = () => {
             "",
           title: item.title ?? "",
           uploader: item.uploader ?? "",
+          channelId: item.channelId ?? "",
           startSec: Math.floor(item.startSec ?? 0),
           endSec: Math.floor(item.endSec ?? 0),
           answerText: item.answerText ?? "",
@@ -1316,7 +1321,21 @@ const EditPage = () => {
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
-    playerRef.current.setVolume?.(isMuted ? 0 : volume);
+    const player = playerRef.current;
+
+    if (lastAppliedPlayerMutedRef.current !== isMuted) {
+      if (isMuted) {
+        player.mute?.();
+      } else {
+        player.unMute?.();
+      }
+      lastAppliedPlayerMutedRef.current = isMuted;
+    }
+
+    if (!isMuted && lastAppliedPlayerVolumeRef.current !== volume) {
+      player.setVolume?.(volume);
+      lastAppliedPlayerVolumeRef.current = volume;
+    }
   }, [volume, isMuted, isPlayerReady]);
 
   useEffect(() => {
@@ -1334,6 +1353,7 @@ const EditPage = () => {
 
       if (typeof nextVolume === "number" && nextVolume !== volumeRef.current) {
         volumeRef.current = nextVolume;
+        lastAppliedPlayerVolumeRef.current = nextVolume;
         setVolume(nextVolume);
         if (nextVolume > 0) {
           lastVolumeRef.current = nextVolume;
@@ -1348,6 +1368,7 @@ const EditPage = () => {
 
       if (nextMuted !== isMutedRef.current) {
         isMutedRef.current = nextMuted;
+        lastAppliedPlayerMutedRef.current = nextMuted;
         setIsMuted(nextMuted);
         if (typeof window !== "undefined") {
           window.localStorage.setItem(
@@ -1664,6 +1685,7 @@ const EditPage = () => {
       url: url || "",
       thumbnail,
       uploader: singleTrackUploader.trim(),
+      channelId: singleTrackChannelId.trim() || undefined,
       duration: formatSeconds(safeDuration),
       startSec: 0,
       endSec: Math.max(1, Math.min(DEFAULT_DURATION_SEC, safeDuration)),
@@ -1676,19 +1698,21 @@ const EditPage = () => {
     setSingleTrackDuration("");
     setSingleTrackAnswer("");
     setSingleTrackUploader("");
+    setSingleTrackChannelId("");
     setDuplicateIndex(null);
     setSourceModalOpen(false);
   }, [
     appendItems,
     playlistItems,
     singleTrackAnswer,
+    singleTrackChannelId,
     singleTrackDuration,
     singleTrackTitle,
     singleTrackUploader,
     singleTrackUrl,
   ]);
 
-  const fetchOEmbedMeta = async (url: string) => {
+  const fetchOEmbedMeta = useCallback(async (url: string) => {
     const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(
       url,
     )}&format=json`;
@@ -1699,10 +1723,11 @@ const EditPage = () => {
     const data = (await res.json()) as {
       title?: string;
       author_name?: string;
+      author_url?: string;
       thumbnail_url?: string;
     };
     return data;
-  };
+  }, []);
 
   const handleSingleTrackResolve = useCallback(async () => {
     const url = singleTrackUrl.trim();
@@ -1722,6 +1747,16 @@ const EditPage = () => {
       if (meta.author_name) {
         setSingleTrackUploader(meta.author_name);
       }
+      const resolvedChannelId =
+        (authToken
+          ? await collectionsApi.resolveYoutubeChannelId(authToken, {
+              videoUrl: url,
+              channelUrl: meta.author_url,
+            })
+          : null) ?? extractYoutubeChannelId(meta.author_url);
+      if (resolvedChannelId) {
+        setSingleTrackChannelId(resolvedChannelId);
+      }
       if (!singleTrackAnswer && meta.title) {
         setSingleTrackAnswer(meta.title);
       }
@@ -1733,7 +1768,13 @@ const EditPage = () => {
       lastResolvedUrlRef.current = url;
       setSingleTrackLoading(false);
     }
-  }, [singleTrackAnswer, singleTrackLoading, singleTrackUrl]);
+  }, [
+    authToken,
+    fetchOEmbedMeta,
+    singleTrackAnswer,
+    singleTrackLoading,
+    singleTrackUrl,
+  ]);
 
   useEffect(() => {
     const url = singleTrackUrl.trim();
@@ -1754,6 +1795,7 @@ const EditPage = () => {
     setSingleTrackTitle("");
     setSingleTrackAnswer("");
     setSingleTrackUploader("");
+    setSingleTrackChannelUrl("");
     setSingleTrackError(null);
     const key = getPlaylistItemKey({ url });
     if (!key) {
@@ -2076,6 +2118,7 @@ const EditPage = () => {
         lastVolumeRef.current = currentAudibleVolume;
       }
       player?.mute?.();
+      lastAppliedPlayerMutedRef.current = true;
       isMutedRef.current = true;
       setIsMuted(true);
     } else {
@@ -2085,6 +2128,8 @@ const EditPage = () => {
       );
       player?.unMute?.();
       player?.setVolume?.(restored);
+      lastAppliedPlayerMutedRef.current = false;
+      lastAppliedPlayerVolumeRef.current = restored;
       volumeRef.current = restored;
       isMutedRef.current = false;
       setVolume(restored);
@@ -2249,10 +2294,6 @@ const EditPage = () => {
           setCollectionAnchor(event.currentTarget);
           setCollectionMenuOpen((prev) => !prev);
         }}
-        onPlaylistButtonClick={() => {
-          setSourceModalMode("playlist");
-          setSourceModalOpen(true);
-        }}
         onAiBatchEditClick={() => {
           setAiHelperNotice(null);
           setAiBatchPageIndex(0);
@@ -2260,7 +2301,6 @@ const EditPage = () => {
         }}
         aiBatchDisabled={playlistItems.length === 0}
         collectionMenuOpen={collectionMenuOpen}
-        playlistMenuOpen={sourceModalOpen}
       />
       <CollectionPopover
         open={collectionMenuOpen}
@@ -2296,9 +2336,7 @@ const EditPage = () => {
       />
       <ConfirmDialog
         open={confirmPublicOpen}
-        title={
-          pendingVisibility === "private" ? "設為私人？" : "設為公開？"
-        }
+        title={pendingVisibility === "private" ? "設為私人？" : "設為公開？"}
         description={
           pendingVisibility === "private"
             ? "切換為私人後，只有你能瀏覽此收藏庫內容。確定要設為私人嗎？"
@@ -2358,21 +2396,24 @@ const EditPage = () => {
         )}
         <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="order-2 lg:order-2 min-w-0">
-            {playlistItems.length > 0 && (
-              <PlaylistListPanel
-                items={playlistItems}
-                maxItems={activeCollectionItemLimit}
-                selectedIndex={selectedIndex}
-                onSelect={handleSelectIndex}
-                onRemove={removeItem}
-                onReorder={moveItem}
-                onToggleNoChange={toggleItemNoChange}
-                listRef={listContainerRef}
-                highlightIndex={highlightIndex}
-                clipDurationLabel={CLIP_DURATION_LABEL}
-                formatSeconds={formatSeconds}
-              />
-            )}
+            <PlaylistListPanel
+              items={playlistItems}
+              maxItems={activeCollectionItemLimit}
+              selectedIndex={selectedIndex}
+              onSelect={handleSelectIndex}
+              onRemove={removeItem}
+              onReorder={moveItem}
+              onToggleNoChange={toggleItemNoChange}
+              listRef={listContainerRef}
+              highlightIndex={highlightIndex}
+              clipDurationLabel={CLIP_DURATION_LABEL}
+              formatSeconds={formatSeconds}
+              onOpenSourceModal={() => {
+                setSourceModalMode("playlist");
+                setSourceModalOpen(true);
+              }}
+              sourceModalOpen={sourceModalOpen}
+            />
           </div>
           <div className="order-1 lg:order-1 min-w-0 space-y-2">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
@@ -2380,6 +2421,7 @@ const EditPage = () => {
                 selectedVideoId={selectedVideoId}
                 selectedTitle={selectedItem?.title ?? TEXT.selectSong}
                 selectedUploader={selectedItem?.uploader ?? ""}
+                selectedChannelId={selectedItem?.channelId}
                 selectedDuration={selectedItem?.duration}
                 selectedClipDurationLabel={CLIP_DURATION_LABEL}
                 selectedClipDurationSec={formatSeconds(selectedClipDurationSec)}

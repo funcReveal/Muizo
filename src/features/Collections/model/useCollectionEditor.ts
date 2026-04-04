@@ -129,6 +129,7 @@ export const useCollectionEditor = ({
           source_id: source.source_id,
           title: item.title || item.answerText || "Untitled",
           channel_title: item.uploader ?? null,
+          channel_id: item.channelId ?? null,
           start_sec: item.startSec,
           end_sec: item.endSec,
           answer_text: item.answerText || item.title || "Untitled",
@@ -159,6 +160,7 @@ export const useCollectionEditor = ({
               source_id: item.source_id,
               title: item.title,
               channel_title: item.channel_title,
+              channel_id: item.channel_id,
               start_sec: item.start_sec,
               end_sec: item.end_sec,
               answer_text: item.answer_text,
@@ -183,6 +185,7 @@ export const useCollectionEditor = ({
           source_id: item.source_id,
           title: item.title,
           channel_title: item.channel_title,
+          channel_id: item.channel_id,
           start_sec: item.start_sec,
           end_sec: item.end_sec,
           answer_text: item.answer_text,
@@ -233,7 +236,7 @@ export const useCollectionEditor = ({
 
   const handleSaveCollection = useCallback(
     async (mode: "manual" | "auto" = "manual") => {
-      if (saveInFlightRef.current) return;
+      if (saveInFlightRef.current) return false;
       if (!authToken || !ownerId || authExpired) {
         if (mode === "auto") {
           showAutoSaveNotice("error", "登入已失效，請重新登入後再試。");
@@ -241,7 +244,7 @@ export const useCollectionEditor = ({
           setSaveStatus("error");
           setSaveError("登入已失效，請重新登入後再試。");
         }
-        return;
+        return false;
       }
       if (!collectionTitle.trim()) {
         if (mode === "auto") {
@@ -250,7 +253,7 @@ export const useCollectionEditor = ({
           setSaveStatus("error");
           setSaveError("title is required");
         }
-        return;
+        return false;
       }
       if (
         !isAdmin &&
@@ -265,7 +268,7 @@ export const useCollectionEditor = ({
           setSaveStatus("error");
           setSaveError(limitMessage);
         }
-        return;
+        return false;
       }
       if (
         !isAdmin &&
@@ -280,7 +283,7 @@ export const useCollectionEditor = ({
           setSaveStatus("error");
           setSaveError(message);
         }
-        return;
+        return false;
       }
       if (effectiveItemLimit !== null && playlistItems.length > effectiveItemLimit) {
         const limitMessage =
@@ -292,7 +295,7 @@ export const useCollectionEditor = ({
           setSaveStatus("error");
           setSaveError(limitMessage);
         }
-        return;
+        return false;
       }
 
       const dirtySnapshot = dirtyCounterRef.current;
@@ -315,7 +318,7 @@ export const useCollectionEditor = ({
             setSaveError("登入已失效，請重新登入後再試。");
           }
           onAuthExpired?.();
-          return;
+          return false;
         }
         let collectionId = activeCollectionId;
         const run = async (
@@ -421,12 +424,14 @@ export const useCollectionEditor = ({
         } else {
           setSaveStatus("idle");
         }
+        return true;
       } catch (error) {
         setSaveStatus("error");
         setSaveError(error instanceof Error ? error.message : String(error));
         if (mode === "auto") {
           showAutoSaveNotice("error", "自動儲存失敗，請稍後再試。");
         }
+        return false;
       } finally {
         saveInFlightRef.current = false;
       }

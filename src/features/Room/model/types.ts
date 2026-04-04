@@ -6,6 +6,7 @@ export interface PlaylistItem {
   title: string;
   url: string;
   uploader?: string;
+  channelId?: string;
   duration?: string;
   thumbnail?: string;
   startSec?: number;

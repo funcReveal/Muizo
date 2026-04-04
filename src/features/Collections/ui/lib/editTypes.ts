@@ -35,6 +35,7 @@ export type DbCollectionItem = {
   source_id: string;
   title?: string | null;
   channel_title?: string | null;
+  channel_id?: string | null;
   duration_sec?: number | null;
   start_sec: number;
   end_sec: number | null;

@@ -1,5 +1,5 @@
 const TermsPage: React.FC = () => (
-  <div className="mx-auto w-full max-w-3xl rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 p-6 text-[var(--mc-text)] shadow-[0_20px_60px_-40px_rgba(2,6,23,0.8)]">
+  <div className="mx-auto w-full max-w-5xl rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 p-6 text-[var(--mc-text)] shadow-[0_20px_60px_-40px_rgba(2,6,23,0.8)]">
     <h2 className="text-2xl font-semibold text-[var(--mc-text)]">服務條款</h2>
     <p className="mt-2 text-xs uppercase tracking-[0.3em] text-[var(--mc-text-muted)]">
       最後更新：2026/02/28

@@ -56,6 +56,20 @@ export const createServerId = () => createLocalId();
 export const videoUrlFromId = (videoId: string) =>
   `https://www.youtube.com/watch?v=${videoId}`;
 
+export const extractYoutubeChannelId = (value?: string | null) => {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+  if (/^UC[\w-]+$/.test(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    if (!/^(www\.)?youtube\.com$/i.test(parsed.hostname)) return undefined;
+    const match = parsed.pathname.match(/^\/channel\/([^/?#]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export type YoutubeThumbnailSize = "default" | "mq" | "hq";
 
 // Prefer smaller thumbnails to keep memory usage reasonable when rendering long lists.

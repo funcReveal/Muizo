@@ -2,8 +2,10 @@
 import { useNavigate } from "react-router-dom";
 import { List, type RowComponentProps } from "react-window";
 
+import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
 import EditOutlined from "@mui/icons-material/EditOutlined";
-import { Box, Button, CircularProgress } from "@mui/material";
+import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
+import { Box, Button, CircularProgress, Switch, Tooltip } from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
 import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
@@ -18,6 +20,13 @@ import {
 const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== "undefined" ? window.location.origin : "");
+
+const PUBLIC_SWITCH_ICON = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0f172a"><path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2Zm6.93 9h-3.1a15.9 15.9 0 0 0-1.38-5.02A8.02 8.02 0 0 1 18.93 11ZM12 4.04c.83 1.2 1.86 3.63 2.16 6.96H9.84C10.14 7.67 11.17 5.24 12 4.04ZM4.07 13h3.1a15.9 15.9 0 0 0 1.38 5.02A8.02 8.02 0 0 1 4.07 13Zm3.1-2h-3.1a8.02 8.02 0 0 1 4.48-5.02A15.9 15.9 0 0 0 7.17 11Zm4.83 8.96c-.83-1.2-1.86-3.63-2.16-6.96h4.32c-.3 3.33-1.33 5.76-2.16 6.96ZM14.45 18.02A15.9 15.9 0 0 0 15.83 13h3.1a8.02 8.02 0 0 1-4.48 5.02Z"/></svg>',
+);
+const PRIVATE_SWITCH_ICON = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0f172a"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 8.73V17a1 1 0 1 0 2 0v-.27a2 2 0 1 0-2 0ZM10 8V6a2 2 0 0 1 4 0v2Z"/></svg>',
+);
 
 type DbCollection = {
   id: string;
@@ -141,6 +150,8 @@ const CollectionsCreatePage = () => {
     authLoading,
     refreshAuthToken,
     collections,
+    collectionScope,
+    fetchCollections,
     youtubePlaylists,
     youtubePlaylistsLoading,
     youtubePlaylistsError,
@@ -153,6 +164,11 @@ const CollectionsCreatePage = () => {
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [createStageLabel, setCreateStageLabel] = useState<string | null>(null);
+  const [createProgress, setCreateProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const [playlistSource, setPlaylistSource] = useState<"url" | "youtube">(
     "url",
   );
@@ -202,6 +218,12 @@ const CollectionsCreatePage = () => {
     setCollectionTitle(lastFetchedPlaylistTitle);
     setTitleDraft(lastFetchedPlaylistTitle);
   }, [lastFetchedPlaylistTitle]);
+
+  useEffect(() => {
+    if (!authToken || !authUser?.id) return;
+    if (collectionScope === "owner") return;
+    void fetchCollections("owner");
+  }, [authToken, authUser?.id, collectionScope, fetchCollections]);
 
   useEffect(() => {
     setTitleDraft(collectionTitle);
@@ -268,6 +290,13 @@ const CollectionsCreatePage = () => {
     playlistProgress.total,
     playlistSource,
   ]);
+  const createProgressPercent = useMemo(() => {
+    if (!createProgress || createProgress.total <= 0) return null;
+    return Math.min(
+      100,
+      Math.round((createProgress.completed / createProgress.total) * 100),
+    );
+  }, [createProgress]);
   const playlistIssueSummary = useMemo(() => {
     if (playlistPreviewMeta?.skippedItems?.length) {
       const removed: string[] = [];
@@ -391,6 +420,8 @@ const CollectionsCreatePage = () => {
 
     setCreateError(null);
     setIsCreating(true);
+    setCreateStageLabel("正在建立收藏庫");
+    setCreateProgress({ completed: 0, total: 1 });
 
     const create = async (token: string, allowRetry: boolean) => {
       const res = await fetch(`${API_URL}/api/collections`, {
@@ -447,12 +478,19 @@ const CollectionsCreatePage = () => {
           source_id: sourceId,
           title: item.title || item.answerText || "Untitled",
           channel_title: item.uploader ?? null,
+          channel_id: item.channelId ?? null,
           start_sec: 0,
           end_sec: Math.max(1, endSec),
           answer_text: item.answerText || item.title || "Untitled",
           ...(durationSec ? { duration_sec: durationSec } : {}),
         };
       });
+      const totalChunks = Math.max(
+        1,
+        Math.ceil(insertItems.length / COLLECTION_ITEMS_CHUNK_SIZE),
+      );
+      setCreateProgress({ completed: 1, total: totalChunks + 1 });
+      setCreateStageLabel("正在整理歌曲資料");
 
       const insertChunk = async (
         token: string,
@@ -484,12 +522,19 @@ const CollectionsCreatePage = () => {
         index < insertItems.length;
         index += COLLECTION_ITEMS_CHUNK_SIZE
       ) {
+        const chunkIndex = Math.floor(index / COLLECTION_ITEMS_CHUNK_SIZE) + 1;
         const chunk = insertItems.slice(
           index,
           index + COLLECTION_ITEMS_CHUNK_SIZE,
         );
+        setCreateStageLabel(`正在匯入歌曲 ${chunkIndex} / ${totalChunks}`);
         await insertChunk(token, chunk, true);
+        setCreateProgress({
+          completed: chunkIndex + 1,
+          total: totalChunks + 1,
+        });
       }
+      setCreateStageLabel("正在開啟收藏編輯頁");
       trackEvent("collection_create_success", {
         collection_id: created.id,
         collection_visibility: visibility,
@@ -501,6 +546,8 @@ const CollectionsCreatePage = () => {
       setCreateError(error instanceof Error ? error.message : "建立收藏失敗");
     } finally {
       setIsCreating(false);
+      setCreateStageLabel(null);
+      setCreateProgress(null);
     }
   };
 
@@ -510,10 +557,72 @@ const CollectionsCreatePage = () => {
         <div className="absolute inset-0 opacity-30">
           <div className="h-full w-full bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_60%)]" />
         </div>
+        {isCreating && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(2,6,23,0.72)] backdrop-blur-md">
+            <div className="w-full max-w-md rounded-[28px] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.96),rgba(10,18,32,0.9))] p-6 shadow-[0_32px_120px_-48px_rgba(34,211,238,0.5)]">
+              <div className="flex items-center gap-4">
+                <div className="relative inline-flex h-16 w-16 items-center justify-center">
+                  <CircularProgress
+                    size={56}
+                    thickness={4}
+                    variant={
+                      createProgressPercent === null
+                        ? "indeterminate"
+                        : "determinate"
+                    }
+                    value={createProgressPercent ?? undefined}
+                    sx={{ color: "#67e8f9" }}
+                  />
+                  <PlaylistAddRounded
+                    sx={{
+                      position: "absolute",
+                      fontSize: 24,
+                      color: "#cffafe",
+                    }}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold text-[var(--mc-text)]">
+                    {createStageLabel ?? "正在建立收藏庫"}
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
+                    這一步會先建立收藏，再分批寫入歌曲，題目越多等待時間越長。
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5">
+                <div className="h-2 overflow-hidden rounded-full bg-slate-800/80">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#38bdf8,#67e8f9,#f59e0b)] transition-[width] duration-300 ease-out"
+                    style={{ width: `${createProgressPercent ?? 16}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-[var(--mc-text-muted)]">
+                  <span>{createStageLabel ?? "準備中"}</span>
+                  <span>
+                    {createProgress
+                      ? `${createProgress.completed}/${createProgress.total}`
+                      : "0/0"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="relative">
-          <div className="mt-1.5 text-2xl font-semibold text-[var(--mc-text)]">
-            建立收藏庫
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/collections")}
+              aria-label="返回收藏列表"
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
+            >
+              <ArrowBackIosNew fontSize="small" />
+            </button>
+            <div className="text-2xl font-semibold leading-none text-[var(--mc-text)]">
+              建立收藏庫
+            </div>
           </div>
 
           {!authToken && !authLoading && (
@@ -526,9 +635,6 @@ const CollectionsCreatePage = () => {
             <div className="grid gap-3 lg:grid-rows-[auto_auto_1fr]">
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-[var(--mc-text-muted)]">
-                    匯入來源
-                  </div>
                   <div className="inline-flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1 text-[11px]">
                     <button
                       type="button"
@@ -564,9 +670,6 @@ const CollectionsCreatePage = () => {
                     }`}
                     hidden={playlistSource !== "url"}
                   >
-                    <div className="text-[11px] text-[var(--mc-text-muted)]">
-                      貼上 YouTube 播放清單連結
-                    </div>
                     <div className="flex flex-wrap gap-2">
                       <input
                         value={playlistUrl}
@@ -578,6 +681,16 @@ const CollectionsCreatePage = () => {
                         variant="contained"
                         onClick={() => handleFetchPlaylist()}
                         disabled={playlistLoading}
+                        startIcon={<PlaylistAddRounded />}
+                        className="!rounded-full !px-4 !py-2 !font-semibold !text-slate-950 !shadow-[0_16px_30px_-18px_rgba(56,189,248,0.75)]"
+                        sx={{
+                          background:
+                            "linear-gradient(135deg, rgba(103,232,249,0.96), rgba(245,158,11,0.92))",
+                          "&:hover": {
+                            background:
+                              "linear-gradient(135deg, rgba(125,245,255,1), rgba(251,191,36,0.96))",
+                          },
+                        }}
                       >
                         {playlistLoading ? "載入中..." : "匯入清單"}
                       </Button>
@@ -598,15 +711,17 @@ const CollectionsCreatePage = () => {
                     hidden={playlistSource !== "youtube"}
                   >
                     <div className="text-[11px] text-[var(--mc-text-muted)]">
-                      登入 Google 後可直接載入你的 YouTube 播放清單
                       {(!authUser || needsGoogleReauth) && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={loginWithGoogle}
-                        >
-                          登入 Google
-                        </Button>
+                        <>
+                          登入 Google 後可直接載入你的 YouTube 播放清單
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={loginWithGoogle}
+                          >
+                            登入 Google
+                          </Button>
+                        </>
                       )}
                       {youtubePlaylistsError && (
                         <span className="text-[11px] text-rose-300">
@@ -660,32 +775,65 @@ const CollectionsCreatePage = () => {
               </div>
 
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
-                <div className="text-xs text-[var(--mc-text-muted)]">
-                  可見性
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setVisibility("private")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "private"
-                        ? "border-amber-400/60 bg-amber-400/10 text-amber-100"
-                        : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
-                    }`}
-                  >
-                    私人
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVisibility("public")}
-                    className={`rounded-full border px-3 py-1 text-xs ${
-                      visibility === "public"
-                        ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
-                        : "border-[var(--mc-border)] text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60"
-                    }`}
-                  >
-                    公開
-                  </button>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-[var(--mc-text-muted)]">
+                      可見性
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
+                      {visibility === "public" ? "公開收藏" : "私人收藏"}
+                    </div>
+                  </div>
+                  <Tooltip title={visibility === "public" ? "公開中" : "私人"}>
+                    <Switch
+                      size="small"
+                      checked={visibility === "public"}
+                      onChange={(_, checked) =>
+                        setVisibility(checked ? "public" : "private")
+                      }
+                      inputProps={{
+                        "aria-label": "切換收藏庫可見性",
+                      }}
+                      sx={{
+                        width: 52,
+                        height: 32,
+                        padding: 0,
+                        "& .MuiSwitch-switchBase": {
+                          padding: "4px",
+                          transitionDuration: "200ms",
+                        },
+                        "& .MuiSwitch-switchBase.Mui-checked": {
+                          transform: "translateX(20px)",
+                          color: "#fff",
+                        },
+                        "& .MuiSwitch-thumb": {
+                          position: "relative",
+                          width: 24,
+                          height: 24,
+                          boxShadow: "none",
+                          backgroundColor: "var(--mc-text)",
+                          "&::before": {
+                            content: '""',
+                            position: "absolute",
+                            inset: 0,
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "center",
+                            backgroundSize: "16px 16px",
+                            backgroundImage: `url("data:image/svg+xml,${visibility === "public" ? PUBLIC_SWITCH_ICON : PRIVATE_SWITCH_ICON}")`,
+                          },
+                        },
+                        "& .MuiSwitch-track": {
+                          borderRadius: 999,
+                          backgroundColor: "rgba(148, 163, 184, 0.28)",
+                          opacity: 1,
+                        },
+                        "& .Mui-checked + .MuiSwitch-track": {
+                          backgroundColor: "var(--mc-accent)",
+                          opacity: 0.65,
+                        },
+                      }}
+                    />
+                  </Tooltip>
                 </div>
                 <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
                   私人收藏僅自己可見，公開收藏可讓其他玩家瀏覽與使用
@@ -693,11 +841,13 @@ const CollectionsCreatePage = () => {
                 {!isAdmin && (
                   <>
                     <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                      目前已建立 {collections.length} / {MAX_COLLECTIONS_PER_USER} 個收藏庫，還能再建立{" "}
+                      目前已建立 {collections.length} /{" "}
+                      {MAX_COLLECTIONS_PER_USER} 個收藏庫，還能再建立{" "}
                       {remainingCollectionSlots} 個。
                     </div>
                     <div className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
-                      私人收藏目前 {privateCollectionsCount} / {MAX_PRIVATE_COLLECTIONS_PER_USER} 個，還能再建立{" "}
+                      私人收藏目前 {privateCollectionsCount} /{" "}
+                      {MAX_PRIVATE_COLLECTIONS_PER_USER} 個，還能再建立{" "}
                       {remainingPrivateCollectionSlots} 個。
                     </div>
                   </>
@@ -889,9 +1039,6 @@ const CollectionsCreatePage = () => {
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outlined" onClick={() => navigate("/collections")}>
-              返回收藏列表
-            </Button>
             <Button
               variant="contained"
               onClick={() => handleCreateCollection()}

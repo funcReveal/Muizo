@@ -185,4 +185,22 @@ export const collectionsApi = {
     }
     return null;
   },
+  async resolveYoutubeChannelId(
+    token: string,
+    payload: { videoUrl?: string; channelUrl?: string; value?: string },
+  ) {
+    if (!API_URL) {
+      throw new Error("尚未設定收藏庫 API 位置 (API_URL)");
+    }
+    const res = await fetch(`${API_URL}/api/youtube/resolve-channel-id`, {
+      method: "POST",
+      headers: buildJsonHeaders(token),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(json?.error ?? "Failed to resolve channel id");
+    }
+    return json?.data?.channelId ?? null;
+  },
 };

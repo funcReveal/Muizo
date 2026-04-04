@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, TextField } from "@mui/material";
+import { Alert, Box, Button, TextField } from "@mui/material";
 import {
   AccessTimeRounded,
   AlbumRounded,
@@ -7,6 +7,7 @@ import {
   LibraryMusicRounded,
   MusicNoteRounded,
   ScheduleRounded,
+  YouTube,
 } from "@mui/icons-material";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -54,6 +55,51 @@ const resolvePlaylistCover = (room: RoomSummary | null) => {
     return `https://i.ytimg.com/vi/${room.playlistCoverSourceId}/hqdefault.jpg`;
   }
   return null;
+};
+
+const getPlaylistSourceMeta = (sourceType?: RoomSummary["playlistSourceType"]) => {
+  switch (sourceType) {
+    case "public_collection":
+      return {
+        badgeLabel: "公開收藏庫",
+        badgeClassName:
+          "border-cyan-300/22 bg-slate-950/55 text-cyan-100 backdrop-blur-sm",
+        description: "公開收藏庫題目預覽",
+        icon: <LibraryMusicRounded sx={{ fontSize: 13 }} />,
+      };
+    case "private_collection":
+      return {
+        badgeLabel: "私人收藏庫",
+        badgeClassName:
+          "border-cyan-300/22 bg-slate-950/55 text-cyan-100 backdrop-blur-sm",
+        description: "私人收藏庫題目預覽",
+        icon: <LibraryMusicRounded sx={{ fontSize: 13 }} />,
+      };
+    case "youtube_google_import":
+      return {
+        badgeLabel: "YouTube",
+        badgeClassName:
+          "border-white/12 bg-slate-950/55 text-rose-100 backdrop-blur-sm",
+        description: "YouTube 匯入播放清單",
+        icon: <YouTube sx={{ fontSize: 13 }} />,
+      };
+    case "youtube_pasted_link":
+      return {
+        badgeLabel: "YouTube",
+        badgeClassName:
+          "border-white/12 bg-slate-950/55 text-rose-100 backdrop-blur-sm",
+        description: "YouTube 貼上連結播放清單",
+        icon: <YouTube sx={{ fontSize: 13 }} />,
+      };
+    default:
+      return {
+        badgeLabel: "題庫",
+        badgeClassName:
+          "border-white/12 bg-slate-950/55 text-slate-100 backdrop-blur-sm",
+        description: "題庫內容預覽",
+        icon: <LibraryMusicRounded sx={{ fontSize: 13 }} />,
+      };
+  }
 };
 
 const InvitedPage: React.FC = () => {
@@ -140,6 +186,10 @@ const InvitedPage: React.FC = () => {
       (inviteRoom?.playlistSourceType === "public_collection" ||
         inviteRoom?.playlistSourceType === "private_collection"),
   );
+  const playlistSourceMeta = getPlaylistSourceMeta(inviteRoom?.playlistSourceType);
+  const playlistMetaText = [playlistSourceMeta.description, playlistCoverTitle]
+    .filter(Boolean)
+    .join(" ・ ");
 
   if (!inviteReference) {
     return (
@@ -197,17 +247,19 @@ const InvitedPage: React.FC = () => {
               </header>
 
               <div className="mt-6 grid gap-5">
-                <div className="grid items-start gap-5 rounded-[1.65rem] bg-white/[0.035] p-3 ring-1 ring-white/8 sm:p-4 md:grid-cols-[minmax(220px,0.84fr)_minmax(0,1.16fr)]">
-                  <div className="overflow-hidden rounded-[1.25rem] bg-[linear-gradient(180deg,rgba(24,32,46,0.86),rgba(13,18,29,0.96))] shadow-[0_18px_45px_-28px_rgba(0,0,0,0.62)]">
+                <div className="overflow-hidden rounded-[1.35rem] border border-cyan-300/18 bg-slate-950/55 shadow-[0_18px_36px_-28px_rgba(34,211,238,0.18)]">
+                  <div className="relative overflow-hidden bg-slate-900/60">
                     {playlistCoverUrl ? (
                       <img
                         src={playlistCoverUrl}
                         alt={playlistCoverTitle ?? playlistTitle}
-                        className="aspect-[1/1] min-h-[220px] w-full object-cover"
+                        className="h-40 w-full object-cover sm:h-44"
                       />
                     ) : (
-                      <div className="flex min-h-[220px] w-full flex-col items-center justify-center gap-3 px-5 text-center">
-                        <AlbumRounded sx={{ fontSize: 42, color: "rgba(250,204,21,0.9)" }} />
+                      <div className="flex h-40 w-full flex-col items-center justify-center gap-2.5 px-4 text-center sm:h-44">
+                        <AlbumRounded
+                          sx={{ fontSize: 36, color: "rgba(250,204,21,0.9)" }}
+                        />
                         <div className="text-sm font-semibold text-[var(--mc-text)]">
                           {playlistTitle}
                         </div>
@@ -216,33 +268,37 @@ const InvitedPage: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04)_0%,rgba(2,6,23,0.18)_46%,rgba(2,6,23,0.84)_100%)]" />
+                    <div className="absolute left-3 top-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${playlistSourceMeta.badgeClassName}`}
+                      >
+                        {playlistSourceMeta.icon}
+                        {playlistSourceMeta.badgeLabel}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="mt-3 text-[1.35rem] font-semibold leading-tight text-[var(--mc-text)] sm:text-[1.55rem]">
-                          {playlistTitle}
-                        </div>
-                        <div className="mt-2 text-sm text-[var(--mc-text-muted)]">
-                          {playlistCoverTitle ?? "-"}
-                        </div>
+                  <div className="space-y-3 px-3.5 py-3.5 sm:px-4 sm:py-4">
+                    <div className="space-y-1">
+                      <div className="line-clamp-1 text-sm font-semibold leading-5 text-[var(--mc-text)] sm:text-[15px]">
+                        {playlistTitle}
                       </div>
-                      <Chip
-                        size="small"
-                        icon={<LibraryMusicRounded sx={{ fontSize: "16px !important" }} />}
-                        label={`${TEXT.playlistCount} ${inviteRoom.playlistCount}`}
-                        sx={{
-                          flexShrink: 0,
-                          color: "var(--mc-text)",
-                          borderColor: "rgba(148, 163, 184, 0.22)",
-                          backgroundColor: "rgba(15, 23, 42, 0.46)",
-                        }}
-                        variant="outlined"
-                      />
+                      <div className="line-clamp-2 min-h-[2.25rem] text-[11px] leading-4.5 text-slate-300/88">
+                        {playlistMetaText}
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="flex flex-wrap gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold leading-none text-slate-200/92">
+                        <LibraryMusicRounded
+                          sx={{ fontSize: 17, color: "rgba(103, 232, 249, 0.94)" }}
+                        />
+                        <span>{inviteRoom.playlistCount} 首</span>
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
                       <div className="rounded-2xl bg-white/[0.03] px-4 py-3 ring-1 ring-white/6">
                         <div className="flex items-center gap-2 text-[var(--mc-text-muted)]">
                           <AccessTimeRounded sx={{ fontSize: 18 }} />
@@ -315,8 +371,9 @@ const InvitedPage: React.FC = () => {
 
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <div>
-                        <div className="mb-2 text-[11px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
-                          {TEXT.guestLabel}
+                        <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
+                          <span>{TEXT.guestLabel}</span>
+                          <span>{`${usernameInput.length}/${USERNAME_MAX}`}</span>
                         </div>
                         <TextField
                           size="small"

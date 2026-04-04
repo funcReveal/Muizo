@@ -10,6 +10,7 @@ import {
   clampPlayDurationSec,
   clampRevealDurationSec,
   clampStartOffsetSec,
+  extractYoutubeChannelId,
   formatSeconds,
   normalizePlaylistItems,
 } from "./roomUtils";
@@ -68,6 +69,10 @@ export const mapCollectionItemsToPlaylist = (
         ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
         : undefined,
       uploader: item.channel_title ?? undefined,
+      channelId:
+        item.channel_id ??
+        extractYoutubeChannelId((item as CollectionItemRecord & { channel_url?: string | null }).channel_url) ??
+        undefined,
       duration: durationValue,
       startSec,
       endSec: safeEnd,

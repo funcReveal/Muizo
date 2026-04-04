@@ -14,11 +14,13 @@ import {
   VolumeOff,
   VolumeUp,
 } from "@mui/icons-material";
+import { buildYoutubeChannelUrl } from "../../../../Room/model/roomUtils";
 
 type PlayerPanelProps = {
   selectedVideoId: string | null;
   selectedTitle: string;
   selectedUploader: string;
+  selectedChannelId?: string;
   selectedDuration?: string;
   selectedClipDurationLabel: string;
   selectedClipDurationSec: string;
@@ -55,6 +57,7 @@ const PlayerPanel = ({
   selectedVideoId,
   selectedTitle,
   selectedUploader,
+  selectedChannelId,
   selectedDuration,
   selectedClipDurationLabel,
   selectedClipDurationSec,
@@ -85,6 +88,7 @@ const PlayerPanel = ({
   playerContainerRef,
   thumbnail,
 }: PlayerPanelProps) => {
+  const selectedChannelUrl = buildYoutubeChannelUrl(selectedChannelId);
   const volumeDragRef = useRef(false);
   const volumePointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const [isVolumeDragging, setIsVolumeDragging] = useState(false);
@@ -431,7 +435,18 @@ const PlayerPanel = ({
             {selectedTitle}
           </div>
           <div className="text-[11px] text-slate-400">
-            {selectedUploader}
+            {selectedUploader && selectedChannelUrl ? (
+              <a
+                href={selectedChannelUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="transition hover:text-sky-300 hover:underline"
+              >
+                {selectedUploader}
+              </a>
+            ) : (
+              selectedUploader
+            )}
             {selectedDuration ? ` · ${selectedDuration}` : ""}
           </div>
         </div>
@@ -627,3 +642,4 @@ const PlayerPanel = ({
 };
 
 export default PlayerPanel;
+

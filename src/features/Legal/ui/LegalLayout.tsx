@@ -1,5 +1,5 @@
 ﻿import React from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import AppHeader from "../../../app/layout/AppHeader";
 import { useRoom } from "../../Room/model/useRoom";
@@ -34,10 +34,10 @@ const LegalLayout: React.FC = () => {
         />
       </div>
 
-      <div className="mx-auto w-full max-w-4xl space-y-6 py-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6 py-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Legal</h1>
+            <h1 className="text-2xl font-semibold">法律與政策</h1>
           </div>
           <div className="flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 px-2 py-1 text-xs uppercase tracking-[0.2em] text-[var(--mc-text-muted)]">
             <NavLink
@@ -65,12 +65,6 @@ const LegalLayout: React.FC = () => {
               服務條款
             </NavLink>
           </div>
-          <Link
-            to="/rooms"
-            className="rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90"
-          >
-            返回房間
-          </Link>
         </header>
         <Outlet />
         <footer className="text-xs text-[var(--mc-text-muted)]">

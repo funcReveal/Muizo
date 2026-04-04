@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Button, Switch, TextField, Tooltip } from "@mui/material";
+import { Switch, TextField, Tooltip } from "@mui/material";
 import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import CloudDoneOutlined from "@mui/icons-material/CloudDoneOutlined";
@@ -9,8 +9,6 @@ import SaveOutlined from "@mui/icons-material/SaveOutlined";
 import FolderOpenOutlined from "@mui/icons-material/FolderOpenOutlined";
 import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import ShareRounded from "@mui/icons-material/ShareRounded";
-import ExpandMore from "@mui/icons-material/ExpandMore";
-import ExpandLess from "@mui/icons-material/ExpandLess";
 
 const PUBLIC_SWITCH_ICON = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0f172a"><path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2Zm6.93 9h-3.1a15.9 15.9 0 0 0-1.38-5.02A8.02 8.02 0 0 1 18.93 11ZM12 4.04c.83 1.2 1.86 3.63 2.16 6.96H9.84C10.14 7.67 11.17 5.24 12 4.04ZM4.07 13h3.1a15.9 15.9 0 0 0 1.38 5.02A8.02 8.02 0 0 1 4.07 13Zm3.1-2h-3.1a8.02 8.02 0 0 1 4.48-5.02A15.9 15.9 0 0 0 7.17 11Zm4.83 8.96c-.83-1.2-1.86-3.63-2.16-6.96h4.32c-.3 3.33-1.33 5.76-2.16 6.96ZM14.45 18.02A15.9 15.9 0 0 0 15.83 13h3.1a8.02 8.02 0 0 1-4.48 5.02Z"/></svg>',
@@ -47,11 +45,9 @@ type EditHeaderProps = {
   shareCopied: boolean;
   shareDisabled: boolean;
   onCollectionButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onPlaylistButtonClick: () => void;
   onAiBatchEditClick: () => void;
   aiBatchDisabled: boolean;
   collectionMenuOpen: boolean;
-  playlistMenuOpen: boolean;
 };
 
 const EditHeader = ({
@@ -82,11 +78,9 @@ const EditHeader = ({
   shareCopied,
   shareDisabled,
   onCollectionButtonClick,
-  onPlaylistButtonClick,
   onAiBatchEditClick,
   aiBatchDisabled,
   collectionMenuOpen,
-  playlistMenuOpen,
 }: EditHeaderProps) => {
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedTitleDraft = titleDraft.trim();
@@ -95,24 +89,24 @@ const EditHeader = ({
   const isAutoSaving = isSaving && autoSaveNotice?.type === "success";
   const isAutoSaveError = autoSaveNotice?.type === "error";
   const buttonLabel = isAutoSaving
-    ? "\u81ea\u52d5\u5132\u5b58\u4e2d"
+    ? "自動儲存中"
     : isSaving
       ? savingLabel
       : saveStatus === "error"
         ? saveErrorLabel
         : showSaved
           ? autoSaveNotice?.type === "success"
-            ? "\u5df2\u81ea\u52d5\u5132\u5b58"
+            ? "已自動儲存"
             : savedLabel
-          : "\u5132\u5b58";
+          : "儲存";
   const buttonIcon = isAutoSaving ? (
-    <CloudUploadOutlined fontSize="small" />
+    <CloudUploadOutlined fontSize="medium" />
   ) : saveStatus === "error" || isAutoSaveError ? (
-    <CloudOffOutlined fontSize="small" />
+    <CloudOffOutlined fontSize="medium" />
   ) : showSaved ? (
-    <CloudDoneOutlined fontSize="small" />
+    <CloudDoneOutlined fontSize="medium" />
   ) : (
-    <SaveOutlined fontSize="small" />
+    <SaveOutlined fontSize="medium" />
   );
 
   useEffect(() => {
@@ -153,7 +147,7 @@ const EditHeader = ({
           <button
             type="button"
             onClick={onBack}
-            aria-label="\u8fd4\u56de\u6536\u85cf\u5eab"
+            aria-label="返回收藏庫"
             className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-xs text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
           >
             <ArrowBackIosNew fontSize="inherit" />
@@ -173,7 +167,7 @@ const EditHeader = ({
                 onKeyDown={handleTitleKeyDown}
                 onBlur={handleTitleCommit}
                 inputRef={titleInputRef}
-                placeholder="\u8acb\u8f38\u5165\u6536\u85cf\u5eab\u540d\u7a31"
+                placeholder="請輸入收藏庫名稱"
                 className="min-w-0 flex-1"
                 sx={{
                   "& .MuiInputBase-root": {
@@ -211,16 +205,16 @@ const EditHeader = ({
                 type="button"
                 onClick={onStartEdit}
                 className="flex min-h-11 min-w-0 cursor-pointer items-center text-left"
-                aria-label="\u7de8\u8f2f\u6536\u85cf\u5eab\u540d\u7a31"
+                aria-label="編輯收藏庫名稱"
               >
                 <h2 className="min-w-0 truncate text-lg font-semibold leading-[1.15] text-[var(--mc-text)] sm:text-xl">
-                  {title || "\u672a\u547d\u540d\u6536\u85cf\u5eab"}
+                  {title || "未命名收藏庫"}
                 </h2>
               </button>
               <button
                 type="button"
                 onClick={onStartEdit}
-                aria-label="\u7de8\u8f2f\u540d\u7a31"
+                aria-label="編輯名稱"
                 className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-xs text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
               >
                 <EditOutlined fontSize="inherit" />
@@ -229,13 +223,7 @@ const EditHeader = ({
           )}
         </div>
         <div className="inline-flex shrink-0 items-center">
-          <Tooltip
-            title={
-              visibility === "public"
-                ? "\u516c\u958b\u4e2d"
-                : "\u79c1\u4eba"
-            }
-          >
+          <Tooltip title={visibility === "public" ? "公開中" : "私人"}>
             <Switch
               size="small"
               checked={visibility === "public"}
@@ -243,7 +231,7 @@ const EditHeader = ({
                 onVisibilityChange(checked ? "public" : "private")
               }
               inputProps={{
-                "aria-label": "\u5207\u63db\u6536\u85cf\u5eab\u516c\u958b\u72c0\u614b",
+                "aria-label": "切換收藏庫公開狀態",
               }}
               sx={{
                 width: 52,
@@ -295,87 +283,64 @@ const EditHeader = ({
             onClick={onApplyPlaylistTitle}
             className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60"
           >
-            {"\u5957\u7528\u64ad\u653e\u6e05\u55ae\u540d\u7a31"}
+            套用播放清單名稱
           </button>
         </div>
       ) : null}
 
       <div className="flex w-full flex-wrap items-center gap-2 lg:justify-end">
-        <button
-          type="button"
-          onClick={onCollectionButtonClick}
-          className="inline-flex min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60 sm:flex-none sm:justify-start"
-        >
-          <FolderOpenOutlined fontSize="inherit" />
-          {"\u6536\u85cf\u5eab"}
-          <span className="text-[10px] text-[var(--mc-text-muted)]">
+        <div className="inline-flex items-center gap-2">
+          <span className="text-sm font-semibold tabular-nums text-[var(--mc-text-muted)]">
             {collectionCount}
           </span>
-          {collectionMenuOpen ? (
-            <ExpandLess fontSize="inherit" />
-          ) : (
-            <ExpandMore fontSize="inherit" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onPlaylistButtonClick}
-          className="inline-flex min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60 sm:flex-none sm:justify-start"
-        >
-          {"\u64ad\u653e\u6e05\u55ae"}
-          {playlistMenuOpen ? (
-            <ExpandLess fontSize="inherit" />
-          ) : (
-            <ExpandMore fontSize="inherit" />
-          )}
-        </button>
-        <Tooltip
-          title={
-            shareCopied
-              ? "\u5df2\u8907\u88fd\u5206\u4eab\u9023\u7d50"
-              : "\u5206\u4eab\u6536\u85cf\u5eab"
-          }
-        >
+          <Tooltip title={`收藏庫 (${collectionCount})`}>
+            <button
+              type="button"
+              onClick={onCollectionButtonClick}
+              aria-label="收藏庫"
+              className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text)] transition ${
+                collectionMenuOpen
+                  ? "bg-[var(--mc-surface-strong)]/95 ring-1 ring-[var(--mc-accent)]/45"
+                  : "bg-[var(--mc-surface-strong)]/70 hover:bg-[var(--mc-surface-strong)]/90"
+              }`}
+            >
+              <FolderOpenOutlined fontSize="medium" />
+            </button>
+          </Tooltip>
+        </div>
+        <Tooltip title={shareCopied ? "已複製分享連結" : "分享收藏庫"}>
           <button
             type="button"
             onClick={onShare}
             disabled={shareDisabled}
-            aria-label="\u5206\u4eab\u6536\u85cf\u5eab"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
+            aria-label="分享收藏庫"
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
           >
-            <ShareRounded fontSize="small" />
+            <ShareRounded fontSize="medium" />
           </button>
         </Tooltip>
-        <button
-          type="button"
-          onClick={onAiBatchEditClick}
-          disabled={aiBatchDisabled}
-          className="inline-flex min-w-[calc(50%-0.25rem)] items-center justify-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-0"
-        >
-          <AutoFixHighOutlined fontSize="inherit" />
-          {"AI \u6279\u6b21\u7de8\u8f2f"}
-        </button>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <Button
-            variant="outlined"
-            size="small"
+        <Tooltip title="AI 批次編輯">
+          <button
+            type="button"
+            onClick={onAiBatchEditClick}
+            disabled={aiBatchDisabled}
+            aria-label="AI 批次編輯"
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
+          >
+            <AutoFixHighOutlined fontSize="medium" />
+          </button>
+        </Tooltip>
+        <Tooltip title={saveError ? `${buttonLabel}：${saveError}` : buttonLabel}>
+          <button
+            type="button"
             onClick={onSave}
             disabled={isSaving || isReadOnly || !hasUnsavedChanges}
-            title={saveError ? `${saveErrorLabel}: ${saveError}` : undefined}
-            startIcon={buttonIcon}
-            className="!h-9 w-full shrink-0 justify-center !border-[var(--mc-border)] !bg-[var(--mc-surface-strong)]/70 !text-[var(--mc-text)] hover:!border-[var(--mc-accent)]/60 disabled:!border-[var(--mc-border)]/40 disabled:!bg-[var(--mc-surface)]/40 disabled:!text-[var(--mc-text-muted)] disabled:opacity-70 sm:!h-auto sm:min-w-[120px] sm:w-[120px]"
-            sx={{
-              "& .MuiButton-startIcon": {
-                marginLeft: 0,
-                marginRight: "6px",
-                width: 20,
-                justifyContent: "center",
-              },
-            }}
+            aria-label={buttonLabel}
+            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
           >
-            {buttonLabel}
-          </Button>
-        </div>
+            {buttonIcon}
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

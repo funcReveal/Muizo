@@ -9,6 +9,7 @@ import {
   type CollectionItemRecord,
 } from "./roomApi";
 import {
+  extractYoutubeChannelId,
   formatSeconds,
   normalizePlaylistItems,
   thumbnailFromId,
@@ -560,6 +561,10 @@ export const useRoomCollections = ({
               url: resolvedUrl,
               thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
               uploader: item.channel_title ?? undefined,
+              channelId:
+                item.channel_id ??
+                extractYoutubeChannelId((item as CollectionItemRecord & { channel_url?: string | null }).channel_url) ??
+                undefined,
               duration: durationValue,
               startSec,
               endSec: safeEnd,

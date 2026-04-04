@@ -1,4 +1,4 @@
-import {
+﻿import {
   useMemo,
   useState,
   type RefObject,
@@ -779,7 +779,7 @@ const getPlaybackExtensionLabel = (
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1.15fr)_auto]">
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
               <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3">
                 <div className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
                   <Inventory2Outlined sx={{ fontSize: 15 }} />
@@ -845,34 +845,41 @@ const getPlaybackExtensionLabel = (
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3">
-                <div className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
-                  <TipsAndUpdatesRounded sx={{ fontSize: 15 }} />
-                  排序方式
-                </div>
-                <div className="inline-flex overflow-hidden rounded-full border border-[var(--mc-border)] bg-slate-950/20">
-                  <button
-                    type="button"
-                    className={`px-3 py-1 text-xs transition ${
-                      joinSortMode === "latest"
-                        ? "bg-amber-400/15 text-amber-100"
-                        : "text-[var(--mc-text-muted)]"
-                    }`}
-                    onClick={() => setJoinSortMode("latest")}
-                  >
-                    最新建立
-                  </button>
-                  <button
-                    type="button"
-                    className={`px-3 py-1 text-xs transition ${
-                      joinSortMode === "players_desc"
-                        ? "bg-amber-400/15 text-amber-100"
-                        : "text-[var(--mc-text-muted)]"
-                    }`}
-                    onClick={() => setJoinSortMode("players_desc")}
-                  >
-                    人數由多到少
-                  </button>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 lg:col-span-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
+                      <TipsAndUpdatesRounded sx={{ fontSize: 15 }} />
+                      排序方式
+                    </div>
+                    <p className="text-xs text-[var(--mc-text-muted)]/80">
+                      依建立時間或房內人數快速整理目前列表
+                    </p>
+                  </div>
+                  <div className="inline-flex w-full overflow-hidden rounded-full border border-[var(--mc-border)] bg-slate-950/20 sm:w-auto">
+                    <button
+                      type="button"
+                      className={`flex-1 px-3 py-1.5 text-xs transition sm:flex-none ${
+                        joinSortMode === "latest"
+                          ? "bg-amber-400/15 text-amber-100"
+                          : "text-[var(--mc-text-muted)]"
+                      }`}
+                      onClick={() => setJoinSortMode("latest")}
+                    >
+                      最新建立
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex-1 px-3 py-1.5 text-xs transition sm:flex-none ${
+                        joinSortMode === "players_desc"
+                          ? "bg-amber-400/15 text-amber-100"
+                          : "text-[var(--mc-text-muted)]"
+                      }`}
+                      onClick={() => setJoinSortMode("players_desc")}
+                    >
+                      人數由多到少
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

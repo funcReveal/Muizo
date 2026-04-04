@@ -4,6 +4,7 @@ import {
   DEFAULT_DURATION_SEC,
   createLocalId,
   extractVideoId,
+  extractYoutubeChannelId,
   formatSeconds,
   parseDurationToSeconds,
   thumbnailFromId,
@@ -64,6 +65,10 @@ export const buildEditableItemsFromDb = (
           : "",
       thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
       uploader: item.channel_title ?? "",
+      channelId:
+        item.channel_id ??
+        extractYoutubeChannelId((item as DbCollectionItem & { channel_url?: string | null }).channel_url) ??
+        undefined,
       duration: rawDuration ? formatSeconds(rawDuration) : undefined,
       startSec,
       endSec,
