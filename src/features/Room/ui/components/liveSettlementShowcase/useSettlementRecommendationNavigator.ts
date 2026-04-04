@@ -1,8 +1,6 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
-  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -108,12 +106,6 @@ const useSettlementRecommendationNavigator = <
   TRecap,
   TCard
 >): UseSettlementRecommendationNavigatorResult<TRecap> => {
-  const recommendationCardsByCategoryRef = useRef(recommendationCardsByCategory);
-
-  useEffect(() => {
-    recommendationCardsByCategoryRef.current = recommendationCardsByCategory;
-  }, [recommendationCardsByCategory]);
-
   const getFirstAutoPlayableIndex = useCallback((cards: TCard[]) => {
     if (!cards.length) return 0;
     const previewIndex = cards.findIndex((card) => Boolean(card.previewUrl));
@@ -137,8 +129,9 @@ const useSettlementRecommendationNavigator = <
       nextIndex: number,
       options?: { forcePreview?: boolean; playbackMode?: PreviewPlaybackMode },
     ) => {
-      const nextCards = recommendationCardsByCategoryRef.current[nextCategory];
+      const nextCards = recommendationCardsByCategory[nextCategory];
       if (!nextCards.length) {
+        setSelectedRecapKey(null);
         setPreviewPlaybackMode("idle");
         setPreviewRecapKey(null);
         setPreviewPlayerState("idle");
@@ -152,7 +145,7 @@ const useSettlementRecommendationNavigator = <
 
       setRecommendCategory(nextCategory);
       setRecommendIndex(safeIndex);
-      setSelectedRecapKey(targetCard?.recap.key ?? null);
+      setSelectedRecapKey(targetCard.recap.key);
       pushPreviewSwitchNotice(`已切換到第 ${targetCard.recap.order} 首`);
 
       const nextPlaybackMode =
@@ -244,6 +237,7 @@ const useSettlementRecommendationNavigator = <
       setRecommendCategory,
       setRecommendIndex,
       setSelectedRecapKey,
+      recommendationCardsByCategory,
     ],
   );
 
@@ -254,7 +248,7 @@ const useSettlementRecommendationNavigator = <
       options?: { forcePreview?: boolean; playbackMode?: PreviewPlaybackMode },
     ) => {
       for (const category of RECOMMEND_CATEGORY_FLOW) {
-        const cards = recommendationCardsByCategoryRef.current[category];
+        const cards = recommendationCardsByCategory[category];
         const targetIndex = cards.findIndex(
           (card) => card.recap.key === recap.key,
         );
@@ -274,13 +268,18 @@ const useSettlementRecommendationNavigator = <
       }
       return false;
     },
-    [autoPreviewEnabled, jumpToRecommendation, reviewDoubleClickPlayEnabled],
+    [
+      autoPreviewEnabled,
+      jumpToRecommendation,
+      recommendationCardsByCategory,
+      reviewDoubleClickPlayEnabled,
+    ],
   );
 
   const startAutoGuideFromPreferredCategory = useCallback(
     (preferredCategory: RecommendCategory) => {
       const target = resolveAutoGuideStartTarget(
-        recommendationCardsByCategoryRef.current,
+        recommendationCardsByCategory,
         preferredCategory,
       );
       if (!target) {
@@ -302,6 +301,7 @@ const useSettlementRecommendationNavigator = <
       setPreviewPlaybackMode,
       setPreviewPlayerState,
       setPreviewRecapKey,
+      recommendationCardsByCategory,
     ],
   );
 
@@ -447,7 +447,7 @@ const useSettlementRecommendationNavigator = <
           (currentFlowIdx + offset + RECOMMEND_CATEGORY_FLOW.length) %
             RECOMMEND_CATEGORY_FLOW.length
         ];
-      const cards = recommendationCardsByCategoryRef.current[category];
+      const cards = recommendationCardsByCategory[category];
       if (cards.length <= 0) continue;
       const nextIndex = getFirstAutoPlayableIndex(cards);
       jumpToRecommendation(category, nextIndex, {

@@ -335,6 +335,7 @@ type BuildSettlementQuestionRecapParams = {
   trackIndex: number;
   title: string;
   uploader: string | null | undefined;
+  channelId: string | null | undefined;
   duration: string | null | undefined;
   thumbnail: string | null | undefined;
   myChoiceIndex: number | null;
@@ -364,6 +365,7 @@ export const buildSettlementQuestionRecap = ({
   trackIndex,
   title,
   uploader,
+  channelId,
   duration,
   thumbnail,
   myChoiceIndex,
@@ -395,6 +397,7 @@ export const buildSettlementQuestionRecap = ({
     trackIndex,
     title: normalizeRoomDisplayText(title, "（未提供名稱）"),
     uploader: normalizeRoomDisplayText(uploader, "Unknown"),
+    channelId: channelId?.trim() || null,
     duration: duration?.trim() || null,
     thumbnail: thumbnail || null,
     myResult,

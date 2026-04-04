@@ -6,8 +6,10 @@ export type SettlementTrackLink = {
   provider: string;
   providerLabel: string;
   sourceId: string | null;
+  channelId: string | null;
   linkType: SettlementLinkType;
   href: string | null;
+  authorHref: string | null;
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -17,7 +19,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   soundcloud: "SoundCloud",
   bilibili: "Bilibili",
   niconico: "Niconico",
-  manual: "手動連結",
+  manual: "手動建立",
   collection: "收藏庫",
   unknown: "",
 };
@@ -73,6 +75,55 @@ const normalizeProvider = (
 const normalizeSourceId = (sourceId: string | null | undefined) => {
   const value = (sourceId ?? "").trim();
   return value.length > 0 ? value : null;
+};
+
+const normalizeChannelId = (channelId: string | null | undefined) => {
+  const value = (channelId ?? "").trim();
+  return value.length > 0 ? value : null;
+};
+
+const normalizeYouTubeAuthorPath = (channelId: string | null | undefined) => {
+  const value = (channelId ?? "").trim();
+  if (!value) return null;
+
+  if (isHttpUrl(value)) {
+    try {
+      const parsed = new URL(value);
+      if (!/(^|\.)youtube\.com$/i.test(parsed.hostname)) {
+        return value;
+      }
+      const path = parsed.pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+      return path || null;
+    } catch {
+      return value;
+    }
+  }
+
+  const normalized = value.replace(/^\/+/, "").replace(/\/+$/, "");
+  return normalized || null;
+};
+
+const resolveAuthorUrl = (channelId: string | null) => {
+  const normalizedChannelId = normalizeYouTubeAuthorPath(channelId);
+  if (!normalizedChannelId) return null;
+  if (isHttpUrl(normalizedChannelId)) {
+    return normalizedChannelId;
+  }
+
+  const looksLikeYoutubeHandle = normalizedChannelId.startsWith("@");
+  const looksLikeYoutubeChannelId = /^UC[\w-]{10,}$/.test(normalizedChannelId);
+  const looksLikeYoutubePath = /^(channel|c|user)\//i.test(normalizedChannelId);
+
+  if (looksLikeYoutubeHandle) {
+    return `https://www.youtube.com/${normalizedChannelId}`;
+  }
+  if (looksLikeYoutubeChannelId) {
+    return `https://www.youtube.com/channel/${encodeURIComponent(normalizedChannelId)}`;
+  }
+  if (looksLikeYoutubePath) {
+    return `https://www.youtube.com/${normalizedChannelId}`;
+  }
+  return `https://www.youtube.com/@${encodeURIComponent(normalizedChannelId.replace(/^@/, ""))}`;
 };
 
 const extractYoutubeVideoId = (
@@ -142,11 +193,25 @@ const buildSearchQuery = (
 export const resolveSettlementTrackLink = (
   item: Pick<
     PlaylistItem,
-    "provider" | "sourceId" | "videoId" | "url" | "title" | "answerText" | "uploader"
+    "provider" | "sourceId" | "channelId" | "videoId" | "url" | "title" | "answerText" | "uploader"
   >,
 ): SettlementTrackLink => {
   const provider = normalizeProvider(item.provider, item.url, item.sourceId);
   const sourceId = normalizeSourceId(item.sourceId);
+  const channelId = normalizeChannelId(item.channelId);
+  const authorHref = resolveAuthorUrl(channelId);
+  if (
+    typeof window !== "undefined" &&
+    channelId &&
+    !authorHref
+  ) {
+    console.debug("[mq-author-link] unresolved author href", {
+      channelId,
+      provider: item.provider ?? null,
+      title: item.title ?? item.answerText ?? null,
+      uploader: item.uploader ?? null,
+    });
+  }
   const providerLabel =
     PROVIDER_LABELS[provider] ??
     (provider && provider !== "unknown" ? provider.toUpperCase() : "");
@@ -157,8 +222,10 @@ export const resolveSettlementTrackLink = (
       provider,
       providerLabel,
       sourceId,
+      channelId,
       linkType: "direct",
       href: directUrl,
+      authorHref,
     };
   }
 
@@ -170,8 +237,10 @@ export const resolveSettlementTrackLink = (
         provider,
         providerLabel,
         sourceId,
+        channelId,
         linkType: "search",
         href: searchBuilder(query),
+        authorHref,
       };
     }
   }
@@ -180,66 +249,85 @@ export const resolveSettlementTrackLink = (
     provider,
     providerLabel,
     sourceId,
+    channelId,
     linkType: "none",
     href: null,
+    authorHref,
   };
 };
 
 export type PlaylistSourceReadiness = {
   total: number;
-  withProvider: number;
-  withSourceId: number;
-  directLinkable: number;
-  searchable: number;
+  playable: number;
   unavailable: number;
-  status: "ready" | "partial";
-  byProvider: Array<{ provider: string; label: string; count: number }>;
+  status: "ready" | "partial" | "empty";
+  providers: Array<{
+    provider: string;
+    providerLabel: string;
+    total: number;
+    playable: number;
+    unavailable: number;
+  }>;
 };
 
-export const summarizePlaylistSourceReadiness = (
-  items: PlaylistItem[],
+export const getPlaylistSourceReadiness = (
+  items: Array<
+    Pick<
+      PlaylistItem,
+      "provider" | "sourceId" | "channelId" | "videoId" | "url" | "title" | "answerText" | "uploader"
+    >
+  >,
 ): PlaylistSourceReadiness => {
-  const total = items.length;
-  let withProvider = 0;
-  let withSourceId = 0;
-  let directLinkable = 0;
-  let searchable = 0;
-  let unavailable = 0;
-  const providerCounter = new Map<string, { label: string; count: number }>();
-
-  for (const item of items) {
-    const provider = normalizeProvider(item.provider, item.url, item.sourceId);
-    const sourceId = normalizeSourceId(item.sourceId);
-    if (provider !== "unknown") withProvider += 1;
-    if (sourceId) withSourceId += 1;
-
-    const resolved = resolveSettlementTrackLink(item);
-    if (resolved.linkType === "direct") directLinkable += 1;
-    if (resolved.linkType === "search") searchable += 1;
-    if (resolved.linkType === "none") unavailable += 1;
-
-    const entry = providerCounter.get(resolved.provider) ?? {
-      label: resolved.providerLabel || "未知來源",
-      count: 0,
+  if (!items.length) {
+    return {
+      total: 0,
+      playable: 0,
+      unavailable: 0,
+      status: "empty",
+      providers: [],
     };
-    entry.count += 1;
-    providerCounter.set(resolved.provider, entry);
   }
 
+  const providerCounter = new Map<
+    string,
+    {
+      provider: string;
+      providerLabel: string;
+      total: number;
+      playable: number;
+      unavailable: number;
+    }
+  >();
+
+  let playable = 0;
+  let unavailable = 0;
+
+  items.forEach((item) => {
+    const resolved = resolveSettlementTrackLink(item);
+    const isPlayable = Boolean(resolved.href);
+    if (isPlayable) playable += 1;
+    else unavailable += 1;
+
+    const entry = providerCounter.get(resolved.provider) ?? {
+      provider: resolved.provider,
+      providerLabel: resolved.providerLabel,
+      total: 0,
+      playable: 0,
+      unavailable: 0,
+    };
+
+    entry.total += 1;
+    if (isPlayable) entry.playable += 1;
+    else entry.unavailable += 1;
+
+    providerCounter.set(resolved.provider, entry);
+  });
+
   return {
-    total,
-    withProvider,
-    withSourceId,
-    directLinkable,
-    searchable,
+    total: items.length,
+    playable,
     unavailable,
     status: unavailable === 0 ? "ready" : "partial",
-    byProvider: Array.from(providerCounter.entries())
-      .map(([provider, meta]) => ({
-        provider,
-        label: meta.label,
-        count: meta.count,
-      }))
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-Hant")),
+    providers: Array.from(providerCounter.values()).sort((a, b) => b.total - a.total),
   };
 };

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Button } from "@mui/material";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 
@@ -205,12 +205,47 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       ? "game-room-media-iframe-wrap--guess-lite"
       : "game-room-media-iframe-wrap--full"
   }`;
+  const localVolumeRef = useRef(gameVolume);
+  const isDraggingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const sliderRef = useRef<HTMLInputElement | null>(null);
+  const volumeTextRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    localVolumeRef.current = gameVolume;
+    if (sliderRef.current) sliderRef.current.value = String(gameVolume);
+    if (volumeTextRef.current) volumeTextRef.current.textContent = `${Math.round(gameVolume)}%`;
+  }, [gameVolume]);
+
   const handleVolumeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      onGameVolumeChange(Number(event.target.value));
+      const next = Number(event.target.value);
+      localVolumeRef.current = next;
+      if (volumeTextRef.current) volumeTextRef.current.textContent = `${Math.round(next)}%`;
+      if (rafRef.current === null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          onGameVolumeChange(localVolumeRef.current);
+        });
+      }
     },
     [onGameVolumeChange],
   );
+
+  const handleVolumePointerDown = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const handleVolumePointerUp = useCallback(() => {
+    isDraggingRef.current = false;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    onGameVolumeChange(localVolumeRef.current);
+  }, [onGameVolumeChange]);
+
   const iframeStyle = useMemo<React.CSSProperties>(
     () => ({
       pointerEvents: "none",
@@ -446,14 +481,17 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
             <div className="game-room-playback-footer__volume">
               <span className="text-xs text-slate-300">音量</span>
               <input
+                ref={sliderRef}
                 type="range"
                 min={0}
                 max={100}
-                value={gameVolume}
+                defaultValue={gameVolume}
                 onChange={handleVolumeChange}
+                onPointerDown={handleVolumePointerDown}
+                onPointerUp={handleVolumePointerUp}
                 className="w-full"
               />
-              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-300">
+              <span ref={volumeTextRef} className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-300">
                 {Math.round(gameVolume)}%
               </span>
             </div>

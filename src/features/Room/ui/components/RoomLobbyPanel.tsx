@@ -57,6 +57,7 @@ import {
   getQuestionMax,
 } from "../../model/roomUtils";
 import { normalizePlaybackExtensionMode } from "../../model/roomProviderUtils";
+import { resolveSettlementTrackLink } from "../../model/settlementLinks";
 import {
   DEFAULT_PLAYBACK_EXTENSION_MODE,
   DEFAULT_PLAY_DURATION_SEC,
@@ -1366,6 +1367,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       `歌曲 ${index + 1}`,
     );
     const displayUploader = normalizeDisplayText(item.uploader ?? "", "Unknown");
+    const playlistAuthorHref = resolveSettlementTrackLink({
+      provider: item.provider,
+      sourceId: item.sourceId ?? null,
+      channelId: item.channelId ?? null,
+      videoId: item.videoId,
+      url: item.url ?? "",
+      title: item.title ?? "",
+      answerText: item.answerText ?? item.title ?? "",
+      uploader: item.uploader ?? displayUploader,
+    }).authorHref;
 
     return (
       <div style={style}>
@@ -1396,21 +1407,34 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                 {canOpenItem ? (
                   <button
                     type="button"
-                    className="room-lobby-playlist-row-link room-lobby-playlist-row-link--button"
+                    className="mq-title-link mq-title-link--list room-lobby-playlist-row-link room-lobby-playlist-row-link--button"
                     onClick={() => handleOpenPlaylistItem(item.url)}
                     aria-label={`開啟歌曲：${displayTitle}`}
                   >
                     {displayTitle}
                   </button>
                 ) : (
-                  <span className="room-lobby-playlist-row-link">
+                  <span className="mq-title-link mq-title-link--list room-lobby-playlist-row-link">
                     {displayTitle}
                   </span>
                 )}
               </Typography>
 
               <p className="text-[11px] text-slate-400">
-                {displayUploader}
+                {playlistAuthorHref ? (
+                  <a
+                    href={playlistAuthorHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={playlistAuthorHref}
+                    data-author-href={playlistAuthorHref}
+                    className="mq-author-link mq-author-link--subtle"
+                  >
+                    {displayUploader}
+                  </a>
+                ) : (
+                  displayUploader
+                )}
                 {item.duration ? ` · ${item.duration}` : ""}
               </p>
             </div>
@@ -2497,4 +2521,5 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
 };
 
 export default RoomLobbyPanel;
+
 

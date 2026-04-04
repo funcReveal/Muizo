@@ -8,6 +8,8 @@ import GraphicEqRoundedIcon from "@mui/icons-material/GraphicEqRounded";
 import SmartDisplayRoundedIcon from "@mui/icons-material/SmartDisplayRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import YouTubeIcon from "@mui/icons-material/YouTube";
+import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
+import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import QueueMusicRoundedIcon from "@mui/icons-material/QueueMusicRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
@@ -27,7 +29,7 @@ type RecommendationCardItem = {
   hint: string;
   emphasis: string;
   providerLabel: string;
-  link?: { href?: string | null } | null;
+  link?: { href?: string | null; authorHref?: string | null } | null;
   previewUrl: string | null;
 };
 
@@ -104,6 +106,8 @@ interface RecommendGuideSectionProps {
   onToggleMobileInsightOpen: () => void;
   isMobileRecommendPanelOpen: boolean;
   onToggleMobileRecommendPanelOpen: () => void;
+  previewVolume: number;
+  onPreviewVolumeChange: (next: number) => void;
 }
 
 const CATEGORY_META: Array<{ key: RecommendCategory; icon: React.ElementType }> = [
@@ -226,10 +230,38 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   onToggleMobileInsightOpen,
   isMobileRecommendPanelOpen,
   onToggleMobileRecommendPanelOpen,
+  previewVolume,
+  onPreviewVolumeChange,
 }) => {
   const [autoPreviewHelpAnchor, setAutoPreviewHelpAnchor] =
     React.useState<HTMLElement | null>(null);
   const youtubeOverlayTitle = "如果喜歡這首音樂，別忘了到 YouTube 支持創作者喲！";
+
+  const localPreviewVolumeRef = React.useRef(previewVolume);
+  const previewIsDraggingRef = React.useRef(false);
+  const previewRafRef = React.useRef<number | null>(null);
+  const previewSliderRef = React.useRef<HTMLInputElement | null>(null);
+  const previewFillRef = React.useRef<HTMLDivElement | null>(null);
+  const previewThumbRef = React.useRef<HTMLSpanElement | null>(null);
+  const previewTextRef = React.useRef<HTMLSpanElement | null>(null);
+  const [previewIsMuted, setPreviewIsMuted] = React.useState(previewVolume <= 0);
+
+  const applyPreviewVolumeDOM = React.useCallback((next: number) => {
+    if (previewFillRef.current) previewFillRef.current.style.width = `${Math.max(0, Math.min(100, next))}%`;
+    if (previewThumbRef.current) {
+      previewThumbRef.current.style.left =
+        next <= 0 ? "0px" : next >= 100 ? "calc(100% - 18px)" : `calc(${next}% - 9px)`;
+    }
+    if (previewTextRef.current) previewTextRef.current.textContent = `${Math.round(next)}%`;
+  }, []);
+
+  React.useEffect(() => {
+    if (previewIsDraggingRef.current) return;
+    localPreviewVolumeRef.current = previewVolume;
+    if (previewSliderRef.current) previewSliderRef.current.value = String(previewVolume);
+    applyPreviewVolumeDOM(previewVolume);
+    setPreviewIsMuted(previewVolume <= 0);
+  }, [previewVolume, applyPreviewVolumeDOM]);
   const currentCard = currentRecommendation;
   const shouldKeepLivePreviewVisible = currentRecommendationPreviewUrl !== null;
   const showPreviewCover =
@@ -445,7 +477,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
             style={{ animation: "settlementSwapIn 220ms ease-out both" }}
           >
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex flex-1 flex-col items-start">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                   {recommendCategoryLabels[activeRecommendCategory]}
                 </p>
@@ -453,17 +485,34 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                   type="button"
                   onClick={onOpenRecommendationTitle}
                   disabled={!hasCurrentRecommendationLink}
-                  className={`mt-2 inline-flex max-w-full text-left ${isMobileView ? "text-[1.55rem]" : "text-[2rem]"} font-black leading-tight text-white transition ${
+                  className={`mq-title-link mq-title-link--hero mt-2 inline-grid max-w-full place-items-start text-left align-top ${isMobileView ? "text-[1.55rem]" : "text-[2rem]"} font-black leading-tight text-white transition ${
                     hasCurrentRecommendationLink
                       ? "cursor-pointer underline-offset-4 hover:text-cyan-200 hover:underline"
                       : "cursor-default"
                   }`}
                 >
-                  <AutoMarqueeTitle text={currentCard.recap.title} className="min-w-0 max-w-full" />
+                  <AutoMarqueeTitle text={currentCard.recap.title} className="min-w-0 max-w-full text-current" />
                 </button>
-                <p className="mt-2 text-lg font-semibold text-slate-200">
-                  {currentCard.recap.uploader || "未知作者"}
-                </p>
+                {currentCard.link?.authorHref ? (
+                  <a
+                    href={currentCard.link.authorHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-author-href={currentCard.link.authorHref}
+                    className="mq-author-link mq-author-link--hero mt-2 block max-w-full self-start text-lg font-semibold text-slate-200"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    <span className="truncate">
+                      {currentCard.recap.uploader || "未知作者"}
+                    </span>
+                  </a>
+                ) : (
+                  <p className="mt-2 block max-w-full self-start text-lg font-semibold text-slate-200">
+                    {currentCard.recap.uploader || "未知作者"}
+                  </p>
+                )}
               </div>
 
               <div className="shrink-0">
@@ -722,6 +771,57 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                   </span>
                 )}
               </div>
+              {!isMobileView && (
+              <div className="ml-auto min-w-[320px] max-w-[420px] flex-1">
+                <div className="flex min-w-0 items-center gap-3 px-1 py-1">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-slate-100">
+                    {previewIsMuted ? <VolumeOffRoundedIcon className="text-[1.1rem]" /> : <VolumeUpRoundedIcon className="text-[1.1rem]" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="relative h-5">
+                      <div className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-slate-800/90" />
+                      <div ref={previewFillRef} className="absolute inset-y-0 left-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-linear-to-r from-cyan-400/90 via-sky-300/95 to-emerald-300/90 shadow-[0_0_16px_rgba(34,211,238,0.18)]" style={{ width: `${Math.max(0, Math.min(100, previewVolume))}%` }} />
+                      <span ref={previewThumbRef} className="pointer-events-none absolute top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 rounded-full border border-slate-950/55 bg-white shadow-[0_0_0_4px_rgba(34,211,238,0.08),0_8px_20px_rgba(15,23,42,0.35)]" style={{ left: previewVolume <= 0 ? "0px" : previewVolume >= 100 ? "calc(100% - 18px)" : `calc(${previewVolume}% - 9px)` }} />
+                      <input
+                        ref={previewSliderRef}
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        defaultValue={previewVolume}
+                        aria-label="預覽音量"
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          const wasMuted = localPreviewVolumeRef.current <= 0;
+                          localPreviewVolumeRef.current = next;
+                          applyPreviewVolumeDOM(next);
+                          if ((next <= 0) !== wasMuted) setPreviewIsMuted(next <= 0);
+                          if (previewRafRef.current === null) {
+                            previewRafRef.current = requestAnimationFrame(() => {
+                              previewRafRef.current = null;
+                              onPreviewVolumeChange(localPreviewVolumeRef.current);
+                            });
+                          }
+                        }}
+                        onPointerDown={() => {
+                          previewIsDraggingRef.current = true;
+                        }}
+                        onPointerUp={() => {
+                          previewIsDraggingRef.current = false;
+                          if (previewRafRef.current !== null) {
+                            cancelAnimationFrame(previewRafRef.current);
+                            previewRafRef.current = null;
+                          }
+                          onPreviewVolumeChange(localPreviewVolumeRef.current);
+                        }}
+                        className="absolute inset-0 z-20 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0"
+                      />
+                    </div>
+                  </div>
+                  <span ref={previewTextRef} className="shrink-0 text-xs font-semibold text-cyan-100">{previewVolume}%</span>
+                </div>
+              </div>
+              )}
             </div>
           </article>
 
@@ -810,11 +910,11 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                                       }
                                     }}
                                   >
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex flex-col items-start">
                                       {card.link?.href ? (
                                         <button
                                           type="button"
-                                          className="inline-block max-w-full cursor-pointer truncate text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
+                                          className="mq-title-link mq-title-link--list inline-grid max-w-full cursor-pointer text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
                                           onClick={(event) => {
                                             event.stopPropagation();
                                             onSelectRecommendation(index);
@@ -824,18 +924,33 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                                           <span className="block truncate">{card.recap.title}</span>
                                         </button>
                                       ) : (
-                                        <p className="truncate text-lg font-black leading-snug text-white">
+                                        <p className="block w-full truncate text-lg font-black leading-snug text-white">
                                           {card.recap.title}
                                         </p>
                                       )}
-                                      <p className="mt-2 truncate text-sm text-slate-300">
-                                        {card.recap.uploader || "未知作者"}
-                                      </p>
+                                      {card.link?.authorHref ? (
+                                        <a
+                                          href={card.link.authorHref}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          data-author-href={card.link.authorHref}
+                                          className="mq-author-link mq-author-link--subtle mt-2 block w-fit max-w-full text-sm text-slate-300"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                          }}
+                                        >
+                                          <span className="block truncate">{card.recap.uploader || "未知作者"}</span>
+                                        </a>
+                                      ) : (
+                                        <p className="mt-2 block w-full truncate text-sm text-slate-300">
+                                          {card.recap.uploader || "未知作者"}
+                                        </p>
+                                      )}
                                       <div className="mt-3 flex flex-wrap gap-1.5">
-                                        <span className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
+                                        <span className="cursor-default rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
                                           {card.hint}
                                         </span>
-                                        <span className="rounded-full border border-slate-500/55 bg-slate-800/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-100">
+                                        <span className="cursor-default rounded-full border border-slate-500/55 bg-slate-800/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-100">
                                           {card.emphasis}
                                         </span>
                                       </div>
@@ -941,11 +1056,11 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                               }
                             }}
                           >
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex flex-col items-start">
                               {card.link?.href ? (
                                 <button
                                   type="button"
-                                  className="inline-block max-w-full cursor-pointer truncate text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
+                                  className="mq-title-link mq-title-link--list inline-grid max-w-full cursor-pointer text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     onSelectRecommendation(index);
@@ -955,18 +1070,33 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                                   <span className="block truncate">{card.recap.title}</span>
                                 </button>
                               ) : (
-                                <p className="truncate text-lg font-black leading-snug text-white">
+                                <p className="block w-full truncate text-lg font-black leading-snug text-white">
                                   {card.recap.title}
                                 </p>
                               )}
-                              <p className="mt-2 truncate text-sm text-slate-300">
-                                {card.recap.uploader || "未知作者"}
-                              </p>
+                              {card.link?.authorHref ? (
+                                <a
+                                  href={card.link.authorHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  data-author-href={card.link.authorHref}
+                                  className="mq-author-link mq-author-link--subtle mt-2 block w-fit max-w-full text-sm text-slate-300"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                  }}
+                                >
+                                  <span className="block truncate">{card.recap.uploader || "未知作者"}</span>
+                                </a>
+                              ) : (
+                                <p className="mt-2 block w-full truncate text-sm text-slate-300">
+                                  {card.recap.uploader || "未知作者"}
+                                </p>
+                              )}
                               <div className="mt-3 flex flex-wrap gap-1.5">
-                                <span className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
+                                <span className="cursor-default rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
                                   {card.hint}
                                 </span>
-                                <span className="rounded-full border border-slate-500/55 bg-slate-800/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-100">
+                                <span className="cursor-default rounded-full border border-slate-500/55 bg-slate-800/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-100">
                                   {card.emphasis}
                                 </span>
                               </div>
@@ -1008,3 +1138,4 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
 };
 
 export default React.memo(RecommendGuideSection);
+

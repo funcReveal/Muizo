@@ -560,6 +560,7 @@ export const useRoomCollections = ({
               url: resolvedUrl,
               thumbnail: videoId ? thumbnailFromId(videoId) : undefined,
               uploader: item.channel_title ?? undefined,
+              channelId: item.channel_id ?? null,
               duration: durationValue,
               startSec,
               endSec: safeEnd,
@@ -721,4 +722,5 @@ export const useRoomCollections = ({
     clearCollectionsError,
   };
 };
+
 

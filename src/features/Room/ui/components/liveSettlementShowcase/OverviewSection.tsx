@@ -287,8 +287,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
                   {isChampion && (
                     <>
                       <div
-                        className="pointer-events-none absolute left-1/2 top-0 h-[356px] w-[252px] -translate-x-1/2 opacity-[0.8]"
-                        className="settlement-champion-spotlight"
+                        className="pointer-events-none absolute left-1/2 top-0 h-[356px] w-[252px] -translate-x-1/2 opacity-[0.8] settlement-champion-spotlight"
                         style={{
                           background:
                             "linear-gradient(90deg, rgba(250,204,21,0) 0%, rgba(255,244,194,0.06) 18%, rgba(255,249,226,0.26) 50%, rgba(255,244,194,0.06) 82%, rgba(250,204,21,0) 100%), linear-gradient(180deg, rgba(255,248,214,0.26) 0%, rgba(255,239,170,0.15) 18%, rgba(250,204,21,0.08) 42%, rgba(250,204,21,0.03) 68%, rgba(250,204,21,0) 100%)",

@@ -144,7 +144,8 @@ const useSettlementReviewState = ({
 
   const goPrevReviewParticipant = useCallback(() => {
     if (sortedParticipants.length <= 1) return;
-    const currentIndex = selectedReviewParticipantIndex >= 0 ? selectedReviewParticipantIndex : 0;
+    const currentIndex =
+      selectedReviewParticipantIndex >= 0 ? selectedReviewParticipantIndex : 0;
     const nextIndex =
       (currentIndex - 1 + sortedParticipants.length) % sortedParticipants.length;
     setSelectedReviewParticipantClientId(sortedParticipants[nextIndex]?.clientId ?? null);
@@ -152,7 +153,8 @@ const useSettlementReviewState = ({
 
   const goNextReviewParticipant = useCallback(() => {
     if (sortedParticipants.length <= 1) return;
-    const currentIndex = selectedReviewParticipantIndex >= 0 ? selectedReviewParticipantIndex : 0;
+    const currentIndex =
+      selectedReviewParticipantIndex >= 0 ? selectedReviewParticipantIndex : 0;
     const nextIndex = (currentIndex + 1) % sortedParticipants.length;
     setSelectedReviewParticipantClientId(sortedParticipants[nextIndex]?.clientId ?? null);
   }, [selectedReviewParticipantIndex, sortedParticipants]);
@@ -238,17 +240,17 @@ const useSettlementReviewState = ({
     rows.forEach((row, idx) => {
       if (idx === 0) {
         titleByClientId[row.participant.clientId] = "冠軍";
-        tooltipByClientId[row.participant.clientId] = "本局排名第一";
+        tooltipByClientId[row.participant.clientId] = "本場總分最高";
         return;
       }
       if (maxAccuracy > 0 && Math.abs(row.accuracy - maxAccuracy) < 0.00001) {
-        titleByClientId[row.participant.clientId] = "神準狙擊";
-        tooltipByClientId[row.participant.clientId] = "本局答對率最高";
+        titleByClientId[row.participant.clientId] = "命中王牌";
+        tooltipByClientId[row.participant.clientId] = "本場答對率最高";
         return;
       }
       if (maxCombo > 0 && row.combo === maxCombo) {
-        titleByClientId[row.participant.clientId] = "最高連擊";
-        tooltipByClientId[row.participant.clientId] = "本局最高連擊數";
+        titleByClientId[row.participant.clientId] = "連勝引擎";
+        tooltipByClientId[row.participant.clientId] = "本場最高連擊保持者";
         return;
       }
       if (
@@ -256,12 +258,12 @@ const useSettlementReviewState = ({
         row.avgSpeedMs !== null &&
         row.avgSpeedMs === fastestAvgSpeedMs
       ) {
-        titleByClientId[row.participant.clientId] = "最快節奏";
-        tooltipByClientId[row.participant.clientId] = "本局平均答對最快";
+        titleByClientId[row.participant.clientId] = "極速節奏";
+        tooltipByClientId[row.participant.clientId] = "本場平均答題最快";
         return;
       }
-      titleByClientId[row.participant.clientId] = "穩定表現";
-      tooltipByClientId[row.participant.clientId] = "本局整體表現穩定";
+      titleByClientId[row.participant.clientId] = "穩定發揮";
+      tooltipByClientId[row.participant.clientId] = "本場整體表現穩定";
     });
 
     return {

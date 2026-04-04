@@ -45,6 +45,7 @@ export type SettlementQuestionRecap = {
   duration: string | null;
   thumbnail: string | null;
   sourceId?: string | null;
+  channelId?: string | null;
   provider?: string;
   videoId?: string;
   url?: string;

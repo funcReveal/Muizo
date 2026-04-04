@@ -15,6 +15,7 @@ import {
 export type SettlementExtendedRecap = SettlementQuestionRecap & {
   provider?: string;
   sourceId?: string | null;
+  channelId?: string | null;
   videoId?: string;
   url?: string;
 };
@@ -346,6 +347,7 @@ export const buildRecommendationLink = (recap: SettlementExtendedRecap) =>
   resolveSettlementTrackLink({
     provider: recap.provider,
     sourceId: recap.sourceId,
+    channelId: recap.channelId,
     videoId: recap.videoId,
     url: recap.url ?? "",
     title: recap.title ?? "",

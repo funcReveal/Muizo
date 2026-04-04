@@ -599,6 +599,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
       onSetSelectedRecapKey(recap.key);
 
       if (!isMobileView) {
+        if (onNavigateRecapPreview) {
+          onNavigateRecapPreview(recap);
+          return;
+        }
         onJumpToRecapPreview(recap, "click");
         return;
       }
@@ -619,9 +623,13 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
         recapKey: recap.key,
         tappedAtMs: now,
       };
+      if (onNavigateRecapPreview) {
+        onNavigateRecapPreview(recap);
+        return;
+      }
       onJumpToRecapPreview(recap, "click");
     },
-    [isMobileView, onJumpToRecapPreview, onSetSelectedRecapKey],
+    [isMobileView, onJumpToRecapPreview, onNavigateRecapPreview, onSetSelectedRecapKey],
   );
 
   const handleRecapCardDoubleClick = React.useCallback(
@@ -810,7 +818,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                   : "flex flex-wrap items-start justify-between gap-5"
                   }`}
               >
-                <div className="relative min-w-0 flex-1 pr-2">
+                <div className="relative flex min-w-0 flex-1 flex-col items-start pr-2">
                   <div
                     className={`pointer-events-none absolute overflow-hidden rounded-br-[6.25rem] ${isMobileView
                       ? "rounded-tl-[20px] -left-3 -top-3 h-[11.75rem] w-[13.5rem]"
@@ -833,9 +841,9 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                   </p>
                   <button
                     type="button"
-                    className={`mt-3 inline-flex max-w-full text-left ${isMobileView ? "text-[1.5rem]" : "text-[2rem]"
+                    className={`mq-title-link mq-title-link--hero mt-3 inline-grid max-w-full place-items-start text-left align-top ${isMobileView ? "text-[1.5rem]" : "text-[2rem]"
                       } font-black leading-tight transition ${selectedRecapLink?.href
-                        ? "cursor-pointer text-white underline-offset-4 hover:text-cyan-200 hover:underline"
+                        ? "cursor-pointer text-white underline-offset-4 hover:text-cyan-50 hover:underline"
                         : "cursor-default text-white"
                       }`}
                     onClick={() => {
@@ -844,20 +852,34 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                     disabled={!selectedRecapLink?.href}
                   >
                     {isMobileView ? (
-                      <ChoiceMarqueeTitle
-                        text={selectedRecap.title}
-                        className="w-full text-[1.5rem] font-black leading-tight text-white"
-                      />
-                    ) : (
+                        <ChoiceMarqueeTitle
+                          text={selectedRecap.title}
+                          className="w-full text-[1.5rem] font-black leading-tight text-current"
+                        />
+                      ) : (
                       <RecapTitleMarquee
                         text={selectedRecap.title}
-                        className="w-full text-[2rem] font-black leading-tight text-white"
+                        className="w-full text-[2rem] font-black leading-tight text-current"
                       />
                     )}
                   </button>
-                  <p className="mt-2 text-lg text-slate-300">
-                    {selectedRecap.uploader || "未知來源"}
-                  </p>
+                  {selectedRecapLink?.authorHref ? (
+                    <a
+                      href={selectedRecapLink.authorHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-author-href={selectedRecapLink.authorHref}
+                      className="mq-author-link mq-author-link--hero mt-2 block max-w-full self-start text-lg text-slate-300"
+                    >
+                      <span className="truncate">
+                        {selectedRecap.uploader || "未知作者"}
+                      </span>
+                    </a>
+                  ) : (
+                    <p className="mt-2 block max-w-full self-start text-lg text-slate-300">
+                      {selectedRecap.uploader || "未知作者"}
+                    </p>
+                  )}
                 </div>
 
                 <div
@@ -1230,3 +1252,4 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 };
 
 export default React.memo(ReviewRecapSection);
+

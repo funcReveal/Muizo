@@ -242,6 +242,7 @@ const buildFallbackRecaps = (
       choices,
       provider: item?.provider,
       sourceId: item?.sourceId ?? null,
+      channelId: item?.channelId ?? null,
       videoId: item?.videoId,
       url: item?.url,
     };
@@ -314,7 +315,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const [previewPlayerState, setPreviewPlayerState] = useState<
     "idle" | "playing" | "paused"
   >("idle");
-  const [selectedRecapKey, setSelectedRecapKey] = useState<string | null>(null);
+  const [selectedReviewRecapKey, setSelectedReviewRecapKey] = useState<string | null>(null);
   const [previewRecapKey, setPreviewRecapKey] = useState<string | null>(null);
   const [previewSwitchNotice, setPreviewSwitchNotice] = useState<string | null>(
     null,
@@ -475,6 +476,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
           ...(recap as ExtendedRecap),
           provider: (recap as ExtendedRecap).provider ?? item?.provider,
           sourceId: (recap as ExtendedRecap).sourceId ?? item?.sourceId ?? null,
+          channelId: (recap as ExtendedRecap).channelId ?? item?.channelId ?? null,
           videoId: (recap as ExtendedRecap).videoId ?? item?.videoId,
           url: (recap as ExtendedRecap).url ?? item?.url,
         };
@@ -495,7 +497,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     reviewDetailTransitionKey,
   } = useSettlementRecapSelectionState({
     normalizedRecaps,
-    selectedRecapKey,
+    selectedRecapKey: selectedReviewRecapKey,
     effectiveSelectedReviewParticipantClientId,
     meClientId,
     resolveParticipantResult,
@@ -636,7 +638,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     pushPreviewSwitchNotice,
     setRecommendCategory,
     setRecommendIndex,
-    setSelectedRecapKey,
+    setSelectedRecapKey: setSelectedReviewRecapKey,
     setPreviewPlaybackMode,
     setPreviewRecapKey,
     setPreviewPlayerState,
@@ -1303,6 +1305,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 onToggleMobileRecommendPanelOpen={() =>
                   setIsMobileRecommendPanelOpen((current) => !current)
                 }
+                previewVolume={effectivePreviewVolume}
+                onPreviewVolumeChange={(next) => {
+                  if (settlementPreviewSyncGameVolume) {
+                    setGameVolume(next);
+                    return;
+                  }
+                  setSettlementPreviewVolume(next);
+                }}
               />
               </>
             )}
@@ -1325,7 +1335,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 reviewRecaps={reviewRecaps}
                 selectedRecap={selectedRecap}
                 selectedRecapKey={effectiveSelectedRecapKey}
-                onSetSelectedRecapKey={setSelectedRecapKey}
+                onSetSelectedRecapKey={setSelectedReviewRecapKey}
                 onJumpToRecapPreview={handleJumpToRecapPreview}
                 onNavigateRecapPreview={handleNavigateRecapPreview}
                 resolveParticipantResult={resolveParticipantResult}

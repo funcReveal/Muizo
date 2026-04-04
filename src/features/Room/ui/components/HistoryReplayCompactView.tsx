@@ -26,6 +26,7 @@ import {
 type ExtendedRecap = SettlementQuestionRecap & {
   provider?: string;
   sourceId?: string | null;
+  channelId?: string | null;
   videoId?: string;
   url?: string;
 };
@@ -266,6 +267,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
           ...(recap as ExtendedRecap),
           provider: (recap as ExtendedRecap).provider ?? item?.provider,
           sourceId: (recap as ExtendedRecap).sourceId ?? item?.sourceId ?? null,
+          channelId: (recap as ExtendedRecap).channelId ?? item?.channelId ?? null,
           videoId: (recap as ExtendedRecap).videoId ?? item?.videoId,
           url: (recap as ExtendedRecap).url ?? item?.url,
         };
@@ -377,6 +379,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
     ? resolveSettlementTrackLink({
         provider: selectedRecap.provider ?? selectedRecapTrack?.provider,
         sourceId: selectedRecap.sourceId ?? selectedRecapTrack?.sourceId ?? null,
+        channelId: selectedRecap.channelId ?? selectedRecapTrack?.channelId ?? null,
         videoId: selectedRecap.videoId ?? selectedRecapTrack?.videoId,
         url: selectedRecap.url ?? selectedRecapTrack?.url ?? "",
         title: selectedRecap.title ?? "",
@@ -602,7 +605,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
       ? "前往 YouTube 支持作者"
       : null;
   const previewTitleButtonClassName = selectedRecapLink?.href
-    ? "cursor-pointer transition hover:text-rose-100"
+    ? "mq-title-link mq-title-link--compact cursor-pointer transition"
     : "";
   const previewIsPlaying =
     Boolean(selectedRecapPreviewUrl) &&
@@ -843,11 +846,11 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                         <button
                           type="button"
                           onClick={() => openLink(selectedRecapLink, selectedRecap)}
-                          className="group mt-2 block w-full cursor-pointer text-left"
+                          className="mq-title-link mq-title-link--hero group mt-2 inline-grid max-w-full cursor-pointer text-left text-slate-100"
                         >
                           <HoverMarqueeText
                             text={selectedRecap.title}
-                            className="w-full text-base font-semibold leading-tight text-slate-100 transition-colors group-hover:text-cyan-100 sm:text-lg"
+                            className="w-full text-base font-semibold leading-tight text-current sm:text-lg"
                           />
                         </button>
                       ) : (
@@ -856,9 +859,19 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                           className="mt-2 w-full text-base font-semibold leading-tight text-slate-100 sm:text-lg"
                         />
                       )}
-                      <p className="mt-1 text-sm text-slate-400">
-                        {selectedRecap.uploader || "未知作者"}
-                      </p>
+                      {selectedRecapLink?.authorHref ? (
+                        <a
+                          href={selectedRecapLink.authorHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-author-href={selectedRecapLink.authorHref}
+                          className="mq-author-link mq-author-link--subtle mt-1 block w-fit max-w-full text-sm text-slate-400"
+                        >
+                          <span className="truncate">{selectedRecap.uploader || "未知作者"}</span>
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-sm text-slate-400">{selectedRecap.uploader || "未知作者"}</p>
+                      )}
                     </div>
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
@@ -1020,9 +1033,21 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                               />
                             )}
                             {selectedPreviewMeta ? (
-                              <p className="mt-1 truncate text-[11px] text-slate-400">
-                                {selectedPreviewMeta}
-                              </p>
+                              selectedRecapLink?.authorHref ? (
+                                <a
+                                  href={selectedRecapLink.authorHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  data-author-href={selectedRecapLink.authorHref}
+                                  className="mq-author-link mq-author-link--subtle mt-1 block w-fit max-w-full truncate text-[11px] text-slate-400"
+                                >
+                                  {selectedPreviewMeta}
+                                </a>
+                              ) : (
+                                <p className="mt-1 truncate text-[11px] text-slate-400">
+                                  {selectedPreviewMeta}
+                                </p>
+                              )
                             ) : null}
                           </div>
                         </div>
@@ -1084,7 +1109,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                       </div>
 
                       {selectedRecapPreviewUrl ? (
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/62 px-3 py-3">
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 px-3 py-3">
                           <button
                             type="button"
                             aria-pressed={previewAutoplayEnabled}
@@ -1108,8 +1133,8 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                             <PlayCircleOutlineRoundedIcon className="text-[1.2rem]" />
                           </button>
 
-                          <div className="flex min-w-[240px] flex-1 items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/55 px-3 py-2.5">
-                            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-600/70 bg-slate-950/80 text-slate-100">
+                          <div className="flex min-w-[240px] flex-1 items-center gap-3 px-3 py-2.5">
+                            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-slate-100">
                               {previewVolume <= 0 ? (
                                 <VolumeOffRoundedIcon className="text-[1.15rem]" />
                               ) : (
@@ -1142,7 +1167,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                                 />
                               </div>
                             </div>
-                            <span className="shrink-0 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">
+                            <span className="shrink-0 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">
                               {previewVolume}%
                             </span>
                           </div>
@@ -1295,11 +1320,11 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                 <button
                   type="button"
                   onClick={() => openLink(selectedRecapLink, selectedRecap)}
-                  className="group w-full cursor-pointer text-left"
+                  className="mq-title-link mq-title-link--hero group inline-grid max-w-full cursor-pointer text-left text-slate-100"
                 >
                   <HoverMarqueeText
                     text={selectedRecap.title}
-                    className="w-full text-[1.35rem] font-semibold leading-tight text-slate-100 transition-colors group-hover:text-cyan-100 sm:text-[1.55rem]"
+                    className="w-full text-[1.35rem] font-semibold leading-tight text-current sm:text-[1.55rem]"
                     autoRunOnTouch
                   />
                 </button>
@@ -1310,7 +1335,19 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                   autoRunOnTouch
                 />
               )}
-              <p className="text-sm text-slate-400">{selectedRecap.uploader || "未知作者"}</p>
+              {selectedRecapLink?.authorHref ? (
+                <a
+                  href={selectedRecapLink.authorHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-author-href={selectedRecapLink.authorHref}
+                  className="mq-author-link mq-author-link--subtle mt-1 block w-fit max-w-full text-sm text-slate-400"
+                >
+                  <span className="truncate">{selectedRecap.uploader || "未知作者"}</span>
+                </a>
+              ) : (
+                <p className="text-sm text-slate-400">{selectedRecap.uploader || "未知作者"}</p>
+              )}
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-2">
@@ -1384,7 +1421,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openLink(selectedRecapLink, selectedRecap)}
-                      className={`block min-w-0 max-w-full bg-transparent p-0 text-left text-sm font-semibold text-slate-100 ${previewTitleButtonClassName}`}
+                      className={`inline-grid min-w-0 max-w-full bg-transparent p-0 text-left text-sm font-semibold text-slate-100 ${previewTitleButtonClassName}`}
                       title={selectedPreviewTitle}
                     >
                       <HoverMarqueeText
@@ -1402,9 +1439,21 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                   )}
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     {selectedPreviewMeta ? (
-                      <span className="truncate text-[11px] text-slate-400">
-                        {selectedPreviewMeta}
-                      </span>
+                      selectedRecapLink?.authorHref ? (
+                        <a
+                          href={selectedRecapLink.authorHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-author-href={selectedRecapLink.authorHref}
+                          className="mq-author-link mq-author-link--subtle block w-fit max-w-full truncate text-[11px] text-slate-400"
+                        >
+                          <span className="truncate">{selectedPreviewMeta}</span>
+                        </a>
+                      ) : (
+                        <span className="truncate text-[11px] text-slate-400">
+                          {selectedPreviewMeta}
+                        </span>
+                      )
                     ) : null}
                   </div>
                 </div>
@@ -1420,7 +1469,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                 ) : null}
               </div>
 
-              <div className="mt-3 overflow-hidden rounded-[18px] border border-slate-700/80 bg-black/40">
+                    <div className="mt-3 overflow-hidden rounded-[18px] border border-slate-700/80 bg-black/40">
                 <div className="relative aspect-[16/9.15] w-full">
                   {selectedRecapPreviewUrl ? (
                     <>
@@ -1459,7 +1508,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
               </div>
 
               {selectedRecapPreviewUrl ? (
-                <div className="mt-3 rounded-[18px] border border-slate-700/70 bg-slate-950/45 px-3 py-3">
+                <div className="mt-3 px-3 py-3">
                   <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
                     <button
                       type="button"
@@ -1485,8 +1534,8 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                       </span>
                     </button>
 
-                    <div className="flex min-w-0 flex-1 items-center gap-3 rounded-[16px] border border-slate-700/70 bg-slate-900/58 px-3 py-2.5">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-slate-600/70 bg-slate-950/80 text-slate-100">
+                    <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center text-slate-100">
                         {previewVolume <= 0 ? <VolumeOffRoundedIcon className="text-[1.05rem]" /> : <VolumeUpRoundedIcon className="text-[1.05rem]" />}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -1508,7 +1557,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                           />
                         </div>
                       </div>
-                      <span className="shrink-0 rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">{previewVolume}%</span>
+                      <span className="shrink-0 px-2.5 py-0.5 text-xs font-semibold text-cyan-100">{previewVolume}%</span>
                     </div>
                   </div>
                 </div>
@@ -1526,3 +1575,4 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
 };
 
 export default HistoryReplayCompactView;
+

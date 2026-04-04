@@ -68,6 +68,7 @@ export const mapCollectionItemsToPlaylist = (
         ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
         : undefined,
       uploader: item.channel_title ?? undefined,
+      channelId: item.channel_id ?? null,
       duration: durationValue,
       startSec,
       endSec: safeEnd,
@@ -107,7 +108,7 @@ export const extractVideoIdFromUrl = (url: string) => {
   }
 };
 
-const GARBLED_TEXT_RE = /[åš™ç”‡è˜æ’ ]/;
+const GARBLED_TEXT_RE = /[?™ç??˜æ?]/;
 const ESCAPED_UNICODE_RE = /\\[uU][0-9a-fA-F]{4}/;
 const DOUBLY_ESCAPED_UNICODE_RE = /\\\\[uU]/g;
 
@@ -154,12 +155,12 @@ export const sanitizePossibleGarbledText = (
 };
 
 export const formatAckError = (prefix: string, error?: string) => {
-  const safePrefix = sanitizePossibleGarbledText(prefix, "æ“ä½œå¤±æ•—");
+  const safePrefix = sanitizePossibleGarbledText(prefix, "?ä?å¤±æ?");
   const detail = sanitizePossibleGarbledText(
-    error?.trim() || "æœªçŸ¥éŒ¯èª¤",
-    "æœªçŸ¥éŒ¯èª¤",
+    error?.trim() || "?ªçŸ¥?¯èª¤",
+    "?ªçŸ¥?¯èª¤",
   );
-  return `${safePrefix}ï¼š${detail}`;
+  return `${safePrefix}ï¼?{detail}`;
 };
 
 export const normalizeQuestionCount = (
@@ -360,3 +361,4 @@ export const capSettlementHistory = (
   );
   return sorted.slice(0, limit);
 };
+

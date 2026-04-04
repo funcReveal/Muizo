@@ -6,6 +6,7 @@ export interface PlaylistItem {
   title: string;
   url: string;
   uploader?: string;
+  channelId?: string | null;
   duration?: string;
   thumbnail?: string;
   startSec?: number;
@@ -204,6 +205,7 @@ export interface RoomSettlementQuestionRecap {
   trackIndex: number;
   title: string;
   uploader: string;
+  channelId?: string | null;
   duration: string | null;
   thumbnail: string | null;
   sourceId?: string | null;

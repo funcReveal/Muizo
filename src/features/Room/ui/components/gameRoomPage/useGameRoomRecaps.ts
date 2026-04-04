@@ -30,6 +30,7 @@ interface UseGameRoomRecapsParams {
   resolvedAnswerTitle: string;
   item: {
     uploader?: string;
+    channelId?: string | null;
     duration?: string;
     thumbnail?: string;
   } | null;
@@ -140,6 +141,7 @@ const useGameRoomRecaps = ({
       trackIndex: currentTrackIndex,
       title: resolvedAnswerTitle,
       uploader: item?.uploader,
+      channelId: item?.channelId ?? null,
       duration: item?.duration,
       thumbnail: item?.thumbnail,
       myChoiceIndex,
@@ -177,6 +179,7 @@ const useGameRoomRecaps = ({
     item?.duration,
     item?.thumbnail,
     item?.uploader,
+    item?.channelId,
     liveAnsweredCount,
     liveCorrectCount,
     liveParticipantCount,
