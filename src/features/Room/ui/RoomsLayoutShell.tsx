@@ -12,7 +12,9 @@ import {
 
 import AppHeader from "../../../app/layout/AppHeader";
 import { USERNAME_MAX } from "../model/roomConstants";
-import { useRoom } from "../model/useRoom";
+import { useAuth } from "../../../shared/auth/AuthContext";
+import { useRoomSession } from "../model/RoomSessionContext";
+import { useRoomGame } from "../model/RoomGameContext";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import SettingsPage from "../../Setting/ui/SettingsPage";
 import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
@@ -34,13 +36,15 @@ const RoomsLayoutShell: React.FC = () => {
     openProfileEditor,
     closeProfileEditor,
     displayUsername,
-    statusText,
     username,
-    currentRoom,
-    gameState,
-    handleLeaveRoom,
+  } = useAuth();
+  const {
+    statusText,
     setStatusText,
-  } = useRoom();
+    currentRoom,
+    handleLeaveRoom,
+  } = useRoomSession();
+  const { gameState } = useRoomGame();
   const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [inRoomSettingsOpen, setInRoomSettingsOpen] = useState(false);

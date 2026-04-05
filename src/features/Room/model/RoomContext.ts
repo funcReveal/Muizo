@@ -14,6 +14,10 @@ import type {
   RoomSummary,
   SubmitAnswerResult,
 } from "./types";
+import type { AuthUser } from "../../../shared/auth/AuthContext";
+import type { YoutubePlaylist } from "./RoomPlaylistContext";
+import type { RoomCreateSourceMode } from "./RoomCreateContext";
+import type { RoomKickedNotice } from "./RoomSessionContext";
 
 // Re-export moved types so existing consumers continue to work
 export type { AuthUser } from "../../../shared/auth/AuthContext";

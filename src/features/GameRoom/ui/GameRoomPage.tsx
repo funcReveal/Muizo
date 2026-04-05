@@ -538,18 +538,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playbackVoteProposalSeconds,
   );
   const playbackVoteButtonLabel = playbackVoteRequestPending
-    ? "\u767c\u8d77\u6295\u7968\u4e2d..."
+    ? "發起投票中..."
     : playbackExtensionVote?.status === "active"
       ? myPlaybackVote === null
-        ? `\u5ef6\u9577\u6295\u7968 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`
-        : `\u5df2\u6295\u7968 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`
+        ? `延長投票 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`
+        : `已投票 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`
       : playbackExtensionVote?.status === "approved" && playbackVoteResolvedSeconds > 0
-        ? `\u5df2\u5ef6\u9577 ${playbackVoteResolvedSeconds} \u79d2`
+        ? `已延長 ${playbackVoteResolvedSeconds} 秒`
         : playbackExtensionVote?.status === "rejected"
-          ? "\u6295\u7968\u672a\u901a\u904e"
+          ? "投票未通過"
       : playbackExtensionSeconds > 0
-            ? `\u5df2\u5ef6\u9577 ${playbackExtensionSeconds} \u79d2`
-            : "\u5ef6\u9577\u64ad\u653e";
+            ? `已延長 ${playbackExtensionSeconds} 秒`
+            : "延長播放";
   const effectiveMobileScoreboardHeight = clampMobileVh(
     normalizedSplitHeights.scoreboardHeight,
     MOBILE_SCOREBOARD_MIN_HEIGHT_VH,
@@ -981,7 +981,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (lastPlaybackVoteActiveKeyRef.current === activeKey) return;
     lastPlaybackVoteActiveKeyRef.current = activeKey;
     setStatusText(
-      `${playbackVoteRequesterName} \u63d0\u8b70\u5c07\u672c\u984c\u591a\u64ad\u653e ${playbackVoteProposalSeconds} \u79d2\uff0c\u8acb\u5118\u5feb\u6295\u7968\u3002`,
+      `${playbackVoteRequesterName} 提議將本題多播放 ${playbackVoteProposalSeconds} 秒，請儘快投票。`,
     );
   }, [
     isManualPlaybackExtensionMode,
@@ -1007,10 +1007,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       playbackExtensionVote.status === "approved" &&
       playbackVoteResolvedSeconds > 0
     ) {
-      setStatusText(`\u5ef6\u9577\u64ad\u653e\u6295\u7968\u901a\u904e\uff0c\u672c\u984c\u5df2\u5ef6\u9577 ${playbackVoteResolvedSeconds} \u79d2`);
+      setStatusText(`延長播放投票通過，本題已延長 ${playbackVoteResolvedSeconds} 秒`);
       return;
     }
-    setStatusText("\u5ef6\u9577\u64ad\u653e\u6295\u7968\u672a\u901a\u904e\uff0c\u672c\u984c\u7dad\u6301\u539f\u64ad\u653e\u9577\u5ea6");
+    setStatusText("延長播放投票未通過，本題維持原播放長度");
   }, [
     playbackExtensionVote,
     playbackVoteResolvedSeconds,
@@ -1034,7 +1034,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     }
     lastAutoPlaybackExtensionNoticeRef.current = autoNoticeKey;
     setStatusText(
-      `\u4ecd\u6709\u73a9\u5bb6\u672a\u4f5c\u7b54\uff0c\u7cfb\u7d71\u5df2\u81ea\u52d5\u5ef6\u9577 ${playbackExtensionSeconds} \u79d2`,
+      `仍有玩家未作答，系統已自動延長 ${playbackExtensionSeconds} 秒`,
     );
   }, [
     gameState.phase,
@@ -1075,10 +1075,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const shouldShowVideo = showVideo;
 
   const phaseLabel = isEnded
-    ? "\u5df2\u7d50\u675f"
+    ? "已結束"
     : gameState.phase === "guess" && !allAnsweredReadyForReveal
-      ? "\u731c\u6b4c\u4e2d"
-      : "\u516c\u5e03\u7b54\u6848";
+      ? "猜歌中"
+      : "公布答案";
 
   const activePhaseDurationMs =
     gameState.phase === "guess"
@@ -2077,12 +2077,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             <Stack spacing={1.2}>
               <Typography variant="body2" className="text-slate-200">
                 {playbackVoteRequesterName}{" "}
-                {`\u63d0\u8b70\u5c07\u672c\u984c\u591a\u64ad\u653e ${playbackVoteProposalSeconds} \u79d2\uff0c\u8acb\u5728\u6642\u9650\u5167\u8868\u614b\u3002`}
+                {`提議將本題多播放 ${playbackVoteProposalSeconds} 秒，請在時限內表態。`}
               </Typography>
               <div className="game-room-playback-vote-dialog__stats">
-                <span>{`\u540c\u610f ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`}</span>
-                <span>{`\u4e0d\u540c\u610f ${playbackVoteRejectCount}`}</span>
-                <span>{`\u5269 ${playbackVoteRemainingSeconds} \u79d2`}</span>
+                <span>{`同意 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`}</span>
+                <span>{`不同意 ${playbackVoteRejectCount}`}</span>
+                <span>{`剩 ${playbackVoteRemainingSeconds} 秒`}</span>
               </div>
             </Stack>
           </DialogContent>
@@ -2094,8 +2094,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               disabled={playbackVoteSubmitPending !== null}
             >
               {playbackVoteSubmitPending === "reject"
-                ? "\u9001\u51fa\u4e2d..."
-                : "\u7dad\u6301\u539f\u64ad\u653e\u9577\u5ea6"}
+                ? "送出中..."
+                : "維持原播放長度"}
             </Button>
             <Button
               onClick={() => handleCastPlaybackVote("approve")}
@@ -2104,8 +2104,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               disabled={playbackVoteSubmitPending !== null}
             >
               {playbackVoteSubmitPending === "approve"
-                ? "\u9001\u51fa\u4e2d..."
-                : `\u5ef6\u9577 ${playbackVoteProposalSeconds} \u79d2`}
+                ? "送出中..."
+                : `延長 ${playbackVoteProposalSeconds} 秒`}
             </Button>
           </DialogActions>
         </Dialog>

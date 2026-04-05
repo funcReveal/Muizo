@@ -6,7 +6,9 @@ import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
 import { Box, Button, CircularProgress, Switch, Tooltip } from "@mui/material";
-import { useRoom } from "../../Room/model/useRoom";
+import { useAuth } from "../../../shared/auth/AuthContext";
+import { useRoomPlaylist } from "../../Room/model/RoomPlaylistContext";
+import { useRoomCollections } from "../../Room/model/RoomCollectionsContext";
 import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
@@ -137,6 +139,11 @@ const CollectionsCreatePage = () => {
   const {
     authToken,
     authUser,
+    authLoading,
+    refreshAuthToken,
+    loginWithGoogle,
+  } = useAuth();
+  const {
     playlistUrl,
     playlistItems,
     lastFetchedPlaylistTitle,
@@ -147,18 +154,17 @@ const CollectionsCreatePage = () => {
     handleFetchPlaylist,
     handleResetPlaylist,
     setPlaylistUrl,
-    authLoading,
-    refreshAuthToken,
-    collections,
-    collectionScope,
-    fetchCollections,
     youtubePlaylists,
     youtubePlaylistsLoading,
     youtubePlaylistsError,
     fetchYoutubePlaylists,
     importYoutubePlaylist,
-    loginWithGoogle,
-  } = useRoom();
+  } = useRoomPlaylist();
+  const {
+    collections,
+    collectionScope,
+    fetchCollections,
+  } = useRoomCollections();
 
   const [collectionTitle, setCollectionTitle] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");

@@ -203,6 +203,14 @@ const RESULT_META: Record<
   },
 };
 
+const getChangedAnswerCount = (answer: unknown): number => {
+  if (!answer || typeof answer !== "object") return 0;
+  const value = (answer as { changedAnswerCount?: number }).changedAnswerCount;
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
+};
+
 const buildFallbackRecaps = (
   playlistItems: PlaylistItem[],
   trackOrder: number[],
@@ -266,15 +274,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   onBackToLobby,
   onRequestExit,
 }) => {
-  const getChangedAnswerCount = (answer: unknown): number => {
-    if (!answer || typeof answer !== "object") return 0;
-    const value = (answer as { changedAnswerCount?: number })
-      .changedAnswerCount;
-    return typeof value === "number" && Number.isFinite(value)
-      ? Math.max(0, value)
-      : 0;
-  };
-
   const {
     gameVolume,
     setGameVolume,
@@ -429,6 +428,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const effectivePreviewVolume = settlementPreviewSyncGameVolume
     ? gameVolume
     : settlementPreviewVolume;
+
+  const handleExternalPreviewVolumeChange = useCallback((next: number) => {
+    if (settlementPreviewSyncGameVolume) {
+      setGameVolume(next);
+      return;
+    }
+    setSettlementPreviewVolume(next);
+  }, [settlementPreviewSyncGameVolume, setGameVolume, setSettlementPreviewVolume]);
 
   useEffect(() => {
     if (!sfxEnabled) return;
@@ -606,13 +613,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     setPreviewPlayerState,
     setPreviewCountdownSec,
     setPreviewSwitchNotice,
-    onExternalPreviewVolumeChange: (next) => {
-      if (settlementPreviewSyncGameVolume) {
-        setGameVolume(next);
-        return;
-      }
-      setSettlementPreviewVolume(next);
-    },
+    onExternalPreviewVolumeChange: handleExternalPreviewVolumeChange,
   });
   const {
     jumpToRecommendation,
@@ -724,10 +725,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     [room.id],
   );
 
-  const handleOpenRecommendationTitle = () => {
+  const handleOpenRecommendationTitle = useCallback(() => {
     if (!currentRecommendation || !currentRecommendationLink) return;
     handleOpenTrackLink(currentRecommendationLink, currentRecommendation.recap);
-  };
+  }, [currentRecommendation, currentRecommendationLink, handleOpenTrackLink]);
 
   const dispatchPreviewCommand = useCallback(
     (command: "playVideo" | "pauseVideo") => {
@@ -975,7 +976,7 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     ],
   );
 
-  const goToTab = (tab: LiveSettlementTab) => {
+  const goToTab = useCallback((tab: LiveSettlementTab) => {
     if (tab === activeTab) return;
     setTabRenderKey((prev) => prev + 1);
     setActiveTab(tab);
@@ -988,9 +989,9 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
       return;
     }
     resetRecommendPreviewState();
-  };
+  }, [activeTab, autoPreviewEnabled, startAutoGuideFromPreferredCategory, recommendCategory, activateRecommendationCategory, resetRecommendPreviewState]);
 
-  const goNextStep = () => {
+  const goNextStep = useCallback(() => {
     if (stepIndex < TAB_ORDER.length - 1) {
       goToTab(TAB_ORDER[stepIndex + 1]);
       return;
@@ -1002,12 +1003,12 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     if (onRequestExit) {
       setExitConfirmOpen(true);
     }
-  };
+  }, [stepIndex, goToTab, onBackToLobby, onRequestExit]);
 
-  const goPrevStep = () => {
+  const goPrevStep = useCallback(() => {
     if (stepIndex <= 0) return;
     goToTab(TAB_ORDER[stepIndex - 1]);
-  };
+  }, [stepIndex, goToTab]);
 
   const openExitConfirm = useCallback(() => {
     exitConfirmLockedRef.current = false;

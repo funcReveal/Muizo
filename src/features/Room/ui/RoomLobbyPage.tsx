@@ -25,7 +25,11 @@ import type {
   RoomSettlementSnapshot,
 } from "../model/types";
 import { translateRoomErrorDetail } from "../model/roomErrorText";
-import { useRoom } from "../model/useRoom";
+import { useAuth } from "../../../shared/auth/AuthContext";
+import { useRoomSession } from "../model/RoomSessionContext";
+import { useRoomPlaylist } from "../model/RoomPlaylistContext";
+import { useRoomCollections } from "../model/RoomCollectionsContext";
+import { useRoomGame } from "../model/RoomGameContext";
 
 const SETTLEMENT_SESSION_CACHE_KEY_PREFIX = "mq:settlement-cache:v1:";
 const SETTLEMENT_SUMMARY_CACHE_LIMIT = 80;
@@ -476,37 +480,15 @@ const RoomLobbyPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     username,
+    authUser,
+    loginWithGoogle,
+    clientId,
+  } = useAuth();
+  const {
     currentRoom,
     participants,
     messages,
     settlementHistory,
-    playlistViewItems,
-    playlistHasMore,
-    playlistLoadingMore,
-    playlistProgress,
-    playlistSuggestions,
-    playlistUrl,
-    playlistItems,
-    playlistError,
-    playlistLoading,
-    setPlaylistUrl,
-    collections,
-    collectionsLoading,
-    collectionsError,
-    collectionItemsLoading,
-    collectionItemsError,
-    selectedCollectionId,
-    authUser,
-    loginWithGoogle,
-    youtubePlaylists,
-    youtubePlaylistsLoading,
-    youtubePlaylistsError,
-    fetchYoutubePlaylists,
-    gameState,
-    isGameView,
-    setIsGameView,
-    gamePlaylist,
-    clientId,
     isConnected,
     routeRoomResolved,
     sessionProgress,
@@ -517,26 +499,56 @@ const RoomLobbyPage: React.FC = () => {
     serverOffsetMs,
     setRouteRoomId,
     handleLeaveRoom,
-    loadMorePlaylist,
-    handleStartGame,
-    handleSubmitChoice,
-    handleRequestPlaybackExtensionVote,
-    handleCastPlaybackExtensionVote,
-    handleUpdateRoomSettings,
     handleKickPlayer,
     handleTransferHost,
+    fetchSettlementHistorySummaries,
+    fetchSettlementReplay,
+  } = useRoomSession();
+  const {
+    playlistViewItems,
+    playlistHasMore,
+    playlistLoadingMore,
+    playlistProgress,
+    playlistSuggestions,
+    playlistUrl,
+    playlistItems,
+    playlistError,
+    playlistLoading,
+    setPlaylistUrl,
+    youtubePlaylists,
+    youtubePlaylistsLoading,
+    youtubePlaylistsError,
+    fetchYoutubePlaylists,
+    loadMorePlaylist,
     handleSuggestPlaylist,
     handleApplySuggestionSnapshot,
     handleApplyPlaylistUrlDirect,
     handleApplyCollectionDirect,
     handleApplyYoutubePlaylistDirect,
     handleFetchPlaylistByUrl,
+  } = useRoomPlaylist();
+  const {
+    collections,
+    collectionsLoading,
+    collectionsError,
+    collectionItemsLoading,
+    collectionItemsError,
+    selectedCollectionId,
     fetchCollections,
     selectCollection,
     loadCollectionItems,
-    fetchSettlementHistorySummaries,
-    fetchSettlementReplay,
-  } = useRoom();
+  } = useRoomCollections();
+  const {
+    gameState,
+    isGameView,
+    setIsGameView,
+    gamePlaylist,
+    handleStartGame,
+    handleSubmitChoice,
+    handleRequestPlaybackExtensionVote,
+    handleCastPlaybackExtensionVote,
+    handleUpdateRoomSettings,
+  } = useRoomGame();
 
   const [activeSettlementRoundKey, setActiveSettlementRoundKey] = useState<
     string | null

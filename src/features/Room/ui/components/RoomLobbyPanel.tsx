@@ -619,6 +619,9 @@ const RoomLobbyPlaylistPanel = React.memo(function RoomLobbyPlaylistPanel({
 });
 
 
+const LOBBY_INTERACTIVE_SELECTOR =
+  "button, [role='button'], [role='tab'], .MuiButtonBase-root";
+
 const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   currentRoom,
   participants,
@@ -669,8 +672,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onFetchYoutubePlaylists,
 }) => {
   type MobileLobbyTab = "members" | "host" | "playlist";
-  const LOBBY_INTERACTIVE_SELECTOR =
-    "button, [role='button'], [role='tab'], .MuiButtonBase-root";
   const rowCount = playlistItems.length + (playlistHasMore ? 1 : 0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
@@ -794,12 +795,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     height: isMobileLobbyLayout ? "100%" : playlistListViewportHeight,
     width: "100%",
   } as React.CSSProperties;
-  const playlistLoadNotice = (() => {
-    if (playlistLoading || collectionItemsLoading) {
-      return "讀取歌單中";
-    }
-    return null;
-  })();
+  const playlistLoadNotice =
+    playlistLoading || collectionItemsLoading ? "讀取歌單中" : null;
   const displayRoomName = normalizeDisplayText(currentRoom?.name, "未命名房間");
   const hostPlaylistPrimaryText =
     "推薦播放清單會優先作為預設焦點；你也可以切換成公開、個人、YouTube 或連結來源後再套用到房間。";
@@ -856,16 +853,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     [findInteractiveTarget, playGameSfx, primeSfxAudio],
   );
 
-  const hostCollectionPrimaryText = (() => {
-    const scopeLabel = collectionScope === "public" ? "公開收藏庫" : "私人收藏庫";
-    if (collectionsLoading) {
-      return `正在載入 ${scopeLabel}...`;
-    }
-    if (collections.length === 0) {
-      return `${scopeLabel} 目前沒有可用清單。`;
-    }
-    return `已取得 ${scopeLabel}，可直接選擇並套用到房間。`;
-  })();
+  const hostCollectionScopeLabel =
+    collectionScope === "public" ? "公開收藏庫" : "私人收藏庫";
+  const hostCollectionPrimaryText = collectionsLoading
+    ? `正在載入 ${hostCollectionScopeLabel}...`
+    : collections.length === 0
+      ? `${hostCollectionScopeLabel} 目前沒有可用清單。`
+      : `已取得 ${hostCollectionScopeLabel}，可直接選擇並套用到房間。`;
   const isHostYoutubeEmptyNotice =
     hostSourceType === "youtube" &&
     isGoogleAuthed &&
@@ -883,18 +877,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     youtubePlaylistsError && !isHostYoutubeMissingNotice
       ? youtubePlaylistsError
       : null;
-  const hostYoutubePrimaryText = (() => {
-    if (youtubePlaylistsLoading) {
-      return "正在載入 YouTube 播放清單...";
-    }
-    if (isHostYoutubeMissingNotice) {
-      return "找不到可匯入的 YouTube 播放清單，請檢查連結與權限。";
-    }
-    if (youtubePlaylists.length === 0 && !youtubePlaylistsError) {
-      return "目前沒有可匯入的 YouTube 播放清單。";
-    }
-    return "已取得 YouTube 播放清單，可直接選擇匯入。";
-  })();
+  const hostYoutubePrimaryText = youtubePlaylistsLoading
+    ? "正在載入 YouTube 播放清單..."
+    : isHostYoutubeMissingNotice
+      ? "找不到可匯入的 YouTube 播放清單，請檢查連結與權限。"
+      : youtubePlaylists.length === 0 && !youtubePlaylistsError
+        ? "目前沒有可匯入的 YouTube 播放清單。"
+        : "已取得 YouTube 播放清單，可直接選擇匯入。";
   const questionMaxLimit = getQuestionMax(
     currentRoom?.playlist.totalCount ?? 0,
   );
@@ -902,13 +891,17 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const settingsDisabled = gameState?.status === "playing";
   const settingsSourceItems =
     playlistItemsForChange.length > 0 ? playlistItemsForChange : playlistItems;
-  const settingsUseCollectionSource = settingsSourceItems.some(
-    (item) =>
-      item.provider === "collection" ||
-      typeof item.collectionClipStartSec === "number" ||
-      typeof item.collectionClipEndSec === "number" ||
-      item.collectionHasExplicitStartSec === true ||
-      item.collectionHasExplicitEndSec === true,
+  const settingsUseCollectionSource = useMemo(
+    () =>
+      settingsSourceItems.some(
+        (item) =>
+          item.provider === "collection" ||
+          typeof item.collectionClipStartSec === "number" ||
+          typeof item.collectionClipEndSec === "number" ||
+          item.collectionHasExplicitStartSec === true ||
+          item.collectionHasExplicitEndSec === true,
+      ),
+    [settingsSourceItems],
   );
   const useCollectionTimingForSettings =
     settingsUseCollectionSource && settingsAllowCollectionClipTiming;

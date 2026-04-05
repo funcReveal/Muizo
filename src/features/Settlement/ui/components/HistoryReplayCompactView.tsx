@@ -838,9 +838,9 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
               {selectedRecap ? (
                 <>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex flex-col items-start">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        第 {selectedRecap.order} 題 · {selectedParticipant?.username ?? "玩家視角"}
+                        第 {selectedRecap.order} 題
                       </p>
                       {selectedRecapLink?.href ? (
                         <button
@@ -872,6 +872,9 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
                       ) : (
                         <p className="mt-1 text-sm text-slate-400">{selectedRecap.uploader || "未知作者"}</p>
                       )}
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {selectedParticipant?.username ?? "玩家視角"}
+                      </p>
                     </div>
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
@@ -1575,4 +1578,3 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
 };
 
 export default HistoryReplayCompactView;
-
