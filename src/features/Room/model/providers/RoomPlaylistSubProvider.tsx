@@ -173,7 +173,8 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   // PlaylistContextPatchContext嚗?銝???摰????亙 RoomSessionContext
   // ?? handleFetchPlaylistByUrl 蝑?靘陷甇方???  // 甇方?閮剔 noop ?臬??函? ??瘨祥??閬? action ?? useRoomPlaylist()
   // ??handleFetchPlaylistByUrl 蝑?敺?????RoomPlaylistContext 銝剔
-  // SessionCoreProvider ??patch context 閬神嚗?閬?PlaylistContextPatchContext嚗?  const noop = useCallback(async () => {}, []);
+  // SessionCoreProvider ??patch context 閬神嚗?閬?PlaylistContextPatchContext嚗?
+  const noop = useCallback(async () => {}, []);
   const noopBool = useCallback(async () => false as const, []);
   const noopSuggest = useCallback(async () => ({ ok: false as const }), []);
 
@@ -250,6 +251,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
       importYoutubePlaylist,
       handleFetchPlaylist,
       handleResetPlaylist,
+      noop,
       noopBool,
       noopSuggest,
     ],
