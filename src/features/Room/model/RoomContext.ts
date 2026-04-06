@@ -1,4 +1,4 @@
-import { createContext } from "react";
+import { createContext, type Dispatch, type SetStateAction } from "react";
 
 import type {
   ChatMessage,
@@ -113,7 +113,7 @@ export interface RoomContextValue {
   statusText: string | null;
   setStatusText: (value: string | null) => void;
   kickedNotice: RoomKickedNotice | null;
-  setKickedNotice: (value: RoomKickedNotice | null) => void;
+  setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
   sessionProgress: SessionProgressPayload | null;
   playlistUrl: string;
   setPlaylistUrl: (value: string) => void;

@@ -41,8 +41,8 @@ import {
   getStoredShowVideoPreference,
   setStoredShowVideoPreference,
 } from "../../Room/model/roomStorage";
-import { normalizeRoomDisplayText } from "../../shared/utils/text";
-import { blurActiveInteractiveElement } from "../../shared/utils/dom";
+import { normalizeRoomDisplayText } from "../../../shared/utils/text";
+import { blurActiveInteractiveElement } from "../../../shared/utils/dom";
 import { useGameRoomSfxEffects } from "../model/useGameRoomSfxEffects";
 import { useGameRoomVoteDialogEffects } from "../model/useGameRoomVoteDialogEffects";
 import { useKeyBindings } from "../../Setting/ui/components/useKeyBindings";

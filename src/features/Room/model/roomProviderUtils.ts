@@ -7,6 +7,9 @@ import {
   QUESTION_MIN,
 } from "./roomConstants";
 import {
+  sanitizePossibleGarbledText,
+} from "../../../shared/utils/text";
+import {
   clampPlayDurationSec,
   clampRevealDurationSec,
   clampStartOffsetSec,
@@ -114,11 +117,6 @@ export const extractVideoIdFromUrl = (url: string) => {
     }
   }
 };
-
-export {
-  normalizeRoomDisplayText,
-  sanitizePossibleGarbledText,
-} from "../../../shared/utils/text";
 
 export const formatAckError = (prefix: string, error?: string) => {
   const safePrefix = sanitizePossibleGarbledText(prefix, "操作失敗");

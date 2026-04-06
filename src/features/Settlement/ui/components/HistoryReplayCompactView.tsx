@@ -379,7 +379,7 @@ const HistoryReplayCompactView: React.FC<HistoryReplayCompactViewProps> = ({
     ? resolveSettlementTrackLink({
         provider: selectedRecap.provider ?? selectedRecapTrack?.provider,
         sourceId: selectedRecap.sourceId ?? selectedRecapTrack?.sourceId ?? null,
-        channelId: selectedRecap.channelId ?? selectedRecapTrack?.channelId ?? null,
+        channelId: selectedRecap.channelId ?? selectedRecapTrack?.channelId ?? undefined,
         videoId: selectedRecap.videoId ?? selectedRecapTrack?.videoId,
         url: selectedRecap.url ?? selectedRecapTrack?.url ?? "",
         title: selectedRecap.title ?? "",

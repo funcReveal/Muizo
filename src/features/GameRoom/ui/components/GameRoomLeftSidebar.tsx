@@ -24,7 +24,7 @@ import AnimatedScoreboardBorder from "../../../../shared/ui/AnimatedScoreboardBo
 import RoomUiTooltip from "../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 import type { ChatMessage, RoomParticipant } from "../../../Room/model/types";
-import { normalizeRoomDisplayText } from "../../../shared/utils/text";
+import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import { resolveComboTier } from "../lib/gameRoomUiUtils";
 import type { ScoreboardRow } from "../../model/gameRoomDerivations";
@@ -91,10 +91,10 @@ interface GameRoomScorePlayerRowProps {
   comboDisplayClass: string;
   shouldShowComboChampion: boolean;
   rowComboTier: number;
-  effectiveScoreboardBorderMotion: string;
-  scoreboardBorderTheme: string;
+  effectiveScoreboardBorderMotion: ScoreboardBorderAnimationId;
+  scoreboardBorderTheme: ScoreboardBorderThemeId;
   scoreboardBorderMaskEnabled: boolean;
-  scoreboardBorderLineStyle: string;
+  scoreboardBorderLineStyle: ScoreboardBorderLineStyleId;
   scoreboardBorderParticleCount: number;
   avatarEffectLevel: "off" | "simple" | "full";
 }
@@ -236,7 +236,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreboardBorderTheme = DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   scoreboardBorderParticleCount = DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
 }) => {
-  const effectiveScoreboardBorderMotion = React.useMemo(() => {
+  const effectiveScoreboardBorderMotion = React.useMemo<ScoreboardBorderAnimationId>(() => {
     if (!scoreboardBorderEnabled) return "none";
     if (scoreboardBorderAnimation === "none") return "none";
     return resolveScoreboardBorderMotionByTheme(scoreboardBorderTheme);

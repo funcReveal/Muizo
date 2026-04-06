@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { GameState, PlaybackExtensionMode, RoomState } from "../../Room/model/types";
 import { DEFAULT_PLAYBACK_EXTENSION_MODE } from "../../Room/model/roomConstants";
 import { normalizePlaybackExtensionMode } from "../../Room/model/roomProviderUtils";
-import { normalizeRoomDisplayText } from "../../shared/utils/text";
+import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 
 interface UseGameRoomVoteStateInput {
   gameState: GameState;
@@ -63,7 +63,7 @@ export function useGameRoomVoteState({
   // ------------------------------------------------------------------
   // My vote + metadata
   // ------------------------------------------------------------------
-  const myPlaybackVote = useMemo(() => {
+  const myPlaybackVote = useMemo<"approve" | "reject" | null>(() => {
     if (!playbackExtensionVote || !meClientId) return null;
     if (playbackExtensionVote.approveClientIds.includes(meClientId)) return "approve";
     if (playbackExtensionVote.rejectClientIds.includes(meClientId)) return "reject";

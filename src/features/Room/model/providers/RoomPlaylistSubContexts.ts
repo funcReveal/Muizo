@@ -51,13 +51,19 @@ export interface PlaylistInputControlContextValue {
   resetPlaylistState: () => void;
   fetchYoutubeSnapshot: (playlistId: string) => Promise<{
     items: PlaylistItem[];
-    playlistId: string;
     title: string | null;
+    totalCount: number;
+    sourceId: string;
   }>;
   fetchPublicPlaylistSnapshot: (
     url: string,
     playlistId: string,
-  ) => Promise<{ items: PlaylistItem[]; playlistId: string; title: string | null }>;
+  ) => Promise<{
+    items: PlaylistItem[];
+    title: string | null;
+    totalCount: number;
+    sourceId: string;
+  }>;
 }
 
 export const PlaylistInputControlContext =

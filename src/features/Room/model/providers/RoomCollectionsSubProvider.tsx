@@ -1,12 +1,10 @@
-﻿/**
+/**
  * RoomCollectionsSubProvider
  *
- * 摰?函?蝞∠? collections ??? *
- * 靘陷嚗? *   - AuthContext嚗uthToken?uthUser.id?efreshAuthToken
- *   - PlaylistInputControlContext嚗pplyPlaylistSource?learPlaylistError?etPlaylistUrl
- *   - PlaylistSocketBridgeContext嚗nResetCollectionRef嚗‵??resetCollectionSelection嚗? *   - StatusWriteContext嚗etStatusText
- *
- * ??嚗oomCollectionsContext嚗??API嚗? */
+ * Manages collection browsing and collection-to-playlist application inside a room.
+ * It exposes both the public RoomCollectionsContext and the internal
+ * CollectionAccessContext used by SessionCoreProvider.
+ */
 import { useEffect, useMemo, type ReactNode } from "react";
 
 import { useAuth } from "../../../../shared/auth/AuthContext";
@@ -18,9 +16,7 @@ import { useRoomCollections as useRoomCollectionsHook } from "../useRoomCollecti
 import { useRoomProviderCollectionAccess } from "../useRoomProviderCollectionAccess";
 import { API_URL } from "../roomConstants";
 import { useStatusWrite } from "./RoomStatusContexts";
-import {
-  CollectionAccessContext,
-} from "./RoomCollectionsAccessContext";
+import { CollectionAccessContext } from "./RoomCollectionsAccessContext";
 import {
   usePlaylistInputControl,
   usePlaylistSocketBridge,
@@ -31,11 +27,14 @@ export const RoomCollectionsSubProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const { authToken, authUser, refreshAuthToken } = useAuth();
   const { setStatusText } = useStatusWrite();
-  const { applyPlaylistSource, clearPlaylistError, setPlaylistUrl, resetPlaylistState } =
-    usePlaylistInputControl();
+  const {
+    applyPlaylistSource,
+    clearPlaylistError,
+    setPlaylistUrl,
+    resetPlaylistState,
+  } = usePlaylistInputControl();
   const { onResetCollectionRef } = usePlaylistSocketBridge();
 
-  // ?? useRoomCollections ?????????????????????????????????????????????????????
   const {
     collections,
     collectionsLoading,
@@ -79,12 +78,10 @@ export const RoomCollectionsSubProvider: React.FC<{ children: ReactNode }> = ({
     resetPlaylistState();
   }, [authToken, resetCollectionsState, resetPlaylistState]);
 
-  // ?? 霈?PlaylistSubProvider ??handlePlaylistCollectionReset ?賢?怠 resetCollectionSelection
   useEffect(() => {
     onResetCollectionRef.current = resetCollectionSelection;
   }, [onResetCollectionRef, resetCollectionSelection]);
 
-  // ?? useRoomProviderCollectionAccess ????????????????????????????????????????
   const { fetchCollectionSnapshot, createCollectionReadToken } =
     useRoomProviderCollectionAccess({
       apiUrl: API_URL,
@@ -92,7 +89,6 @@ export const RoomCollectionsSubProvider: React.FC<{ children: ReactNode }> = ({
       refreshAuthToken,
     });
 
-  // ?? RoomCollectionsContext value ???????????????????????????????????????????
   const collectionsContextValue = useMemo<RoomCollectionsContextValue>(
     () => ({
       collections,
@@ -136,19 +132,26 @@ export const RoomCollectionsSubProvider: React.FC<{ children: ReactNode }> = ({
     ],
   );
 
-  // ?? ?湧 fetchCollectionSnapshot / createCollectionReadToken 靘?SessionCoreProvider ??
-  // ???折 context ?喲?
+  const collectionAccessValue = useMemo(
+    () => ({
+      fetchCollectionSnapshot,
+      createCollectionReadToken,
+      clearCollectionsError,
+      resetCollectionSelection,
+    }),
+    [
+      clearCollectionsError,
+      createCollectionReadToken,
+      fetchCollectionSnapshot,
+      resetCollectionSelection,
+    ],
+  );
+
   return (
     <RoomCollectionsContext.Provider value={collectionsContextValue}>
-      <CollectionAccessContext.Provider
-        value={useMemo(
-          () => ({ fetchCollectionSnapshot, createCollectionReadToken, clearCollectionsError, resetCollectionSelection }),
-          [clearCollectionsError, createCollectionReadToken, fetchCollectionSnapshot, resetCollectionSelection],
-        )}
-      >
+      <CollectionAccessContext.Provider value={collectionAccessValue}>
         {children}
       </CollectionAccessContext.Provider>
     </RoomCollectionsContext.Provider>
   );
 };
-

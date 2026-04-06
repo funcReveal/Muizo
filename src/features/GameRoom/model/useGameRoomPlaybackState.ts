@@ -6,7 +6,7 @@ import {
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
 } from "../../Room/model/roomConstants";
-import { normalizeRoomDisplayText } from "../../shared/utils/text";
+import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 import { extractYouTubeId } from "./gameRoomUtils";
 
 interface UseGameRoomPlaybackStateInput {

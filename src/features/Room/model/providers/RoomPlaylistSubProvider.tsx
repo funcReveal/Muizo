@@ -1,14 +1,9 @@
-﻿/**
+/**
  * RoomPlaylistSubProvider
  *
- * 蝞∠??拚??剜皜???
- *   1. 銵典/頛詨???playlistUrl?etchedItems?ouTube playlists?uestionCount
- *   2. ?單??輸????playlistViewItems?laylistHasMore?laylistProgress?laylistSuggestions
- *      嚗 socket 撽?嚗? PlaylistLiveSettersContext 霈?SessionCoreProvider ?湔嚗? *
- * ?祇? context嚗? *   - RoomPlaylistContext  ??瘨祥?蝙?? *
- * ?折 context嚗?靘? provider 霈??嚗? *   - PlaylistLiveSettersContext   ??SessionCoreProvider 霈?誑?湔 socket-driven state
- *   - PlaylistInputControlContext  ??CollectionsSubProvider 霈?誑?澆 applyPlaylistSource
- *   - PlaylistSocketBridgeContext  ??SessionCoreProvider 憛怠 getSocketRef / loadMorePlaylistRef
+ * Owns playlist source state for the room lobby.
+ * It exposes the base RoomPlaylistContext plus smaller bridge contexts that
+ * other room providers use to patch in socket-driven behavior.
  */
 import {
   useCallback,
@@ -41,15 +36,12 @@ import {
 } from "./RoomPlaylistSubContexts";
 import type { ClientSocket, PlaylistSuggestion } from "../types";
 
-// ??? Provider ????????????????????????????????????????????????????????????????
-
 export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const { authToken, refreshAuthToken } = useAuth();
   const { setStatusText } = useStatusWrite();
 
-  // ?? ?單????socket 撽?嚗???????????????????????????????????????????????
   const [playlistProgress, setPlaylistProgress] = useState<{
     received: number;
     total: number;
@@ -59,7 +51,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     PlaylistSuggestion[]
   >([]);
 
-  // ?? Bridge refs嚗 SessionCoreProvider ?冽?頛?憛怠嚗??????????????????????
   const getSocketRef = useRef<() => ClientSocket | null>(() => null);
   const loadMorePlaylistRef = useRef<() => void>(() => {});
   const onResetCollectionRef = useRef<() => void>(() => {});
@@ -70,7 +61,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     onResetCollectionRef.current();
   }, []);
 
-  // ?? useRoomPlaylist ????????????????????????????????????????????????????????
   const {
     playlistUrl,
     setPlaylistUrl,
@@ -106,7 +96,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     onResetCollection: handlePlaylistCollectionReset,
   });
 
-  // ?? useRoomPlaylistSnapshots ???????????????????????????????????????????????
   const { fetchYoutubeSnapshot, fetchPublicPlaylistSnapshot } =
     useRoomPlaylistSnapshots({
       apiUrl: API_URL,
@@ -116,7 +105,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
       extractVideoIdFromUrl,
     });
 
-  // ?? questionCount ???????????????????????????????????????????????????????
   const handleUpdateQuestionCount = useCallback(
     (value: number) => {
       const clamped = updateQuestionCount(value);
@@ -125,7 +113,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     [updateQuestionCount],
   );
 
-  // ?? ?? ??????????????????????????????????????????????????????????????????
   const handlePlaylistPagePayload = useCallback(
     (payload: { totalCount: number; ready: boolean }) => {
       setPlaylistProgress((prev) => ({
@@ -164,21 +151,12 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [authToken, resetPlaylistState, resetYoutubePlaylists]);
 
-  // ?? loadMorePlaylist ?? ref 頝舐 ?????????????????????????????????????????
-  // 撖阡?撖虫???SessionCoreProvider 憛怠 loadMorePlaylistRef
   const loadMorePlaylist = useCallback(() => loadMorePlaylistRef.current(), []);
 
-  // ?? Socket ?賊? action placeholder嚗 SessionCoreProvider 閬神嚗??????????
-  // ?? action ?閬?socket嚗隞?no-op 雿?嚗essionCoreProvider ??
-  // PlaylistContextPatchContext嚗?銝???摰????亙 RoomSessionContext
-  // ?? handleFetchPlaylistByUrl 蝑?靘陷甇方???  // 甇方?閮剔 noop ?臬??函? ??瘨祥??閬? action ?? useRoomPlaylist()
-  // ??handleFetchPlaylistByUrl 蝑?敺?????RoomPlaylistContext 銝剔
-  // SessionCoreProvider ??patch context 閬神嚗?閬?PlaylistContextPatchContext嚗?
   const noop = useCallback(async () => {}, []);
   const noopBool = useCallback(async () => false as const, []);
   const noopSuggest = useCallback(async () => ({ ok: false as const }), []);
 
-  // ?? RoomPlaylistContext value ??????????????????????????????????????????????
   const playlistContextValue = useMemo<RoomPlaylistContextValue>(
     () => ({
       playlistUrl,
@@ -257,7 +235,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     ],
   );
 
-  // ?? PlaylistLiveSettersContext value ??????????????????????????????????????
   const liveSettersValue = useMemo<PlaylistLiveSettersContextValue>(
     () => ({
       setPlaylistViewItems,
@@ -281,7 +258,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     ],
   );
 
-  // ?? PlaylistInputControlContext value ?????????????????????????????????????
   const inputControlValue = useMemo<PlaylistInputControlContextValue>(
     () => ({
       applyPlaylistSource,
@@ -301,8 +277,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     ],
   );
 
-  // ?? PlaylistSocketBridgeContext value ?????????????????????????????????????
-  // refs ?祈澈?舐帘摰? ??useMemo 銝?閬遙雿?deps
   const bridgeValue = useMemo<PlaylistSocketBridgeContextValue>(
     () => ({ getSocketRef, loadMorePlaylistRef, onResetCollectionRef }),
     [],
@@ -320,4 +294,3 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     </RoomPlaylistContext.Provider>
   );
 };
-

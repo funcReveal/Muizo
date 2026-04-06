@@ -561,7 +561,7 @@ interface RoomLobbyPlaylistPanelProps {
   rowCount: number;
   playlistRowHeight: number;
   playlistRowProps: Record<string, never>;
-  playlistRowComponent: React.ComponentType<RowComponentProps>;
+  playlistRowComponent: (props: RowComponentProps) => React.ReactElement;
 }
 
 const RoomLobbyPlaylistPanel = React.memo(function RoomLobbyPlaylistPanel({
@@ -1395,7 +1395,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     const playlistAuthorHref = resolveSettlementTrackLink({
       provider: item.provider,
       sourceId: item.sourceId ?? null,
-      channelId: item.channelId ?? null,
+      channelId: item.channelId ?? undefined,
       videoId: item.videoId,
       url: item.url ?? "",
       title: item.title ?? "",
@@ -2546,4 +2546,3 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
 };
 
 export default RoomLobbyPanel;
-

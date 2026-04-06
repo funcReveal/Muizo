@@ -1,3 +1,7 @@
+import {
+  extractVideoId,
+} from "../../../../shared/utils/youtube";
+
 export const DEFAULT_DURATION_SEC = 30;
 
 export const parseDurationToSeconds = (duration?: string): number | null => {
@@ -43,10 +47,10 @@ export const createLocalId = () =>
 export const createServerId = () => createLocalId();
 
 export {
-  videoUrlFromId,
+  extractVideoId,
   extractYoutubeChannelId,
   thumbnailFromId,
-  extractVideoId,
+  videoUrlFromId,
 } from "../../../../shared/utils/youtube";
 export type { YoutubeThumbnailSize } from "../../../../shared/utils/youtube";
 

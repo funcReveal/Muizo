@@ -1,10 +1,15 @@
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  useContext,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import type { RoomKickedNotice } from "../RoomSessionContext";
 
 export interface StatusWriteContextValue {
   setStatusText: (value: string | null) => void;
-  setKickedNotice: (value: RoomKickedNotice | null) => void;
+  setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
 }
 
 export const StatusWriteContext = createContext<StatusWriteContextValue | null>(

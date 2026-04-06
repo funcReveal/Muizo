@@ -16,6 +16,7 @@ import {
   type LobbySettlementStats,
 } from "./components/roomLobbyPanelUtils";
 import type {
+  RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
 } from "../model/types";
@@ -257,12 +258,39 @@ const hasRecapPlaybackData = (
   });
 };
 
+const normalizeSettlementRecap = (
+  recap: RoomSettlementQuestionRecap | SettlementQuestionRecap,
+): SettlementQuestionRecap => ({
+  ...recap,
+  myResult: recap.myResult ?? "unanswered",
+  myChoiceIndex: recap.myChoiceIndex ?? null,
+  choices: recap.choices.map((choice) => ({
+    ...choice,
+    isCorrect: choice.isCorrect ?? false,
+    isSelectedByMe: choice.isSelectedByMe ?? false,
+  })),
+});
+
+const normalizeSettlementRecaps = (
+  recaps:
+    | (RoomSettlementQuestionRecap | SettlementQuestionRecap)[]
+    | null
+    | undefined,
+): SettlementQuestionRecap[] =>
+  Array.isArray(recaps) ? recaps.map(normalizeSettlementRecap) : [];
+
 const choosePreferredSettlementRecaps = (
-  localRecaps: SettlementQuestionRecap[] | null | undefined,
-  snapshotRecaps: SettlementQuestionRecap[] | null | undefined,
+  localRecaps:
+    | (RoomSettlementQuestionRecap | SettlementQuestionRecap)[]
+    | null
+    | undefined,
+  snapshotRecaps:
+    | (RoomSettlementQuestionRecap | SettlementQuestionRecap)[]
+    | null
+    | undefined,
 ) => {
-  const safeLocalRecaps = Array.isArray(localRecaps) ? localRecaps : [];
-  const safeSnapshotRecaps = Array.isArray(snapshotRecaps) ? snapshotRecaps : [];
+  const safeLocalRecaps = normalizeSettlementRecaps(localRecaps);
+  const safeSnapshotRecaps = normalizeSettlementRecaps(snapshotRecaps);
   if (safeLocalRecaps.length === 0) return safeSnapshotRecaps;
   if (safeSnapshotRecaps.length === 0) return safeLocalRecaps;
 
@@ -2312,4 +2340,3 @@ const RoomLobbyPage: React.FC = () => {
 };
 
 export default RoomLobbyPage;
-

@@ -1798,7 +1798,7 @@ const EditPage = () => {
     setSingleTrackTitle("");
     setSingleTrackAnswer("");
     setSingleTrackUploader("");
-    setSingleTrackChannelUrl("");
+    setSingleTrackChannelId("");
     setSingleTrackError(null);
     const key = getPlaylistItemKey({ url });
     if (!key) {

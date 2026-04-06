@@ -1,21 +1,11 @@
-﻿/**
+/**
  * RoomSessionCoreProvider
  *
- * 蝞∠? socket ??????live state???脩????拙振???? *
- * 靘陷嚗撅?sub-providers ??嚗?
- *   - AuthContext / RoomAuthInternalContext
- *   - StatusWriteContext / StatusReadContext
- *   - PlaylistLiveSettersContext / PlaylistInputControlContext / PlaylistSocketBridgeContext
- *   - RoomCollectionsContext / CollectionAccessContext
- *   - RoomPlaylistContext嚗ase ??noop action handlers嚗? *
- * ??嚗??嚗? *   - RoomPlaylistContext嚗e-provide嚗釣?亦?撖?socket-action handlers嚗? *   - RoomSessionContext
- *   - RoomGameContext
- *   - RoomUiContext
- *   - RoomRealtimeContext
- *   - ChatInputContext
+ * Central coordinator for room socket lifecycle, room state, game state,
+ * chat state, and settlement state.
  *
- * ??嚗?剁?靘?RoomCreateSubProvider 雿輻嚗?
- *   - RoomSessionInternalContext
+ * It consumes the auth / status / playlist / collection sub-providers,
+ * then re-provides the full room contexts used by the rest of the feature.
  */
 import {
   useCallback,
@@ -105,12 +95,10 @@ import { useRoomProviderReadActions } from "../useRoomProviderReadActions";
 import { useRoomProviderSettingsActions } from "../useRoomProviderSettingsActions";
 import { useRoomProviderPlaylistActions } from "../useRoomProviderPlaylistActions";
 
-// ??? Provider ????????????????????????????????????????????????????????????????
 
 export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  // ?? Reads from parent sub-providers ???????????????????????????????????????
   const {
     authToken,
     authUser,
@@ -155,7 +143,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const { fetchCollectionSnapshot, createCollectionReadToken } =
     useCollectionAccess();
 
-  // Base playlist context ??re-provided below with real socket handlers
+  // Base playlist context re-provided below with real socket handlers
   const basePlaylistCtx = useRoomPlaylist();
   const {
     playlistItems,
@@ -172,13 +160,11 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     playlistPageCursor,
   } = basePlaylistCtx;
 
-  // ?? Route ??????????????????????????????????????????????????????????????????
   const { pathname } = useLocation();
   const shouldConnectSocket =
     pathname.startsWith("/rooms") || pathname.startsWith("/invited");
   const socketSuspendedRef = useRef(false);
 
-  // ?? State ??????????????????????????????????????????????????????????????????
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(null);
@@ -211,7 +197,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const [startOffsetSec, setStartOffsetSec] = useState(DEFAULT_START_OFFSET_SEC);
   const [allowCollectionClipTiming, setAllowCollectionClipTiming] = useState(true);
 
-  // ?? Cap wrappers ??????????????????????????????????????????????????????????
   const setMessagesWithCap = useCallback<Dispatch<SetStateAction<ChatMessage[]>>>(
     (value) => {
       setMessages((previous) => {
@@ -244,7 +229,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     [],
   );
 
-  // ?? Refs ???????????????????????????????????????????????????????????????????
   const socketRef = useRef<ClientSocket | null>(null);
   const createRoomInFlightRef = useRef(false);
   const releaseCreateRoomLockRef = useRef<(() => void) | null>(null);
@@ -259,7 +243,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const serverOffsetRef = useRef(0);
   const lastLatencyProbeRoomIdRef = useRef<string | null>(null);
 
-  // ?? Helpers ????????????????????????????????????????????????????????????????
   const getSocket = useCallback(() => socketRef.current, []);
 
   const syncServerOffset = useCallback((serverNow: number) => {
@@ -307,7 +290,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     [setKickedNotice],
   );
 
-  // ?? Game settings helpers ??????????????????????????????????????????????????
   const handleUpdatePlayDurationSec = useCallback((value: number) => {
     const clamped = clampPlayDurationSec(value);
     setPlayDurationSec(clamped);
@@ -341,7 +323,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setAllowCollectionClipTiming(true);
   }, []);
 
-  // ?? Presence ???????????????????????????????????????????????????????????????
   const {
     presenceParticipantNamesRef,
     presenceSeededRoomIdRef,
@@ -354,7 +335,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     serverOffsetRef,
   });
 
-  // ?? Read actions ???????????????????????????????????????????????????????????
   const {
     fetchRooms,
     fetchRoomById,
@@ -371,7 +351,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   });
 
-  // ?? Settings actions ???????????????????????????????????????????????????????
   const { handleUpdateRoomSettings } = useRoomProviderSettingsActions({
     getSocket,
     currentRoom,
@@ -382,7 +361,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   });
 
-  // ?? Full confirmNickname (with socket emit) ????????????????????????????????
   // Installed into confirmNicknameRef so AuthContext.confirmNickname delegates here
   const confirmNicknameWithSocket = useCallback(async () => {
     const previousUsername = activeUsername;
@@ -406,7 +384,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         { roomId: currentRoom.id, username: nextUsername },
         (ack) => {
           if (!ack?.ok) {
-            setStatusText(formatAckError("?郊?踹?梁迂憭望?", ack?.error));
+            setStatusText(formatAckError("\u66f4\u65b0\u540d\u7a31\u5931\u6557", ack?.error));
           }
         },
       );
@@ -437,7 +415,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   ]);
 
-  // ?? Socket lifecycle ???????????????????????????????????????????????????????
   useRoomProviderSocketLifecycle({
     username: activeUsername,
     authLoading,
@@ -499,7 +476,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     },
   });
 
-  // ?? Room actions (join, leave, game, chat) ?????????????????????????????????
   const {
     handleJoinRoom,
     handleLeaveRoom,
@@ -550,7 +526,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     serverOffsetRef,
   });
 
-  // ?? Playlist actions (socket-driven) ??????????????????????????????????????
   const {
     handleSuggestPlaylist,
     handleFetchPlaylistByUrl,
@@ -580,7 +555,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistUrl,
   });
 
-  // ?? loadMorePlaylist (needs currentRoom) ???????????????????????????????????
   const loadMorePlaylist = useCallback(() => {
     if (!currentRoom) return;
     if (playlistLoadingMore || !playlistHasMore) return;
@@ -594,7 +568,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     playlistPageSize,
   ]);
 
-  // ?? Fill bridge refs (useLayoutEffect ??before children paint) ????????????
   useLayoutEffect(() => {
     getSocketRef.current = getSocket;
   }, [getSocket, getSocketRef]);
@@ -607,9 +580,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     confirmNicknameRef.current = confirmNicknameWithSocket;
   }, [confirmNicknameRef, confirmNicknameWithSocket]);
 
-  // ?? Effects ????????????????????????????????????????????????????????????????
-
-  // Invite room lookup
   useEffect(() => {
     if (!inviteRoomId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -618,14 +588,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     }
     void fetchRoomById(inviteRoomId).then((room) => {
       setInviteNotFound(!room);
-      if (!room) setStatusText("找不到邀請房間，請確認連結是否正確。");
+      if (!room) setStatusText("\u627e\u4e0d\u5230\u9080\u8acb\u623f\u9593\uff0c\u8acb\u78ba\u8a8d\u9023\u7d50\u662f\u5426\u6b63\u78ba\u3002");
     });
   }, [fetchRoomById, inviteRoomId, setStatusText]);
 
-  // Game ended status hint
   useEffect(() => {
     if (gameState?.status === "ended") {
-      setStatusText("遊戲已結束，請等待本局結算完成。");
+      setStatusText("\u904a\u6232\u5df2\u7d50\u675f\uff0c\u8acb\u7b49\u5f85\u672c\u5c40\u7d50\u7b97\u5b8c\u6210\u3002");
     }
   }, [gameState?.status, setStatusText]);
 
@@ -721,7 +690,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     saveRoomPassword,
   ]);
 
-  // ?? Context values ?????????????????????????????????????????????????????????
 
   const fullPlaylistCtxValue = useMemo<RoomPlaylistContextValue>(
     () => ({
