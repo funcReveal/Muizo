@@ -1329,7 +1329,6 @@ const RoomsHubPage: React.FC = () => {
                               publicLibrarySearchActive={publicLibrarySearchActive}
                               createLibrarySearch={createLibrarySearch}
                               setCreateLibrarySearch={setCreateLibrarySearch}
-                              collectionScope={collectionScope}
                               collectionsLoading={collectionsLoading}
                               filteredCreateCollectionsLength={filteredCreateCollections.length}
                               filteredCreateYoutubePlaylistsLength={filteredCreateYoutubePlaylists.length}
@@ -1420,6 +1419,7 @@ const RoomsHubPage: React.FC = () => {
                                 handleCollectionGridScroll={handleCollectionGridScroll}
                                 createLibraryColumns={createLibraryColumns}
                                 renderCollectionCard={renderCollectionCard}
+                                collectionsLoading={collectionsLoading}
                                 collectionsLoadingMore={collectionsLoadingMore}
                                 collectionListHeight={collectionListHeight}
                                 collectionListRowCount={collectionListRowCount}

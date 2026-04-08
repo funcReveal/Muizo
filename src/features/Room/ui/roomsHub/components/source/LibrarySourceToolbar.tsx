@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { InputAdornment, TextField } from "@mui/material";
+import { IconButton, InputAdornment, TextField } from "@mui/material";
 import {
   AppsRounded,
   SearchRounded,
@@ -17,7 +17,6 @@ type LibrarySourceToolbarProps = {
   publicLibrarySearchActive: boolean;
   createLibrarySearch: string;
   setCreateLibrarySearch: (value: string) => void;
-  collectionScope: "public" | "owner" | null;
   collectionsLoading: boolean;
   filteredCreateCollectionsLength: number;
   filteredCreateYoutubePlaylistsLength: number;
@@ -35,7 +34,7 @@ const viewToggle = (
   <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
     <button
       type="button"
-      aria-label="切換為卡片檢視"
+      aria-label="切換為圖示檢視"
       className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
         createLibraryView === "grid"
           ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
@@ -60,13 +59,29 @@ const viewToggle = (
   </div>
 );
 
+const searchFieldSx = {
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "18px",
+    backgroundColor: "rgba(2, 6, 23, 0.3)",
+    boxShadow: "none",
+    "& fieldset": {
+      borderColor: "rgba(148,163,184,0.18)",
+    },
+    "&:hover fieldset": {
+      borderColor: "rgba(34,211,238,0.32)",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: "rgba(34,211,238,0.48)",
+    },
+  },
+} as const;
+
 const LibrarySourceToolbar = ({
   createLibraryTab,
   publicLibrarySearchPanelRef,
   publicLibrarySearchActive,
   createLibrarySearch,
   setCreateLibrarySearch,
-  collectionScope,
   collectionsLoading,
   filteredCreateCollectionsLength,
   filteredCreateYoutubePlaylistsLength,
@@ -89,13 +104,13 @@ const LibrarySourceToolbar = ({
               : "bg-transparent sm:border-[var(--mc-border)]/80 sm:bg-slate-950/18"
           }`}
         >
-          <div className="min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1">
             <TextField
               fullWidth
               size="small"
               value={createLibrarySearch}
               onChange={(event) => setCreateLibrarySearch(event.target.value)}
-              placeholder="搜尋收藏庫"
+              placeholder="搜尋收藏庫名稱、曲目與建立者"
               autoComplete="off"
               slotProps={{
                 input: {
@@ -109,90 +124,86 @@ const LibrarySourceToolbar = ({
                       />
                     </InputAdornment>
                   ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        edge="end"
+                        size="small"
+                        aria-label="開啟收藏庫排序設定"
+                        onClick={togglePublicLibrarySearch}
+                        sx={{
+                          color: publicLibrarySearchActive
+                            ? "rgba(186, 230, 253, 0.98)"
+                            : "rgba(148, 163, 184, 0.86)",
+                          backgroundColor: publicLibrarySearchActive
+                            ? "rgba(34, 211, 238, 0.14)"
+                            : "transparent",
+                          border: publicLibrarySearchActive
+                            ? "1px solid rgba(103, 232, 249, 0.28)"
+                            : "1px solid transparent",
+                          borderRadius: "10px",
+                          "&:hover": {
+                            backgroundColor: publicLibrarySearchActive
+                              ? "rgba(34, 211, 238, 0.18)"
+                              : "rgba(148, 163, 184, 0.08)",
+                          },
+                        }}
+                      >
+                        <TuneRounded sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
                 },
               }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  borderRadius: "18px",
-                  backgroundColor: "rgba(2, 6, 23, 0.3)",
-                  boxShadow: "none",
-                  "& fieldset": {
-                    borderColor: "rgba(148,163,184,0.18)",
-                  },
-                  "&:hover fieldset": {
-                    borderColor: "rgba(34,211,238,0.32)",
-                  },
-                  "&.Mui-focused fieldset": {
-                    borderColor: "rgba(34,211,238,0.48)",
-                  },
-                },
-              }}
+              sx={searchFieldSx}
             />
+            {publicLibrarySearchActive && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-2">
+                <div className="rounded-[0_0_22px_22px] border border-cyan-300/24 border-t-0 bg-slate-950 px-3 pb-3 pt-4 shadow-[0_24px_48px_rgba(2,6,23,0.48)] sm:px-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { key: "favorites_first" as const, label: "近期熱門" },
+                      { key: "popular" as const, label: "最受歡迎" },
+                      { key: "updated" as const, label: "最近建立" },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        aria-pressed={publicCollectionsSort === option.key}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-[0.08em] ${
+                          publicCollectionsSort === option.key
+                            ? "bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/32"
+                            : "bg-slate-900 text-[var(--mc-text-muted)] ring-1 ring-white/10 hover:bg-slate-800 hover:text-slate-100"
+                        }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPublicCollectionsSort(option.key);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between gap-3 sm:justify-end">
             <div className="flex items-center gap-2">
-              {collectionScope === "public" &&
-              collectionsLoading &&
-              filteredCreateCollectionsLength > 0 ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/18 bg-cyan-400/8 px-2.5 py-1 text-[11px] text-cyan-100/88">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
-                  載入中
-                </span>
-              ) : null}
               <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
-                共 {filteredCreateCollectionsLength} 筆
+                {collectionsLoading
+                  ? "載入中"
+                  : `共 ${filteredCreateCollectionsLength} 筆`}
               </span>
             </div>
             <div className="flex items-center gap-2">
               {viewToggle(createLibraryView, setCreateLibraryView)}
-              <button
-                type="button"
-                aria-label="開啟收藏庫排序設定"
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${
-                  publicLibrarySearchActive
-                    ? "border-cyan-300/32 bg-cyan-500/14 text-cyan-100"
-                    : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 text-[var(--mc-text-muted)] hover:text-slate-100"
-                }`}
-                onClick={togglePublicLibrarySearch}
-              >
-                <TuneRounded sx={{ fontSize: 18 }} />
-              </button>
             </div>
           </div>
-          {publicLibrarySearchActive && (
-            <div className="absolute left-3 right-3 top-full z-30 -mt-3 sm:left-4 sm:right-4">
-              <div className="rounded-[0_0_22px_22px] border border-cyan-300/24 border-t-0 bg-slate-950 px-3 pb-3 pt-6 shadow-[0_24px_48px_rgba(2,6,23,0.48)] sm:px-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  {[
-                    { key: "favorites_first" as const, label: "熱門優先" },
-                    { key: "popular" as const, label: "最多收藏" },
-                    { key: "updated" as const, label: "最近更新" },
-                  ].map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      aria-pressed={publicCollectionsSort === option.key}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold tracking-[0.08em] ${
-                        publicCollectionsSort === option.key
-                          ? "bg-cyan-500/20 text-cyan-100 ring-1 ring-cyan-300/32"
-                          : "bg-slate-900 text-[var(--mc-text-muted)] ring-1 ring-white/10 hover:bg-slate-800 hover:text-slate-100"
-                      }`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setPublicCollectionsSort(option.key);
-                      }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -208,8 +219,8 @@ const LibrarySourceToolbar = ({
           onChange={(event) => setCreateLibrarySearch(event.target.value)}
           placeholder={
             createLibraryTab === "youtube"
-              ? "搜尋 Youtube 清單"
-              : "搜尋收藏庫"
+              ? "搜尋 YouTube 清單名稱"
+              : "搜尋收藏庫名稱、曲目與建立者"
           }
           slotProps={{
             input: {
@@ -225,12 +236,7 @@ const LibrarySourceToolbar = ({
               ),
             },
           }}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: "18px",
-              backgroundColor: "rgba(2, 6, 23, 0.3)",
-            },
-          }}
+          sx={searchFieldSx}
         />
       </div>
       <div className="flex items-center justify-between gap-3 sm:justify-end">

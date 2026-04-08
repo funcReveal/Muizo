@@ -40,6 +40,7 @@ type CollectionsSourceContentProps = {
     itemIndex: number,
     view: "grid" | "list",
   ) => ReactNode;
+  collectionsLoading: boolean;
   collectionsLoadingMore: boolean;
   collectionListHeight: number;
   collectionListRowCount: number;
@@ -63,6 +64,7 @@ const CollectionsSourceContent = ({
   handleCollectionGridScroll,
   createLibraryColumns,
   renderCollectionCard,
+  collectionsLoading,
   collectionsLoadingMore,
   collectionListHeight,
   collectionListRowCount,
