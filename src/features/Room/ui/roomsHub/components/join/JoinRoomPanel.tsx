@@ -26,6 +26,7 @@ import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import FastForwardRounded from "@mui/icons-material/FastForwardRounded";
 import GridViewRounded from "@mui/icons-material/GridViewRounded";
 import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined";
+import SyncAltRounded from "@mui/icons-material/SyncAltRounded";
 import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
@@ -159,6 +160,40 @@ const JoinRoomPanel = ({
   const JOIN_ROOM_BATCH_SIZE = 12;
   const JOIN_ROOM_LIST_HEIGHT = 560;
   const JOIN_ROOM_LIST_ROW_HEIGHT = 216;
+  const joinStatusOptions: Array<{
+    key: JoinStatusFilter;
+    label: string;
+    shortLabel: string;
+  }> = [
+    { key: "all", label: "全部房間", shortLabel: "全部" },
+    { key: "waiting", label: "等待中", shortLabel: "等待中" },
+    { key: "playing", label: "遊戲中", shortLabel: "遊戲中" },
+  ];
+  const joinPasswordOptions: Array<{
+    key: JoinPasswordFilter;
+    label: string;
+    shortLabel: string;
+  }> = [
+    { key: "all", label: "全部 PIN", shortLabel: "全部" },
+    { key: "no_password", label: "無 PIN", shortLabel: "無 PIN" },
+    { key: "password_required", label: "需 PIN", shortLabel: "需 PIN" },
+  ];
+  const joinSortOptions: Array<{
+    key: JoinSortMode;
+    label: string;
+    shortLabel: string;
+  }> = [
+    { key: "latest", label: "最新建立", shortLabel: "最新" },
+    { key: "players_desc", label: "人數由多到少", shortLabel: "人數" },
+  ];
+
+  const cycleOption = <T extends string,>(
+    options: readonly T[],
+    current: T,
+  ): T => {
+    const currentIndex = options.indexOf(current);
+    return options[(currentIndex + 1) % options.length] ?? options[0];
+  };
 
 const getPlaybackExtensionLabel = (
     mode: PlaybackExtensionMode | undefined | null,
@@ -246,6 +281,16 @@ const getPlaybackExtensionLabel = (
     if (!current || !total) return "進行中";
     return `第 ${current}/${total} 題`;
   };
+
+  const currentJoinStatusOption =
+    joinStatusOptions.find((item) => item.key === joinStatusFilter) ??
+    joinStatusOptions[0];
+  const currentJoinPasswordOption =
+    joinPasswordOptions.find((item) => item.key === joinPasswordFilter) ??
+    joinPasswordOptions[0];
+  const currentJoinSortOption =
+    joinSortOptions.find((item) => item.key === joinSortMode) ??
+    joinSortOptions[0];
 
   const joinRoomPaginationKey = useMemo(
     () =>
@@ -743,145 +788,108 @@ const getPlaybackExtensionLabel = (
           </>
         )}
         {joinEntryTab === "browser" && (
-          <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
+          <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
-                <p className="text-sm text-[var(--mc-text-muted)]">
+                <p className="text-[13px] text-[var(--mc-text-muted)]">
                   目前共 {filteredJoinRooms.length} 間房，
                   {filteredJoinPlayerTotal} 人在線
                 </p>
               </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
+              <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-0.5">
                 <button
                   type="button"
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
                     joinRoomsView === "grid"
                       ? "cursor-pointer bg-amber-500/20 text-amber-100"
                       : "cursor-pointer text-[var(--mc-text-muted)]"
                   }`}
                   onClick={() => setJoinRoomsView("grid")}
                 >
-                  <GridViewRounded sx={{ fontSize: 15 }} />
+                  <GridViewRounded sx={{ fontSize: 14 }} />
                   圖示
                 </button>
                 <button
                   type="button"
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
                     joinRoomsView === "list"
                       ? "cursor-pointer bg-amber-500/20 text-amber-100"
                       : "cursor-pointer text-[var(--mc-text-muted)]"
                   }`}
                   onClick={() => setJoinRoomsView("list")}
                 >
-                  <ViewListRounded sx={{ fontSize: 15 }} />
+                  <ViewListRounded sx={{ fontSize: 14 }} />
                   清單
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3">
-                <div className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
-                  <Inventory2Outlined sx={{ fontSize: 15 }} />
-                  房間狀態
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { key: "all", label: "全部" },
-                    { key: "waiting", label: "等待中" },
-                    { key: "playing", label: "遊戲中" },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() =>
-                        setJoinStatusFilter(
-                          item.key as "all" | "waiting" | "playing",
-                        )
-                      }
-                      className={`rounded-full border px-3 py-1 text-xs transition ${
-                        joinStatusFilter === item.key
-                          ? "border-amber-300/60 bg-amber-300/15 text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.08)]"
-                          : "border-[var(--mc-border)] bg-slate-950/20 text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setJoinStatusFilter(
+                    cycleOption(
+                      joinStatusOptions.map((item) => item.key),
+                      joinStatusFilter,
+                    ),
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+              >
+                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                  <Inventory2Outlined sx={{ fontSize: 14 }} />
+                  <span>狀態</span>
+                </span>
+                <span className="text-[12px] font-medium text-[var(--mc-text)]">
+                  {currentJoinStatusOption.shortLabel}
+                </span>
+                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
+              </button>
 
-              <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3">
-                <div className="mb-2 inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
-                  <LockRounded sx={{ fontSize: 15 }} />
-                  PIN 篩選
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { key: "all", label: "全部" },
-                    { key: "no_password", label: "無 PIN" },
-                    { key: "password_required", label: "需 PIN" },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() =>
-                        setJoinPasswordFilter(
-                          item.key as
-                            | "all"
-                            | "no_password"
-                            | "password_required",
-                        )
-                      }
-                      className={`rounded-full border px-3 py-1 text-xs transition ${
-                        joinPasswordFilter === item.key
-                          ? "border-amber-300/60 bg-amber-300/15 text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.08)]"
-                          : "border-[var(--mc-border)] bg-slate-950/20 text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setJoinPasswordFilter(
+                    cycleOption(
+                      joinPasswordOptions.map((item) => item.key),
+                      joinPasswordFilter,
+                    ),
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+              >
+                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                  <LockRounded sx={{ fontSize: 14 }} />
+                  <span>PIN</span>
+                </span>
+                <span className="text-[12px] font-medium text-[var(--mc-text)]">
+                  {currentJoinPasswordOption.shortLabel}
+                </span>
+                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
+              </button>
 
-              <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 lg:col-span-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 text-xs text-[var(--mc-text-muted)]">
-                      <TipsAndUpdatesRounded sx={{ fontSize: 15 }} />
-                      排序方式
-                    </div>
-                    <p className="text-xs text-[var(--mc-text-muted)]/80">
-                      依建立時間或房內人數快速整理目前列表
-                    </p>
-                  </div>
-                  <div className="inline-flex w-full overflow-hidden rounded-full border border-[var(--mc-border)] bg-slate-950/20 sm:w-auto">
-                    <button
-                      type="button"
-                      className={`flex-1 px-3 py-1.5 text-xs transition sm:flex-none ${
-                        joinSortMode === "latest"
-                          ? "bg-amber-400/15 text-amber-100"
-                          : "text-[var(--mc-text-muted)]"
-                      }`}
-                      onClick={() => setJoinSortMode("latest")}
-                    >
-                      最新建立
-                    </button>
-                    <button
-                      type="button"
-                      className={`flex-1 px-3 py-1.5 text-xs transition sm:flex-none ${
-                        joinSortMode === "players_desc"
-                          ? "bg-amber-400/15 text-amber-100"
-                          : "text-[var(--mc-text-muted)]"
-                      }`}
-                      onClick={() => setJoinSortMode("players_desc")}
-                    >
-                      人數由多到少
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setJoinSortMode(
+                    cycleOption(
+                      joinSortOptions.map((item) => item.key),
+                      joinSortMode,
+                    ),
+                  )
+                }
+                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+              >
+                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                  <TipsAndUpdatesRounded sx={{ fontSize: 14 }} />
+                  <span>排序</span>
+                </span>
+                <span className="text-[12px] font-medium text-[var(--mc-text)]">
+                  {currentJoinSortOption.shortLabel}
+                </span>
+                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
+              </button>
             </div>
 
             {filteredJoinRooms.length === 0 ? (

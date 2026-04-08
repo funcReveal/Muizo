@@ -1,6 +1,14 @@
 import type { ReactNode } from "react";
 
-import { Tooltip } from "@mui/material";
+import {
+  Box,
+  FormControl,
+  MenuItem,
+  Select,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import type { SelectChangeEvent } from "@mui/material/Select";
 import {
   BookmarkBorderRounded,
   ChevronLeftRounded,
@@ -22,6 +30,33 @@ type LibrarySourcePanelProps = {
   children: ReactNode;
 };
 
+const sourceItems: Array<{
+  key: CreateLibraryTab;
+  label: string;
+  icon: ReactNode;
+}> = [
+  {
+    key: "public",
+    label: "公開收藏庫",
+    icon: <PublicOutlined fontSize="small" />,
+  },
+  {
+    key: "personal",
+    label: "私人收藏庫",
+    icon: <BookmarkBorderRounded fontSize="small" />,
+  },
+  {
+    key: "youtube",
+    label: "從 Youtube 匯入清單",
+    icon: <YouTube fontSize="small" />,
+  },
+  {
+    key: "link",
+    label: "貼上清單連結",
+    icon: <LinkRounded fontSize="small" />,
+  },
+];
+
 const LibrarySourcePanel = ({
   createLeftTab,
   createLibraryTab,
@@ -30,88 +65,232 @@ const LibrarySourcePanel = ({
   handleBackToCreateLibrary,
   children,
 }: LibrarySourcePanelProps) => {
+  const selectedSource =
+    sourceItems.find((item) => item.key === createLibraryTab) ?? sourceItems[0];
+
+  const handleMobileSelectChange = (event: SelectChangeEvent<CreateLibraryTab>) => {
+    setCreateLibraryTab(event.target.value as CreateLibraryTab);
+  };
+
   return (
-    <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="pr-2 pb-2 pl-0 pt-2 sm:p-2">
-        <div className="flex items-center gap-1">
+    <div className="min-w-0 grid gap-2 lg:gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="min-w-0 px-0 py-1 lg:pr-2 lg:pb-2 lg:pl-0 lg:pt-2">
+        <div className="mb-2 hidden items-center gap-1 lg:mb-0 lg:flex">
           {createLeftTab === "settings" ? (
-            <Tooltip title="更換題庫來源" placement="top">
+            <Tooltip title="返回題庫來源" placement="top">
               <button
                 type="button"
                 onClick={handleBackToCreateLibrary}
                 className="inline-flex h-10 w-10 items-center justify-center text-cyan-100 transition hover:text-cyan-200"
-                aria-label="更換題庫來源"
+                aria-label="返回題庫來源"
               >
                 <ChevronLeftRounded sx={{ fontSize: 24 }} />
               </button>
             </Tooltip>
           ) : null}
-          <p className="text-lg font-semibold tracking-wider text-[var(--mc-text)]">
-            {createLeftTab === "library" ? "題庫來源" : "房間設置"}
+          <p className="text-base font-semibold tracking-[0.18em] text-[var(--mc-text)] sm:text-lg">
+            {createLeftTab === "library" ? "題庫來源" : "房間設定"}
           </p>
         </div>
 
         {createLeftTab === "library" ? (
-          <div className="mt-2 flex flex-col gap-2">
-            {[
-              {
-                key: "public",
-                label: "公開收藏庫",
-                icon: <PublicOutlined fontSize="small" />,
-              },
-              {
-                key: "personal",
-                label: "個人收藏庫",
-                icon: <BookmarkBorderRounded fontSize="small" />,
-              },
-              {
-                key: "youtube",
-                label: "從 YouTube 匯入",
-                icon: <YouTube fontSize="small" />,
-              },
-              {
-                key: "link",
-                label: "貼上清單連結",
-                icon: <LinkRounded fontSize="small" />,
-              },
-            ].map((item) => {
-              const key = item.key as CreateLibraryTab;
-              const isActive = createLibraryTab === key;
-              const disabled =
-                !canUseGoogleLibraries && key !== "public" && key !== "link";
-
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  aria-disabled={disabled}
-                  onClick={() => {
-                    if (disabled) return;
-                    setCreateLibraryTab(key);
+          <>
+            <div className="lg:hidden">
+              <FormControl fullWidth size="small">
+                <Select<CreateLibraryTab>
+                  value={createLibraryTab}
+                  onChange={handleMobileSelectChange}
+                  displayEmpty
+                  renderValue={() => (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.25,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 30,
+                          height: 30,
+                          borderRadius: "10px",
+                          color: "rgba(186, 230, 253, 0.96)",
+                          background:
+                            "linear-gradient(180deg, rgba(34,211,238,0.16), rgba(14,165,233,0.1))",
+                          border: "1px solid rgba(103, 232, 249, 0.18)",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        {selectedSource.icon}
+                      </Box>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "#e2e8f0",
+                            fontWeight: 700,
+                            lineHeight: 1.3,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {selectedSource.label}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  sx={{
+                    borderRadius: "16px",
+                    color: "#e2e8f0",
+                    background:
+                      "linear-gradient(180deg, rgba(15,23,42,0.78), rgba(2,6,23,0.72))",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(255,255,255,0.04), 0 16px 30px -24px rgba(14,165,233,0.55)",
+                    "& .MuiSelect-select": {
+                      px: 1.5,
+                      py: 1.25,
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(148, 163, 184, 0.2)",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(148, 163, 184, 0.2)",
+                    },
+                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(148, 163, 184, 0.2)",
+                    },
+                    "& .MuiSelect-icon": {
+                      color: "rgba(186, 230, 253, 0.88)",
+                    },
                   }}
-                  className={`rounded-xl px-3 py-2 text-left text-sm transition ${
-                    disabled
-                      ? "cursor-not-allowed bg-slate-900/40 text-slate-500"
-                      : isActive
-                        ? "cursor-pointer bg-cyan-500/10 text-cyan-100 shadow-[inset_3px_0_0_0_rgba(34,211,238,0.85)]"
-                        : "cursor-pointer bg-[var(--mc-surface)]/35 text-[var(--mc-text)] hover:bg-cyan-500/10 hover:text-cyan-100"
-                  }`}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        mt: 1,
+                        borderRadius: 2,
+                        border: "1px solid rgba(148,163,184,0.18)",
+                        background:
+                          "linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))",
+                        boxShadow:
+                          "0 22px 40px rgba(2,6,23,0.48), 0 0 0 1px rgba(34,211,238,0.06)",
+                        backdropFilter: "blur(14px)",
+                      },
+                    },
+                    MenuListProps: {
+                      dense: true,
+                      sx: { py: 0.5 },
+                    },
+                  }}
+                  inputProps={{ "aria-label": "題庫來源" }}
                 >
-                  <span className="inline-flex w-full items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="text-cyan-200/90">{item.icon}</span>
-                      <span>{item.label}</span>
+                  {sourceItems.map((item) => {
+                    const disabled =
+                      !canUseGoogleLibraries &&
+                      item.key !== "public" &&
+                      item.key !== "link";
+
+                    return (
+                      <MenuItem
+                        key={item.key}
+                        value={item.key}
+                        disabled={disabled}
+                        sx={{
+                          gap: 1.25,
+                          py: 1.2,
+                          px: 1.5,
+                          minHeight: 0,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 28,
+                            height: 28,
+                            borderRadius: "10px",
+                            color: disabled
+                              ? "rgba(148,163,184,0.54)"
+                              : "rgba(186,230,253,0.92)",
+                            background: disabled
+                              ? "rgba(51, 65, 85, 0.3)"
+                              : "linear-gradient(180deg, rgba(34,211,238,0.14), rgba(14,165,233,0.08))",
+                            border: disabled
+                              ? "1px solid rgba(148,163,184,0.12)"
+                              : "1px solid rgba(103,232,249,0.14)",
+                            flex: "0 0 auto",
+                          }}
+                        >
+                          {item.icon}
+                        </Box>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: disabled ? "rgba(148,163,184,0.7)" : "#e2e8f0",
+                              fontWeight: 600,
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {item.label}
+                          </Typography>
+                        </Box>
+                        {disabled ? (
+                          <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                        ) : null}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </div>
+
+            <div className="mt-2 hidden flex-col gap-2 lg:flex">
+              {sourceItems.map((item) => {
+                const isActive = createLibraryTab === item.key;
+                const disabled =
+                  !canUseGoogleLibraries &&
+                  item.key !== "public" &&
+                  item.key !== "link";
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    aria-disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
+                      setCreateLibraryTab(item.key);
+                    }}
+                    className={`rounded-xl px-3 py-2 text-left text-sm transition ${
+                      disabled
+                        ? "cursor-not-allowed bg-slate-900/40 text-slate-500"
+                        : isActive
+                          ? "cursor-pointer bg-cyan-500/10 text-cyan-100 shadow-[inset_3px_0_0_0_rgba(34,211,238,0.85)]"
+                          : "cursor-pointer bg-[var(--mc-surface)]/35 text-[var(--mc-text)] hover:bg-cyan-500/10 hover:text-cyan-100"
+                    }`}
+                  >
+                    <span className="inline-flex w-full items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-cyan-200/90">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </span>
+                      {disabled ? (
+                        <Tooltip title="登入 Google 後即可使用" placement="top">
+                          <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                        </Tooltip>
+                      ) : null}
                     </span>
-                    {disabled ? (
-                      <Tooltip title="使用此來源前需要先登入 Google" placement="top">
-                        <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
-                      </Tooltip>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         ) : null}
       </aside>
 

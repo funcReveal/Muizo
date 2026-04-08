@@ -127,6 +127,55 @@ body {
   scrollbar-color: rgba(245, 158, 11, 0.72) rgba(20, 17, 13, 0.36);
 }
 
+.rooms-hub-library-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: stable;
+}
+
+.rooms-hub-library-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.rooms-hub-library-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border: 0;
+}
+
+.rooms-hub-library-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.rooms-hub-library-scrollbar.is-scrolling,
+.rooms-hub-library-scrollbar:hover,
+.rooms-hub-library-scrollbar:focus-within {
+  scrollbar-color: rgba(245, 158, 11, 0.72) rgba(20, 17, 13, 0.36);
+}
+
+.rooms-hub-library-scrollbar.is-scrolling::-webkit-scrollbar-track,
+.rooms-hub-library-scrollbar:hover::-webkit-scrollbar-track,
+.rooms-hub-library-scrollbar:focus-within::-webkit-scrollbar-track {
+  background: rgba(20, 17, 13, 0.36);
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.06);
+}
+
+.rooms-hub-library-scrollbar.is-scrolling::-webkit-scrollbar-thumb,
+.rooms-hub-library-scrollbar:hover::-webkit-scrollbar-thumb,
+.rooms-hub-library-scrollbar:focus-within::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(245, 158, 11, 0.78),
+    rgba(234, 179, 8, 0.62)
+  );
+  border: 2px solid rgba(20, 17, 13, 0.54);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.18);
+}
+
 .room-create-page {
   --rc-paper: var(--mc-surface);
   --rc-paper-strong: var(--mc-surface-strong);
@@ -949,7 +998,6 @@ body {
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
-    transform 180ms ease,
     box-shadow 180ms ease;
 }
 
@@ -968,9 +1016,23 @@ body {
     0 0 0 1px rgba(34, 211, 238, 0.05);
 }
 
-.app-header-profile-pill:hover,
-.app-header-login-pill:hover {
-  transform: translateY(-1px);
+.app-header-profile-pill-auth {
+  max-width: 208px;
+}
+
+.app-header-profile-pill-guest {
+  max-width: 214px;
+}
+
+.app-header-profile-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mc-text);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .app-header-profile-pill:hover {

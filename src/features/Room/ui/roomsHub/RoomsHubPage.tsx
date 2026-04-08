@@ -618,7 +618,7 @@ const RoomsHubPage: React.FC = () => {
       parsedMaxPlayers > PLAYER_MAX);
   const canCreateRoom =
     Boolean(roomNameInput.trim()) &&
-    playlistItems.length > 0 &&
+    playlistItems.length >= questionMin &&
     !playlistLoading &&
     !maxPlayersInvalid &&
     !isCreatingRoom;
@@ -689,9 +689,17 @@ const RoomsHubPage: React.FC = () => {
     ? "請先輸入房間名稱。"
     : playlistItems.length === 0
       ? "請先準備題庫內容，才能建立房間。"
-      : maxPlayersInvalid
-        ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
-        : null;
+      : playlistItems.length < questionMin
+        ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
+        : maxPlayersInvalid
+          ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
+          : null;
+  const createRecommendationHintText =
+    !createRequirementsHintText &&
+    playlistItems.length >= questionMin &&
+    playlistItems.length < 10
+      ? "目前題數偏少，雖然可以建立房間，但建議至少準備 10 題，遊戲體驗會更完整。"
+      : null;
   const createSettingsCards = useMemo(
     () =>
       buildCreateSettingsCards({
@@ -757,7 +765,7 @@ const RoomsHubPage: React.FC = () => {
       ? playlistLoading
       : collectionItemsLoading);
   const createLibraryColumns = isLibraryGridWide ? 2 : 1;
-  const youtubeListRowHeight = 80;
+  const youtubeListRowHeight = 96;
   const youtubeListHeight = Math.min(
     640,
     Math.max(
@@ -1243,7 +1251,7 @@ const RoomsHubPage: React.FC = () => {
               className="mt-4 animate-[guide-panel-enter_220ms_ease-out]"
             >
               {guideMode === "create" ? (
-                <div className="rounded-2xl sm:border sm:border-[var(--mc-border)] sm:p-4">
+                <div className="sm:rounded-2xl sm:border sm:border-[var(--mc-border)] sm:p-4">
                   <LibrarySourcePanel
                     createLeftTab={createLeftTab}
                     createLibraryTab={createLibraryTab}
@@ -1251,7 +1259,7 @@ const RoomsHubPage: React.FC = () => {
                     setCreateLibraryTab={setCreateLibraryTab}
                     handleBackToCreateLibrary={handleBackToCreateLibrary}
                   >
-                    <div className="rounded-2xl bg-[var(--mc-surface)]/25 lg:border-l lg:border-[var(--mc-border)]/45 lg:rounded-none lg:pl-5">
+                    <div className="bg-[var(--mc-surface)]/10 sm:rounded-2xl sm:bg-[var(--mc-surface)]/25 lg:border-l lg:border-[var(--mc-border)]/45 lg:rounded-none lg:pl-5">
                       {createLeftTab === "settings" ? (
                         <RoomSetupPanel
                           roomNameInput={roomNameInput}
@@ -1287,6 +1295,9 @@ const RoomsHubPage: React.FC = () => {
                           createRequirementsHintText={
                             createRequirementsHintText
                           }
+                          createRecommendationHintText={
+                            createRecommendationHintText
+                          }
                           canCreateRoom={canCreateRoom}
                           isCreatingRoom={isCreatingRoom}
                           onCreateRoom={() => {
@@ -1318,7 +1329,7 @@ const RoomsHubPage: React.FC = () => {
                           {!canUseGoogleLibraries &&
                           (createLibraryTab === "personal" ||
                             createLibraryTab === "youtube") ? (
-                            <div className="mt-3 rounded-xl border border-dashed border-slate-600/60 bg-slate-900/40 p-4 text-sm text-slate-300">
+                            <div className="mt-2 rounded-xl border border-dashed border-slate-600/60 bg-slate-900/30 p-3 text-sm text-slate-300 sm:mt-3 sm:p-4">
                               <div className="mt-1">
                                 <Button
                                   variant="contained"
@@ -1362,7 +1373,7 @@ const RoomsHubPage: React.FC = () => {
                               PlaylistIssueRow={PlaylistIssueRow}
                             />
                           ) : createLibraryTab === "youtube" ? (
-                            <div className="mt-3">
+                            <div className="mt-2 sm:mt-3">
                               <YoutubeSourceContent
                                 youtubePlaylistsLoading={youtubePlaylistsLoading}
                                 createLibraryView={createLibraryView}
@@ -1379,7 +1390,7 @@ const RoomsHubPage: React.FC = () => {
                               />
                             </div>
                           ) : (
-                            <div className="mt-3">
+                            <div className="mt-2 sm:mt-3">
                               <CollectionsSourceContent
                                 createLibraryTab={createLibraryTab}
                                 createLibraryView={createLibraryView}

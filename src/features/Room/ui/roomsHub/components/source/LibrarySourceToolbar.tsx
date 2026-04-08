@@ -1,6 +1,11 @@
 import type { RefObject } from "react";
 import { InputAdornment, TextField } from "@mui/material";
-import { SearchRounded, TuneRounded } from "@mui/icons-material";
+import {
+  AppsRounded,
+  SearchRounded,
+  TuneRounded,
+  ViewAgendaRounded,
+} from "@mui/icons-material";
 
 type CreateLibraryTab = "public" | "personal" | "youtube";
 type CreateLibraryView = "grid" | "list";
@@ -22,6 +27,38 @@ type LibrarySourceToolbarProps = {
   publicCollectionsSort: PublicCollectionsSort;
   setPublicCollectionsSort: (value: PublicCollectionsSort) => void;
 };
+
+const viewToggle = (
+  createLibraryView: CreateLibraryView,
+  setCreateLibraryView: (value: CreateLibraryView) => void,
+) => (
+  <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
+    <button
+      type="button"
+      aria-label="切換為卡片檢視"
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
+        createLibraryView === "grid"
+          ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
+          : "cursor-pointer text-[var(--mc-text-muted)]"
+      }`}
+      onClick={() => setCreateLibraryView("grid")}
+    >
+      <AppsRounded sx={{ fontSize: 17 }} />
+    </button>
+    <button
+      type="button"
+      aria-label="切換為清單檢視"
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
+        createLibraryView === "list"
+          ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
+          : "cursor-pointer text-[var(--mc-text-muted)]"
+      }`}
+      onClick={() => setCreateLibraryView("list")}
+    >
+      <ViewAgendaRounded sx={{ fontSize: 17 }} />
+    </button>
+  </div>
+);
 
 const LibrarySourceToolbar = ({
   createLibraryTab,
@@ -46,10 +83,10 @@ const LibrarySourceToolbar = ({
         className={`relative ${publicLibrarySearchActive ? "z-30" : "z-10"}`}
       >
         <div
-          className={`relative flex flex-col gap-3 rounded-2xl border p-3 sm:flex-row sm:items-center sm:justify-between ${
+          className={`relative flex flex-col gap-2 rounded-xl border border-transparent px-0 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:rounded-2xl sm:border sm:p-3 ${
             publicLibrarySearchActive
-              ? "border-cyan-300/30 bg-slate-950/20 shadow-[0_12px_30px_rgba(8,47,73,0.14)]"
-              : "border-[var(--mc-border)]/80 bg-slate-950/18"
+              ? "bg-slate-950/10 sm:border-cyan-300/30 sm:bg-slate-950/20 sm:shadow-[0_12px_30px_rgba(8,47,73,0.14)]"
+              : "bg-transparent sm:border-[var(--mc-border)]/80 sm:bg-slate-950/18"
           }`}
         >
           <div className="min-w-0 flex-1">
@@ -58,7 +95,7 @@ const LibrarySourceToolbar = ({
               size="small"
               value={createLibrarySearch}
               onChange={(event) => setCreateLibrarySearch(event.target.value)}
-              placeholder="搜尋題庫名稱、封面曲名或描述"
+              placeholder="搜尋收藏庫"
               autoComplete="off"
               slotProps={{
                 input: {
@@ -99,41 +136,18 @@ const LibrarySourceToolbar = ({
               filteredCreateCollectionsLength > 0 ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/18 bg-cyan-400/8 px-2.5 py-1 text-[11px] text-cyan-100/88">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
-                  搜尋中
+                  載入中
                 </span>
               ) : null}
               <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
-                共 {filteredCreateCollectionsLength} 份題庫
+                共 {filteredCreateCollectionsLength} 筆
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
-                <button
-                  type="button"
-                  className={`rounded-full px-3 py-1 text-xs ${
-                    createLibraryView === "grid"
-                      ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                      : "cursor-pointer text-[var(--mc-text-muted)]"
-                  }`}
-                  onClick={() => setCreateLibraryView("grid")}
-                >
-                  圖示
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-full px-3 py-1 text-xs ${
-                    createLibraryView === "list"
-                      ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                      : "cursor-pointer text-[var(--mc-text-muted)]"
-                  }`}
-                  onClick={() => setCreateLibraryView("list")}
-                >
-                  清單
-                </button>
-              </div>
+              {viewToggle(createLibraryView, setCreateLibraryView)}
               <button
                 type="button"
-                aria-label="展開公開題庫排序選項"
+                aria-label="開啟收藏庫排序設定"
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${
                   publicLibrarySearchActive
                     ? "border-cyan-300/32 bg-cyan-500/14 text-cyan-100"
@@ -150,9 +164,9 @@ const LibrarySourceToolbar = ({
               <div className="rounded-[0_0_22px_22px] border border-cyan-300/24 border-t-0 bg-slate-950 px-3 pb-3 pt-6 shadow-[0_24px_48px_rgba(2,6,23,0.48)] sm:px-4">
                 <div className="flex flex-wrap items-center gap-2">
                   {[
-                    { key: "favorites_first" as const, label: "推薦" },
-                    { key: "popular" as const, label: "人氣遊玩" },
-                    { key: "updated" as const, label: "最新題庫" },
+                    { key: "favorites_first" as const, label: "熱門優先" },
+                    { key: "popular" as const, label: "最多收藏" },
+                    { key: "updated" as const, label: "最近更新" },
                   ].map((option) => (
                     <button
                       key={option.key}
@@ -185,7 +199,7 @@ const LibrarySourceToolbar = ({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-[var(--mc-border)]/80 bg-slate-950/18 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-2 rounded-xl border border-transparent bg-transparent px-0 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:rounded-2xl sm:border-[var(--mc-border)]/80 sm:bg-slate-950/18 sm:p-3">
       <div className="min-w-0 flex-1">
         <TextField
           fullWidth
@@ -194,8 +208,8 @@ const LibrarySourceToolbar = ({
           onChange={(event) => setCreateLibrarySearch(event.target.value)}
           placeholder={
             createLibraryTab === "youtube"
-              ? "搜尋 YouTube 播放清單"
-              : "搜尋題庫名稱、封面曲名或描述"
+              ? "搜尋 Youtube 清單"
+              : "搜尋收藏庫"
           }
           slotProps={{
             input: {
@@ -223,34 +237,11 @@ const LibrarySourceToolbar = ({
         <div className="flex items-center gap-2">
           <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
             {createLibraryTab === "youtube"
-              ? `共 ${filteredCreateYoutubePlaylistsLength} 份清單`
-              : `共 ${filteredCreateCollectionsLength} 份題庫`}
+              ? `共 ${filteredCreateYoutubePlaylistsLength} 筆`
+              : `共 ${filteredCreateCollectionsLength} 筆`}
           </span>
         </div>
-        <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1">
-          <button
-            type="button"
-            className={`rounded-full px-3 py-1 text-xs ${
-              createLibraryView === "grid"
-                ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                : "cursor-pointer text-[var(--mc-text-muted)]"
-            }`}
-            onClick={() => setCreateLibraryView("grid")}
-          >
-            圖示
-          </button>
-          <button
-            type="button"
-            className={`rounded-full px-3 py-1 text-xs ${
-              createLibraryView === "list"
-                ? "cursor-pointer bg-cyan-500/20 text-cyan-100"
-                : "cursor-pointer text-[var(--mc-text-muted)]"
-            }`}
-            onClick={() => setCreateLibraryView("list")}
-          >
-            清單
-          </button>
-        </div>
+        {viewToggle(createLibraryView, setCreateLibraryView)}
       </div>
     </div>
   );

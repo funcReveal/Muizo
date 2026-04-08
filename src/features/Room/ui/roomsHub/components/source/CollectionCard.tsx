@@ -41,20 +41,21 @@ const CollectionCard = ({
     (collection.cover_provider === "youtube" && collection.cover_source_id
       ? `https://i.ytimg.com/vi/${collection.cover_source_id}/hqdefault.jpg`
       : "");
+
   const visibilityLabel =
     (collection.visibility ?? "private") === "public" ? "公開" : "私人";
-  const coverMetaLabel = [
-    collection.cover_title || (isPublicLibraryTab ? "收藏庫題目預覽" : "私人收藏庫"),
-    collection.cover_duration_sec
-      ? formatDurationLabel(collection.cover_duration_sec)
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const coverTitle =
+    collection.cover_title ||
+    (isPublicLibraryTab ? "公開收藏精選曲目" : "私人收藏精選曲目");
+  const coverDuration = collection.cover_duration_sec
+    ? formatDurationLabel(collection.cover_duration_sec)
+    : null;
+
   const itemCountLabel =
     typeof collection.item_count === "number"
       ? `${Math.max(0, Number(collection.item_count ?? 0))}`
       : null;
+
   const statsMeta = [
     itemCountLabel
       ? {
@@ -136,12 +137,15 @@ const CollectionCard = ({
         </div>
         <div className="space-y-3 px-4 py-3.5">
           <div className="space-y-1.5">
-            <p className="line-clamp-1 text-[15px] font-semibold leading-6 text-[var(--mc-text)]">
+            <p className="truncate text-[15px] font-semibold leading-6 text-[var(--mc-text)]">
               {collection.title}
             </p>
-            <p className="line-clamp-2 min-h-[2.5rem] text-[12px] leading-5 text-slate-300/88">
-              {coverMetaLabel}
-            </p>
+            <div className="flex items-center justify-between gap-3 text-[12px] leading-5 text-slate-300/88">
+              <p className="min-w-0 flex-1 truncate">{coverTitle}</p>
+              {coverDuration ? (
+                <span className="shrink-0 font-medium">{coverDuration}</span>
+              ) : null}
+            </div>
           </div>
           <div className="flex flex-wrap gap-3">
             {statsMeta.length > 0 ? (
@@ -170,11 +174,11 @@ const CollectionCard = ({
       key={collection.id}
       type="button"
       onClick={onSelect}
-      className={`rounded-xl border px-3 py-2 text-left transition ${
+      className={`w-full rounded-xl border px-3 py-2 text-left transition ${
         selected
           ? "border-cyan-300/55 bg-cyan-500/10"
           : "border-cyan-300/25 bg-slate-950/25 hover:border-cyan-300/45"
-      } w-full`}
+      }`}
     >
       <div className="flex items-center gap-3">
         <div className="h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900/40">
@@ -193,7 +197,7 @@ const CollectionCard = ({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--mc-text)]">
               {collection.title}
             </p>
             {!isPublicLibraryTab ? (
@@ -208,7 +212,8 @@ const CollectionCard = ({
             ) : null}
           </div>
           <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
-            {coverMetaLabel}
+            {coverTitle}
+            {coverDuration ? ` · ${coverDuration}` : ""}
           </p>
           <div className="mt-2 flex flex-wrap gap-3">
             {statsMeta.map((meta) => (

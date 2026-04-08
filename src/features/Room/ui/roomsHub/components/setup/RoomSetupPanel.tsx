@@ -58,6 +58,7 @@ type RoomSetupPanelProps = {
   isSourceSummaryLoading: boolean;
   createSettingsCards: CreateSettingsCard[];
   createRequirementsHintText: string | null;
+  createRecommendationHintText: string | null;
   canCreateRoom: boolean;
   isCreatingRoom: boolean;
   onCreateRoom: () => void;
@@ -89,6 +90,7 @@ const RoomSetupPanel = ({
   isSourceSummaryLoading,
   createSettingsCards,
   createRequirementsHintText,
+  createRecommendationHintText,
   canCreateRoom,
   isCreatingRoom,
   onCreateRoom,
@@ -677,9 +679,9 @@ const RoomSetupPanel = ({
                 ))}
               </div>
 
-              {createRequirementsHintText ? (
+              {createRequirementsHintText || createRecommendationHintText ? (
                 <div className="mt-3 rounded-2xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-                  {createRequirementsHintText}
+                  {createRequirementsHintText || createRecommendationHintText}
                 </div>
               ) : (
                 <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
@@ -849,9 +851,9 @@ const RoomSetupPanel = ({
                   </div>
                 ))}
               </div>
-              {createRequirementsHintText ? (
+              {createRequirementsHintText || createRecommendationHintText ? (
                 <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-                  {createRequirementsHintText}
+                  {createRequirementsHintText || createRecommendationHintText}
                 </div>
               ) : (
                 <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">

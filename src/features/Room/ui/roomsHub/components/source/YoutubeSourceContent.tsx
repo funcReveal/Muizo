@@ -101,9 +101,9 @@ const YoutubeSourceContent = ({
   }
 
   return (
-    <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
+    <div className="rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
       {createLibraryView === "grid" ? (
-        <div className="max-h-[640px] overflow-y-auto pr-1">
+        <div className="max-h-[640px] overflow-y-auto sm:pr-1">
           <div
             className="grid gap-2"
             style={{

@@ -316,6 +316,11 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     const previousDefaultName = getDefaultRoomName(previousUsername);
     const nextDefaultName = getDefaultRoomName(activeUsername);
 
+    if (currentRoom?.id) {
+      previousUsernameRef.current = activeUsername;
+      return;
+    }
+
     setRoomNameInput((currentValue) => {
       const trimmed = currentValue.trim();
       if (!trimmed || trimmed === previousDefaultName || trimmed === "新房間") {
@@ -325,7 +330,7 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
     });
 
     previousUsernameRef.current = activeUsername;
-  }, [activeUsername, getDefaultRoomName]);
+  }, [activeUsername, currentRoom?.id, getDefaultRoomName]);
 
   const authClientId = authUser?.id ?? null;
   const clientId = useMemo(
@@ -626,28 +631,13 @@ export const RoomProvider: React.FC<{ children: ReactNode }> = ({
       );
     }
 
-    const shouldRenameCurrentRoom =
-      currentRoom?.hostClientId === clientId &&
-      currentRoom.name.trim() === previousDefaultRoomName &&
-      previousDefaultRoomName !== nextDefaultRoomName;
-
-    if (shouldRenameCurrentRoom) {
-      setRoomNameInput(nextDefaultRoomName);
-      setCurrentRoom((previous) =>
-        previous ? { ...previous, name: nextDefaultRoomName } : previous,
-      );
-      void handleUpdateRoomSettings({ name: nextDefaultRoomName });
-    }
-
     return true;
   }, [
     clientId,
     confirmNicknameInternal,
     currentRoom,
     getDefaultRoomName,
-    handleUpdateRoomSettings,
     nicknameDraft,
-    setCurrentRoom,
     activeUsername,
     currentRoom?.id,
     getSocket,

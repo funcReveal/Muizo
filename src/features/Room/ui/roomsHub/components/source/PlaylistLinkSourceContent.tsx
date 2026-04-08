@@ -88,8 +88,8 @@ const PlaylistLinkSourceContent = ({
   PlaylistIssueRow,
 }: PlaylistLinkSourceContentProps) => {
   return (
-    <div className="mt-3 space-y-4">
-      <div className="mx-auto max-w-4xl rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] p-4 sm:p-5">
+    <div className="mt-2 space-y-3 sm:mt-3 sm:space-y-4">
+      <div className="mx-auto max-w-4xl rounded-[22px] border border-transparent bg-transparent p-0 sm:rounded-[26px] sm:border-[var(--mc-border)] sm:bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] sm:p-5">
         <div>
           <Tooltip
             title={playlistUrlTooltipMessage}

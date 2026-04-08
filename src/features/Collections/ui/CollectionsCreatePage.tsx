@@ -3,9 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { List, type RowComponentProps } from "react-window";
 
 import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
+import CloseRounded from "@mui/icons-material/CloseRounded";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
-import { Box, Button, CircularProgress, Switch, Tooltip } from "@mui/material";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  IconButton,
+  InputAdornment,
+  Switch,
+  TextField,
+  Tooltip,
+} from "@mui/material";
 import { useRoom } from "../../Room/model/useRoom";
 import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
@@ -174,6 +184,7 @@ const CollectionsCreatePage = () => {
   );
   const youtubeFetchedRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const lastAutoImportUrlRef = useRef("");
   const [selectedYoutubePlaylistId, setSelectedYoutubePlaylistId] =
     useState("");
   const [isImportingYoutubePlaylist, setIsImportingYoutubePlaylist] =
@@ -183,6 +194,7 @@ const CollectionsCreatePage = () => {
   const [youtubeActionError, setYoutubeActionError] = useState<string | null>(
     null,
   );
+  const [isPlaylistUrlFocused, setIsPlaylistUrlFocused] = useState(false);
   const needsGoogleReauth = isGoogleReauthRequired({
     error: youtubePlaylistsError ?? youtubeActionError,
   });
@@ -205,6 +217,22 @@ const CollectionsCreatePage = () => {
     plan: authUser?.plan,
   });
   const hasPlaylistItems = playlistItems.length > 0;
+  const trimmedPlaylistUrl = playlistUrl.trim();
+  const playlistUrlLooksValid = useMemo(() => {
+    if (!trimmedPlaylistUrl) return false;
+    try {
+      const parsed = new URL(trimmedPlaylistUrl);
+      return Boolean(parsed.searchParams.get("list"));
+    } catch {
+      return false;
+    }
+  }, [trimmedPlaylistUrl]);
+  const showPlaylistUrlError = Boolean(
+    trimmedPlaylistUrl && !playlistUrlLooksValid,
+  );
+  const playlistUrlTooltipMessage = showPlaylistUrlError
+    ? "請貼上有效的 YouTube 播放清單連結，例如含有 list 參數的網址。"
+    : "";
 
   useEffect(() => {
     handleResetPlaylist();
@@ -239,6 +267,26 @@ const CollectionsCreatePage = () => {
       input.setSelectionRange(end, end);
     });
   }, [isTitleEditing]);
+
+  useEffect(() => {
+    if (playlistSource !== "url") return;
+    if (!playlistUrlLooksValid) return;
+    if (playlistLoading) return;
+    if (trimmedPlaylistUrl === lastAutoImportUrlRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastAutoImportUrlRef.current = trimmedPlaylistUrl;
+      void handleFetchPlaylist({ url: trimmedPlaylistUrl }).catch(() => {
+        // Errors are surfaced through playlistError in room state.
+      });
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [
+    handleFetchPlaylist,
+    playlistLoading,
+    playlistSource,
+    playlistUrlLooksValid,
+    trimmedPlaylistUrl,
+  ]);
 
   const collectionPreview = useMemo(() => {
     if (!hasPlaylistItems) return null;
@@ -389,6 +437,11 @@ const CollectionsCreatePage = () => {
   const handleTitleCancel = () => {
     setTitleDraft(collectionTitle);
     setIsTitleEditing(false);
+  };
+
+  const handleClearPlaylistUrl = () => {
+    setPlaylistUrl("");
+    lastAutoImportUrlRef.current = "";
   };
 
   const handleCreateCollection = async () => {
@@ -611,18 +664,29 @@ const CollectionsCreatePage = () => {
         )}
 
         <div className="relative">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/collections")}
-              aria-label="返回收藏列表"
-              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
-            >
-              <ArrowBackIosNew fontSize="small" />
-            </button>
-            <div className="text-2xl font-semibold leading-none text-[var(--mc-text)]">
-              建立收藏庫
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/collections")}
+                aria-label="返回收藏列表"
+                className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
+              >
+                <ArrowBackIosNew fontSize="small" />
+              </button>
+              <div className="text-2xl font-semibold leading-none text-[var(--mc-text)]">
+                建立收藏庫
+              </div>
             </div>
+            <Button
+              variant="contained"
+              onClick={() => handleCreateCollection()}
+              disabled={isCreating || authLoading || !authToken}
+              size="small"
+              className="shrink-0"
+            >
+              {isCreating ? "建立中..." : "建立收藏"}
+            </Button>
           </div>
 
           {!authToken && !authLoading && (
@@ -670,36 +734,131 @@ const CollectionsCreatePage = () => {
                     }`}
                     hidden={playlistSource !== "url"}
                   >
-                    <div className="flex flex-wrap gap-2">
-                      <input
-                        value={playlistUrl}
-                        onChange={(e) => setPlaylistUrl(e.target.value)}
-                        placeholder="貼上 YouTube 播放清單網址"
-                        className="min-w-[220px] flex-1 rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-2 text-sm text-[var(--mc-text)]"
-                      />
-                      <Button
-                        variant="contained"
-                        onClick={() => handleFetchPlaylist()}
-                        disabled={playlistLoading}
-                        startIcon={<PlaylistAddRounded />}
-                        className="!rounded-full !px-4 !py-2 !font-semibold !text-slate-950 !shadow-[0_16px_30px_-18px_rgba(56,189,248,0.75)]"
-                        sx={{
-                          background:
-                            "linear-gradient(135deg, rgba(103,232,249,0.96), rgba(245,158,11,0.92))",
-                          "&:hover": {
-                            background:
-                              "linear-gradient(135deg, rgba(125,245,255,1), rgba(251,191,36,0.96))",
-                          },
-                        }}
-                      >
-                        {playlistLoading ? "載入中..." : "匯入清單"}
-                      </Button>
-                    </div>
-                    {playlistError && (
-                      <div className="text-xs text-rose-300">
-                        {playlistError}
+                    <div className="rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] p-4 sm:p-5">
+                      <div>
+                        <Tooltip
+                          title={playlistUrlTooltipMessage}
+                          placement="top"
+                          arrow
+                          open={Boolean(
+                            isPlaylistUrlFocused && trimmedPlaylistUrl,
+                          )}
+                          disableFocusListener
+                          disableHoverListener
+                          disableTouchListener
+                        >
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="YouTube 播放清單網址"
+                            placeholder="https://www.youtube.com/playlist?list=..."
+                            value={playlistUrl}
+                            autoComplete="off"
+                            error={showPlaylistUrlError}
+                            onFocus={() => setIsPlaylistUrlFocused(true)}
+                            onBlur={() => setIsPlaylistUrlFocused(false)}
+                            onChange={(e) => setPlaylistUrl(e.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" || playlistLoading)
+                                return;
+                              event.preventDefault();
+                              void handleFetchPlaylist();
+                            }}
+                            slotProps={{
+                              inputLabel: { shrink: true },
+                              input: {
+                                endAdornment: trimmedPlaylistUrl ? (
+                                  <InputAdornment position="end">
+                                    <IconButton
+                                      size="small"
+                                      onClick={handleClearPlaylistUrl}
+                                      edge="end"
+                                      aria-label="清除播放清單網址"
+                                      sx={{ color: "rgba(148,163,184,0.92)" }}
+                                    >
+                                      <CloseRounded fontSize="small" />
+                                    </IconButton>
+                                  </InputAdornment>
+                                ) : undefined,
+                              },
+                              htmlInput: {
+                                lang: "en",
+                                autoComplete: "off",
+                                autoCorrect: "off",
+                                autoCapitalize: "off",
+                                inputMode: "url",
+                                spellCheck: "false",
+                                style: { imeMode: "disabled" },
+                              },
+                            }}
+                            sx={{
+                              "& .MuiInputLabel-root": {
+                                color: "rgba(248, 250, 252, 0.72)",
+                              },
+                              "& .MuiInputLabel-root.Mui-focused": {
+                                color: showPlaylistUrlError
+                                  ? "rgba(251, 113, 133, 0.96)"
+                                  : "rgba(251, 191, 36, 0.96)",
+                              },
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: "20px",
+                                backgroundColor: "rgba(2, 6, 23, 0.32)",
+                                boxShadow:
+                                  "0 0 0 1px rgba(148, 163, 184, 0.12), 0 10px 28px rgba(2, 6, 23, 0.18)",
+                                transition:
+                                  "background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
+                                "& fieldset": {
+                                  borderColor: showPlaylistUrlError
+                                    ? "rgba(248, 113, 113, 0.5)"
+                                    : "rgba(148, 163, 184, 0.2)",
+                                },
+                                "&:hover": {
+                                  backgroundColor: "rgba(15, 23, 42, 0.52)",
+                                  boxShadow: showPlaylistUrlError
+                                    ? "0 0 0 1px rgba(248, 113, 113, 0.26), 0 18px 38px rgba(127, 29, 29, 0.18)"
+                                    : "0 0 0 1px rgba(34, 211, 238, 0.16), 0 16px 34px rgba(8, 47, 73, 0.2)",
+                                },
+                                "&:hover fieldset": {
+                                  borderColor: showPlaylistUrlError
+                                    ? "rgba(248, 113, 113, 0.66)"
+                                    : "rgba(34, 211, 238, 0.34)",
+                                },
+                                "&.Mui-focused": {
+                                  backgroundColor: "rgba(15, 23, 42, 0.62)",
+                                  boxShadow: showPlaylistUrlError
+                                    ? "0 0 0 1px rgba(248, 113, 113, 0.28), 0 18px 38px rgba(127, 29, 29, 0.18)"
+                                    : "0 0 0 1px rgba(251, 191, 36, 0.28), 0 18px 38px rgba(120, 53, 15, 0.18)",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  borderColor: showPlaylistUrlError
+                                    ? "rgba(248, 113, 113, 0.72)"
+                                    : "rgba(251, 191, 36, 0.72)",
+                                },
+                              },
+                            }}
+                          />
+                        </Tooltip>
                       </div>
-                    )}
+
+                      {playlistLoading ? (
+                        <div className="mt-4 flex justify-end">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-500/8 px-3 py-1.5 text-xs text-cyan-100/90">
+                            <CircularProgress
+                              size={14}
+                              thickness={5}
+                              sx={{ color: "#38bdf8" }}
+                            />
+                            載入中...
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {playlistError && (
+                        <div className="mt-3 rounded-2xl border border-rose-500/35 bg-rose-900/20 px-3 py-2 text-xs text-rose-200">
+                          {playlistError}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div
@@ -1038,15 +1197,6 @@ const CollectionsCreatePage = () => {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              variant="contained"
-              onClick={() => handleCreateCollection()}
-              disabled={isCreating || authLoading || !authToken}
-            >
-              {isCreating ? "建立中..." : "建立收藏"}
-            </Button>
-          </div>
         </div>
       </Box>
     </Box>

@@ -327,15 +327,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="app-header-profile-pill group max-w-full"
+            className="app-header-profile-pill app-header-profile-pill-auth group max-w-full"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
           >
-            <span className="app-header-profile-kicker">
-              Menu
-            </span>
-            <span className="app-header-profile-divider" />
             {authUser.avatar_url ? (
               <img
                 src={authUser.avatar_url}
@@ -348,9 +344,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 {authLabel?.[0]?.toUpperCase() ?? "?"}
               </span>
             )}
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--mc-text)]">
-              {authLabel}
-            </span>
+            <span className="app-header-profile-label">{authLabel}</span>
             <span
               className={`app-header-profile-chevron ${
                 isMenuOpen ? "rotate-180" : ""
@@ -363,20 +357,19 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           <button
             type="button"
             onClick={handleMenuToggle}
-            className="group inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-amber-300/45 bg-amber-300/10 px-3 py-1.5 text-sm font-medium text-amber-100 shadow-[0_10px_30px_-24px_rgba(245,158,11,0.45)] transition hover:border-amber-300/65 hover:bg-amber-300/16"
+            className="app-header-profile-pill app-header-profile-pill-guest group max-w-full"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
             aria-controls={menuId}
           >
-            <span className="text-[10px] uppercase tracking-[0.3em] text-amber-100/75">
-              Menu
+            <span className="app-header-profile-kicker">訪客</span>
+            <span className="app-header-profile-divider" />
+            <span className="app-header-profile-avatar-fallback">
+              {authLabel?.[0]?.toUpperCase() ?? "?"}
             </span>
-            <span className="h-4 w-[1px] bg-amber-200/40" />
-            <span className="min-w-0 flex-1 truncate text-sm text-amber-100">
-              訪客 {authLabel}
-            </span>
+            <span className="app-header-profile-label">{authLabel}</span>
             <span
-              className={`text-[10px] transition-transform ${
+              className={`app-header-profile-chevron ${
                 isMenuOpen ? "rotate-180" : ""
               }`}
             >

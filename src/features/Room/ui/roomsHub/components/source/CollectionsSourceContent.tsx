@@ -1,4 +1,12 @@
-import { Fragment, type ReactNode, type RefObject, type UIEvent } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+  type UIEvent,
+} from "react";
 import { Button } from "@mui/material";
 import { BookmarkBorderRounded, SearchRounded } from "@mui/icons-material";
 import { List } from "react-window";
@@ -63,6 +71,17 @@ const CollectionsSourceContent = ({
   loadMoreCollections,
   VirtualLibraryListRow,
 }: CollectionsSourceContentProps) => {
+  const [isScrollbarVisible, setIsScrollbarVisible] = useState(false);
+  const scrollHideTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (scrollHideTimerRef.current !== null) {
+        window.clearTimeout(scrollHideTimerRef.current);
+      }
+    };
+  }, []);
+
   const getCollectionRenderKey = (collection: unknown, index: number) => {
     if (
       collection &&
@@ -143,12 +162,24 @@ const CollectionsSourceContent = ({
   }
 
   return (
-    <div className="rounded-xl border border-[var(--mc-border)]/70 bg-slate-950/18 p-2">
+    <div className="rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
       {createLibraryView === "grid" ? (
         <div
           ref={createLibraryScrollRef}
-          className="max-h-[640px] overflow-y-auto pr-1"
-          onScroll={handleCollectionGridScroll}
+          className={`rooms-hub-library-scrollbar max-h-[640px] overflow-y-auto sm:pr-1 ${
+            isScrollbarVisible ? "is-scrolling" : ""
+          }`}
+          onScroll={(event) => {
+            handleCollectionGridScroll(event);
+            setIsScrollbarVisible(true);
+            if (scrollHideTimerRef.current !== null) {
+              window.clearTimeout(scrollHideTimerRef.current);
+            }
+            scrollHideTimerRef.current = window.setTimeout(() => {
+              setIsScrollbarVisible(false);
+              scrollHideTimerRef.current = null;
+            }, 720);
+          }}
         >
           <div
             className="grid gap-2"

@@ -19,6 +19,7 @@ import {
   DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
+  QUESTION_MIN,
 } from "./roomConstants";
 import {
   applyGameSettingsPatch,
@@ -154,6 +155,7 @@ export const useRoomProviderCreateRoomAction = ({
   setRoomNameInput,
   setRoomMaxPlayersInput,
 }: UseRoomProviderCreateRoomActionParams) => {
+  const questionMin = QUESTION_MIN;
   const resolvePlaylistSourceType = (
     sourceMode: RoomCreateSourceMode,
   ): PlaylistSourceType => {
@@ -236,6 +238,11 @@ export const useRoomProviderCreateRoomAction = ({
     }
     if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
       setStatusText("請先準備題庫內容，才能建立房間。");
+      releaseCreateRoomLock();
+      return;
+    }
+    if (playlistItems.length < questionMin) {
+      setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
       releaseCreateRoomLock();
       return;
     }

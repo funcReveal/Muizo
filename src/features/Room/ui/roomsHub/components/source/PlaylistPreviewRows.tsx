@@ -51,10 +51,14 @@ export const PlaylistPreviewRow = ({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-[var(--mc-text)]">
             {item.title}
+            {item.duration ? (
+              <span className="ml-2 text-xs font-medium text-[var(--mc-text-muted)]">
+                {item.duration}
+              </span>
+            ) : null}
           </p>
           <p className="truncate text-xs text-[var(--mc-text-muted)]">
-            {item.uploader || "未知作者"}
-            {item.duration ? ` · ${item.duration}` : ""}
+            {item.uploader || "未知上傳者"}
           </p>
         </div>
       </div>
