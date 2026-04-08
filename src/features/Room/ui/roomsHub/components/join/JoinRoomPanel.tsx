@@ -835,14 +835,16 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
               >
-                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                  <Inventory2Outlined sx={{ fontSize: 14 }} />
-                  <span>狀態</span>
-                </span>
-                <span className="text-[12px] font-medium text-[var(--mc-text)]">
-                  {currentJoinStatusOption.shortLabel}
+                <span className="min-w-0">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                    <Inventory2Outlined sx={{ fontSize: 14 }} />
+                    <span>狀態</span>
+                  </span>
+                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                    {currentJoinStatusOption.shortLabel}
+                  </span>
                 </span>
                 <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>
@@ -857,14 +859,16 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
               >
-                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                  <LockRounded sx={{ fontSize: 14 }} />
-                  <span>PIN</span>
-                </span>
-                <span className="text-[12px] font-medium text-[var(--mc-text)]">
-                  {currentJoinPasswordOption.shortLabel}
+                <span className="min-w-0">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                    <LockRounded sx={{ fontSize: 14 }} />
+                    <span>PIN</span>
+                  </span>
+                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                    {currentJoinPasswordOption.shortLabel}
+                  </span>
                 </span>
                 <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>
@@ -879,14 +883,16 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
               >
-                <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                  <TipsAndUpdatesRounded sx={{ fontSize: 14 }} />
-                  <span>排序</span>
-                </span>
-                <span className="text-[12px] font-medium text-[var(--mc-text)]">
-                  {currentJoinSortOption.shortLabel}
+                <span className="min-w-0">
+                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
+                    <TipsAndUpdatesRounded sx={{ fontSize: 14 }} />
+                    <span>排序</span>
+                  </span>
+                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                    {currentJoinSortOption.shortLabel}
+                  </span>
                 </span>
                 <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>

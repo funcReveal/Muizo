@@ -20,24 +20,18 @@ const LandingHomePage = lazy(
 const RoomsHubPage = lazy(
   () => import("../features/Room/ui/roomsHub/RoomsHubPage"),
 );
-const RoomLobbyPage = lazy(
-  () => import("../features/Room/ui/RoomLobbyPage"),
-);
+const RoomLobbyPage = lazy(() => import("../features/Room/ui/RoomLobbyPage"));
 const RoomHistoryPage = lazy(
   () => import("../features/Room/ui/RoomHistoryPage"),
 );
-const InvitedPage = lazy(
-  () => import("../features/Invited/ui/InvitedPage"),
-);
+const InvitedPage = lazy(() => import("../features/Invited/ui/InvitedPage"));
 const CollectionsPage = lazy(
   () => import("../features/Collections/ui/CollectionsPage"),
 );
 const CollectionsCreatePage = lazy(
   () => import("../features/Collections/ui/CollectionsCreatePage"),
 );
-const EditPage = lazy(
-  () => import("../features/Collections/ui/EditPage"),
-);
+const EditPage = lazy(() => import("../features/Collections/ui/EditPage"));
 
 /** Minimal spinner used as the Suspense fallback for route transitions. */
 const PageLoader = () => (
@@ -138,9 +132,7 @@ export function AppRouter() {
               description="請先登入帳號，再進行收藏內容編修與管理。"
               highlights={["編修題目內容", "管理可見權限", "保留編輯紀錄"]}
             >
-              <Suspense fallback={<PageLoader />}>
-                <EditPage />
-              </Suspense>
+              <EditPage />
             </RequireAuthRoute>
           }
         />
