@@ -1240,7 +1240,7 @@ const RoomsHubPage: React.FC = () => {
 
             <div
               key={`guide-panel-${guideMode}`}
-              className="mt-4 flex min-h-0 flex-1 flex-col animate-[guide-panel-enter_220ms_ease-out]"
+              className="mt-2 flex min-h-0 flex-1 flex-col animate-[guide-panel-enter_220ms_ease-out]"
             >
               {guideMode === "create" ? (
                 <div className="flex min-h-0 flex-1 flex-col lg:rounded-2xl lg:border lg:border-[var(--mc-border)] lg:p-4">
@@ -1317,7 +1317,9 @@ const RoomsHubPage: React.FC = () => {
                             playDurationSec={playDurationSec}
                             revealDurationSec={revealDurationSec}
                             startOffsetSec={startOffsetSec}
-                            allowCollectionClipTiming={allowCollectionClipTiming}
+                            allowCollectionClipTiming={
+                              allowCollectionClipTiming
+                            }
                             updatePlayDurationSec={updatePlayDurationSec}
                             updateRevealDurationSec={updateRevealDurationSec}
                             updateStartOffsetSec={updateStartOffsetSec}
@@ -1330,7 +1332,9 @@ const RoomsHubPage: React.FC = () => {
                             selectedCreateSourceSummary={
                               selectedCreateSourceSummary
                             }
-                            isSourceSummaryLoading={isCreateSourceSummaryLoading}
+                            isSourceSummaryLoading={
+                              isCreateSourceSummaryLoading
+                            }
                             createSettingsCards={createSettingsCards}
                             createRequirementsHintText={
                               createRequirementsHintText
@@ -1407,7 +1411,8 @@ const RoomsHubPage: React.FC = () => {
                             createLibraryTab === "youtube") ? (
                             <div className="mt-2 rounded-xl border border-dashed border-slate-600/60 bg-slate-900/30 p-3 text-sm text-slate-300 sm:mt-3 sm:p-4">
                               <p className="text-sm text-slate-200">
-                                私人收藏庫和從 Youtube 匯入清單需先登入，也可以直接點上方已鎖定的來源項目登入。
+                                私人收藏庫和從 Youtube
+                                匯入清單需先登入，也可以直接點上方已鎖定的來源項目登入。
                               </p>
                               <div className="mt-1">
                                 <Button
@@ -1472,7 +1477,7 @@ const RoomsHubPage: React.FC = () => {
                               PlaylistIssueRow={PlaylistIssueRow}
                             />
                           ) : createLibraryTab === "youtube" ? (
-                            <div className="mt-2 min-h-0 flex-1 sm:mt-3">
+                            <div className="mt-2 flex min-h-[420px] flex-1 flex-col sm:mt-3 lg:min-h-0">
                               <YoutubeSourceContent
                                 youtubePlaylistsLoading={
                                   youtubePlaylistsLoading
@@ -1498,7 +1503,7 @@ const RoomsHubPage: React.FC = () => {
                               />
                             </div>
                           ) : (
-                            <div className="mt-2 min-h-0 flex-1 sm:mt-3">
+                            <div className="mt-2 flex min-h-[420px] flex-1 flex-col sm:mt-3 lg:min-h-0">
                               <CollectionsSourceContent
                                 createLibraryTab={createLibraryTab}
                                 createLibraryView={createLibraryView}

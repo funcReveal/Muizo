@@ -96,7 +96,7 @@ const CollectionsSourceContent = ({
 
   if (shouldShowCollectionSkeleton) {
     return (
-      <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+      <div className="flex h-full min-h-full flex-1 flex-col rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
         {createLibraryView === "grid" ? (
           <div className="h-full min-h-0 overflow-y-auto sm:pr-1">
             <div className="grid gap-2 sm:grid-cols-2">
@@ -180,7 +180,7 @@ const CollectionsSourceContent = ({
   }
 
   return (
-    <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+    <div className="flex h-full min-h-full flex-1 flex-col rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
       {createLibraryView === "grid" ? (
         <div
           ref={createLibraryScrollRef}
