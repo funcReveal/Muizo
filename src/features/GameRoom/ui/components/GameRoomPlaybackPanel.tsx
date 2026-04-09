@@ -202,7 +202,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       ? "game-room-media-frame--mobile-inline"
       : isMobileView
         ? "h-[182px]"
-        : "h-[165px] sm:h-[220px] md:h-[254px] xl:h-[282px]";
+        : "h-[164px] sm:h-[210px] md:h-[236px] xl:h-[258px]";
   const iframeWrapClassName = `game-room-media-iframe-wrap ${
     reduceGuessVideoDisplayCost
       ? "game-room-media-iframe-wrap--guess-lite"
@@ -216,18 +216,29 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   const shouldKeepDesktopGuessVideoVisible = !isMobileView && showGuessMask;
   const effectiveShouldShowVideoFrame =
     shouldKeepDesktopGuessVideoVisible || shouldShowVideo;
+  const applySliderVisualState = useCallback((value: number) => {
+    const normalized = Math.max(0, Math.min(100, value));
+    if (sliderRef.current) {
+      sliderRef.current.style.setProperty(
+        "--game-room-volume-fill",
+        `${normalized}%`,
+      );
+    }
+  }, []);
 
   useEffect(() => {
     if (isDraggingRef.current) return;
     localVolumeRef.current = gameVolume;
     if (sliderRef.current) sliderRef.current.value = String(gameVolume);
     if (volumeTextRef.current) volumeTextRef.current.textContent = `${Math.round(gameVolume)}%`;
-  }, [gameVolume]);
+    applySliderVisualState(gameVolume);
+  }, [applySliderVisualState, gameVolume]);
 
   const handleVolumeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const next = Number(event.target.value);
       localVolumeRef.current = next;
+      applySliderVisualState(next);
       if (volumeTextRef.current) volumeTextRef.current.textContent = `${Math.round(next)}%`;
       if (rafRef.current === null) {
         rafRef.current = requestAnimationFrame(() => {
@@ -236,7 +247,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         });
       }
     },
-    [onGameVolumeChange],
+    [applySliderVisualState, onGameVolumeChange],
   );
 
   const handleVolumePointerDown = useCallback(() => {
@@ -359,9 +370,13 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
                 : "min-w-0"
             }
           >
-            {shouldShowRoomName && <p className="game-room-title">{roomName}</p>}
-            {!isMobileView && (
-              <div className="game-room-playback-meta-row">{trackCounterNode}</div>
+            {!isMobileView ? (
+              <div className="game-room-playback-title-row">
+                {trackCounterNode}
+                {shouldShowRoomName && <p className="game-room-title">{roomName}</p>}
+              </div>
+            ) : (
+              shouldShowRoomName && <p className="game-room-title">{roomName}</p>
             )}
             {!isMobileView && revealAnswerNode}
           </div>
@@ -376,7 +391,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               size="small"
               startIcon={<LogoutRoundedIcon fontSize="small" />}
               onClick={onOpenExitConfirm}
-              className="max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
+              className="game-room-leave-btn max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs"
             >
               離開房間
             </Button>
@@ -425,9 +440,10 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
 
         {showGuessMask && (
           <div className="game-room-playback-mask game-room-playback-mask--guess pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
-            <div className="relative h-20 w-20 sm:h-24 sm:w-24">
-              <div className="game-room-mask-spinner absolute inset-0 rounded-full border-4 border-slate-700 border-t-cyan-300 border-r-slate-400" />
-              <div className="game-room-mask-spinner-core absolute inset-[22%] rounded-full bg-slate-400/10" />
+            <div className="game-room-guess-spinner relative h-20 w-20 sm:h-24 sm:w-24">
+              <div className="game-room-guess-spinner__halo absolute inset-0" />
+              <div className="game-room-guess-spinner__ring absolute inset-0" />
+              <div className="game-room-guess-spinner__core absolute inset-[24%]" />
             </div>
             <p className="mt-2 text-xs text-slate-300">猜歌中</p>
           </div>
