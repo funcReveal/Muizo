@@ -1,9 +1,4 @@
-﻿import {
-  useMemo,
-  useState,
-  type RefObject,
-  type UIEvent,
-} from "react";
+﻿import { useMemo, useState, type RefObject, type UIEvent } from "react";
 import {
   Button,
   Dialog,
@@ -25,11 +20,13 @@ import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import FastForwardRounded from "@mui/icons-material/FastForwardRounded";
 import GridViewRounded from "@mui/icons-material/GridViewRounded";
-import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined";
+import RadioButtonCheckedRounded from "@mui/icons-material/RadioButtonCheckedRounded";
+import MeetingRoomRounded from "@mui/icons-material/MeetingRoomRounded";
 import SyncAltRounded from "@mui/icons-material/SyncAltRounded";
+import SwapVertRounded from "@mui/icons-material/SwapVertRounded";
 import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
-import ViewListRounded from "@mui/icons-material/ViewListRounded";
+import ViewAgendaRounded from "@mui/icons-material/ViewAgendaRounded";
 
 import type {
   PlaybackExtensionMode,
@@ -158,36 +155,34 @@ const JoinRoomPanel = ({
   handleConfirmJoinWithPassword,
 }: JoinRoomPanelProps) => {
   const JOIN_ROOM_BATCH_SIZE = 12;
-  const JOIN_ROOM_LIST_HEIGHT = 560;
-  const JOIN_ROOM_LIST_ROW_HEIGHT = 216;
+  const JOIN_ROOM_LIST_HEIGHT = 440;
+  const JOIN_ROOM_LIST_ROW_HEIGHT = 204;
   const joinStatusOptions: Array<{
     key: JoinStatusFilter;
     label: string;
     shortLabel: string;
   }> = [
-    { key: "all", label: "全部房間", shortLabel: "全部" },
+    { key: "all", label: "全部狀態", shortLabel: "全部狀態" },
     { key: "waiting", label: "等待中", shortLabel: "等待中" },
-    { key: "playing", label: "遊戲中", shortLabel: "遊戲中" },
   ];
   const joinPasswordOptions: Array<{
     key: JoinPasswordFilter;
     label: string;
     shortLabel: string;
   }> = [
-    { key: "all", label: "全部 PIN", shortLabel: "全部" },
-    { key: "no_password", label: "無 PIN", shortLabel: "無 PIN" },
-    { key: "password_required", label: "需 PIN", shortLabel: "需 PIN" },
+    { key: "all", label: "全部", shortLabel: "全部" },
+    { key: "no_password", label: "免 PIN", shortLabel: "免 PIN" },
   ];
   const joinSortOptions: Array<{
     key: JoinSortMode;
     label: string;
     shortLabel: string;
   }> = [
-    { key: "latest", label: "最新建立", shortLabel: "最新" },
-    { key: "players_desc", label: "人數由多到少", shortLabel: "人數" },
+    { key: "latest", label: "最新建立", shortLabel: "最新建立" },
+    { key: "players_desc", label: "人數最多", shortLabel: "人數最多" },
   ];
 
-  const cycleOption = <T extends string,>(
+  const cycleOption = <T extends string>(
     options: readonly T[],
     current: T,
   ): T => {
@@ -195,7 +190,7 @@ const JoinRoomPanel = ({
     return options[(currentIndex + 1) % options.length] ?? options[0];
   };
 
-const getPlaybackExtensionLabel = (
+  const getPlaybackExtensionLabel = (
     mode: PlaybackExtensionMode | undefined | null,
   ) => {
     switch (mode) {
@@ -277,7 +272,7 @@ const getPlaybackExtensionLabel = (
     const total =
       typeof room.totalQuestionCount === "number"
         ? room.totalQuestionCount
-        : room.gameSettings?.questionCount ?? null;
+        : (room.gameSettings?.questionCount ?? null);
     if (!current || !total) return "進行中";
     return `第 ${current}/${total} 題`;
   };
@@ -291,6 +286,8 @@ const getPlaybackExtensionLabel = (
   const currentJoinSortOption =
     joinSortOptions.find((item) => item.key === joinSortMode) ??
     joinSortOptions[0];
+  const isStatusFilterActive = joinStatusFilter !== "all";
+  const isPinFilterActive = joinPasswordFilter !== "all";
 
   const joinRoomPaginationKey = useMemo(
     () =>
@@ -377,7 +374,9 @@ const getPlaybackExtensionLabel = (
     >
       <div
         className={`${
-          view === "grid" ? "space-y-3" : "flex h-full flex-wrap items-center gap-4"
+          view === "grid"
+            ? "space-y-3"
+            : "flex h-full flex-wrap items-center gap-4"
         }`}
       >
         <div
@@ -480,7 +479,6 @@ const getPlaybackExtensionLabel = (
           <p className="text-[11px] text-[var(--mc-text-muted)]/80">
             房間代碼：{formatRoomCodeDisplay(room.roomCode)}
           </p>
-
         </div>
       </div>
       {roomRequiresPin(room) ? (
@@ -562,9 +560,9 @@ const getPlaybackExtensionLabel = (
 
         {joinEntryTab === "code" && (
           <>
-            <div className="mx-auto max-w-3xl rounded-[28px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(120,53,15,0.2),rgba(15,23,42,0.22))] p-4 sm:p-5">
+            <div className="mx-auto rounded-[28px] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(120,53,15,0.2),rgba(15,23,42,0.22))] p-4 sm:p-5">
               <div className="flex flex-col items-center gap-4">
-                <div className="w-full max-w-2xl">
+                <div className="w-full">
                   <Tooltip
                     open={Boolean(directJoinError)}
                     title={
@@ -715,7 +713,7 @@ const getPlaybackExtensionLabel = (
                     normalizedDirectRoomCode.length < 6 ||
                     !resolvedDirectJoinRoom
                   }
-                  className="min-h-[48px] w-full max-w-xs text-sm sm:min-h-[52px]"
+                  className="min-h-[48px] w-full max-w-[34rem] text-sm sm:min-h-[52px]"
                 >
                   {directJoinLoading
                     ? "查詢房間中..."
@@ -729,7 +727,7 @@ const getPlaybackExtensionLabel = (
               <div className="mt-3 rounded-2xl border border-[var(--mc-border)]/70 bg-slate-950/20 p-3 sm:p-4">
                 {resolvedDirectJoinRoom ? (
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-base font-semibold text-[var(--mc-text)]">
                           {resolvedDirectJoinRoom.name}
@@ -789,17 +787,15 @@ const getPlaybackExtensionLabel = (
         )}
         {joinEntryTab === "browser" && (
           <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-[13px] text-[var(--mc-text-muted)]">
-                  目前共 {filteredJoinRooms.length} 間房，
-                  {filteredJoinPlayerTotal} 人在線
-                </p>
-              </div>
+            <div className="flex min-h-12 flex-wrap items-center justify-between gap-3">
+              <p className="text-[13px] text-[var(--mc-text-muted)]">
+                目前共 {filteredJoinRooms.length} 間房，{filteredJoinPlayerTotal} 人在線
+              </p>
               <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-0.5">
                 <button
                   type="button"
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
+                  aria-label="圖示檢視"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
                     joinRoomsView === "grid"
                       ? "cursor-pointer bg-amber-500/20 text-amber-100"
                       : "cursor-pointer text-[var(--mc-text-muted)]"
@@ -807,24 +803,23 @@ const getPlaybackExtensionLabel = (
                   onClick={() => setJoinRoomsView("grid")}
                 >
                   <GridViewRounded sx={{ fontSize: 14 }} />
-                  圖示
                 </button>
                 <button
                   type="button"
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] ${
+                  aria-label="清單檢視"
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
                     joinRoomsView === "list"
                       ? "cursor-pointer bg-amber-500/20 text-amber-100"
                       : "cursor-pointer text-[var(--mc-text-muted)]"
                   }`}
                   onClick={() => setJoinRoomsView("list")}
                 >
-                  <ViewListRounded sx={{ fontSize: 14 }} />
-                  清單
+                  <ViewAgendaRounded sx={{ fontSize: 14 }} />
                 </button>
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-nowrap gap-2">
               <button
                 type="button"
                 onClick={() =>
@@ -835,18 +830,48 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className={`inline-flex w-[104px] shrink-0 flex-col items-start rounded-[18px] border px-2.5 py-1.5 text-left transition ${
+                  isStatusFilterActive
+                    ? "border-cyan-300/35 bg-cyan-400/[0.08] hover:border-cyan-300/45 hover:bg-cyan-400/[0.11]"
+                    : "border-white/8 bg-white/[0.035] hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                }`}
               >
-                <span className="min-w-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                    <Inventory2Outlined sx={{ fontSize: 14 }} />
-                    <span>狀態</span>
-                  </span>
-                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] ${
+                    isStatusFilterActive
+                      ? "text-cyan-100/88"
+                      : "text-[var(--mc-text-muted)]"
+                  }`}
+                >
+                  <RadioButtonCheckedRounded
+                    sx={{
+                      fontSize: 14,
+                      color: isStatusFilterActive
+                        ? "rgba(103, 232, 249, 0.92)"
+                        : "rgba(148, 163, 184, 0.9)",
+                    }}
+                  />
+                  <span>狀態</span>
+                </span>
+                <span
+                  className={`mt-1 flex w-full items-center justify-between gap-1 text-[11px] font-medium ${
+                    isStatusFilterActive
+                      ? "text-cyan-50"
+                      : "text-[var(--mc-text)]"
+                  }`}
+                >
+                  <span className="min-w-0 truncate">
                     {currentJoinStatusOption.shortLabel}
                   </span>
+                  <SyncAltRounded
+                    sx={{
+                      fontSize: 14,
+                      color: isStatusFilterActive
+                        ? "rgba(103, 232, 249, 0.92)"
+                        : "rgba(251, 191, 36, 0.86)",
+                    }}
+                  />
                 </span>
-                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>
 
               <button
@@ -859,18 +884,48 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className={`inline-flex w-[104px] shrink-0 flex-col items-start rounded-[18px] border px-2.5 py-1.5 text-left transition ${
+                  isPinFilterActive
+                    ? "border-amber-300/38 bg-amber-300/[0.09] hover:border-amber-300/48 hover:bg-amber-300/[0.12]"
+                    : "border-white/8 bg-white/[0.035] hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                }`}
               >
-                <span className="min-w-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                    <LockRounded sx={{ fontSize: 14 }} />
-                    <span>PIN</span>
-                  </span>
-                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] ${
+                    isPinFilterActive
+                      ? "text-amber-100/88"
+                      : "text-[var(--mc-text-muted)]"
+                  }`}
+                >
+                  <LockRounded
+                    sx={{
+                      fontSize: 14,
+                      color: isPinFilterActive
+                        ? "rgba(251, 191, 36, 0.94)"
+                        : "rgba(148, 163, 184, 0.9)",
+                    }}
+                  />
+                  <span>PIN</span>
+                </span>
+                <span
+                  className={`mt-1 flex w-full items-center justify-between gap-1 text-[11px] font-medium ${
+                    isPinFilterActive
+                      ? "text-amber-50"
+                      : "text-[var(--mc-text)]"
+                  }`}
+                >
+                  <span className="min-w-0 truncate">
                     {currentJoinPasswordOption.shortLabel}
                   </span>
+                  <SyncAltRounded
+                    sx={{
+                      fontSize: 14,
+                      color: isPinFilterActive
+                        ? "rgba(251, 191, 36, 0.94)"
+                        : "rgba(251, 191, 36, 0.86)",
+                    }}
+                  />
                 </span>
-                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>
 
               <button
@@ -883,28 +938,40 @@ const getPlaybackExtensionLabel = (
                     ),
                   )
                 }
-                className="inline-flex w-[126px] shrink-0 items-center justify-between gap-2 rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
+                className="inline-flex w-[104px] shrink-0 flex-col items-start rounded-[18px] border border-white/8 bg-white/[0.035] px-2.5 py-1.5 text-left transition hover:border-amber-300/30 hover:bg-amber-300/[0.06]"
               >
-                <span className="min-w-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] text-[var(--mc-text-muted)]">
-                    <TipsAndUpdatesRounded sx={{ fontSize: 14 }} />
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--mc-text-muted)]">
+                  <SwapVertRounded sx={{ fontSize: 14 }} />
                     <span>排序</span>
-                  </span>
-                  <span className="block truncate text-[12px] font-medium text-[var(--mc-text)]">
+                </span>
+                <span className="mt-1 flex w-full items-center justify-between gap-1 text-[11px] font-medium text-[var(--mc-text)]">
+                  <span className="min-w-0 truncate">
                     {currentJoinSortOption.shortLabel}
                   </span>
+                  <SyncAltRounded
+                    sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }}
+                  />
                 </span>
-                <SyncAltRounded sx={{ fontSize: 14, color: "rgba(251, 191, 36, 0.86)" }} />
               </button>
             </div>
 
             {filteredJoinRooms.length === 0 ? (
-              <p className="mt-4 text-sm text-[var(--mc-text-muted)]">
-                目前沒有符合條件的房間。
-              </p>
+              <div className="mt-4 flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 text-center">
+                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+                  <MeetingRoomRounded
+                    sx={{ fontSize: 22, color: "rgba(148, 163, 184, 0.9)" }}
+                  />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-[var(--mc-text)]">
+                  目前沒有符合條件的房間
+                </p>
+                <p className="mt-2 whitespace-nowrap text-xs leading-6 text-[var(--mc-text-muted)]">
+                  試著調整狀態、PIN 或排序條件，或稍後再重新整理房間列表。
+                </p>
+              </div>
             ) : joinRoomsView === "grid" ? (
               <div
-                className="mt-4 max-h-[560px] overflow-y-auto pr-1"
+                className="mt-4 max-h-[440px] overflow-y-auto pr-1"
                 onScroll={handleJoinRoomGridScroll}
               >
                 <div className="grid gap-2 sm:grid-cols-2">

@@ -1,10 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Button,
-  TextField,
-  useMediaQuery,
-} from "@mui/material";
+import { Button, TextField, useMediaQuery } from "@mui/material";
 import {
   AddCircleOutlineRounded,
   MeetingRoomRounded,
@@ -188,10 +184,7 @@ const RoomsHubPage: React.FC = () => {
     authLoading,
     authUser,
   } = useAuth();
-  const {
-    rooms,
-    currentRoom,
-  } = useRoomSession();
+  const { rooms, currentRoom } = useRoomSession();
   const {
     collections,
     collectionsLoading,
@@ -274,16 +267,16 @@ const RoomsHubPage: React.FC = () => {
     setDirectJoinPreviewRoom,
     directJoinError,
     setDirectJoinError,
-      directJoinNeedsPassword,
-      setDirectJoinNeedsPassword,
-      joinRoomsView,
-      setJoinRoomsView,
-      joinPasswordFilter,
-      setJoinPasswordFilter,
-      joinStatusFilter,
-      setJoinStatusFilter,
-      joinSortMode,
-      setJoinSortMode,
+    directJoinNeedsPassword,
+    setDirectJoinNeedsPassword,
+    joinRoomsView,
+    setJoinRoomsView,
+    joinPasswordFilter,
+    setJoinPasswordFilter,
+    joinStatusFilter,
+    setJoinStatusFilter,
+    joinSortMode,
+    setJoinSortMode,
     normalizedDirectRoomCode,
     directRoomCodeSlots,
     activeDirectRoomCodeIndex,
@@ -403,15 +396,15 @@ const RoomsHubPage: React.FC = () => {
   ]);
 
   const canUseGoogleLibraries = Boolean(authUser);
-    const filteredJoinRooms = useMemo(() => {
-      const next = [...rooms].filter((room) => {
-        if (joinPasswordFilter === "no_password") return !roomRequiresPin(room);
-        if (joinPasswordFilter === "password_required")
-          return roomRequiresPin(room);
-        if (joinStatusFilter === "waiting") return !isRoomCurrentlyPlaying(room);
-        if (joinStatusFilter === "playing") return isRoomCurrentlyPlaying(room);
-        return true;
-      });
+  const filteredJoinRooms = useMemo(() => {
+    const next = [...rooms].filter((room) => {
+      if (joinPasswordFilter === "no_password") return !roomRequiresPin(room);
+      if (joinPasswordFilter === "password_required")
+        return roomRequiresPin(room);
+      if (joinStatusFilter === "waiting") return !isRoomCurrentlyPlaying(room);
+      if (joinStatusFilter === "playing") return isRoomCurrentlyPlaying(room);
+      return true;
+    });
     if (joinSortMode === "players_desc") {
       next.sort((a, b) => b.playerCount - a.playerCount);
       return next;
@@ -554,9 +547,7 @@ const RoomsHubPage: React.FC = () => {
     };
   }, [playlistPreviewMeta]);
   const sharedCollectionId = searchParams.get("sharedCollection");
-  const {
-    handledSharedCollectionRef,
-  } = useSharedCollectionEntry({
+  const { handledSharedCollectionRef } = useSharedCollectionEntry({
     sharedCollectionId,
     roomCreateSourceMode,
     selectedCreateCollectionId,
@@ -612,16 +603,14 @@ const RoomsHubPage: React.FC = () => {
     setSharedCollectionMeta,
     setCreateLeftTab,
   });
-  const {
-    publicLibrarySearchActive,
-    togglePublicLibrarySearch,
-  } = usePublicCollectionsSearchUi({
-    createLibraryTab,
-    isExpanded: isPublicLibrarySearchExpanded,
-    setIsExpanded: setIsPublicLibrarySearchExpanded,
-    setCreateLibrarySearch,
-    panelRef: publicLibrarySearchPanelRef,
-  });
+  const { publicLibrarySearchActive, togglePublicLibrarySearch } =
+    usePublicCollectionsSearchUi({
+      createLibraryTab,
+      isExpanded: isPublicLibrarySearchExpanded,
+      setIsExpanded: setIsPublicLibrarySearchExpanded,
+      setCreateLibrarySearch,
+      panelRef: publicLibrarySearchPanelRef,
+    });
   const normalizedMaxPlayersInput = roomMaxPlayersInput.trim();
   const parsedMaxPlayers = normalizedMaxPlayersInput
     ? Number(normalizedMaxPlayersInput)
@@ -651,7 +640,7 @@ const RoomsHubPage: React.FC = () => {
     () =>
       selectedCreateCollectionId
         ? (collections.find((item) => item.id === selectedCreateCollectionId) ??
-            null)
+          null)
         : null,
     [collections, selectedCreateCollectionId],
   );
@@ -747,8 +736,8 @@ const RoomsHubPage: React.FC = () => {
         selectedYoutubePlaylist,
         selectedCollection,
         selectedSharedCollection,
-      selectedCollectionThumb,
-    }),
+        selectedCollectionThumb,
+      }),
     [
       isCreateSourceReady,
       lastFetchedPlaylistTitle,
@@ -781,24 +770,10 @@ const RoomsHubPage: React.FC = () => {
       : collectionItemsLoading);
   const createLibraryColumns = isLibraryGridWide ? 2 : 1;
   const youtubeListRowHeight = 96;
-  const youtubeListHeight = Math.min(
-    640,
-    Math.max(
-      youtubeListRowHeight,
-      filteredCreateYoutubePlaylists.length * youtubeListRowHeight,
-    ),
-  );
   const collectionListRowHeight = 92;
   const collectionListRowCount =
     filteredCreateCollections.length +
     (collectionsHasMore || collectionsLoadingMore ? 1 : 0);
-  const collectionListHeight = Math.min(
-    640,
-    Math.max(
-      collectionListRowHeight,
-      collectionListRowCount * collectionListRowHeight,
-    ),
-  );
 
   const renderYoutubeCard = (
     playlistValue: unknown,
@@ -1073,7 +1048,7 @@ const RoomsHubPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[84rem] flex-col gap-6 px-4 pb-6 pt-4 text-[var(--mc-text)]">
+    <div className="mx-auto flex h-full min-h-0 w-full flex-1 flex-col text-[var(--mc-text)]">
       {!currentRoom?.id && !username && (
         <section className="relative w-full overflow-hidden rounded-3xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 p-5 sm:p-6">
           <div className="pointer-events-none absolute inset-0">
@@ -1165,8 +1140,8 @@ const RoomsHubPage: React.FC = () => {
       )}
 
       {!currentRoom?.id && username && (
-        <section className="w-full">
-          <div className="sm:p-5">
+        <section className="flex min-h-0 w-full flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col sm:p-5">
             <div className="relative grid w-full grid-cols-2 gap-1 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 p-1">
               <div
                 aria-hidden="true"
@@ -1263,10 +1238,10 @@ const RoomsHubPage: React.FC = () => {
 
             <div
               key={`guide-panel-${guideMode}`}
-              className="mt-4 animate-[guide-panel-enter_220ms_ease-out]"
+              className="mt-4 flex min-h-0 flex-1 flex-col animate-[guide-panel-enter_220ms_ease-out]"
             >
               {guideMode === "create" ? (
-                <div className="sm:rounded-2xl sm:border sm:border-[var(--mc-border)] sm:p-4">
+                <div className="flex min-h-0 flex-1 flex-col lg:rounded-2xl lg:border lg:border-[var(--mc-border)] lg:p-4">
                   <LibrarySourcePanel
                     createLeftTab={createLeftTab}
                     createLibraryTab={createLibraryTab}
@@ -1274,7 +1249,7 @@ const RoomsHubPage: React.FC = () => {
                     setCreateLibraryTab={setCreateLibraryTab}
                     handleBackToCreateLibrary={handleBackToCreateLibrary}
                   >
-                    <div className="bg-[var(--mc-surface)]/10 sm:rounded-2xl sm:bg-[var(--mc-surface)]/25 lg:border-l lg:border-[var(--mc-border)]/45 lg:rounded-none lg:pl-5">
+                    <div className="flex min-h-0 flex-1 flex-col bg-[var(--mc-surface)]/10 lg:rounded-none lg:border-l lg:border-[var(--mc-border)]/45 lg:pl-5">
                       {createLeftTab === "settings" ? (
                         <RoomSetupPanel
                           roomNameInput={roomNameInput}
@@ -1319,24 +1294,35 @@ const RoomsHubPage: React.FC = () => {
                             void handleCreateRoom();
                           }}
                         />
-
-                        ) : (
-                        <>
+                      ) : (
+                        <div className="flex min-h-0 flex-1 flex-col">
                           {createLibraryTab !== "link" && (
                             <LibrarySourceToolbar
                               createLibraryTab={createLibraryTab}
-                              publicLibrarySearchPanelRef={publicLibrarySearchPanelRef}
-                              publicLibrarySearchActive={publicLibrarySearchActive}
+                              publicLibrarySearchPanelRef={
+                                publicLibrarySearchPanelRef
+                              }
+                              publicLibrarySearchActive={
+                                publicLibrarySearchActive
+                              }
                               createLibrarySearch={createLibrarySearch}
                               setCreateLibrarySearch={setCreateLibrarySearch}
                               collectionsLoading={collectionsLoading}
-                              filteredCreateCollectionsLength={filteredCreateCollections.length}
-                              filteredCreateYoutubePlaylistsLength={filteredCreateYoutubePlaylists.length}
+                              filteredCreateCollectionsLength={
+                                filteredCreateCollections.length
+                              }
+                              filteredCreateYoutubePlaylistsLength={
+                                filteredCreateYoutubePlaylists.length
+                              }
                               createLibraryView={createLibraryView}
                               setCreateLibraryView={setCreateLibraryView}
-                              togglePublicLibrarySearch={togglePublicLibrarySearch}
+                              togglePublicLibrarySearch={
+                                togglePublicLibrarySearch
+                              }
                               publicCollectionsSort={publicCollectionsSort}
-                              setPublicCollectionsSort={setPublicCollectionsSort}
+                              setPublicCollectionsSort={
+                                setPublicCollectionsSort
+                              }
                             />
                           )}
 
@@ -1356,81 +1342,123 @@ const RoomsHubPage: React.FC = () => {
                                 </Button>
                               </div>
                             </div>
-                           ) : createLibraryTab === "link" ? (
+                          ) : createLibraryTab === "link" ? (
                             <PlaylistLinkSourceContent
-                              playlistUrlTooltipMessage={playlistUrlTooltipMessage}
-                              isPlaylistUrlFieldFocused={isPlaylistUrlFieldFocused}
-                              setIsPlaylistUrlFieldFocused={setIsPlaylistUrlFieldFocused}
+                              playlistUrlTooltipMessage={
+                                playlistUrlTooltipMessage
+                              }
+                              isPlaylistUrlFieldFocused={
+                                isPlaylistUrlFieldFocused
+                              }
+                              setIsPlaylistUrlFieldFocused={
+                                setIsPlaylistUrlFieldFocused
+                              }
                               trimmedPlaylistUrlDraft={trimmedPlaylistUrlDraft}
                               showPlaylistUrlError={showPlaylistUrlError}
                               showPlaylistUrlWarning={showPlaylistUrlWarning}
                               playlistUrlDraft={playlistUrlDraft}
                               isLinkSourceActive={isLinkSourceActive}
-                              handleActivateLinkSource={handleActivateLinkSource}
+                              handleActivateLinkSource={
+                                handleActivateLinkSource
+                              }
                               setPlaylistUrlDraft={setPlaylistUrlDraft}
                               playlistPreviewError={playlistPreviewError}
                               setPlaylistPreviewError={setPlaylistPreviewError}
                               linkPreviewLocked={linkPreviewLocked}
-                              handlePreviewPlaylistByUrl={handlePreviewPlaylistByUrl}
+                              handlePreviewPlaylistByUrl={
+                                handlePreviewPlaylistByUrl
+                              }
                               playlistLoading={playlistLoading}
                               playlistUrlLooksValid={playlistUrlLooksValid}
-                              handleClearPlaylistUrlInput={handleClearPlaylistUrlInput}
+                              handleClearPlaylistUrlInput={
+                                handleClearPlaylistUrlInput
+                              }
                               linkPlaylistTitle={linkPlaylistTitle}
                               linkPlaylistCount={linkPlaylistCount}
                               playlistItemsLength={playlistItems.length}
                               handlePickLinkSource={handlePickLinkSource}
-                              linkPlaylistPreviewItems={linkPlaylistPreviewItems}
-                              canAttemptPlaylistPreview={canAttemptPlaylistPreview}
-                              linkPlaylistIssueSummary={linkPlaylistIssueSummary}
-                              playlistPreviewMetaSkippedCount={playlistPreviewMeta?.skippedCount ?? 0}
+                              linkPlaylistPreviewItems={
+                                linkPlaylistPreviewItems
+                              }
+                              canAttemptPlaylistPreview={
+                                canAttemptPlaylistPreview
+                              }
+                              linkPlaylistIssueSummary={
+                                linkPlaylistIssueSummary
+                              }
+                              playlistPreviewMetaSkippedCount={
+                                playlistPreviewMeta?.skippedCount ?? 0
+                              }
                               PlaylistPreviewRow={PlaylistPreviewRow}
                               PlaylistIssueRow={PlaylistIssueRow}
                             />
                           ) : createLibraryTab === "youtube" ? (
-                            <div className="mt-2 sm:mt-3">
+                            <div className="mt-2 min-h-0 flex-1 sm:mt-3">
                               <YoutubeSourceContent
-                                youtubePlaylistsLoading={youtubePlaylistsLoading}
+                                youtubePlaylistsLoading={
+                                  youtubePlaylistsLoading
+                                }
                                 createLibraryView={createLibraryView}
-                                filteredCreateYoutubePlaylists={filteredCreateYoutubePlaylists}
-                                normalizedCreateLibrarySearch={normalizedCreateLibrarySearch}
-                                handleActivateLinkSource={handleActivateLinkSource}
+                                filteredCreateYoutubePlaylists={
+                                  filteredCreateYoutubePlaylists
+                                }
+                                normalizedCreateLibrarySearch={
+                                  normalizedCreateLibrarySearch
+                                }
+                                handleActivateLinkSource={
+                                  handleActivateLinkSource
+                                }
                                 setCreateLibraryTab={setCreateLibraryTab}
                                 createLibraryColumns={createLibraryColumns}
-                                youtubeListHeight={youtubeListHeight}
                                 youtubeListRowHeight={youtubeListRowHeight}
-                                renderYoutubeSkeletonCard={renderYoutubeSkeletonCard}
+                                renderYoutubeSkeletonCard={
+                                  renderYoutubeSkeletonCard
+                                }
                                 renderYoutubeCard={renderYoutubeCard}
                                 VirtualLibraryListRow={VirtualLibraryListRow}
                               />
                             </div>
                           ) : (
-                            <div className="mt-2 sm:mt-3">
+                            <div className="mt-2 min-h-0 flex-1 sm:mt-3">
                               <CollectionsSourceContent
                                 createLibraryTab={createLibraryTab}
                                 createLibraryView={createLibraryView}
-                                shouldShowCollectionSkeleton={shouldShowCollectionSkeleton}
-                                renderCollectionSkeletonCard={renderCollectionSkeletonCard}
+                                shouldShowCollectionSkeleton={
+                                  shouldShowCollectionSkeleton
+                                }
+                                renderCollectionSkeletonCard={
+                                  renderCollectionSkeletonCard
+                                }
                                 collectionsError={collectionsError}
-                                filteredCreateCollections={filteredCreateCollections}
-                                normalizedCreateLibrarySearch={normalizedCreateLibrarySearch}
+                                filteredCreateCollections={
+                                  filteredCreateCollections
+                                }
+                                normalizedCreateLibrarySearch={
+                                  normalizedCreateLibrarySearch
+                                }
                                 setCreateLibraryTab={setCreateLibraryTab}
-                                handleActivateLinkSource={handleActivateLinkSource}
+                                handleActivateLinkSource={
+                                  handleActivateLinkSource
+                                }
                                 createLibraryScrollRef={createLibraryScrollRef}
-                                handleCollectionGridScroll={handleCollectionGridScroll}
+                                handleCollectionGridScroll={
+                                  handleCollectionGridScroll
+                                }
                                 createLibraryColumns={createLibraryColumns}
                                 renderCollectionCard={renderCollectionCard}
                                 collectionsLoading={collectionsLoading}
                                 collectionsLoadingMore={collectionsLoadingMore}
-                                collectionListHeight={collectionListHeight}
                                 collectionListRowCount={collectionListRowCount}
-                                collectionListRowHeight={collectionListRowHeight}
+                                collectionListRowHeight={
+                                  collectionListRowHeight
+                                }
                                 collectionsHasMore={collectionsHasMore}
                                 loadMoreCollections={loadMoreCollections}
                                 VirtualLibraryListRow={VirtualLibraryListRow}
                               />
                             </div>
                           )}
-                        </>
+                        </div>
                       )}
                     </div>
                   </LibrarySourcePanel>
@@ -1450,22 +1478,22 @@ const RoomsHubPage: React.FC = () => {
                   setDirectRoomIdInput={setDirectRoomIdInput}
                   setDirectJoinPreviewRoom={setDirectJoinPreviewRoom}
                   setDirectJoinError={setDirectJoinError}
-                    setDirectJoinNeedsPassword={setDirectJoinNeedsPassword}
-                    normalizeRoomCodeInput={normalizeRoomCodeInput}
-                    handleDirectJoinById={handleDirectJoinById}
-                    resolvedDirectJoinRoom={resolvedDirectJoinRoom}
-                    directJoinNeedsPassword={directJoinNeedsPassword}
-                    joinPasswordFilter={joinPasswordFilter}
-                    setJoinPasswordFilter={setJoinPasswordFilter}
-                    joinStatusFilter={joinStatusFilter}
-                    setJoinStatusFilter={setJoinStatusFilter}
-                    joinSortMode={joinSortMode}
-                    setJoinSortMode={setJoinSortMode}
-                    filteredJoinRooms={filteredJoinRooms}
-                    filteredJoinPlayerTotal={filteredJoinPlayerTotal}
-                    joinRoomsView={joinRoomsView}
-                    setJoinRoomsView={setJoinRoomsView}
-                    handleJoinRoomEntry={handleJoinRoomEntry}
+                  setDirectJoinNeedsPassword={setDirectJoinNeedsPassword}
+                  normalizeRoomCodeInput={normalizeRoomCodeInput}
+                  handleDirectJoinById={handleDirectJoinById}
+                  resolvedDirectJoinRoom={resolvedDirectJoinRoom}
+                  directJoinNeedsPassword={directJoinNeedsPassword}
+                  joinPasswordFilter={joinPasswordFilter}
+                  setJoinPasswordFilter={setJoinPasswordFilter}
+                  joinStatusFilter={joinStatusFilter}
+                  setJoinStatusFilter={setJoinStatusFilter}
+                  joinSortMode={joinSortMode}
+                  setJoinSortMode={setJoinSortMode}
+                  filteredJoinRooms={filteredJoinRooms}
+                  filteredJoinPlayerTotal={filteredJoinPlayerTotal}
+                  joinRoomsView={joinRoomsView}
+                  setJoinRoomsView={setJoinRoomsView}
+                  handleJoinRoomEntry={handleJoinRoomEntry}
                   roomRequiresPin={roomRequiresPin}
                   isRoomCurrentlyPlaying={isRoomCurrentlyPlaying}
                   getRoomStatusLabel={getRoomStatusLabel}
@@ -1483,8 +1511,8 @@ const RoomsHubPage: React.FC = () => {
               )}
             </div>
 
-          <style>
-            {`
+            <style>
+              {`
               @keyframes guide-panel-enter {
                 0% { opacity: 0; transform: translateY(8px) scale(0.995); }
                 100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -1523,9 +1551,8 @@ const RoomsHubPage: React.FC = () => {
                 }
               }
             `}
-          </style>
+            </style>
           </div>
-
         </section>
       )}
     </div>

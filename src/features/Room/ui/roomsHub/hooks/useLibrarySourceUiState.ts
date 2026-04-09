@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type CreateLibraryTab = "public" | "personal" | "youtube" | "link";
 export type CreateLeftTab = "library" | "settings";
+
+const CREATE_VIEW_STORAGE_KEY = "rooms_hub_create_view";
 
 export type SharedCollectionMeta = {
   id: string;
@@ -14,9 +16,11 @@ export const useLibrarySourceUiState = () => {
     useState<CreateLibraryTab>("public");
   const [sharedCollectionMeta, setSharedCollectionMeta] =
     useState<SharedCollectionMeta>(null);
-  const [createLibraryView, setCreateLibraryView] = useState<"grid" | "list">(
-    "grid",
-  );
+  const [createLibraryView, setCreateLibraryView] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    const stored = window.localStorage.getItem(CREATE_VIEW_STORAGE_KEY);
+    return stored === "list" ? "list" : "grid";
+  });
   const [createLibrarySearch, setCreateLibrarySearch] = useState("");
   const [createLeftTab, setCreateLeftTab] = useState<CreateLeftTab>("library");
   const [playlistUrlDraft, setPlaylistUrlDraft] = useState("");
@@ -34,6 +38,11 @@ export const useLibrarySourceUiState = () => {
     string | null
   >(null);
   const previousCreateLibraryTabRef = useRef<CreateLibraryTab>(createLibraryTab);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CREATE_VIEW_STORAGE_KEY, createLibraryView);
+  }, [createLibraryView]);
 
   return {
     createLibraryTab,

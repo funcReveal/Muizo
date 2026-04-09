@@ -73,8 +73,8 @@ const LibrarySourcePanel = ({
   };
 
   return (
-    <div className="min-w-0 grid gap-2 lg:gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="min-w-0 px-0 py-1 lg:pr-2 lg:pb-2 lg:pl-0 lg:pt-2">
+    <div className="grid min-h-0 min-w-0 gap-2 lg:flex-1 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-3">
+      <aside className="min-w-0 px-0 py-1 lg:flex lg:min-h-0 lg:flex-col lg:pr-2 lg:pb-2 lg:pl-0 lg:pt-2">
         <div className="mb-2 hidden items-center gap-1 lg:mb-0 lg:flex">
           {createLeftTab === "settings" ? (
             <Tooltip title="返回題庫來源" placement="top">
@@ -294,7 +294,7 @@ const LibrarySourcePanel = ({
         ) : null}
       </aside>
 
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 };

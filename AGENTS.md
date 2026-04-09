@@ -19,7 +19,6 @@ Use `pnpm` as the package manager.
 - `pnpm vitest`: Run unit tests when test files are present.
 
 ### Validation Workflow
-- Prefer `pnpm tsc --noEmit` + `pnpm lint` for routine changes.
 - Use `pnpm build` only when you need full production-build verification.
 
 ## Coding Style & Naming Conventions

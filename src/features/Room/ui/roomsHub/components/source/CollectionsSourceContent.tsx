@@ -42,7 +42,6 @@ type CollectionsSourceContentProps = {
   ) => ReactNode;
   collectionsLoading: boolean;
   collectionsLoadingMore: boolean;
-  collectionListHeight: number;
   collectionListRowCount: number;
   collectionListRowHeight: number;
   collectionsHasMore: boolean;
@@ -66,7 +65,6 @@ const CollectionsSourceContent = ({
   renderCollectionCard,
   collectionsLoading,
   collectionsLoadingMore,
-  collectionListHeight,
   collectionListRowCount,
   collectionListRowHeight,
   collectionsHasMore,
@@ -98,12 +96,22 @@ const CollectionsSourceContent = ({
 
   if (shouldShowCollectionSkeleton) {
     return (
-      <div
-        className={createLibraryView === "grid" ? "grid gap-2 sm:grid-cols-2" : "space-y-2"}
-      >
-        {Array.from({
-          length: createLibraryView === "grid" ? 6 : 4,
-        }).map((_, idx) => renderCollectionSkeletonCard(idx, createLibraryView))}
+      <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+        {createLibraryView === "grid" ? (
+          <div className="h-full min-h-0 overflow-y-auto sm:pr-1">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, idx) =>
+                renderCollectionSkeletonCard(idx, "grid"),
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="h-full min-h-0 space-y-2 overflow-hidden">
+            {Array.from({ length: 4 }).map((_, idx) =>
+              renderCollectionSkeletonCard(idx, "list"),
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -141,7 +149,11 @@ const CollectionsSourceContent = ({
         }
         actions={
           isSearchEmpty ? undefined : isPublicTab ? (
-            <Button size="small" variant="text" onClick={handleActivateLinkSource}>
+            <Button
+              size="small"
+              variant="text"
+              onClick={handleActivateLinkSource}
+            >
               改用貼上連結
             </Button>
           ) : (
@@ -153,7 +165,11 @@ const CollectionsSourceContent = ({
               >
                 瀏覽公開題庫
               </Button>
-              <Button size="small" variant="text" onClick={handleActivateLinkSource}>
+              <Button
+                size="small"
+                variant="text"
+                onClick={handleActivateLinkSource}
+              >
                 改用貼上連結
               </Button>
             </>
@@ -164,11 +180,11 @@ const CollectionsSourceContent = ({
   }
 
   return (
-    <div className="rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+    <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
       {createLibraryView === "grid" ? (
         <div
           ref={createLibraryScrollRef}
-          className={`rooms-hub-library-scrollbar max-h-[640px] overflow-y-auto sm:pr-1 ${
+          className={`rooms-hub-library-scrollbar h-full min-h-0 overflow-y-auto sm:pr-1 ${
             isScrollbarVisible ? "is-scrolling" : ""
           }`}
           onScroll={(event) => {
@@ -206,7 +222,7 @@ const CollectionsSourceContent = ({
       ) : (
         <List<VirtualLibraryListRowProps>
           style={{
-            height: collectionListHeight,
+            height: "100%",
             width: "100%",
           }}
           rowCount={collectionListRowCount}

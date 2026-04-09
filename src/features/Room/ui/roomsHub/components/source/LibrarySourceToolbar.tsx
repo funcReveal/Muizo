@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { IconButton, InputAdornment, TextField } from "@mui/material";
 import {
-  AppsRounded,
+  GridViewRounded,
   SearchRounded,
   TuneRounded,
   ViewAgendaRounded,
@@ -42,8 +42,8 @@ const viewToggle = (
       }`}
       onClick={() => setCreateLibraryView("grid")}
     >
-      <AppsRounded sx={{ fontSize: 17 }} />
-    </button>
+        <GridViewRounded sx={{ fontSize: 17 }} />
+      </button>
     <button
       type="button"
       aria-label="切換為清單檢視"

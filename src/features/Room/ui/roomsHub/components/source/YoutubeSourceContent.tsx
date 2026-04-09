@@ -17,7 +17,6 @@ type YoutubeSourceContentProps = {
   handleActivateLinkSource: () => void;
   setCreateLibraryTab: (value: "public") => void;
   createLibraryColumns: number;
-  youtubeListHeight: number;
   youtubeListRowHeight: number;
   renderYoutubeSkeletonCard: (idx: number, view: "grid" | "list") => ReactNode;
   renderYoutubeCard: (
@@ -36,7 +35,6 @@ const YoutubeSourceContent = ({
   handleActivateLinkSource,
   setCreateLibraryTab,
   createLibraryColumns,
-  youtubeListHeight,
   youtubeListRowHeight,
   renderYoutubeSkeletonCard,
   renderYoutubeCard,
@@ -44,14 +42,22 @@ const YoutubeSourceContent = ({
 }: YoutubeSourceContentProps) => {
   if (youtubePlaylistsLoading) {
     return (
-      <div
-        className={
-          createLibraryView === "grid" ? "grid gap-2 sm:grid-cols-2" : "space-y-2"
-        }
-      >
-        {Array.from({
-          length: createLibraryView === "grid" ? 6 : 4,
-        }).map((_, idx) => renderYoutubeSkeletonCard(idx, createLibraryView))}
+      <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+        {createLibraryView === "grid" ? (
+          <div className="h-full min-h-0 overflow-y-auto sm:pr-1">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, idx) =>
+                renderYoutubeSkeletonCard(idx, "grid"),
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="h-full min-h-0 space-y-2 overflow-hidden">
+            {Array.from({ length: 4 }).map((_, idx) =>
+              renderYoutubeSkeletonCard(idx, "list"),
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -101,9 +107,9 @@ const YoutubeSourceContent = ({
   }
 
   return (
-    <div className="rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
+    <div className="h-full min-h-0 rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
       {createLibraryView === "grid" ? (
-        <div className="max-h-[640px] overflow-y-auto sm:pr-1">
+        <div className="h-full min-h-0 overflow-y-auto sm:pr-1">
           <div
             className="grid gap-2"
             style={{
@@ -117,7 +123,7 @@ const YoutubeSourceContent = ({
         </div>
       ) : (
         <List<VirtualLibraryListRowProps>
-          style={{ height: youtubeListHeight, width: "100%" }}
+          style={{ height: "100%", width: "100%" }}
           rowCount={filteredCreateYoutubePlaylists.length}
           rowHeight={youtubeListRowHeight}
           rowProps={{

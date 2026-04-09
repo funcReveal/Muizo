@@ -88,8 +88,8 @@ const PlaylistLinkSourceContent = ({
   PlaylistIssueRow,
 }: PlaylistLinkSourceContentProps) => {
   return (
-    <div className="mt-2 space-y-3 sm:mt-3 sm:space-y-4">
-      <div className="mx-auto max-w-4xl rounded-[22px] border border-transparent bg-transparent p-0 sm:rounded-[26px] sm:border-[var(--mc-border)] sm:bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] sm:p-5">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="rounded-xl border border-transparent bg-transparent p-0 sm:rounded-2xl sm:border-[var(--mc-border)] sm:bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] sm:p-5">
         <div>
           <Tooltip
             title={playlistUrlTooltipMessage}
@@ -97,8 +97,8 @@ const PlaylistLinkSourceContent = ({
             arrow
             open={Boolean(
               isPlaylistUrlFieldFocused &&
-                trimmedPlaylistUrlDraft &&
-                (showPlaylistUrlError || showPlaylistUrlWarning),
+              trimmedPlaylistUrlDraft &&
+              (showPlaylistUrlError || showPlaylistUrlWarning),
             )}
             disableFocusListener
             disableHoverListener
@@ -267,9 +267,9 @@ const PlaylistLinkSourceContent = ({
         </div>
       </div>
 
-      <div className="mx-auto max-w-4xl rounded-[26px] border border-cyan-300/25 bg-slate-950/25 p-4 sm:p-5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-transparent bg-transparent p-0 sm:border-[var(--mc-border)]/70 sm:bg-slate-950/18 sm:p-2">
         {(linkPlaylistTitle || linkPlaylistPreviewItems.length > 0) && (
-          <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/25 px-4 py-3">
+          <div className="shrink-0 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/20 px-3 py-2.5">
             <div className="min-w-0">
               <h3 className="truncate text-lg font-semibold tracking-[0.01em] text-[var(--mc-text)] sm:text-[1.25rem]">
                 {linkPlaylistTitle || "播放清單預覽"}
@@ -304,7 +304,7 @@ const PlaylistLinkSourceContent = ({
         {playlistLoading &&
         canAttemptPlaylistPreview(trimmedPlaylistUrlDraft) &&
         linkPlaylistPreviewItems.length === 0 ? (
-          <div className="mt-3 flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/16 bg-slate-950/15 px-4 text-center">
+          <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-cyan-300/16 bg-slate-950/12 px-3 text-center">
             <CircularProgress
               size={34}
               thickness={4}
@@ -318,19 +318,17 @@ const PlaylistLinkSourceContent = ({
             </p>
           </div>
         ) : linkPlaylistPreviewItems.length > 0 ? (
-          <>
-            <div
-              className={`${linkPlaylistTitle || linkPlaylistPreviewItems.length > 0 ? "mt-3" : ""} rounded-[22px] border border-[var(--mc-border)]/70 bg-slate-950/20`}
-            >
+          <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="shrink-0 rounded-[22px] border border-[var(--mc-border)]/70 bg-slate-950/20">
               <List<PlaylistPreviewRowData>
-                style={{ height: 320, width: "100%" }}
+                style={{ height: 260, width: "100%" }}
                 rowCount={linkPlaylistPreviewItems.length}
                 rowHeight={64}
                 rowProps={{ items: linkPlaylistPreviewItems }}
                 rowComponent={PlaylistPreviewRow as never}
               />
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-3 pb-1">
               {[
                 {
                   title: "隱私限制",
@@ -355,7 +353,7 @@ const PlaylistLinkSourceContent = ({
                 .map((group) => (
                   <div
                     key={group.title}
-                    className={`rounded-2xl border p-3 ${group.tone}`}
+                    className={`rounded-xl border p-2.5 ${group.tone}`}
                   >
                     <p className="text-xs font-semibold">
                       {group.title}：{group.items.length} 首
@@ -378,14 +376,14 @@ const PlaylistLinkSourceContent = ({
                 playlistPreviewMetaSkippedCount > 0 &&
                 !linkPlaylistIssueSummary.exact && (
                   <p className="text-[11px] text-amber-200/90">
-                    後端目前只回傳略過數量，尚未提供逐首明細；待
-                    `skippedItems` 上線後將顯示 100% 精準名單。
+                    後端目前只回傳略過數量，尚未提供逐首明細；待 `skippedItems`
+                    上線後將顯示 100% 精準名單。
                   </p>
                 )}
             </div>
-          </>
+          </div>
         ) : (
-          <div className="mt-3 flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-300/16 bg-slate-950/15 px-4 text-center">
+          <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-cyan-300/16 bg-slate-950/12 px-3 text-center">
             <p className="text-sm text-[var(--mc-text-muted)]">
               貼上連結後，顯示曲目預覽
             </p>

@@ -25,6 +25,8 @@ type UseJoinRoomPanelStateArgs = {
   entryTabStorageKey: string;
 };
 
+const JOIN_VIEW_STORAGE_KEY = "rooms_hub_join_view";
+
 export const useJoinRoomPanelState = ({
   entryTabStorageKey,
 }: UseJoinRoomPanelStateArgs) => {
@@ -45,7 +47,11 @@ export const useJoinRoomPanelState = ({
     useState<RoomSummary | null>(null);
   const [directJoinError, setDirectJoinError] = useState<string | null>(null);
   const [directJoinNeedsPassword, setDirectJoinNeedsPassword] = useState(false);
-  const [joinRoomsView, setJoinRoomsView] = useState<"grid" | "list">("grid");
+  const [joinRoomsView, setJoinRoomsView] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    const stored = window.localStorage.getItem(JOIN_VIEW_STORAGE_KEY);
+    return stored === "list" ? "list" : "grid";
+  });
   const [joinPasswordFilter, setJoinPasswordFilter] = useState<
     "all" | "no_password" | "password_required"
   >("all");
@@ -60,6 +66,11 @@ export const useJoinRoomPanelState = ({
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(entryTabStorageKey, joinEntryTab);
   }, [entryTabStorageKey, joinEntryTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(JOIN_VIEW_STORAGE_KEY, joinRoomsView);
+  }, [joinRoomsView]);
 
   const normalizedDirectRoomCode = normalizeRoomCodeInput(directRoomIdInput);
   const directRoomCodeSlots = useMemo(
