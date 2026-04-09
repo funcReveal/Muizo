@@ -73,7 +73,7 @@ const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 const WaitingJoinDots = React.memo(function WaitingJoinDots() {
   return (
     <span className="game-room-waiting-join">
-      <span>等待玩家加入</span>
+      <span>等待加入</span>
       <span className="game-room-waiting-join__dots" aria-hidden="true">
         <span />
         <span />
@@ -87,6 +87,17 @@ const PlaceholderAvatarIcon = React.memo(function PlaceholderAvatarIcon() {
   return (
     <span className="game-room-score-row-placeholder-avatar" aria-hidden="true">
       <PersonOutlineRoundedIcon sx={{ fontSize: 16 }} />
+    </span>
+  );
+});
+
+const LockedAvatarIcon = React.memo(function LockedAvatarIcon() {
+  return (
+    <span
+      className="game-room-score-row-placeholder-avatar game-room-score-row-placeholder-avatar--locked"
+      aria-hidden="true"
+    >
+      <LockRoundedIcon sx={{ fontSize: 14 }} />
     </span>
   );
 });
@@ -166,7 +177,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
             rank={null}
             combo={player.combo}
             isMe={isMeRow}
-            size={26}
+            size={24}
             effectLevel={avatarEffectLevel}
             className="player-avatar--scoreboard"
           />
@@ -642,16 +653,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                 >
                   <span className="truncate flex items-center gap-2 opacity-35">
                     <span className="game-room-score-row-avatar-wrap">
-                      <PlayerAvatar
-                        username="已鎖定"
-                        clientId={row.key}
-                        size={26}
-                        effectLevel="off"
-                        className="player-avatar--scoreboard player-avatar--scoreboard-placeholder"
-                      />
+                      <LockedAvatarIcon />
                       <span className="game-room-score-row-answer-dot-badge game-room-score-row-answer-dot-badge--locked" />
                     </span>
-                    <LockRoundedIcon sx={{ fontSize: 12 }} />
                     已鎖定
                   </span>
                   <span className="text-[11px] text-slate-600">--</span>

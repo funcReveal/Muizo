@@ -20,7 +20,6 @@ interface GameRoomAnswerPanelProps {
   phaseLabel: string;
   activePhaseDurationMs: number;
   phaseEndsAt: number;
-  phaseRemainingMs: number;
   gamePhase: GameState["phase"];
   startedAt: number;
   choices: GameState["choices"];
@@ -57,6 +56,46 @@ interface GameRoomAnswerPanelProps {
   liveWrongCount: number | null;
   liveUnansweredCount: number | null;
 }
+
+type InlineStatusSegmentTone =
+  | "neutral"
+  | "muted"
+  | "correct"
+  | "wrong"
+  | "answer"
+  | "score"
+  | "accent";
+
+interface InlineStatusSegment {
+  text: string;
+  tone: InlineStatusSegmentTone;
+}
+
+const resolveInlineStatusTone = (text: string): InlineStatusSegmentTone => {
+  if (/^[+-]\d+/.test(text) || text.startsWith("分數")) return "score";
+  if (text.startsWith("答對")) return "correct";
+  if (text.startsWith("答錯")) return "wrong";
+  if (text.startsWith("未作答")) return "muted";
+  if (text.startsWith("正解")) return "answer";
+  if (text.startsWith("全場答對率") || text.startsWith("第")) return "accent";
+  return "neutral";
+};
+
+const splitInlineStatusSegments = (
+  text: string,
+  options?: { omitAnswered?: boolean },
+): InlineStatusSegment[] =>
+  text
+    .split("·")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) =>
+      options?.omitAnswered ? !segment.startsWith("已答 ") : true,
+    )
+    .map((segment) => ({
+      text: segment,
+      tone: resolveInlineStatusTone(segment),
+    }));
 
 const GameRoomStartCountdownDisplay = React.memo(function GameRoomStartCountdownDisplay({
   startedAt,
@@ -202,7 +241,7 @@ const GameRoomPhaseStatusChip = React.memo(function GameRoomPhaseStatusChip({
               : "success"
       }
       variant={allAnsweredReadyForReveal ? "filled" : "outlined"}
-      className={`game-room-chip ${isGuessUrgency ? "game-room-chip--urgent" : ""} ${urgentChipPingActive ? "game-room-chip--urgent-ping" : ""} ${allAnsweredReadyForReveal ? "game-room-chip--ready" : ""}`}
+      className={`game-room-chip ${isNumericCountdownLabel ? "game-room-chip--countdown" : ""} ${isGuessUrgency ? "game-room-chip--urgent" : ""} ${urgentChipPingActive ? "game-room-chip--urgent-ping" : ""} ${allAnsweredReadyForReveal ? "game-room-chip--ready" : ""}`}
     />
   );
 });
@@ -252,7 +291,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   phaseLabel,
   activePhaseDurationMs,
   phaseEndsAt,
-  phaseRemainingMs,
   gamePhase,
   startedAt,
   choices,
@@ -305,6 +343,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     return remainingMs > 0 && remainingMs <= 3000;
   });
   const [urgentChipPingActive, setUrgentChipPingActive] = React.useState(false);
+  const progressBarFillRef = React.useRef<HTMLDivElement>(null);
   const shouldHideDesktopRevealCard = !isMobileView;
   const shouldShowInlinePhaseStatus = !isInitialCountdown;
   const desktopStatusLabel = isReveal
@@ -317,7 +356,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
       ? "已作答"
       : "未作答";
   const desktopStatusPrimary = isReveal
-    ? `正解 ${resolvedAnswerTitle}`.trim()
+    ? ""
     : myFeedback.lines?.[0]?.trim() || myFeedback.detail?.trim() || "";
   const desktopStatusSecondary = isReveal
     ? myFeedback.inlineMeta?.trim() || ""
@@ -328,31 +367,72 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     liveParticipantCount > 0
       ? `已答 ${liveAnsweredCount}/${liveParticipantCount} 人`
       : "";
-  const inlineMetaText =
-    !isReveal && desktopStatusSecondary === inlineAnsweredText
-      ? ""
-      : desktopStatusSecondary;
-  const inlineBreakdownText =
-    liveParticipantCount > 0 &&
-    liveCorrectCount !== null &&
-    liveWrongCount !== null &&
-    liveUnansweredCount !== null
-      ? `答對 ${liveCorrectCount} · 答錯 ${liveWrongCount} · 未作答 ${liveUnansweredCount}`
-      : "";
-  const effectivePhaseDurationMs = Math.max(1, activePhaseDurationMs);
-  const phaseProgressFraction =
-    isInterTrackWait || isInitialCountdown
-      ? 0
-      : allAnsweredReadyForReveal
-        ? 1
-        : Math.max(
-            0,
-            Math.min(
-              1,
-              (effectivePhaseDurationMs - Math.max(0, phaseRemainingMs)) /
-                effectivePhaseDurationMs,
-            ),
-          );
+  const inlineMetaSegments = React.useMemo(() => {
+    if (!desktopStatusSecondary) return [];
+    if (!isReveal && desktopStatusSecondary === inlineAnsweredText) return [];
+    return splitInlineStatusSegments(desktopStatusSecondary, {
+      omitAnswered: true,
+    });
+  }, [desktopStatusSecondary, inlineAnsweredText, isReveal]);
+  const inlineBreakdownSegments = React.useMemo(() => {
+    if (
+      liveParticipantCount <= 0 ||
+      liveCorrectCount === null ||
+      liveWrongCount === null ||
+      liveUnansweredCount === null
+    ) {
+      return [];
+    }
+    return [
+      { text: `答對 ${liveCorrectCount}`, tone: "correct" as const },
+      { text: `答錯 ${liveWrongCount}`, tone: "wrong" as const },
+      { text: `未作答 ${liveUnansweredCount}`, tone: "muted" as const },
+    ];
+  }, [
+    liveCorrectCount,
+    liveParticipantCount,
+    liveUnansweredCount,
+    liveWrongCount,
+  ]);
+
+  React.useLayoutEffect(() => {
+    const fill = progressBarFillRef.current;
+    if (!fill) return;
+    if (isInitialCountdown || isInterTrackWait || activePhaseDurationMs <= 0) {
+      fill.style.transition = "none";
+      fill.style.transform = "scaleX(0)";
+      return;
+    }
+
+    const remainingMs = Math.max(0, phaseEndsAt - getLocalNowMs());
+    const remainingFraction = Math.max(
+      0,
+      Math.min(1, remainingMs / Math.max(1, activePhaseDurationMs)),
+    );
+
+    fill.style.transition = "none";
+    fill.style.transform = `scaleX(${remainingFraction})`;
+    void fill.offsetWidth;
+
+    if (allAnsweredReadyForReveal) {
+      fill.style.transition = "transform 220ms ease-out";
+      fill.style.transform = "scaleX(0)";
+      return;
+    }
+
+    if (remainingMs > 0) {
+      fill.style.transition = `transform ${remainingMs}ms linear`;
+      fill.style.transform = "scaleX(0)";
+    }
+  }, [
+    activePhaseDurationMs,
+    allAnsweredReadyForReveal,
+    getLocalNowMs,
+    isInitialCountdown,
+    isInterTrackWait,
+    phaseEndsAt,
+    trackSessionKey,
+  ]);
 
   React.useEffect(() => {
     if (
@@ -417,7 +497,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     <div
       ref={answerPanelRef}
       className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${isMobileView ? "game-room-answer-panel--mobile" : ""
-        } flex min-h-0 flex-col p-3 text-slate-50 lg:flex-1`}
+        } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col p-3 text-slate-50 lg:flex-1`}
     >
       {isInitialCountdown ? (
         <GameRoomStartCountdownDisplay
@@ -455,7 +535,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                 <p className="game-room-title">
                   {isInterTrackWait ? "下一題準備中" : phaseLabel}
                 </p>
-                {shouldShowInlinePhaseStatus ? (
+                {shouldShowInlinePhaseStatus && !isMobileView ? (
                   <div className="game-room-guess-inline-status">
                     <span
                       className={`game-room-guess-status-pill game-room-guess-status-pill--${myFeedback.tone}`}
@@ -463,25 +543,33 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                       {desktopStatusLabel}
                     </span>
                     {desktopStatusPrimary ? (
-                      <span className="game-room-guess-status-text">
+                      <span
+                        className={`game-room-guess-status-text ${isReveal ? "game-room-guess-status-text--answer" : ""}`}
+                      >
                         {desktopStatusPrimary}
                       </span>
                     ) : null}
-                    {inlineMetaText ? (
-                      <span className="game-room-guess-status-text game-room-guess-status-text--muted">
-                        {inlineMetaText}
-                      </span>
-                    ) : null}
                     {inlineAnsweredText ? (
-                      <span className="game-room-guess-status-text game-room-guess-status-text--muted">
+                      <span className="game-room-guess-status-text game-room-guess-status-text--answered">
                         {inlineAnsweredText}
                       </span>
                     ) : null}
-                    {inlineBreakdownText ? (
-                      <span className="game-room-guess-status-text game-room-guess-status-text--muted">
-                        {inlineBreakdownText}
+                    {inlineMetaSegments.map((segment) => (
+                      <span
+                        key={`meta-${segment.text}`}
+                        className={`game-room-guess-status-text game-room-guess-status-text--${segment.tone}`}
+                      >
+                        {segment.text}
                       </span>
-                    ) : null}
+                    ))}
+                    {inlineBreakdownSegments.map((segment) => (
+                      <span
+                        key={`breakdown-${segment.text}`}
+                        className={`game-room-guess-status-text game-room-guess-status-text--${segment.tone}`}
+                      >
+                        {segment.text}
+                      </span>
+                    ))}
                   </div>
                 ) : null}
               </div>
@@ -504,8 +592,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
               ) : (
                 <div className="game-room-phase-progress-bar">
                   <div
+                    ref={progressBarFillRef}
                     className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
-                    style={{ transform: `scaleX(${phaseProgressFraction})` }}
                   />
                 </div>
               )}
@@ -559,6 +647,12 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                   const comboFocusTierClass = showComboFocusStyle
                     ? `game-room-choice-button--combo-focus-tier-${myComboTier}`
                     : "";
+                  const comboLiveTierClass = showComboFocusStyle
+                    ? `game-room-choice-button--combo-live-tier-${Math.min(
+                      10,
+                      Math.max(1, myComboTier),
+                    )}`
+                    : "";
 
                   return (
                     <div
@@ -603,10 +697,13 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                             ? "game-room-choice-button--selected-live"
                             : ""
                           } ${showComboFocusStyle
-                            ? "game-room-choice-button--combo-focus"
+                            ? "game-room-choice-button--combo-focus game-room-choice-button--combo-live game-room-choice-button--combo-live-active"
                             : ""
                           } ${comboFocusTierClass
                             ? comboFocusTierClass
+                            : ""
+                          } ${comboLiveTierClass
+                            ? comboLiveTierClass
                             : ""
                           } ${isLocked || waitingToStart || shouldShowGestureOverlay
                             ? "pointer-events-none"
