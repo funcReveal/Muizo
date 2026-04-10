@@ -9,7 +9,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import QueueMusicRoundedIcon from "@mui/icons-material/QueueMusicRounded";
 import PlayCircleOutlineRoundedIcon from "@mui/icons-material/PlayCircleOutlineRounded";
 import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
 import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
@@ -1028,9 +1028,9 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
               type="button"
               aria-label="開啟題目清單"
               onClick={() => setDrawerOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-300/36 bg-[linear-gradient(180deg,rgba(8,20,34,0.9),rgba(4,10,22,0.96))] px-3 py-2.5 text-sm font-semibold text-cyan-50 shadow-[0_10px_28px_-18px_rgba(34,211,238,0.72)] backdrop-blur-md transition hover:border-cyan-200/58"
+              className="inline-flex h-10 w-[6.25rem] cursor-pointer items-center justify-center gap-2 rounded-full border border-cyan-300/36 bg-[linear-gradient(180deg,rgba(8,20,34,0.9),rgba(4,10,22,0.96))] px-3 text-sm font-semibold text-cyan-50 shadow-[0_10px_28px_-18px_rgba(34,211,238,0.72)] backdrop-blur-md transition hover:border-cyan-200/58"
             >
-              <MenuRoundedIcon className="text-[1rem]" />
+              <QueueMusicRoundedIcon className="text-[1rem]" />
               {filteredRecaps.length > 0 && (
                 <span className="rounded-full border border-cyan-200/28 bg-cyan-400/14 px-2 py-0.5 text-[10px] font-black tabular-nums text-cyan-100">
                   {selectedRecapFilteredIndex >= 0 ? selectedRecapFilteredIndex + 1 : 1} / {filteredRecaps.length}

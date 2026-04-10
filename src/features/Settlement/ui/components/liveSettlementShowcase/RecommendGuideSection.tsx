@@ -1,5 +1,6 @@
-﻿import React from "react";
-import { IconButton, Popover, Tooltip } from "@mui/material";
+import React from "react";
+import { createPortal } from "react-dom";
+import { Drawer, IconButton, Popover, Tooltip } from "@mui/material";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import ShuffleRoundedIcon from "@mui/icons-material/ShuffleRounded";
 import LocalFireDepartmentRoundedIcon from "@mui/icons-material/LocalFireDepartmentRounded";
@@ -15,6 +16,7 @@ import QueueMusicRoundedIcon from "@mui/icons-material/QueueMusicRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import type { RecommendCategory } from "../../lib/settlementUtils";
 
@@ -224,8 +226,6 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   recommendNavLabels,
   onGoPrevRecommendation,
   onGoNextRecommendation,
-  isMobileCategoryOpen,
-  onToggleMobileCategoryOpen,
   isMobileInsightOpen,
   onToggleMobileInsightOpen,
   isMobileRecommendPanelOpen,
@@ -269,6 +269,297 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
     (previewPlayerState === "paused" ||
       shouldShowPreviewOverlay ||
       !shouldKeepLivePreviewVisible);
+  const [mobileQuestionDrawerOpen, setMobileQuestionDrawerOpen] = React.useState(false);
+  const [mobileCategorySelectOpen, setMobileCategorySelectOpen] = React.useState(false);
+  const allRecommendationCards = React.useMemo(
+    () => CATEGORY_META.flatMap((item) => recommendationCardsByCategory[item.key]),
+    [recommendationCardsByCategory],
+  );
+  const mobileCurrentRecommendationIndex = currentCard
+    ? allRecommendationCards.findIndex((card) => card.recap.key === currentCard.recap.key)
+    : -1;
+  const mobileListProgressLabel =
+    allRecommendationCards.length === 0
+      ? "0 / 0"
+      : `${Math.min(
+        allRecommendationCards.length,
+        Math.max(
+          1,
+          (mobileCurrentRecommendationIndex >= 0
+            ? mobileCurrentRecommendationIndex
+            : safeRecommendIndex) + 1,
+        ),
+      )} / ${allRecommendationCards.length}`;
+
+  React.useEffect(() => {
+    if (!mobileQuestionDrawerOpen) setMobileCategorySelectOpen(false);
+  }, [mobileQuestionDrawerOpen]);
+
+  const renderCategorySelect = () => {
+    const activeMeta = CATEGORY_META.find((item) => item.key === activeRecommendCategory) ?? CATEGORY_META[0];
+    const ActiveIcon = activeMeta.icon;
+    const activeCount = recommendationCardsByCategory[activeRecommendCategory].length;
+
+    return (
+      <div className="relative z-30">
+        <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-slate-400">
+          題型分類
+        </p>
+        <button
+          type="button"
+          aria-expanded={mobileCategorySelectOpen}
+          onClick={() => setMobileCategorySelectOpen((current) => !current)}
+          className={`relative flex min-h-[3rem] w-full cursor-pointer items-center rounded-[18px] border px-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition ${activeCategoryTheme.badgeClass}`}
+        >
+          <span className="inline-flex min-w-0 flex-1 items-center gap-2">
+            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-black/[0.18]">
+              <ActiveIcon className="text-[1rem]" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">
+                {recommendCategoryLabels[activeRecommendCategory]}
+              </span>
+              <span className="mt-0.5 block truncate text-[10px] font-medium text-current/65">
+                {recommendCategoryShortHints[activeRecommendCategory]}
+              </span>
+            </span>
+          </span>
+          <span className="mr-7 shrink-0 rounded-full border border-current/30 px-2 py-0.5 text-[10px] leading-none">
+            {activeCount}
+          </span>
+          <ExpandMoreRoundedIcon className={`pointer-events-none absolute right-3 text-[1.15rem] text-current/80 transition ${mobileCategorySelectOpen ? "rotate-180" : ""}`} />
+        </button>
+        <div
+          className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 overflow-hidden rounded-[18px] border border-slate-600/45 bg-[linear-gradient(180deg,rgba(15,23,42,0.97),rgba(3,7,18,0.99))] shadow-[0_22px_56px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl transition-[opacity,transform] duration-180 ease-out ${
+            mobileCategorySelectOpen ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
+          }`}
+        >
+          <div className="max-h-[13.5rem] overflow-y-auto p-1.5">
+              {CATEGORY_META.map((item) => {
+                const Icon = item.icon;
+                const count = recommendationCardsByCategory[item.key].length;
+                const active = activeRecommendCategory === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    disabled={count <= 0}
+                    onClick={() => {
+                      onActivateCategory(item.key);
+                      setMobileCategorySelectOpen(false);
+                    }}
+                    className={`flex min-h-[3rem] w-full cursor-pointer items-center gap-2 rounded-[14px] px-3 text-left transition ${
+                      active
+                        ? "bg-cyan-400/[0.13] text-cyan-50 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.22)]"
+                        : "text-slate-200 hover:bg-white/[0.06]"
+                    } ${count <= 0 ? "cursor-not-allowed opacity-45" : ""}`}
+                  >
+                    <span className={`inline-flex size-7 shrink-0 items-center justify-center rounded-full ${
+                      active ? "bg-cyan-300/[0.16] text-cyan-100" : "bg-white/[0.05] text-slate-300"
+                    }`}
+                    >
+                      <Icon className="text-[1rem]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{recommendCategoryLabels[item.key]}</span>
+                      <span className="mt-0.5 block truncate text-[10px] font-medium text-slate-400">
+                        {recommendCategoryShortHints[item.key]}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full border border-current/25 px-2 py-0.5 text-[10px] font-semibold leading-none">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRecommendationList = (closeOnSelect = false) => (
+    <div className="space-y-3">
+      {recommendationCards.length === 0 ? (
+        <div className="flex h-full min-h-[240px] items-center justify-center rounded-[22px] border border-dashed border-slate-700/70 bg-slate-950/55 px-4 text-sm text-slate-400">
+          目前沒有可顯示的題目清單。
+        </div>
+      ) : (
+        recommendationCards.map((card, index) => {
+          const isActive = index === safeRecommendIndex;
+          const selectCard = () => {
+            onSelectRecommendation(index);
+            if (closeOnSelect) setMobileQuestionDrawerOpen(false);
+          };
+
+          return (
+            <div
+              key={card.recap.key}
+              role="button"
+              tabIndex={0}
+              className={`block w-full cursor-pointer rounded-[22px] border px-4 py-4 text-left transition ${
+                isActive
+                  ? `${activeCategoryTheme.listActiveClass} shadow-[0_18px_34px_-28px_rgba(16,185,129,0.48)]`
+                  : "border-slate-700/75 bg-slate-950/58 hover:border-slate-500/75"
+              }`}
+              onClick={selectCard}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  selectCard();
+                }
+              }}
+            >
+              <div className="min-w-0 flex flex-col items-start">
+                {card.link?.href ? (
+                  <button
+                    type="button"
+                    className="mq-title-link mq-title-link--list inline-grid max-w-full cursor-pointer text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectRecommendation(index);
+                      if (closeOnSelect) setMobileQuestionDrawerOpen(false);
+                      onOpenCardLink(card);
+                    }}
+                  >
+                    <span className="block truncate">{card.recap.title}</span>
+                  </button>
+                ) : (
+                  <p className="block w-full truncate text-lg font-black leading-snug text-white">
+                    {card.recap.title}
+                  </p>
+                )}
+                {card.link?.authorHref ? (
+                  <a
+                    href={card.link.authorHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-author-href={card.link.authorHref}
+                    className="mq-author-link mq-author-link--subtle mt-2 block w-fit max-w-full text-sm text-slate-300"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                  >
+                    <span className="block truncate">{card.recap.uploader || "未知作者"}</span>
+                  </a>
+                ) : (
+                  <p className="mt-2 block w-full truncate text-sm text-slate-300">
+                    {card.recap.uploader || "未知作者"}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <span className="cursor-default rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-100">
+                    {card.hint}
+                  </span>
+                  <span className="cursor-default rounded-full border border-slate-500/55 bg-slate-800/70 px-2.5 py-1 text-[10.5px] font-semibold text-slate-100">
+                    {card.emphasis}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  const mobileQuestionDrawer =
+    isMobileView && typeof document !== "undefined"
+      ? createPortal(
+        <>
+          <div className="fixed right-1 top-[85dvh] z-[1650] flex -translate-y-1/2 justify-end">
+            <button
+              type="button"
+              aria-label="開啟推薦題目清單"
+              onClick={() => setMobileQuestionDrawerOpen(true)}
+              className="inline-flex h-10 w-[6.25rem] cursor-pointer items-center justify-center gap-2 rounded-full border border-cyan-300/36 bg-[linear-gradient(180deg,rgba(8,20,34,0.9),rgba(4,10,22,0.96))] px-3 text-sm font-semibold text-cyan-50 shadow-[0_10px_28px_-18px_rgba(34,211,238,0.72)] backdrop-blur-md transition hover:border-cyan-200/58"
+            >
+              <QueueMusicRoundedIcon className="text-[1rem]" />
+              <span className="rounded-full border border-cyan-200/28 bg-cyan-400/14 px-2 py-0.5 text-[10px] font-black tabular-nums text-cyan-100">
+                {mobileListProgressLabel}
+              </span>
+            </button>
+          </div>
+          <Drawer
+            anchor="right"
+            open={mobileQuestionDrawerOpen}
+            onClose={() => setMobileQuestionDrawerOpen(false)}
+            PaperProps={{
+              className: "!w-[min(92vw,380px)] !bg-[linear-gradient(180deg,rgba(8,14,26,0.98),rgba(4,8,18,0.99))] !border-l !border-slate-700/25",
+            }}
+            sx={{ zIndex: 1700 }}
+          >
+            <div className="flex h-full flex-col overflow-hidden">
+              <div className="flex shrink-0 items-center justify-between px-4 pb-2 pt-3">
+                <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white">
+                  <QueueMusicRoundedIcon className="text-[1rem] text-cyan-200" />
+                  題目清單
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-300">
+                    {mobileListProgressLabel}
+                  </span>
+                </span>
+                <IconButton size="small" onClick={() => setMobileQuestionDrawerOpen(false)} className="!text-slate-300">
+                  <CloseRoundedIcon fontSize="small" />
+                </IconButton>
+              </div>
+              <div className="shrink-0 border-b border-white/7 px-4 pb-3 pt-1">
+                {renderCategorySelect()}
+              </div>
+              <div className="shrink-0 border-b border-white/7 px-4 py-3">
+                <div className="grid grid-cols-[74px_minmax(0,1fr)_74px] items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-2 py-2 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    onClick={onGoPrevReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    上一位
+                  </button>
+                  <div className="min-w-0 px-1 text-center">
+                    <GroupsRoundedIcon className="text-[1rem] text-cyan-200" />
+                    <p className="mt-1 truncate text-[12px] font-semibold text-sky-100">
+                      {selectedReviewParticipantLabel}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-2 py-2 text-[11px] font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    onClick={onGoNextReviewParticipant}
+                    disabled={!canCycleReviewParticipants}
+                  >
+                    下一位
+                  </button>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                {renderRecommendationList(true)}
+              </div>
+              <div className="shrink-0 border-t border-white/7 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    onClick={onGoPrevRecommendation}
+                    disabled={!canNavigateRecommendations}
+                  >
+                    {recommendNavLabels.prev}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-slate-600/70 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                    onClick={onGoNextRecommendation}
+                    disabled={!canNavigateRecommendations}
+                  >
+                    {recommendNavLabels.next}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Drawer>
+        </>,
+        document.body,
+      )
+      : null;
 
   return (
     <section
@@ -279,6 +570,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
           : "rounded-[22px] border p-3 lg:p-3.5"
       } ${isMobileView ? "" : activeCategoryTheme.shellClass}`}
     >
+      {mobileQuestionDrawer}
       {isMobileView ? (
         <div>
           <div className="flex items-start justify-between gap-3">
@@ -378,60 +670,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
         自動播放預覽，並在倒數結束後切換到下一首推薦歌曲。
       </Popover>
 
-      {isMobileView ? (
-        <div className="mt-4 rounded-[20px] border border-white/8 bg-black/14">
-          <button
-            type="button"
-            onClick={onToggleMobileCategoryOpen}
-            className="inline-flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left"
-          >
-            <span className="inline-flex items-center gap-2 text-sm font-semibold text-white">
-              <BoltRoundedIcon className="text-[1rem] text-cyan-200" />
-              題型分類
-            </span>
-            <ExpandMoreRoundedIcon
-              className={`text-slate-300 transition ${isMobileCategoryOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          <div
-            className={`overflow-hidden transition-[grid-template-rows,opacity] duration-300 ${
-              isMobileCategoryOpen ? "grid grid-rows-[1fr] opacity-100" : "grid grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            <div className="min-h-0 overflow-hidden px-3 pb-3">
-              <div className="grid grid-cols-2 gap-2">
-                {CATEGORY_META.map((item) => {
-                  const Icon = item.icon;
-                  const active = activeRecommendCategory === item.key;
-                  const count = recommendationCardsByCategory[item.key].length;
-
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      className={`inline-flex w-full items-center justify-between rounded-[18px] border px-3 py-3 text-xs font-semibold transition ${
-                        active
-                          ? activeCategoryTheme.badgeClass
-                          : "border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"
-                      } ${count <= 0 ? "cursor-not-allowed opacity-45" : "cursor-pointer"}`}
-                      onClick={() => onActivateCategory(item.key)}
-                      disabled={count <= 0}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Icon className="text-[1rem]" />
-                        <span>{recommendCategoryLabels[item.key]}</span>
-                      </span>
-                      <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] leading-none">
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
+      {!isMobileView && (
         <div className="mt-4 flex flex-wrap gap-2">
           {CATEGORY_META.map((item) => {
             const Icon = item.icon;
@@ -826,7 +1065,7 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
           </article>
 
           <aside
-            className={`flex min-w-0 flex-col ${isMobileView ? "h-auto overflow-visible rounded-none border-0 bg-transparent p-0" : "h-[820px] overflow-hidden rounded-[28px] border bg-[linear-gradient(180deg,rgba(7,15,28,0.96),rgba(5,10,18,0.99))] p-4"} transition-colors duration-300 ${isMobileView ? "" : activeCategoryTheme.asideClass}`}
+            className={`min-w-0 flex-col ${isMobileView ? "hidden" : "flex h-[820px] overflow-hidden rounded-[28px] border bg-[linear-gradient(180deg,rgba(7,15,28,0.96),rgba(5,10,18,0.99))] p-4"} transition-colors duration-300 ${isMobileView ? "" : activeCategoryTheme.asideClass}`}
           >
             {isMobileView ? (
               <>
@@ -1138,4 +1377,3 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
 };
 
 export default React.memo(RecommendGuideSection);
-
