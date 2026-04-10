@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "./constants";
 import { trackGaPageView } from "./ga";
-
-const LAST_NON_ROOM_ROUTE_STORAGE_KEY = "muizo:last-non-room-route";
 
 const normalizePathname = (pathname: string) => {
   if (/^\/rooms\/[^/]+$/.test(pathname)) {
@@ -29,10 +28,9 @@ const AnalyticsPageTracker = () => {
     if (!isRoomDetailRoute) {
       window.sessionStorage.setItem(LAST_NON_ROOM_ROUTE_STORAGE_KEY, rawPath);
     }
-  }, [location.pathname]);
+  }, [location.hash, location.pathname, location.search]);
 
   return null;
 };
 
 export default AnalyticsPageTracker;
-export { LAST_NON_ROOM_ROUTE_STORAGE_KEY };

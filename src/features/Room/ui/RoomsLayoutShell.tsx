@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Button,
@@ -6,7 +6,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Snackbar,
   useMediaQuery,
 } from "@mui/material";
 
@@ -18,6 +17,7 @@ import { useRoomGame } from "../model/RoomGameContext";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import SettingsPage from "../../Setting/ui/SettingsPage";
 import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
+import { appToast } from "../../../shared/ui/toastApi";
 
 type NavigationTarget = "rooms" | "collections" | "history" | "settings";
 
@@ -247,13 +247,20 @@ const RoomsLayoutShell: React.FC = () => {
       setStatusText("已離開房間，前往服務條款");
     });
   }, [currentRoom, handleLeaveRoom, navigate, setStatusText]);
-  const handleStatusClose = useCallback(
-    (_event: Event | React.SyntheticEvent, reason?: string) => {
-      if (reason === "clickaway") return;
-      setStatusText(null);
-    },
-    [setStatusText],
-  );
+  const lastStatusToastRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!statusText) {
+      lastStatusToastRef.current = null;
+      return;
+    }
+    if (lastStatusToastRef.current === statusText) {
+      return;
+    }
+    lastStatusToastRef.current = statusText;
+    appToast.info(statusText);
+    setStatusText(null);
+  }, [setStatusText, statusText]);
 
   const isGameMode = Boolean(currentRoom && gameState);
   const isRoomsHubPage = location.pathname === "/" || location.pathname === "/rooms";
@@ -342,14 +349,6 @@ const RoomsLayoutShell: React.FC = () => {
             服務條款
           </button>
         </footer>
-        <Snackbar
-          key={statusText ?? "status-empty"}
-          message={statusText ? `Status: ${statusText}` : ""}
-          open={Boolean(statusText)}
-          autoHideDuration={4000}
-          onClose={handleStatusClose}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        />
         <ConfirmDialog
           open={loginConfirmOpen}
           title={loginConfirmText.title}
@@ -463,3 +462,6 @@ const RoomsLayoutShell: React.FC = () => {
 };
 
 export default RoomsLayoutShell;
+
+
+

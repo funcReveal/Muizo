@@ -29,6 +29,7 @@ import {
   MAX_PRIVATE_COLLECTIONS_PER_USER,
   resolveCollectionItemLimit,
 } from "../model/collectionLimits";
+import { appToast } from "../../../shared/ui/toastApi";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -196,6 +197,10 @@ const CollectionsCreatePage = () => {
     0,
     MAX_PRIVATE_COLLECTIONS_PER_USER - privateCollectionsCount,
   );
+  const reachedCollectionLimit =
+    !isAdmin && collections.length >= MAX_COLLECTIONS_PER_USER;
+  const reachedPrivateCollectionLimit =
+    !isAdmin && privateCollectionsCount >= MAX_PRIVATE_COLLECTIONS_PER_USER;
   const collectionItemLimit = resolveCollectionItemLimit({
     role: authUser?.role,
     plan: authUser?.plan,
@@ -240,6 +245,11 @@ const CollectionsCreatePage = () => {
   useEffect(() => {
     setTitleDraft(collectionTitle);
   }, [collectionTitle]);
+
+  useEffect(() => {
+    if (!reachedPrivateCollectionLimit) return;
+    setVisibility((current) => (current === "private" ? "public" : current));
+  }, [reachedPrivateCollectionLimit]);
 
   useEffect(() => {
     if (!isTitleEditing) return;
@@ -428,6 +438,17 @@ const CollectionsCreatePage = () => {
     lastAutoImportUrlRef.current = "";
   };
 
+  const handleVisibilityChange = (nextVisibility: "private" | "public") => {
+    if (nextVisibility === "private" && reachedPrivateCollectionLimit) {
+      appToast.warning(
+        `私人收藏最多只能建立 ${MAX_PRIVATE_COLLECTIONS_PER_USER} 個，請改為公開收藏或先整理現有私人收藏。`,
+        { id: "private-collection-limit" },
+      );
+      return;
+    }
+    setVisibility(nextVisibility);
+  };
+
   const handleCreateCollection = async () => {
     if (!API_URL) {
       setCreateError("尚未設定收藏 API 位址（VITE_API_URL）");
@@ -443,6 +464,18 @@ const CollectionsCreatePage = () => {
     }
     if (!hasPlaylistItems) {
       setCreateError("請先匯入播放清單");
+      return;
+    }
+    if (reachedCollectionLimit) {
+      setCreateError(
+        `你目前最多只能建立 ${MAX_COLLECTIONS_PER_USER} 個收藏庫，請先刪除或整理現有收藏。`,
+      );
+      return;
+    }
+    if (visibility === "private" && reachedPrivateCollectionLimit) {
+      setCreateError(
+        `私人收藏最多只能建立 ${MAX_PRIVATE_COLLECTIONS_PER_USER} 個，請改為公開收藏或先整理現有私人收藏。`,
+      );
       return;
     }
     if (
@@ -590,10 +623,7 @@ const CollectionsCreatePage = () => {
 
   return (
     <Box className="mx-auto w-full max-w-6xl px-4 pb-6 pt-4">
-      <Box className="relative overflow-hidden p-5 text-[var(--mc-text)] shadow-[0_30px_70px_-50px_rgba(15,23,42,0.8)]">
-        <div className="absolute inset-0 opacity-30">
-          <div className="h-full w-full bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_60%)]" />
-        </div>
+      <Box className="relative overflow-hidden p-5 text-[var(--mc-text)]">
         {isCreating && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(2,6,23,0.72)] backdrop-blur-md">
             <div className="w-full max-w-md rounded-[28px] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.96),rgba(10,18,32,0.9))] p-6 shadow-[0_32px_120px_-48px_rgba(34,211,238,0.5)]">
@@ -665,7 +695,12 @@ const CollectionsCreatePage = () => {
             <Button
               variant="contained"
               onClick={() => handleCreateCollection()}
-              disabled={isCreating || authLoading || !authToken}
+              disabled={
+                isCreating ||
+                authLoading ||
+                !authToken ||
+                reachedCollectionLimit
+              }
               size="small"
               className="shrink-0"
             >
@@ -920,10 +955,7 @@ const CollectionsCreatePage = () => {
               <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs text-[var(--mc-text-muted)]">
-                      可見性
-                    </div>
-                    <div className="mt-1 text-sm font-semibold text-[var(--mc-text)]">
+                    <div className="text-sm font-semibold text-[var(--mc-text)]">
                       {visibility === "public" ? "公開收藏" : "私人收藏"}
                     </div>
                   </div>
@@ -932,7 +964,7 @@ const CollectionsCreatePage = () => {
                       size="small"
                       checked={visibility === "public"}
                       onChange={(_, checked) =>
-                        setVisibility(checked ? "public" : "private")
+                        handleVisibilityChange(checked ? "public" : "private")
                       }
                       inputProps={{
                         "aria-label": "切換收藏庫可見性",
@@ -978,21 +1010,32 @@ const CollectionsCreatePage = () => {
                     />
                   </Tooltip>
                 </div>
-                <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                <div className="mt-2 text-[12px] text-[var(--mc-text-muted)]">
                   私人收藏僅自己可見，公開收藏可讓其他玩家瀏覽與使用
                 </div>
                 {!isAdmin && (
                   <>
-                    <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+                    <div className="mt-2 text-[12px] text-[var(--mc-text-muted)]">
                       目前已建立 {collections.length} /{" "}
                       {MAX_COLLECTIONS_PER_USER} 個收藏庫，還能再建立{" "}
                       {remainingCollectionSlots} 個。
                     </div>
-                    <div className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+                    <div className="mt-1 text-[12px] text-[var(--mc-text-muted)]">
                       私人收藏目前 {privateCollectionsCount} /{" "}
                       {MAX_PRIVATE_COLLECTIONS_PER_USER} 個，還能再建立{" "}
                       {remainingPrivateCollectionSlots} 個。
                     </div>
+                    {reachedCollectionLimit && (
+                      <div className="mt-2 rounded-lg border border-amber-400/35 bg-amber-950/35 px-2.5 py-2 text-[12px] text-amber-200">
+                        已達收藏庫建立上限，請先整理現有收藏後再建立新的收藏庫。
+                      </div>
+                    )}
+                    {!reachedCollectionLimit &&
+                      reachedPrivateCollectionLimit && (
+                        <div className="mt-2 rounded-lg border border-amber-400/35 bg-amber-950/35 px-2.5 py-2 text-[12px] text-amber-200">
+                          私人收藏已達上限，目前只能建立公開收藏。
+                        </div>
+                      )}
                   </>
                 )}
               </div>

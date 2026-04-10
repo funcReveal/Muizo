@@ -4,6 +4,7 @@ import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 
 import { RoomProvider } from "../features/Room/model/RoomProvider";
 import { SettingsProvider } from "../features/Setting/model/settingsModel";
+import { AppToaster } from "../shared/ui/toast";
 
 const queryClient = new QueryClient();
 
@@ -29,7 +30,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <SettingsProvider>
-          <RoomProvider>{children}</RoomProvider>
+          <RoomProvider>
+            {children}
+            <AppToaster />
+          </RoomProvider>
         </SettingsProvider>
       </QueryClientProvider>
     </ThemeProvider>

@@ -475,8 +475,7 @@ export const useRoomPlaylist = ({
     setLastFetchedPlaylistId(null);
     setLastFetchedPlaylistTitle(null);
     onResetCollection();
-    setStatusText("已重置來源，請重新選擇");
-  }, [onResetCollection, setStatusText]);
+  }, [onResetCollection]);
 
   const applyPlaylistSource = (
     items: PlaylistItem[],
