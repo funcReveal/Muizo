@@ -400,9 +400,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     );
   }, []);
   const handleCloseMobileScoreboard = useCallback(() => {
-    if (mobileScoreboardAutoOpenedRef.current) {
-      setMobileRevealAutoOverlayEnabled(false);
-    }
     mobileScoreboardAutoOpenedRef.current = false;
     blurActiveInteractiveElement();
     setMobileScoreboardSwapArmed(false);
@@ -651,6 +648,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const {
     audioUnlocked,
     isPlayerReady,
+    playerVideoId,
     iframeRef,
     silentAudioRef,
     handleGestureOverlayTrigger,
@@ -880,12 +878,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     onSubmitChoice: submitChoiceWithFeedback,
   });
 
+  const effectivePlayerVideoId =
+    trackCursor === 0 ? videoId : playerVideoId ?? videoId;
   const iframeSrc = useMemo(
     () =>
-      videoId
-        ? `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&controls=0&fs=0&disablekb=1&modestbranding=1&iv_load_policy=3&enablejsapi=1&rel=0&playsinline=1`
+      effectivePlayerVideoId
+        ? `https://www.youtube-nocookie.com/embed/${effectivePlayerVideoId}?autoplay=0&controls=0&fs=0&disablekb=1&modestbranding=1&iv_load_policy=3&enablejsapi=1&rel=0&playsinline=1`
         : null,
-    [videoId],
+    [effectivePlayerVideoId],
   );
 
   const phaseLabel = isEnded
