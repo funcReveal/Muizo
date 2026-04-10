@@ -759,18 +759,18 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
     return messages[messages.length - 1]?.timestamp;
   }, [endedAt, messages]);
   const settlementTimeChipLabel = useMemo(() => {
-  if (
-    typeof startedAt === "number" &&
-    Number.isFinite(startedAt) &&
-    startedAt > 0
-  ) {
-    return `開始於 ${new Date(startedAt).toLocaleString()}`;
-  }
-  if (gameEndTime) {
-    return `結束於 ${new Date(gameEndTime).toLocaleString()}`;
-  }
-  return null;
-}, [gameEndTime, startedAt]);
+    if (
+      typeof startedAt === "number" &&
+      Number.isFinite(startedAt) &&
+      startedAt > 0
+    ) {
+      return `開始於 ${new Date(startedAt).toLocaleString()}`;
+    }
+    if (gameEndTime) {
+      return `結束於 ${new Date(gameEndTime).toLocaleString()}`;
+    }
+    return null;
+  }, [gameEndTime, startedAt]);
 
   const settlementStartGuard = useUpcomingStartGuard(upcomingGameStartAt, nowMs);
   const animatedPreviewCountdownSec = useAnimatedCountdownSeconds(
@@ -779,8 +779,8 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   );
   const displayedPreviewCountdownSec =
     canAutoGuideLoop &&
-    previewPlaybackMode === "auto" &&
-    pausedCountdownRemainingMs === null
+      previewPlaybackMode === "auto" &&
+      pausedCountdownRemainingMs === null
       ? animatedPreviewCountdownSec
       : previewCountdownSec;
 
@@ -869,9 +869,9 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
         previewPlaybackMode === "auto" && autoAdvanceAtMs !== null
           ? Math.max(0, autoAdvanceAtMs - Date.now())
           : Math.max(
-              0,
-              pausedCountdownRemainingMs ?? RECOMMEND_PREVIEW_SECONDS * 1000,
-            );
+            0,
+            pausedCountdownRemainingMs ?? RECOMMEND_PREVIEW_SECONDS * 1000,
+          );
       setPreviewPlaybackMode(
         previewPlaybackMode === "auto" ? "auto" : "manual",
       );
@@ -1067,23 +1067,25 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   }, [activeTab, autoPreviewEnabled, startAutoGuideFromPreferredCategory, recommendCategory, activateRecommendationCategory, resetRecommendPreviewState]);
 
   const goNextStep = useCallback(() => {
-    if (stepIndex < TAB_ORDER.length - 1) {
-      goToTab(TAB_ORDER[stepIndex + 1]);
+    if (stepIndex < effectiveTabOrder.length - 1) {
+      goToTab(effectiveTabOrder[stepIndex + 1]);
       return;
     }
+
     if (onBackToLobby) {
       onBackToLobby();
       return;
     }
+
     if (onRequestExit) {
       setExitConfirmOpen(true);
     }
-  }, [stepIndex, goToTab, onBackToLobby, onRequestExit]);
+  }, [stepIndex, effectiveTabOrder, goToTab, onBackToLobby, onRequestExit]);
 
   const goPrevStep = useCallback(() => {
     if (stepIndex <= 0) return;
-    goToTab(TAB_ORDER[stepIndex - 1]);
-  }, [stepIndex, goToTab]);
+    goToTab(effectiveTabOrder[stepIndex - 1]);
+  }, [stepIndex, effectiveTabOrder, goToTab]);
 
   const openExitConfirm = useCallback(() => {
     exitConfirmLockedRef.current = false;
@@ -1176,15 +1178,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
   return (
     <div
-      className={`game-settlement-mobile-shell mx-auto w-full max-w-[1456px] min-w-0 px-0 pb-20 lg:pb-4 ${
-        isMobileSettlementViewport ? "game-settlement-mobile-shell--immersive" : ""
-      }`}
+      className={`game-settlement-mobile-shell mx-auto w-full max-w-[1456px] min-w-0 px-0 pb-20 lg:pb-4 ${isMobileSettlementViewport ? "game-settlement-mobile-shell--immersive" : ""
+        }`}
     >
       <section
         ref={settlementStageRef}
-        className={`game-settlement-mobile-stage relative min-w-0 px-0 py-2 sm:py-3 ${
-          isMobileSettlementViewport ? "game-settlement-mobile-stage--immersive" : ""
-        }`}
+        className={`game-settlement-mobile-stage relative min-w-0 px-0 py-2 sm:py-3 ${isMobileSettlementViewport ? "game-settlement-mobile-stage--immersive" : ""
+          }`}
       >
         <div className="relative space-y-4">
           <SettlementStageHeader
@@ -1215,11 +1215,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
           >
             {settlementStartGuard.isPending && (
               <div
-                className={`rounded-xl border px-3 py-2 text-sm ${
-                  settlementStartGuard.warnMode
-                    ? "border-rose-300/55 bg-rose-500/18 text-rose-50"
-                    : "border-sky-300/45 bg-sky-500/15 text-sky-50"
-                }`}
+                className={`rounded-xl border px-3 py-2 text-sm ${settlementStartGuard.warnMode
+                  ? "border-rose-300/55 bg-rose-500/18 text-rose-50"
+                  : "border-sky-300/45 bg-sky-500/15 text-sky-50"
+                  }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold">
@@ -1262,110 +1261,109 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
 
             {activeTab === "recommend" && (
               <>
-              <RecommendGuideSection
-                isMobileView={isMobileSettlementViewport}
-                recommendSectionRef={recommendSectionRef}
-                activeCategoryTheme={activeCategoryTheme}
-                activeRecommendCategory={activeRecommendCategory}
-                recommendCategoryLabels={RECOMMEND_CATEGORY_LABELS}
-                recommendCategoryShortHints={RECOMMEND_CATEGORY_SHORT_HINT}
-                recommendationCardsByCategory={recommendationCardsByCategory}
-                onActivateCategory={activateRecommendationCategory}
-                autoPreviewEnabled={autoPreviewEnabled}
-                onToggleAutoPreview={handleToggleAutoPreview}
-                currentRecommendation={currentRecommendation}
-                hasCurrentRecommendationLink={Boolean(currentRecommendationLink)}
-                recommendationTransitionKey={recommendationTransitionKey}
-                onOpenRecommendationTitle={handleOpenRecommendationTitle}
-                isCurrentRecommendationFastest={isCurrentRecommendationFastest}
-                reviewStatusBadgeBaseClass={REVIEW_STATUS_BADGE_BASE}
-                currentRecommendationResultTone={currentRecommendationResultTone}
-                showCurrentRecommendationRankBadge={showCurrentRecommendationRankBadge}
-                currentRecommendationCorrectRank={currentRecommendationCorrectRank}
-                isCurrentRecommendationFirstCorrect={isCurrentRecommendationFirstCorrect}
-                isCurrentRecommendationGlobalFastest={
-                  isCurrentRecommendationGlobalFastest
-                }
-                currentRecommendationGradeBadgeClass={
-                  currentRecommendationGradeMeta?.badgeClass ?? null
-                }
-                currentRecommendationGradeLabel={
-                  currentRecommendationRating?.grade ?? null
-                }
-                hasCurrentRecommendationSpeedDelta={hasCurrentRecommendationSpeedDelta}
-                currentRecommendationSpeedValue={currentRecommendationSpeedInsight.value}
-                currentRecommendationSpeedNote={currentRecommendationSpeedInsight.note}
-                currentRecommendationAverageCorrectMs={
-                  currentRecommendationAverageCorrectMs
-                }
-                formatMs={formatMs}
-                currentRecommendationFastestBadgeText={
-                  currentRecommendationFastestBadgeText
-                }
-                currentRecommendationFastestCorrectMeta={
-                  currentRecommendationFastestCorrectMeta
-                }
-                canAutoGuideLoop={canAutoGuideLoop}
-                previewCountdownSec={
-                  displayedPreviewCountdownSec
-                }
-                previewSwitchNotice={previewSwitchNotice}
-                recommendPreviewStageRef={recommendPreviewStageRef}
-                isCurrentRecommendationPreviewOpen={isCurrentRecommendationPreviewOpen}
-                previewPlayerState={previewPlayerState}
-                currentRecommendationPreviewUrl={currentRecommendationPreviewUrl}
-                previewIframeRef={previewIframeRef}
-                onPreviewIframeLoad={handleRecommendPreviewIframeLoad}
-                shouldShowPreviewOverlay={shouldShowPreviewOverlay}
-                onPreviewSurfaceClick={handlePreviewSurfaceClick}
-                recommendationCards={recommendationCards}
-                selectedReviewParticipantLabel={
-                  selectedReviewParticipant
-                    ? `#${selectedReviewParticipantRank} ${selectedReviewParticipant.username}${
-                        meClientId &&
-                        selectedReviewParticipant.clientId === meClientId
-                          ? "（你）"
-                          : ""
-                      }`
-                    : "未選擇玩家"
-                }
-                canCycleReviewParticipants={sortedParticipants.length > 1}
-                onGoPrevReviewParticipant={goPrevReviewParticipant}
-                onGoNextReviewParticipant={goNextReviewParticipant}
-                safeRecommendIndex={safeRecommendIndex}
-                onSelectRecommendation={handleSelectRecommendationByIndex}
-                onOpenCardLink={handleOpenRecommendationCardLink}
-                canNavigateRecommendations={canNavigateRecommendations}
-                recommendNavLabels={recommendNavLabels}
-                onGoPrevRecommendation={goPrevRecommendation}
-                onGoNextRecommendation={goNextRecommendation}
-                isMobileCategoryOpen={isMobileRecommendCategoryOpen}
-                onToggleMobileCategoryOpen={() =>
-                  setIsMobileRecommendCategoryOpen((current) => !current)
-                }
-                isMobileInsightOpen={isMobileRecommendInsightOpen}
-                onToggleMobileInsightOpen={() =>
-                  setIsMobileRecommendInsightOpen((current) => !current)
-                }
-                isMobileRecommendPanelOpen={isMobileRecommendPanelOpen}
-                onToggleMobileRecommendPanelOpen={() =>
-                  setIsMobileRecommendPanelOpen((current) => !current)
-                }
-                previewVolume={effectivePreviewVolume}
-                onPreviewVolumeChange={(next) => {
-                  if (settlementPreviewSyncGameVolume) {
-                    setGameVolume(next);
-                    return;
+                <RecommendGuideSection
+                  isMobileView={isMobileSettlementViewport}
+                  recommendSectionRef={recommendSectionRef}
+                  activeCategoryTheme={activeCategoryTheme}
+                  activeRecommendCategory={activeRecommendCategory}
+                  recommendCategoryLabels={RECOMMEND_CATEGORY_LABELS}
+                  recommendCategoryShortHints={RECOMMEND_CATEGORY_SHORT_HINT}
+                  recommendationCardsByCategory={recommendationCardsByCategory}
+                  onActivateCategory={activateRecommendationCategory}
+                  autoPreviewEnabled={autoPreviewEnabled}
+                  onToggleAutoPreview={handleToggleAutoPreview}
+                  currentRecommendation={currentRecommendation}
+                  hasCurrentRecommendationLink={Boolean(currentRecommendationLink)}
+                  recommendationTransitionKey={recommendationTransitionKey}
+                  onOpenRecommendationTitle={handleOpenRecommendationTitle}
+                  isCurrentRecommendationFastest={isCurrentRecommendationFastest}
+                  reviewStatusBadgeBaseClass={REVIEW_STATUS_BADGE_BASE}
+                  currentRecommendationResultTone={currentRecommendationResultTone}
+                  showCurrentRecommendationRankBadge={showCurrentRecommendationRankBadge}
+                  currentRecommendationCorrectRank={currentRecommendationCorrectRank}
+                  isCurrentRecommendationFirstCorrect={isCurrentRecommendationFirstCorrect}
+                  isCurrentRecommendationGlobalFastest={
+                    isCurrentRecommendationGlobalFastest
                   }
-                  setSettlementPreviewVolume(next);
-                }}
-              />
+                  currentRecommendationGradeBadgeClass={
+                    currentRecommendationGradeMeta?.badgeClass ?? null
+                  }
+                  currentRecommendationGradeLabel={
+                    currentRecommendationRating?.grade ?? null
+                  }
+                  hasCurrentRecommendationSpeedDelta={hasCurrentRecommendationSpeedDelta}
+                  currentRecommendationSpeedValue={currentRecommendationSpeedInsight.value}
+                  currentRecommendationSpeedNote={currentRecommendationSpeedInsight.note}
+                  currentRecommendationAverageCorrectMs={
+                    currentRecommendationAverageCorrectMs
+                  }
+                  formatMs={formatMs}
+                  currentRecommendationFastestBadgeText={
+                    currentRecommendationFastestBadgeText
+                  }
+                  currentRecommendationFastestCorrectMeta={
+                    currentRecommendationFastestCorrectMeta
+                  }
+                  canAutoGuideLoop={canAutoGuideLoop}
+                  previewCountdownSec={
+                    displayedPreviewCountdownSec
+                  }
+                  previewSwitchNotice={previewSwitchNotice}
+                  recommendPreviewStageRef={recommendPreviewStageRef}
+                  isCurrentRecommendationPreviewOpen={isCurrentRecommendationPreviewOpen}
+                  previewPlayerState={previewPlayerState}
+                  currentRecommendationPreviewUrl={currentRecommendationPreviewUrl}
+                  previewIframeRef={previewIframeRef}
+                  onPreviewIframeLoad={handleRecommendPreviewIframeLoad}
+                  shouldShowPreviewOverlay={shouldShowPreviewOverlay}
+                  onPreviewSurfaceClick={handlePreviewSurfaceClick}
+                  recommendationCards={recommendationCards}
+                  selectedReviewParticipantLabel={
+                    selectedReviewParticipant
+                      ? `#${selectedReviewParticipantRank} ${selectedReviewParticipant.username}${meClientId &&
+                        selectedReviewParticipant.clientId === meClientId
+                        ? "（你）"
+                        : ""
+                      }`
+                      : "未選擇玩家"
+                  }
+                  canCycleReviewParticipants={sortedParticipants.length > 1}
+                  onGoPrevReviewParticipant={goPrevReviewParticipant}
+                  onGoNextReviewParticipant={goNextReviewParticipant}
+                  safeRecommendIndex={safeRecommendIndex}
+                  onSelectRecommendation={handleSelectRecommendationByIndex}
+                  onOpenCardLink={handleOpenRecommendationCardLink}
+                  canNavigateRecommendations={canNavigateRecommendations}
+                  recommendNavLabels={recommendNavLabels}
+                  onGoPrevRecommendation={goPrevRecommendation}
+                  onGoNextRecommendation={goNextRecommendation}
+                  isMobileCategoryOpen={isMobileRecommendCategoryOpen}
+                  onToggleMobileCategoryOpen={() =>
+                    setIsMobileRecommendCategoryOpen((current) => !current)
+                  }
+                  isMobileInsightOpen={isMobileRecommendInsightOpen}
+                  onToggleMobileInsightOpen={() =>
+                    setIsMobileRecommendInsightOpen((current) => !current)
+                  }
+                  isMobileRecommendPanelOpen={isMobileRecommendPanelOpen}
+                  onToggleMobileRecommendPanelOpen={() =>
+                    setIsMobileRecommendPanelOpen((current) => !current)
+                  }
+                  previewVolume={effectivePreviewVolume}
+                  onPreviewVolumeChange={(next) => {
+                    if (settlementPreviewSyncGameVolume) {
+                      setGameVolume(next);
+                      return;
+                    }
+                    setSettlementPreviewVolume(next);
+                  }}
+                />
               </>
             )}
 
             {(activeTab === "review" || (!isMobileSettlementViewport && activeTab === "recommend")) && (
-                <ReviewRecapSection
-                  isMobileView={isMobileSettlementViewport}
+              <ReviewRecapSection
+                isMobileView={isMobileSettlementViewport}
                 activeCategoryTheme={activeCategoryTheme}
                 reviewRecapSummary={reviewRecapSummary}
                 sortedParticipants={sortedParticipants}
