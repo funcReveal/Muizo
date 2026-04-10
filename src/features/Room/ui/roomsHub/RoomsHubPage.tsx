@@ -1,4 +1,11 @@
-﻿import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
+﻿import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type UIEvent,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, TextField, useMediaQuery } from "@mui/material";
 import {
@@ -15,6 +22,10 @@ import { useRoomCollections } from "../../model/RoomCollectionsContext";
 import { useRoomPlaylist } from "../../model/RoomPlaylistContext";
 import { useRoomGame } from "../../model/RoomGameContext";
 import { useSitePresence } from "../../model/SitePresenceContext";
+import {
+  DEFAULT_BGM_VOLUME,
+  SettingsModelContext,
+} from "../../../Setting/model/settingsContext";
 import { apiFetchRoomById } from "../../model/roomApi";
 import {
   API_URL,
@@ -174,10 +185,14 @@ const renderCollectionSkeletonCard = (idx: number, view: "grid" | "list") => {
 
 const GUIDE_MODE_STORAGE_KEY = "mq_room_guide_mode";
 const JOIN_ENTRY_TAB_STORAGE_KEY = "mq_room_join_entry_tab";
+const ROOMS_HUB_BGM_PATH = "/rooms-hub-bgm.mp3";
+const ROOMS_HUB_BGM_FADE_IN_MS = 1200;
 
 const RoomsHubPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const settingsModel = useContext(SettingsModelContext);
+  const bgmVolume = settingsModel?.bgmVolume ?? DEFAULT_BGM_VOLUME;
   const {
     username,
     usernameInput,
@@ -320,6 +335,13 @@ const RoomsHubPage: React.FC = () => {
   const createLibraryScrollRef = useRef<HTMLDivElement | null>(null);
   const directRoomCodeInputRef = useRef<HTMLInputElement | null>(null);
   const publicLibrarySearchPanelRef = useRef<HTMLDivElement | null>(null);
+  const roomsHubBgmRef = useRef<HTMLAudioElement | null>(null);
+  const roomsHubBgmFadeFrameRef = useRef<number | null>(null);
+  const roomsHubBgmFadeStartedRef = useRef(false);
+  const roomsHubBgmFadeDoneRef = useRef(false);
+  const roomsHubBgmTargetVolumeRef = useRef(
+    Math.max(0, Math.min(1, bgmVolume / 100)),
+  );
 
   useEffect(() => {
     if (currentRoom?.id) {
@@ -331,6 +353,111 @@ const RoomsHubPage: React.FC = () => {
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(GUIDE_MODE_STORAGE_KEY, guideMode);
   }, [guideMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Audio === "undefined") return;
+
+    const audio = new Audio(ROOMS_HUB_BGM_PATH);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0;
+    roomsHubBgmRef.current = audio;
+    roomsHubBgmFadeStartedRef.current = false;
+    roomsHubBgmFadeDoneRef.current = false;
+
+    const cancelFadeFrame = () => {
+      if (roomsHubBgmFadeFrameRef.current !== null) {
+        window.cancelAnimationFrame(roomsHubBgmFadeFrameRef.current);
+        roomsHubBgmFadeFrameRef.current = null;
+      }
+    };
+
+    const runInitialFadeIn = () => {
+      if (roomsHubBgmFadeDoneRef.current) {
+        audio.volume = roomsHubBgmTargetVolumeRef.current;
+        return;
+      }
+      if (roomsHubBgmFadeStartedRef.current) return;
+      roomsHubBgmFadeStartedRef.current = true;
+      cancelFadeFrame();
+      const startedAt = performance.now();
+      const tick = (now: number) => {
+        const progress = Math.min(
+          1,
+          (now - startedAt) / ROOMS_HUB_BGM_FADE_IN_MS,
+        );
+        audio.volume = roomsHubBgmTargetVolumeRef.current * progress;
+        if (progress >= 1) {
+          roomsHubBgmFadeDoneRef.current = true;
+          roomsHubBgmFadeFrameRef.current = null;
+          return;
+        }
+        roomsHubBgmFadeFrameRef.current = window.requestAnimationFrame(tick);
+      };
+      roomsHubBgmFadeFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    const playRoomsHubBgm = () => {
+      if (document.hidden) return;
+      void audio
+        .play()
+        .then(() => {
+          if (roomsHubBgmFadeDoneRef.current) {
+            audio.volume = roomsHubBgmTargetVolumeRef.current;
+            return;
+          }
+          if (!roomsHubBgmFadeStartedRef.current) {
+            runInitialFadeIn();
+          }
+        })
+        .catch(() => {
+          // Browser autoplay policy may block until the next user gesture.
+        });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        audio.pause();
+        return;
+      }
+      playRoomsHubBgm();
+    };
+
+    const handleWindowBlur = () => {
+      audio.pause();
+    };
+
+    const handleWindowFocus = () => {
+      playRoomsHubBgm();
+    };
+
+    playRoomsHubBgm();
+    window.addEventListener("pointerdown", playRoomsHubBgm, { passive: true });
+    window.addEventListener("keydown", playRoomsHubBgm);
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelFadeFrame();
+      window.removeEventListener("pointerdown", playRoomsHubBgm);
+      window.removeEventListener("keydown", playRoomsHubBgm);
+      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = "";
+      roomsHubBgmRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextVolume = Math.max(0, Math.min(1, bgmVolume / 100));
+    roomsHubBgmTargetVolumeRef.current = nextVolume;
+    if (!roomsHubBgmRef.current || !roomsHubBgmFadeDoneRef.current) return;
+    roomsHubBgmRef.current.volume = nextVolume;
+  }, [bgmVolume]);
 
   useEffect(() => {
     if (guideMode !== "join" || joinEntryTab !== "code") return;

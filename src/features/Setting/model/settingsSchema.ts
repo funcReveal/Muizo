@@ -7,7 +7,7 @@
 export const SETTINGS_PAGE_COPY: SettingsPageCopy = {
   badge: "Control Deck",
   title: "設定",
-  description: "管理按鍵、音效與顯示偏好。所有調整會即時套用到目前裝置。",
+  description: "管理按鍵與音效偏好。所有調整會即時套用到目前裝置。",
 };
 
 export const SETTINGS_CATEGORIES: SettingsCategoryMeta[] = [
@@ -20,16 +20,6 @@ export const SETTINGS_CATEGORIES: SettingsCategoryMeta[] = [
     id: "audio",
     title: "音效",
     subtitle: "提示音、音量與預設",
-  },
-  {
-    id: "display",
-    title: "顯示",
-    subtitle: "介面資訊與視覺密度",
-  },
-  {
-    id: "accessibility",
-    title: "無障礙",
-    subtitle: "協助不同使用情境",
   },
 ];
 
