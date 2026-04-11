@@ -75,7 +75,7 @@ const resolveInlineStatusTone = (text: string): InlineStatusSegmentTone => {
   if (/^[+-]\d+/.test(text) || text.startsWith("分數")) return "score";
   if (text.startsWith("答對")) return "correct";
   if (text.startsWith("答錯")) return "wrong";
-  if (text.startsWith("未作答")) return "muted";
+  if (text.startsWith("未作答") || text.startsWith("待答")) return "muted";
   if (text.startsWith("正解")) return "answer";
   if (text.startsWith("全場答對率") || text.startsWith("第")) return "accent";
   return "neutral";
@@ -354,7 +354,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
         : "未作答"
     : myFeedback.tone === "locked"
       ? "已作答"
-      : "未作答";
+      : "待答";
   const desktopStatusPrimary = isReveal
     ? ""
     : myFeedback.lines?.[0]?.trim() || myFeedback.detail?.trim() || "";

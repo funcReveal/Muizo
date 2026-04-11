@@ -17639,6 +17639,38 @@ body {
     box-shadow: none;
   }
 
+  .game-room-mobile-scoreboard-shell .game-room-chip.MuiChip-root,
+  .game-room-mobile-scoreboard-answered-pill {
+    min-height: 30px;
+    height: 30px;
+    box-sizing: border-box;
+    align-items: center;
+    line-height: 1;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .game-room-mobile-scoreboard-shell .game-room-chip.MuiChip-root {
+    border-width: 1px;
+    border-style: solid;
+    font-size: 12px;
+  }
+
+  .game-room-mobile-scoreboard-shell
+    .game-room-chip.MuiChip-root
+    .MuiChip-label,
+  .game-room-mobile-scoreboard-answered-pill {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .game-room-mobile-scoreboard-shell
+    .game-room-chip.game-room-chip--scoreboard-state.MuiChip-root {
+    min-width: 68px;
+    justify-content: center;
+  }
+
   .game-room-mobile-scoreboard-shell .game-room-score-row {
     min-height: 56px;
     border-radius: 14px;
@@ -25987,9 +26019,12 @@ body {
 }
 
 .game-room-youtube-badge--mobile {
-  right: max(4px, env(safe-area-inset-right));
-  bottom: max(4px, env(safe-area-inset-bottom));
-  width: min(40vw, 152px);
+  right: 0;
+  bottom: 0;
+  width: min(72vw, 408px);
+  display: flex;
+  align-items: flex-end;
+  line-height: 0;
 }
 
 .game-room-youtube-badge__image {
@@ -26000,11 +26035,22 @@ body {
   filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.3));
 }
 
+.game-room-youtube-badge--mobile picture {
+  display: block;
+  width: 100%;
+}
+
+.game-room-youtube-badge--mobile .game-room-youtube-badge__image {
+  height: 54px;
+  object-fit: contain;
+  object-position: right bottom;
+}
+
 @media (max-width: 1023.95px) {
   .game-room-thumbnail-mask .game-room-youtube-badge,
   .game-room-playback-mask .game-room-youtube-badge {
-    right: max(4px, env(safe-area-inset-right));
-    bottom: max(4px, env(safe-area-inset-bottom));
+    right: 0;
+    bottom: 0;
   }
 }
 
