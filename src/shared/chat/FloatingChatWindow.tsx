@@ -72,12 +72,65 @@ const FloatingChatWindow: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<number | null>(null);
+  const restoreScrollYRef = useRef<number | null>(null);
+  const restoreScrollTimersRef = useRef<number[]>([]);
   const roomId = currentRoom?.id ?? null;
+
+  const clearRestoreScrollTimers = useCallback(() => {
+    restoreScrollTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    restoreScrollTimersRef.current = [];
+  }, []);
+
+  const captureViewportScroll = useCallback(() => {
+    if (typeof window === "undefined") return;
+    restoreScrollYRef.current = window.scrollY || window.pageYOffset || 0;
+  }, []);
+
+  const restoreViewportScroll = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const targetY = restoreScrollYRef.current;
+    if (targetY === null) return;
+
+    clearRestoreScrollTimers();
+    const restore = () => {
+      window.scrollTo({
+        left: 0,
+        top: targetY,
+        behavior: "auto",
+      });
+    };
+
+    restore();
+    [80, 180, 320].forEach((delayMs) => {
+      const timerId = window.setTimeout(restore, delayMs);
+      restoreScrollTimersRef.current.push(timerId);
+    });
+  }, [clearRestoreScrollTimers]);
+
+  const focusInputWithoutScroll = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+  }, []);
 
   useEffect(() => {
     if (!open || !scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages.length, open]);
+
+  useEffect(() => {
+    return () => {
+      if (focusTimerRef.current !== null) {
+        window.clearTimeout(focusTimerRef.current);
+        focusTimerRef.current = null;
+      }
+      clearRestoreScrollTimers();
+    };
+  }, [clearRestoreScrollTimers]);
 
   const otherMessages = useMemo(
     () => messages.filter((message) => isFromOther(message, clientId)),
@@ -104,14 +157,17 @@ const FloatingChatWindow: React.FC = () => {
   }, [latestOtherMessageId, roomId]);
 
   const handleOpen = useCallback(() => {
+    if (isMobileRoomMode) {
+      captureViewportScroll();
+    }
     setOpen(true);
     markRoomRead();
     if (focusTimerRef.current !== null) window.clearTimeout(focusTimerRef.current);
     focusTimerRef.current = window.setTimeout(() => {
       focusTimerRef.current = null;
-      inputRef.current?.focus();
+      focusInputWithoutScroll();
     }, 80);
-  }, [markRoomRead]);
+  }, [captureViewportScroll, focusInputWithoutScroll, isMobileRoomMode, markRoomRead]);
 
   const handleClose = useCallback(() => {
     blurActiveInteractiveElement();
@@ -121,7 +177,10 @@ const FloatingChatWindow: React.FC = () => {
     }
     setOpen(false);
     markRoomRead();
-  }, [markRoomRead]);
+    if (isMobileRoomMode) {
+      restoreViewportScroll();
+    }
+  }, [isMobileRoomMode, markRoomRead, restoreViewportScroll]);
 
   const toggleOpen = useCallback(() => {
     if (open) {
