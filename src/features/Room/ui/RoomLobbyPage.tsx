@@ -21,6 +21,7 @@ import { HistoryReplaySkeleton } from "../../Settlement/ui/components/roomHistor
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "../../../shared/analytics/constants";
+import useAutoHideScrollbar from "../../../shared/hooks/useAutoHideScrollbar";
 import { type LobbySettlementStats } from "./components/roomLobbyPanelUtils";
 import type {
   RoomSettlementQuestionRecap,
@@ -1726,6 +1727,7 @@ const RoomLobbyPage: React.FC = () => {
     setHistoryDrawerOpen(true);
     void loadHistoryDrawerPage({ reset: true });
   }, [loadHistoryDrawerPage]);
+  const historyListRef = useAutoHideScrollbar<HTMLDivElement>();
   const closeHistoryDrawer = useCallback(() => {
     setHistoryDrawerOpen(false);
   }, []);
@@ -1858,7 +1860,10 @@ const RoomLobbyPage: React.FC = () => {
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
         </div>
-        <div className="room-battle-history-list">
+        <div
+          ref={historyListRef}
+          className="room-battle-history-list mq-autohide-scrollbar"
+        >
           {showHistoryDrawerInitialLoading ? (
             <div className="room-battle-history-empty room-battle-history-empty--loading">
               <div

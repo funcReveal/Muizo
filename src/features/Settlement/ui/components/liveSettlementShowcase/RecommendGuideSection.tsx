@@ -19,6 +19,7 @@ import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import type { RecommendCategory } from "../../lib/settlementUtils";
+import useAutoHideScrollbar from "../../../../../shared/hooks/useAutoHideScrollbar";
 
 type RecommendationCardItem = {
   recap: {
@@ -233,6 +234,8 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   previewVolume,
   onPreviewVolumeChange,
 }) => {
+  const recommendationListRef = useAutoHideScrollbar<HTMLDivElement>();
+
   const [autoPreviewHelpAnchor, setAutoPreviewHelpAnchor] =
     React.useState<HTMLElement | null>(null);
   const youtubeOverlayTitle = "如果喜歡這首音樂，別忘了到 YouTube 支持創作者喲！";
@@ -1267,7 +1270,10 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
                   </div>
                 </div>
 
-                <div className="game-settlement-recommend-list-viewport mt-4 min-h-0 flex-1 overflow-y-auto pr-1.5">
+                <div
+                  ref={recommendationListRef}
+                  className="game-settlement-recommend-list-viewport mq-autohide-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto pr-1.5"
+                >
                   <div className="space-y-3">
                     {recommendationCards.length === 0 ? (
                       <div className="flex h-full min-h-[240px] items-center justify-center rounded-[22px] border border-dashed border-slate-700/70 bg-slate-950/55 px-4 text-sm text-slate-400">

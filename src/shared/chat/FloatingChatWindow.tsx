@@ -9,6 +9,7 @@ import { useChatInput } from "./ChatInputContext";
 import type { ChatMessage } from "../../features/Room/model/types";
 import { DanmuContext } from "../../features/GameRoom/model/DanmuContext";
 import useMobileDrawerDragDismiss from "../../features/GameRoom/ui/lib/useMobileDrawerDragDismiss";
+import useAutoHideScrollbar from "../hooks/useAutoHideScrollbar";
 import { blurActiveInteractiveElement } from "../utils/dom";
 import {
   formatChatMessageTime,
@@ -70,10 +71,12 @@ const FloatingChatWindow: React.FC = () => {
   const isMobileViewport = useMediaQuery("(max-width: 1023.95px)");
   const isMobileRoomMode = Boolean(currentRoom && isMobileViewport);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useAutoHideScrollbar<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<number | null>(null);
   const restoreScrollYRef = useRef<number | null>(null);
   const restoreScrollTimersRef = useRef<number[]>([]);
+  const viewportBaselineHeightRef = useRef<number | null>(null);
   const roomId = currentRoom?.id ?? null;
 
   const clearRestoreScrollTimers = useCallback(() => {
@@ -84,6 +87,8 @@ const FloatingChatWindow: React.FC = () => {
   const captureViewportScroll = useCallback(() => {
     if (typeof window === "undefined") return;
     restoreScrollYRef.current = window.scrollY || window.pageYOffset || 0;
+    viewportBaselineHeightRef.current =
+      window.visualViewport?.height ?? window.innerHeight ?? null;
   }, []);
 
   const restoreViewportScroll = useCallback(() => {
@@ -117,10 +122,57 @@ const FloatingChatWindow: React.FC = () => {
     }
   }, []);
 
+  const setScrollNodeRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node;
+    scrollContainerRef(node);
+  }, [scrollContainerRef]);
+
+  const scheduleRestoreViewportScroll = useCallback((delaysMs?: number[]) => {
+    if (typeof window === "undefined") return;
+    const targetY = restoreScrollYRef.current;
+    if (targetY === null) return;
+
+    clearRestoreScrollTimers();
+    const restore = () => {
+      window.scrollTo({
+        left: 0,
+        top: targetY,
+        behavior: "auto",
+      });
+    };
+
+    (delaysMs ?? [120, 260, 420]).forEach((delayMs) => {
+      const timerId = window.setTimeout(restore, delayMs);
+      restoreScrollTimersRef.current.push(timerId);
+    });
+  }, [clearRestoreScrollTimers]);
+
   useEffect(() => {
     if (!open || !scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages.length, open]);
+
+  useEffect(() => {
+    if (!isMobileRoomMode || !open || typeof window === "undefined") return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const handleViewportResize = () => {
+      const baselineHeight = viewportBaselineHeightRef.current;
+      if (!baselineHeight) return;
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement === inputRef.current;
+      if (isInputFocused) return;
+      if (viewport.height >= baselineHeight - 8) {
+        scheduleRestoreViewportScroll([0, 120, 260]);
+      }
+    };
+
+    viewport.addEventListener("resize", handleViewportResize);
+    return () => {
+      viewport.removeEventListener("resize", handleViewportResize);
+    };
+  }, [isMobileRoomMode, open, scheduleRestoreViewportScroll]);
 
   useEffect(() => {
     return () => {
@@ -181,6 +233,11 @@ const FloatingChatWindow: React.FC = () => {
       restoreViewportScroll();
     }
   }, [isMobileRoomMode, markRoomRead, restoreViewportScroll]);
+
+  const handleInputBlur = useCallback(() => {
+    if (!isMobileRoomMode) return;
+    scheduleRestoreViewportScroll();
+  }, [isMobileRoomMode, scheduleRestoreViewportScroll]);
 
   const toggleOpen = useCallback(() => {
     if (open) {
@@ -349,7 +406,7 @@ const FloatingChatWindow: React.FC = () => {
           </div>
           <div className="game-room-mobile-chat-drawer-body">
             <div className="game-room-mobile-chat-drawer-panel">
-              <div ref={scrollRef} className="floating-chat-messages">
+              <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
                 {renderMessages()}
               </div>
 
@@ -374,6 +431,7 @@ const FloatingChatWindow: React.FC = () => {
                           handleSend();
                         }
                       }}
+                      onBlur={handleInputBlur}
                       autoComplete="off"
                     />
                   )}
@@ -463,7 +521,7 @@ const FloatingChatWindow: React.FC = () => {
             </div>
           </div>
 
-          <div ref={scrollRef} className="floating-chat-messages">
+          <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
             {renderMessages()}
           </div>
 
@@ -488,6 +546,7 @@ const FloatingChatWindow: React.FC = () => {
                       handleSend();
                     }
                   }}
+                  onBlur={handleInputBlur}
                   autoComplete="off"
                 />
               )}

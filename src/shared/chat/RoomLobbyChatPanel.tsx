@@ -11,6 +11,7 @@ import {
 
 import type { ChatMessage } from "../../features/Room/model/types";
 import { useChatInput } from "./ChatInputContext";
+import useAutoHideScrollbar from "../hooks/useAutoHideScrollbar";
 import {
   formatTime,
   normalizeDisplayText,
@@ -40,6 +41,12 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
     chatCooldownLeft,
   } = useChatInput();
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const autoHideScrollbarRef = useAutoHideScrollbar<HTMLDivElement>();
+
+  const setChatScrollRef = React.useCallback((node: HTMLDivElement | null) => {
+    chatScrollRef.current = node;
+    autoHideScrollbarRef(node);
+  }, [autoHideScrollbarRef]);
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -50,8 +57,8 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
   return (
     <>
       <Box
-        className="room-lobby-chat-log"
-        ref={chatScrollRef}
+        className="room-lobby-chat-log mq-autohide-scrollbar"
+        ref={setChatScrollRef}
         sx={{
           flex: 1,
           border: "1px solid rgba(245,158,11,0.14)",

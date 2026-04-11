@@ -19883,13 +19883,15 @@ body {
   .room-lobby-mobile-panel .room-lobby-playlist-shell {
     display: flex;
     flex: 1;
-    min-height: min(38vh, 300px);
-    height: auto !important;
+    min-height: 0;
+    height: 100% !important;
+    max-height: 100% !important;
   }
 
   .room-lobby-mobile-panel .room-lobby-playlist-shell > div {
     flex: 1;
     min-height: 0;
+    height: 100% !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: linear-gradient(
@@ -26133,9 +26135,244 @@ body {
   .room-lobby-current-playlist-list .room-lobby-playlist-shell > div::after {
     display: none;
   }
+}
 
-  .room-lobby-column--social .room-lobby-player-list {
-    max-height: calc(6 * 80px + 5 * 8px + 8px);
-    overflow-y: auto;
+.room-lobby-column--social .room-lobby-player-list {
+  max-height: calc(6 * 80px + 5 * 8px + 8px);
+  overflow-y: auto;
+}
+
+/* Shared auto-hide scrollbar behavior for room/game/settlement scrollers. */
+.room-lobby-column--social .room-lobby-player-list,
+.room-lobby-chat-log,
+.room-lobby-playlist-shell .react-window,
+.floating-chat-messages,
+.room-battle-history-list,
+.game-settlement-review-player-strip,
+.game-settlement-review-list > div,
+.game-settlement-recommend-list-viewport,
+.mq-autohide-scrollbar {
+  --mq-scrollbar-size: 8px;
+  --mq-scrollbar-thumb-color: rgba(245, 158, 11, 0.72);
+  --mq-scrollbar-track-color: rgba(20, 17, 13, 0.36);
+  --mq-scrollbar-thumb-gradient: linear-gradient(
+    180deg,
+    rgba(245, 158, 11, 0.78),
+    rgba(234, 179, 8, 0.62)
+  );
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.room-battle-history-list,
+.game-settlement-review-player-strip,
+.game-settlement-review-list > div {
+  --mq-scrollbar-thumb-color: rgba(56, 189, 248, 0.8);
+  --mq-scrollbar-track-color: rgba(15, 23, 42, 0.42);
+  --mq-scrollbar-thumb-gradient: linear-gradient(
+    180deg,
+    rgba(34, 211, 238, 0.9),
+    rgba(14, 165, 233, 0.88)
+  );
+}
+
+.game-settlement-review-player-strip {
+  --mq-scrollbar-size: 6px;
+}
+
+.game-settlement-recommend-list-viewport {
+  --mq-scrollbar-thumb-color: rgba(251, 191, 36, 0.82);
+  --mq-scrollbar-track-color: rgba(15, 23, 42, 0.4);
+  --mq-scrollbar-thumb-gradient: linear-gradient(
+    180deg,
+    rgba(251, 191, 36, 0.92),
+    rgba(245, 158, 11, 0.88)
+  );
+}
+
+.room-lobby-column--social .room-lobby-player-list::-webkit-scrollbar,
+.room-lobby-chat-log::-webkit-scrollbar,
+.room-lobby-playlist-shell .react-window::-webkit-scrollbar,
+.floating-chat-messages::-webkit-scrollbar,
+.room-battle-history-list::-webkit-scrollbar,
+.game-settlement-review-player-strip::-webkit-scrollbar,
+.game-settlement-review-list > div::-webkit-scrollbar,
+.game-settlement-recommend-list-viewport::-webkit-scrollbar,
+.mq-autohide-scrollbar::-webkit-scrollbar {
+  width: var(--mq-scrollbar-size);
+  height: var(--mq-scrollbar-size);
+}
+
+.room-lobby-column--social .room-lobby-player-list::-webkit-scrollbar-track,
+.room-lobby-chat-log::-webkit-scrollbar-track,
+.room-lobby-playlist-shell .react-window::-webkit-scrollbar-track,
+.floating-chat-messages::-webkit-scrollbar-track,
+.room-battle-history-list::-webkit-scrollbar-track,
+.game-settlement-review-player-strip::-webkit-scrollbar-track,
+.game-settlement-review-list > div::-webkit-scrollbar-track,
+.game-settlement-recommend-list-viewport::-webkit-scrollbar-track,
+.mq-autohide-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+}
+
+.room-lobby-column--social .room-lobby-player-list::-webkit-scrollbar-thumb,
+.room-lobby-chat-log::-webkit-scrollbar-thumb,
+.room-lobby-playlist-shell .react-window::-webkit-scrollbar-thumb,
+.floating-chat-messages::-webkit-scrollbar-thumb,
+.room-battle-history-list::-webkit-scrollbar-thumb,
+.game-settlement-review-player-strip::-webkit-scrollbar-thumb,
+.game-settlement-review-list > div::-webkit-scrollbar-thumb,
+.game-settlement-recommend-list-viewport::-webkit-scrollbar-thumb,
+.mq-autohide-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.room-lobby-column--social .room-lobby-player-list.is-scrolling,
+.room-lobby-column--social .room-lobby-player-list:hover,
+.room-lobby-column--social .room-lobby-player-list:focus-within,
+.room-lobby-chat-log.is-scrolling,
+.room-lobby-chat-log:hover,
+.room-lobby-chat-log:focus-within,
+.room-lobby-playlist-shell .react-window.is-scrolling,
+.room-lobby-playlist-shell .react-window:hover,
+.room-lobby-playlist-shell .react-window:focus-within,
+.floating-chat-messages.is-scrolling,
+.floating-chat-messages:hover,
+.floating-chat-messages:focus-within,
+.room-battle-history-list.is-scrolling,
+.room-battle-history-list:hover,
+.room-battle-history-list:focus-within,
+.game-settlement-review-player-strip.is-scrolling,
+.game-settlement-review-player-strip:hover,
+.game-settlement-review-player-strip:focus-within,
+.game-settlement-review-list > div.is-scrolling,
+.game-settlement-review-list > div:hover,
+.game-settlement-review-list > div:focus-within,
+.game-settlement-recommend-list-viewport.is-scrolling,
+.game-settlement-recommend-list-viewport:hover,
+.game-settlement-recommend-list-viewport:focus-within,
+.mq-autohide-scrollbar.is-scrolling,
+.mq-autohide-scrollbar:hover,
+.mq-autohide-scrollbar:focus-within {
+  scrollbar-color: var(--mq-scrollbar-thumb-color) var(--mq-scrollbar-track-color);
+}
+
+.room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar-track,
+.room-lobby-column--social .room-lobby-player-list:hover::-webkit-scrollbar-track,
+.room-lobby-column--social .room-lobby-player-list:focus-within::-webkit-scrollbar-track,
+.room-lobby-chat-log.is-scrolling::-webkit-scrollbar-track,
+.room-lobby-chat-log:hover::-webkit-scrollbar-track,
+.room-lobby-chat-log:focus-within::-webkit-scrollbar-track,
+.room-lobby-playlist-shell .react-window.is-scrolling::-webkit-scrollbar-track,
+.room-lobby-playlist-shell .react-window:hover::-webkit-scrollbar-track,
+.room-lobby-playlist-shell .react-window:focus-within::-webkit-scrollbar-track,
+.floating-chat-messages.is-scrolling::-webkit-scrollbar-track,
+.floating-chat-messages:hover::-webkit-scrollbar-track,
+.floating-chat-messages:focus-within::-webkit-scrollbar-track,
+.room-battle-history-list.is-scrolling::-webkit-scrollbar-track,
+.room-battle-history-list:hover::-webkit-scrollbar-track,
+.room-battle-history-list:focus-within::-webkit-scrollbar-track,
+.game-settlement-review-player-strip.is-scrolling::-webkit-scrollbar-track,
+.game-settlement-review-player-strip:hover::-webkit-scrollbar-track,
+.game-settlement-review-player-strip:focus-within::-webkit-scrollbar-track,
+.game-settlement-review-list > div.is-scrolling::-webkit-scrollbar-track,
+.game-settlement-review-list > div:hover::-webkit-scrollbar-track,
+.game-settlement-review-list > div:focus-within::-webkit-scrollbar-track,
+.game-settlement-recommend-list-viewport.is-scrolling::-webkit-scrollbar-track,
+.game-settlement-recommend-list-viewport:hover::-webkit-scrollbar-track,
+.game-settlement-recommend-list-viewport:focus-within::-webkit-scrollbar-track,
+.mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-track,
+.mq-autohide-scrollbar:hover::-webkit-scrollbar-track,
+.mq-autohide-scrollbar:focus-within::-webkit-scrollbar-track {
+  background: var(--mq-scrollbar-track-color);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar-thumb,
+.room-lobby-column--social .room-lobby-player-list:hover::-webkit-scrollbar-thumb,
+.room-lobby-column--social .room-lobby-player-list:focus-within::-webkit-scrollbar-thumb,
+.room-lobby-chat-log.is-scrolling::-webkit-scrollbar-thumb,
+.room-lobby-chat-log:hover::-webkit-scrollbar-thumb,
+.room-lobby-chat-log:focus-within::-webkit-scrollbar-thumb,
+.room-lobby-playlist-shell .react-window.is-scrolling::-webkit-scrollbar-thumb,
+.room-lobby-playlist-shell .react-window:hover::-webkit-scrollbar-thumb,
+.room-lobby-playlist-shell .react-window:focus-within::-webkit-scrollbar-thumb,
+.floating-chat-messages.is-scrolling::-webkit-scrollbar-thumb,
+.floating-chat-messages:hover::-webkit-scrollbar-thumb,
+.floating-chat-messages:focus-within::-webkit-scrollbar-thumb,
+.room-battle-history-list.is-scrolling::-webkit-scrollbar-thumb,
+.room-battle-history-list:hover::-webkit-scrollbar-thumb,
+.room-battle-history-list:focus-within::-webkit-scrollbar-thumb,
+.game-settlement-review-player-strip.is-scrolling::-webkit-scrollbar-thumb,
+.game-settlement-review-player-strip:hover::-webkit-scrollbar-thumb,
+.game-settlement-review-player-strip:focus-within::-webkit-scrollbar-thumb,
+.game-settlement-review-list > div.is-scrolling::-webkit-scrollbar-thumb,
+.game-settlement-review-list > div:hover::-webkit-scrollbar-thumb,
+.game-settlement-review-list > div:focus-within::-webkit-scrollbar-thumb,
+.game-settlement-recommend-list-viewport.is-scrolling::-webkit-scrollbar-thumb,
+.game-settlement-recommend-list-viewport:hover::-webkit-scrollbar-thumb,
+.game-settlement-recommend-list-viewport:focus-within::-webkit-scrollbar-thumb,
+.mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-thumb,
+.mq-autohide-scrollbar:hover::-webkit-scrollbar-thumb,
+.mq-autohide-scrollbar:focus-within::-webkit-scrollbar-thumb {
+  background: var(--mq-scrollbar-thumb-gradient);
+  border-color: rgba(12, 18, 28, 0.54);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+@media (pointer: coarse) {
+  .room-lobby-column--social .room-lobby-player-list,
+  .room-lobby-chat-log,
+  .room-lobby-playlist-shell .react-window,
+  .floating-chat-messages,
+  .room-battle-history-list,
+  .game-settlement-review-player-strip,
+  .game-settlement-review-list > div,
+  .game-settlement-recommend-list-viewport,
+  .mq-autohide-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .room-lobby-column--social .room-lobby-player-list::-webkit-scrollbar,
+  .room-lobby-chat-log::-webkit-scrollbar,
+  .room-lobby-playlist-shell .react-window::-webkit-scrollbar,
+  .floating-chat-messages::-webkit-scrollbar,
+  .room-battle-history-list::-webkit-scrollbar,
+  .game-settlement-review-player-strip::-webkit-scrollbar,
+  .game-settlement-review-list > div::-webkit-scrollbar,
+  .game-settlement-recommend-list-viewport::-webkit-scrollbar,
+  .mq-autohide-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .room-lobby-column--social .room-lobby-player-list.is-scrolling,
+  .room-lobby-chat-log.is-scrolling,
+  .room-lobby-playlist-shell .react-window.is-scrolling,
+  .floating-chat-messages.is-scrolling,
+  .room-battle-history-list.is-scrolling,
+  .game-settlement-review-player-strip.is-scrolling,
+  .game-settlement-review-list > div.is-scrolling,
+  .game-settlement-recommend-list-viewport.is-scrolling,
+  .mq-autohide-scrollbar.is-scrolling {
+    scrollbar-width: thin;
+  }
+
+  .room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar,
+  .room-lobby-chat-log.is-scrolling::-webkit-scrollbar,
+  .room-lobby-playlist-shell .react-window.is-scrolling::-webkit-scrollbar,
+  .floating-chat-messages.is-scrolling::-webkit-scrollbar,
+  .room-battle-history-list.is-scrolling::-webkit-scrollbar,
+  .game-settlement-review-player-strip.is-scrolling::-webkit-scrollbar,
+  .game-settlement-review-list > div.is-scrolling::-webkit-scrollbar,
+  .game-settlement-recommend-list-viewport.is-scrolling::-webkit-scrollbar,
+  .mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar {
+    width: var(--mq-scrollbar-size);
+    height: var(--mq-scrollbar-size);
   }
 }

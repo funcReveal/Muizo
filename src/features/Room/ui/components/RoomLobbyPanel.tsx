@@ -73,6 +73,7 @@ import RoomUiTooltip from "../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 
 import { useGameSfx } from "../../../../shared/hooks/useGameSfx";
+import useAutoHideScrollbar from "../../../../shared/hooks/useAutoHideScrollbar";
 import {
   DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
   DEFAULT_BGM_VOLUME,
@@ -493,6 +494,8 @@ const RoomLobbyParticipantsPanel = React.memo(function RoomLobbyParticipantsPane
   onRemovePlayerSlot,
   onAddPlayerSlot,
 }: RoomLobbyParticipantsPanelProps) {
+  const playerListRef = useAutoHideScrollbar<HTMLDivElement>();
+
   return (
     <Box className="room-lobby-participants">
       <div className="room-lobby-panel-head room-lobby-panel-head--players">
@@ -505,7 +508,10 @@ const RoomLobbyParticipantsPanel = React.memo(function RoomLobbyParticipantsPane
         <div className="room-lobby-panel-counter">{playerCountLabel}</div>
       </div>
 
-      <div className="room-lobby-player-list">
+      <div
+        ref={playerListRef}
+        className="room-lobby-player-list mq-autohide-scrollbar"
+      >
         <div
           className={`room-lobby-player-list-inner ${participants.length === 0 ? "room-lobby-player-list-inner--vacant" : ""}`}
         >
@@ -578,6 +584,11 @@ const RoomLobbyPlaylistPanel = React.memo(function RoomLobbyPlaylistPanel({
   playlistRowComponent,
   showHeader = true,
 }: RoomLobbyPlaylistPanelProps) {
+  const playlistViewportRef = useAutoHideScrollbar<HTMLDivElement>();
+  const handlePlaylistListRef = useCallback((instance: { element: HTMLDivElement | null } | null) => {
+    playlistViewportRef(instance?.element ?? null);
+  }, [playlistViewportRef]);
+
   return (
     <Box className="room-lobby-playlist-panel">
       {showHeader ? (
@@ -609,6 +620,8 @@ const RoomLobbyPlaylistPanel = React.memo(function RoomLobbyPlaylistPanel({
         <div className="room-lobby-playlist-shell" style={playlistListShellStyle}>
           <div className="h-full min-h-0 w-full overflow-hidden rounded border border-slate-800 bg-slate-900/60">
             <VirtualList
+              className="mq-autohide-scrollbar"
+              listRef={handlePlaylistListRef}
               style={playlistListViewportStyle}
               rowCount={rowCount}
               rowHeight={playlistRowHeight}
@@ -790,14 +803,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     isMobileLobbyLayout
       ? {
         minHeight: playlistViewportMinHeight,
-        height: "100%",
+        height: playlistListViewportHeight,
       }
       : {
         height: playlistListViewportHeight,
       }
   ) as React.CSSProperties;
   const playlistListViewportStyle = {
-    height: isMobileLobbyLayout ? "100%" : playlistListViewportHeight,
+    height: playlistListViewportHeight,
     width: "100%",
   } as React.CSSProperties;
   const displayRoomName = normalizeDisplayText(currentRoom?.name, "未命名房間");

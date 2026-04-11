@@ -21,6 +21,7 @@ import type { SettlementTrackLink } from "../../../model/settlementLinks";
 import type { RoomParticipant } from "../../../../Room/model/types";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
+import useAutoHideScrollbar from "../../../../../shared/hooks/useAutoHideScrollbar";
 import type { SettlementQuestionRecap } from "../GameSettlementPanel";
 import {
   resolveSongPerformanceSegments,
@@ -803,6 +804,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [expandedChoiceParticipantsKey, setExpandedChoiceParticipantsKey] = React.useState<number | null>(null);
   const detailTopRef = React.useRef<HTMLDivElement | null>(null);
+  const mobileParticipantStripRef = useAutoHideScrollbar<HTMLDivElement>();
+  const desktopParticipantStripRef = useAutoHideScrollbar<HTMLDivElement>();
+  const desktopReviewListRef = useAutoHideScrollbar<HTMLDivElement>();
+  const mobileDrawerListRef = useAutoHideScrollbar<HTMLDivElement>();
 
   const filteredRecaps = React.useMemo(() => {
     if (filter === "all") return reviewRecaps;
@@ -1060,7 +1065,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 
         {/* participant selector */}
         {sortedParticipants.length > 0 && (
-          <div className="mt-4 overflow-x-auto pb-1">
+          <div
+            ref={mobileParticipantStripRef}
+            className="mq-autohide-scrollbar mt-4 overflow-x-auto pb-1"
+          >
             <div className="inline-flex min-w-max items-center gap-2">
               {sortedParticipants.map((p, index) => {
                 const isActive = p.clientId === effectiveSelectedReviewParticipantClientId;
@@ -1109,7 +1117,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
             </div>
 
             {/* scrollable list */}
-            <div className="flex-1 overflow-y-auto px-3 pb-4 pt-1">
+            <div
+              ref={mobileDrawerListRef}
+              className="mq-autohide-scrollbar flex-1 overflow-y-auto px-3 pb-4 pt-1"
+            >
               {questionListItems(true)}
             </div>
           </div>
@@ -1411,7 +1422,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
       </div>
 
       {sortedParticipants.length > 0 && (
-        <div className="mt-4 overflow-x-auto pb-1">
+        <div
+          ref={desktopParticipantStripRef}
+          className="mq-autohide-scrollbar mt-4 overflow-x-auto pb-1"
+        >
           <div className="inline-flex min-w-max items-center gap-2">
             {sortedParticipants.map((p, index) => {
               const isActive = p.clientId === effectiveSelectedReviewParticipantClientId;
@@ -1434,7 +1448,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
             {filterBar}
           </div>
           <div key={`review-list-${reviewContextTransitionKey}`} className="lg:h-[min(880px,calc(100vh-14rem))]" style={{ animation: "settlementSwapIn 220ms ease-out both" }}>
-            <div className="h-full overflow-y-auto pr-1.5">
+            <div
+              ref={desktopReviewListRef}
+              className="mq-autohide-scrollbar h-full overflow-y-auto pr-1.5"
+            >
               {questionListItems(false)}
             </div>
           </div>
