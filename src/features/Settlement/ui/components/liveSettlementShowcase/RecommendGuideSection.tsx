@@ -488,31 +488,32 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
               }}
             >
               <div className="min-w-0 flex flex-col items-start">
-                {card.link?.href ? (
-                  <button
-                    type="button"
-                    className="mq-title-link mq-title-link--list inline-grid max-w-full cursor-pointer text-left text-lg font-black leading-snug text-white underline-offset-4 transition hover:text-cyan-200 hover:underline"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelectRecommendation(index);
-                      if (closeOnSelect) setMobileQuestionDrawerOpen(false);
-                      onOpenCardLink(card);
-                    }}
-                  >
-                    <span className="block truncate">{card.recap.title}</span>
-                  </button>
-                ) : (
-                  <p className="block w-full truncate text-lg font-black leading-snug text-white">
+                <div className="flex w-full items-start gap-2">
+                  <p className="min-w-0 flex-1 truncate text-lg font-black leading-snug text-white">
                     {card.recap.title}
                   </p>
-                )}
+                  {closeOnSelect && card.link?.href ? (
+                    <button
+                      type="button"
+                      aria-label="??????"
+                      className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-cyan-300/24 bg-cyan-500/10 text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-500/18"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectRecommendation(index);
+                        onOpenCardLink(card);
+                      }}
+                    >
+                      <OpenInNewRoundedIcon className="text-[1rem]" />
+                    </button>
+                  ) : null}
+                </div>
                 {card.link?.authorHref ? (
                   <a
                     href={card.link.authorHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     data-author-href={card.link.authorHref}
-                    className="mq-author-link mq-author-link--subtle mt-2 block w-fit max-w-full text-sm text-slate-300"
+                    className={`mq-author-link mq-author-link--subtle mt-2 block w-fit max-w-full text-sm text-slate-300 ${closeOnSelect ? "pointer-events-none" : ""}`}
                     onClick={(event) => {
                       event.stopPropagation();
                     }}

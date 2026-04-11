@@ -510,7 +510,7 @@ export const useRoomProviderSocketLifecycle = ({
           });
           lockSessionClientId(clientId);
           persistRoomId(state.room.id);
-          setStatusText(`已加入房間：${state.room.name}`);
+          setStatusText(null);
           setRouteRoomResolved(true);
         },
         onParticipantsUpdated: ({ roomId, participants, hostClientId }) => {

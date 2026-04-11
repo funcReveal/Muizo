@@ -1,4 +1,5 @@
-﻿import React from "react";
+import React from "react";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Button, Switch } from "@mui/material";
 
 import type { ChatMessage } from "../../features/Room/model/types";
@@ -130,7 +131,7 @@ const GameRoomChatPanel: React.FC<GameRoomChatPanelProps> = ({
                       className={`font-semibold ${msg.isMine
                         ? "text-cyan-100"
                         : "text-amber-100/90"
-                      }`}
+                        }`}
                     >
                       {msg.displayName}
                     </span>
@@ -152,8 +153,8 @@ const GameRoomChatPanel: React.FC<GameRoomChatPanelProps> = ({
       </div>
       <div className="flex items-center gap-2">
         {isChatCooldownActive ? (
-          <div className="flex-1 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-2 text-center text-xs font-medium text-amber-300/95">
-            輸入過於頻繁，請於 <strong>{chatCooldownLeft}</strong> 秒後重試
+          <div className="flex-1 rounded-md border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-center text-xs font-medium text-amber-300/95">
+            輸入過於頻繁，請於 <strong className="font-bold">{chatCooldownLeft}</strong> 秒後重試
           </div>
         ) : (
           <input
@@ -170,9 +171,10 @@ const GameRoomChatPanel: React.FC<GameRoomChatPanelProps> = ({
           size="small"
           className="game-room-chat-send"
           onClick={handleSendMessage}
+          aria-label="送出訊息"
           disabled={isChatCooldownActive || !messageInput.trim()}
         >
-          送出
+          <SendRoundedIcon fontSize="small" />
         </Button>
       </div>
     </div>

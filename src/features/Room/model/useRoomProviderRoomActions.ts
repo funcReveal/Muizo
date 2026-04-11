@@ -228,7 +228,7 @@ export const useRoomProviderRoomActions = ({
               has_pin: hasPin,
               participant_count: state.participants.length,
             });
-            setStatusText(`已加入房間${state.room.name}`);
+            setStatusText(null);
           } else {
             trackEvent("room_join_failed", {
               room_reference: roomReference,
@@ -372,7 +372,7 @@ export const useRoomProviderRoomActions = ({
           const cooldownSeconds = Math.ceil(retryAfterMs / 1000);
           setChatCooldownLeft(cooldownSeconds);
           setChatCooldownUntil(Date.now() + retryAfterMs);
-          setStatusText(`請稍候 ${cooldownSeconds} 秒後再發送訊息`);
+          setStatusText(null);
           return;
         }
 

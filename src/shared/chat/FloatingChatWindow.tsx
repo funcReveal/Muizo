@@ -4,6 +4,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useRoomRealtime } from "../../features/Room/model/useRoomRealtime";
 import { useChatInput } from "./ChatInputContext";
 import type { ChatMessage } from "../../features/Room/model/types";
@@ -19,8 +20,8 @@ import {
 
 const LAST_READ_KEY_PREFIX = "room_chat_last_read_message:";
 const MOBILE_CHAT_MIN_HEIGHT_VH = 26;
-const MOBILE_CHAT_MAX_HEIGHT_VH = 62;
-const MOBILE_CHAT_DEFAULT_HEIGHT_VH = 38;
+const MOBILE_CHAT_MAX_HEIGHT_VH = 72;
+const MOBILE_CHAT_DEFAULT_HEIGHT_VH = 48;
 const GAME_ROOM_DRAWER_MODAL_PROPS = {
   hideBackdrop: true,
   keepMounted: true,
@@ -409,7 +410,6 @@ const FloatingChatWindow: React.FC = () => {
               <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
                 {renderMessages()}
               </div>
-
               <div className="floating-chat-input-wrap">
                 <div className="floating-chat-input-row">
                   {isChatCooldownActive ? (
@@ -439,9 +439,10 @@ const FloatingChatWindow: React.FC = () => {
                     type="button"
                     className="floating-chat-send-btn"
                     onClick={handleSend}
+                    aria-label="送出訊息"
                     disabled={isChatCooldownActive || !messageInput.trim()}
                   >
-                    送出
+                    <SendRoundedIcon fontSize="small" />
                   </button>
                 </div>
               </div>
@@ -524,7 +525,6 @@ const FloatingChatWindow: React.FC = () => {
           <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
             {renderMessages()}
           </div>
-
           <div className="floating-chat-input-wrap">
             <div className="floating-chat-input-row">
               {isChatCooldownActive ? (
@@ -554,9 +554,10 @@ const FloatingChatWindow: React.FC = () => {
                 type="button"
                 className="floating-chat-send-btn"
                 onClick={handleSend}
+                aria-label="送出訊息"
                 disabled={isChatCooldownActive || !messageInput.trim()}
               >
-                {isChatCooldownActive ? `${chatCooldownLeft}s` : "送出"}
+                <SendRoundedIcon fontSize="small" />
               </button>
             </div>
           </div>

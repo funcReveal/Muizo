@@ -206,7 +206,7 @@ export const useRoomProviderCreateRoomAction = ({
     }
     createRoomInFlightRef.current = true;
     setIsCreatingRoom(true);
-    setStatusText("建立房間中...");
+    setStatusText(null);
     const releaseCreateRoomLock = () => {
       createRoomInFlightRef.current = false;
       setIsCreatingRoom(false);
@@ -505,7 +505,7 @@ export const useRoomProviderCreateRoomAction = ({
                 setHostRoomPassword(desiredPin);
                 setRoomNameInput(getDefaultRoomName(username));
                 setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
-                setStatusText(`已建立房間，並自動加入：${state.room.name}`);
+                setStatusText(null);
                 finalizeCreate();
                 continueUploadRemainingPlaylistChunks(state.room.id);
                 resolve(true);
@@ -666,11 +666,7 @@ export const useRoomProviderCreateRoomAction = ({
           question_count: nextQuestionCount,
           playlist_count: uploadItems.length,
         });
-        setStatusText(
-          accessSettingsWarning
-            ? `${accessSettingsWarning}，但房間已建立：${state.room.name}`
-            : `已建立房間：${state.room.name}`,
-        );
+        setStatusText(accessSettingsWarning ?? null);
         finalizeCreate();
         continueUploadRemainingPlaylistChunks(state.room.id);
       });

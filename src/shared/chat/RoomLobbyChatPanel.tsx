@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import {
   Box,
   Button,
@@ -216,7 +217,6 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
           </MUIList>
         )}
       </Box>
-
       <Stack direction="row" spacing={1} className="room-lobby-chat-input">
         {isChatCooldownActive ? (
           <Box
@@ -226,17 +226,20 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
               alignItems: "center",
               justifyContent: "center",
               px: 1.5,
-              py: 1,
-              borderRadius: 1,
-              border: "1px solid rgba(245,158,11,0.28)",
-              background: "rgba(245,158,11,0.05)",
-              fontSize: 12,
+              py: 0.75,
+              borderRadius: 1.5,
+              border: "1px solid rgba(245,158,11,0.32)",
+              background: "rgba(245,158,11,0.06)",
+              fontSize: 13,
               fontWeight: 500,
-              color: "rgba(251,191,36,0.95)",
-              textAlign: "center",
+              color: "rgba(251,191,36,0.96)",
             }}
           >
-            輸入過於頻繁，請於 <Box component="strong" sx={{ fontWeight: 700, mx: 0.4 }}>{chatCooldownLeft}</Box> 秒後重試
+            輸入過於頻繁，請於{" "}
+            <Box component="strong" sx={{ fontWeight: 700, mx: 0.5 }}>
+              {chatCooldownLeft}
+            </Box>{" "}
+            秒後重試
           </Box>
         ) : (
           <TextField
@@ -259,9 +262,10 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
         <Button
           variant="contained"
           onClick={handleSendMessage}
+          aria-label="送出訊息"
           disabled={isChatCooldownActive || !messageInput.trim()}
         >
-          送出
+          <SendRoundedIcon fontSize="small" />
         </Button>
       </Stack>
     </>
