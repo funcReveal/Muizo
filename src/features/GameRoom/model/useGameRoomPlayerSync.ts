@@ -162,6 +162,9 @@ const useGameRoomPlayerSync = ({
 
   const markAudioUnlocked = useCallback(() => {
     if (audioUnlockedRef.current) return;
+    // Mobile gesture playback may continue in the same event loop, so update
+    // the ref immediately instead of waiting for the state commit.
+    audioUnlockedRef.current = true;
     setAudioUnlockSessionKey(audioGestureSessionKey);
   }, [audioGestureSessionKey]);
 
