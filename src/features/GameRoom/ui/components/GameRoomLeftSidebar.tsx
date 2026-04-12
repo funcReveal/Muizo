@@ -77,7 +77,7 @@ const DESKTOP_FLIP_ROW_HEIGHT_PX = 60;
 const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 // Must exceed the CSS animation duration (2200ms) so cleanup fires after the
 // animation ends, not during it.
-const FLOATING_SCORE_BURST_LIFETIME_MS = 2350;
+const FLOATING_SCORE_BURST_LIFETIME_MS = 3000;
 
 type FloatingScoreTier = "normal" | "boost" | "hot" | "legend";
 
@@ -141,13 +141,13 @@ const resolveFloatingScoreSegments = (
     return gain === 0
       ? []
       : [
-          {
-            amount: gain,
-            tier: resolveFloatingScoreTier(gain, combo),
-            kind: gain >= 0 ? ("gain" as const) : ("loss" as const),
-            part: "other" as FloatingScoreBreakdownPart,
-          },
-        ];
+        {
+          amount: gain,
+          tier: resolveFloatingScoreTier(gain, combo),
+          kind: gain >= 0 ? ("gain" as const) : ("loss" as const),
+          part: "other" as FloatingScoreBreakdownPart,
+        },
+      ];
   }
 
   const segments: Array<{
@@ -319,13 +319,13 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
 
     const breakdownKey = scoreBreakdown
       ? [
-          scoreBreakdown.basePoints,
-          scoreBreakdown.speedBonusPoints,
-          scoreBreakdown.decisionBonusPoints,
-          scoreBreakdown.difficultyBonusPoints,
-          scoreBreakdown.comboBonusPoints,
-          scoreBreakdown.totalGainPoints,
-        ].join(":")
+        scoreBreakdown.basePoints,
+        scoreBreakdown.speedBonusPoints,
+        scoreBreakdown.decisionBonusPoints,
+        scoreBreakdown.difficultyBonusPoints,
+        scoreBreakdown.comboBonusPoints,
+        scoreBreakdown.totalGainPoints,
+      ].join(":")
       : "none";
     const burstKey = `${player.clientId}:${player.score}:${scoreParts.base}:${scoreParts.gain}:${player.combo}:${breakdownKey}`;
     if (activeBurstKeyRef.current === burstKey) return;
@@ -356,9 +356,9 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
         kind: segment.kind,
         tier: segment.tier,
         part: segment.part,
-        // 190 ms between each segment — gives enough time to read each value
+        // 480 ms between each segment — gives enough time to read each value
         // before the next one appears; segments still form a natural rising chain.
-        delayMs: index * 190,
+        delayMs: index * 480,
         fixedTop: burstFixedTop,
         fixedLeft: burstFixedLeft,
       } satisfies FloatingScoreBurst;
@@ -389,9 +389,9 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
         scoreIncrementTimerIdsRef.current = scoreIncrementTimerIdsRef.current.filter(
           (id) => id !== incrTimerId,
         );
-      // 140 ms after the burst appears → lands inside the hold phase where the
-      // floating label is fully visible, so the score tick and "+XX" feel in sync.
-      }, burst.delayMs + 140);
+        // 360 ms after the burst appears → lands inside the hold phase where the
+        // floating label is fully visible, so the score tick and "+XX" feel in sync.
+      }, burst.delayMs + 360);
       scoreIncrementTimerIdsRef.current.push(incrTimerId);
     });
   }, [
@@ -407,121 +407,121 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
 
   return (
     <>
-    <div className="game-room-score-row-shell" ref={shellRef}>
-      <div className={rowClassName} style={rowSwapStyle}>
-      {shouldShowComboChampion && (
-        <AnimatedScoreboardBorder
-          animationId={effectiveScoreboardBorderMotion}
-          lineStyleId={scoreboardBorderLineStyle}
-          themeId={scoreboardBorderTheme}
-          maskEnabled={scoreboardBorderMaskEnabled}
-          particleCount={scoreboardBorderParticleCount}
-          intensity={rowComboTier / 10}
-          variant="attached"
-          className="scoreboard-border-effect"
-        />
-      )}
-      <span className="truncate flex items-center gap-2">
-        <span className="game-room-score-row-avatar-wrap">
-          <PlayerAvatar
-            username={displayName}
-            clientId={player.clientId}
-            avatarUrl={player.avatar_url ?? player.avatarUrl ?? undefined}
-            rank={null}
-            combo={player.combo}
-            isMe={isMeRow}
-            size={24}
-            effectLevel={avatarEffectLevel}
-            className="player-avatar--scoreboard"
-          />
-          <RoomUiTooltip title={answerDotTitle}>
-            <span
-              className={`game-room-score-row-answer-dot-badge ${hasAnswered ? answerDotClass : "game-room-score-row-answer-dot-badge--pending"}`}
+      <div className="game-room-score-row-shell" ref={shellRef}>
+        <div className={rowClassName} style={rowSwapStyle}>
+          {shouldShowComboChampion && (
+            <AnimatedScoreboardBorder
+              animationId={effectiveScoreboardBorderMotion}
+              lineStyleId={scoreboardBorderLineStyle}
+              themeId={scoreboardBorderTheme}
+              maskEnabled={scoreboardBorderMaskEnabled}
+              particleCount={scoreboardBorderParticleCount}
+              intensity={rowComboTier / 10}
+              variant="attached"
+              className="scoreboard-border-effect"
             />
-          </RoomUiTooltip>
-        </span>
-        <span className="truncate">
-          {displayName}
-        </span>
-        {isMeRow && (
-          <span className="game-room-score-row-you-badge">YOU</span>
-        )}
-      </span>
-      <div className="relative flex items-center gap-2 overflow-visible">
-        {typeof answerRank === "number" ? (
-          <Chip
-            label={`第 ${answerRank} 答`}
-            size="small"
-            color={answerChipColor}
-            variant="filled"
-            className="game-room-chip game-room-chip--scoreboard-state"
-          />
-        ) : (
-          <Chip
-            label={isReveal ? "未作答" : "待答"}
-            size="small"
-            variant="outlined"
-            className="game-room-chip game-room-chip--scoreboard-state"
-          />
-        )}
-        <span className="relative font-semibold text-emerald-300 tabular-nums">
-          {(enableFloatingScoreBursts && animatedDisplayScore !== null
-            ? animatedDisplayScore
-            : player.score
-          ).toLocaleString()}
-          {!enableFloatingScoreBursts && isReveal && scoreParts.gain !== 0 && (
-            <span
-              className={`ml-1 ${scoreParts.gain > 0
-                ? "text-sky-300 game-room-score-gain-pop"
-                : "text-rose-300 game-room-score-loss-pop"
-                }`}
-            >
-              {scoreParts.gain > 0 ? `+${scoreParts.gain}` : scoreParts.gain}
+          )}
+          <span className="truncate flex items-center gap-2">
+            <span className="game-room-score-row-avatar-wrap">
+              <PlayerAvatar
+                username={displayName}
+                clientId={player.clientId}
+                avatarUrl={player.avatar_url ?? player.avatarUrl ?? undefined}
+                rank={null}
+                combo={player.combo}
+                isMe={isMeRow}
+                size={24}
+                effectLevel={avatarEffectLevel}
+                className="player-avatar--scoreboard"
+              />
+              <RoomUiTooltip title={answerDotTitle}>
+                <span
+                  className={`game-room-score-row-answer-dot-badge ${hasAnswered ? answerDotClass : "game-room-score-row-answer-dot-badge--pending"}`}
+                />
+              </RoomUiTooltip>
             </span>
-          )}
-          {player.combo > 0 && (
-            <span className={`ml-1 ${comboDisplayClass}`}>x{player.combo}</span>
-          )}
-        </span>
-      </div>
-      </div>
-    </div>
-    {enableFloatingScoreBursts && floatingBursts.length > 0 && createPortal(
-      <>
-        {floatingBursts.map((burst) => {
-          const label = burst.kind === "loss"
-            ? "扣分"
-            : (FLOATING_SCORE_PART_LABEL[burst.part] ?? "");
-          return (
-            <span
-              key={burst.id}
-              aria-hidden="true"
-              style={{
-                position: "fixed",
-                top: burst.fixedTop,
-                left: burst.fixedLeft,
-                // No horizontal drift — all segments rise from the same anchor.
-                "--gr-floating-score-x": "0px",
-                // Drives continuous font-size & brightness scaling in CSS.
-                "--gr-fs-combo-ratio": Math.min(1, Math.max(0, burst.combo) / 10).toFixed(3),
-                animationDelay: `${burst.delayMs}ms`,
-                zIndex: 9999,
-                pointerEvents: "none",
-              } as React.CSSProperties}
-              className={`game-room-floating-score game-room-floating-score--desktop-portal game-room-floating-score--${burst.kind} game-room-floating-score--tier-${burst.tier}`}
-            >
-              <span className="game-room-floating-score__amount">
-                {burst.amount > 0 ? `+${burst.amount}` : burst.amount}
-              </span>
-              {label && (
-                <span className="game-room-floating-score__label">{label}</span>
+            <span className="truncate">
+              {displayName}
+            </span>
+            {isMeRow && (
+              <span className="game-room-score-row-you-badge">YOU</span>
+            )}
+          </span>
+          <div className="relative flex items-center gap-2 overflow-visible">
+            {typeof answerRank === "number" ? (
+              <Chip
+                label={`第 ${answerRank} 答`}
+                size="small"
+                color={answerChipColor}
+                variant="filled"
+                className="game-room-chip game-room-chip--scoreboard-state"
+              />
+            ) : (
+              <Chip
+                label={isReveal ? "未作答" : "待答"}
+                size="small"
+                variant="outlined"
+                className="game-room-chip game-room-chip--scoreboard-state"
+              />
+            )}
+            <span className="relative font-semibold text-emerald-300 tabular-nums">
+              {(enableFloatingScoreBursts && animatedDisplayScore !== null
+                ? animatedDisplayScore
+                : player.score
+              ).toLocaleString()}
+              {!enableFloatingScoreBursts && isReveal && scoreParts.gain !== 0 && (
+                <span
+                  className={`ml-1 ${scoreParts.gain > 0
+                    ? "text-sky-300 game-room-score-gain-pop"
+                    : "text-rose-300 game-room-score-loss-pop"
+                    }`}
+                >
+                  {scoreParts.gain > 0 ? `+${scoreParts.gain}` : scoreParts.gain}
+                </span>
+              )}
+              {player.combo > 0 && (
+                <span className={`ml-1 ${comboDisplayClass}`}>x{player.combo}</span>
               )}
             </span>
-          );
-        })}
-      </>,
-      document.body,
-    )}
+          </div>
+        </div>
+      </div>
+      {enableFloatingScoreBursts && floatingBursts.length > 0 && createPortal(
+        <>
+          {floatingBursts.map((burst) => {
+            const label = burst.kind === "loss"
+              ? "扣分"
+              : (FLOATING_SCORE_PART_LABEL[burst.part] ?? "");
+            return (
+              <span
+                key={burst.id}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  top: burst.fixedTop,
+                  left: burst.fixedLeft,
+                  // No horizontal drift — all segments rise from the same anchor.
+                  "--gr-floating-score-x": "0px",
+                  // Drives continuous font-size & brightness scaling in CSS.
+                  "--gr-fs-combo-ratio": Math.min(1, Math.max(0, burst.combo) / 10).toFixed(3),
+                  animationDelay: `${burst.delayMs}ms`,
+                  zIndex: 9999,
+                  pointerEvents: "none",
+                } as React.CSSProperties}
+                className={`game-room-floating-score game-room-floating-score--desktop-portal game-room-floating-score--${burst.kind} game-room-floating-score--tier-${burst.tier}`}
+              >
+                <span className="game-room-floating-score__amount">
+                  {burst.amount > 0 ? `+${burst.amount}` : burst.amount}
+                </span>
+                {label && (
+                  <span className="game-room-floating-score__label">{label}</span>
+                )}
+              </span>
+            );
+          })}
+        </>,
+        document.body,
+      )}
     </>
   );
 });
@@ -1136,14 +1136,14 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
             const rowClassName = `game-room-score-row flex items-center justify-between text-sm ${enableDesktopFloatingScoreBursts ? "game-room-score-row--desktop-floating-score" : ""} ${isReveal ? "game-room-score-row--revealed" : ""
               } ${rowAnswerState === "correct"
                 ? "game-room-score-row--correct"
-                  : rowAnswerState === "wrong"
-                    ? "game-room-score-row--wrong"
-                    : rowAnswerState === "answered"
-                      ? "game-room-score-row--answered"
-                      : rowAnswerState === "unanswered"
-                        ? "game-room-score-row--unanswered"
-                        : ""
-               } ${isMeRow ? "game-room-score-row--me" : ""} ${shouldUseCssSwapAnimation && hasTopSwapAnimation
+                : rowAnswerState === "wrong"
+                  ? "game-room-score-row--wrong"
+                  : rowAnswerState === "answered"
+                    ? "game-room-score-row--answered"
+                    : rowAnswerState === "unanswered"
+                      ? "game-room-score-row--unanswered"
+                      : ""
+              } ${isMeRow ? "game-room-score-row--me" : ""} ${shouldUseCssSwapAnimation && hasTopSwapAnimation
                 ? topSwapRole === "first"
                   ? "game-room-score-row--top-swap-first"
                   : "game-room-score-row--top-swap-second"
