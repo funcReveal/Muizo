@@ -343,8 +343,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const recommendPreviewStageRef = useRef<HTMLDivElement | null>(null);
   const celebrationKeyRef = useRef<string | null>(null);
   const autoAdvanceTimeoutRef = useRef<number | null>(null);
-  const autoCenteredRecommendRoundKeyRef = useRef<string | null>(null);
-  const autoAnchoredSettlementRoundKeyRef = useRef<string | null>(null);
   const exitConfirmLockedRef = useRef(false);
   const previewCommandTimersRef = useRef<number[]>([]);
   const settlementOverviewBgmRef = useRef<HTMLAudioElement | null>(null);
@@ -1170,40 +1168,13 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   }, [advanceAutoRecommendationLoop, autoAdvanceAtMs, canAutoGuideLoop]);
 
   useEffect(() => {
-    if (activeTab !== "recommend" && activeTab !== "review") return;
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(max-width: 1023px)");
-    if (!media.matches) return;
-    const roundKey = `${room.id}:${startedAt ?? 0}:${endedAt ?? 0}`;
-    if (autoCenteredRecommendRoundKeyRef.current === roundKey) return;
-    autoCenteredRecommendRoundKeyRef.current = roundKey;
-    const timer = window.setTimeout(() => {
-      const target =
-        recommendSectionRef.current ?? recommendPreviewStageRef.current;
-      if (!target) return;
-      const rect = target.getBoundingClientRect();
-      const nextTop = Math.max(0, window.scrollY + rect.top);
-      window.scrollTo({ top: nextTop, behavior: "auto" });
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [activeTab, endedAt, room.id, startedAt]);
-
-  useEffect(() => {
     if (!isMobileSettlementViewport) return;
     if (typeof window === "undefined") return;
-    const roundKey = `${room.id}:${startedAt ?? 0}:${endedAt ?? 0}`;
-    if (autoAnchoredSettlementRoundKeyRef.current === roundKey) return;
-    autoAnchoredSettlementRoundKeyRef.current = roundKey;
     const timer = window.setTimeout(() => {
-      const anchorTarget =
-        settlementHeadingRef.current ?? settlementStageRef.current;
-      if (!anchorTarget) return;
-      const rect = anchorTarget.getBoundingClientRect();
-      const nextTop = Math.max(0, window.scrollY + rect.top - 12);
-      window.scrollTo({ top: nextTop, behavior: "auto" });
-    }, 280);
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }, 150);
     return () => window.clearTimeout(timer);
-  }, [endedAt, isMobileSettlementViewport, room.id, startedAt]);
+  }, [activeTab, isMobileSettlementViewport]);
 
   useEffect(() => {
     const timers = previewCommandTimersRef;
@@ -1229,10 +1200,14 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
             : ""
         }`}
       >
-        <div className="relative space-y-4">
+        <div className="relative space-y-3 lg:space-y-4">
           <SettlementStageHeader
             isMobileView={isMobileSettlementViewport}
             headingRef={settlementHeadingRef}
+            shouldHideOnMobile={
+              isMobileSettlementViewport &&
+              (activeTab === "recommend" || activeTab === "review")
+            }
             roomName={room.name}
             playlistTitle={room.playlist.title}
             playedQuestionCount={playedQuestionCount}

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
@@ -32,6 +32,7 @@ interface SettlementStageHeaderProps {
   canGoPrev: boolean;
   hasNextStep: boolean;
   canFinish: boolean;
+  shouldHideOnMobile?: boolean;
 }
 
 const MetaPill = ({
@@ -75,14 +76,9 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   canGoPrev,
   hasNextStep,
   canFinish,
+  shouldHideOnMobile = false,
 }) => {
-  const [mobileMetaExpanded, setMobileMetaExpanded] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!isMobileView) {
-      setMobileMetaExpanded(false);
-    }
-  }, [isMobileView]);
+  if (isMobileView && shouldHideOnMobile) return null;
 
   const activeTabButtonClass = (tab: LiveSettlementTab) =>
     `cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.08em] transition ${activeTab === tab
@@ -93,18 +89,34 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
   return (
     <>
       <header className="game-settlement-stage-header flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2
-            ref={headingRef}
-            className={`${isMobileView ? "mt-0 scroll-mt-4" : "mt-3"} text-2xl font-black tracking-tight text-slate-100 sm:text-3xl`}
-          >
-            對戰結算
-          </h2>
-          <p className="mt-1 truncate text-sm text-slate-300">
-            {roomName}
-            {playlistTitle ? ` ・ ${playlistTitle}` : ""}
-          </p>
-        </div>
+        {isMobileView ? (
+          <div className="flex min-w-0 w-full items-start justify-between gap-3">
+            <h2
+              ref={headingRef}
+              className="mt-0 scroll-mt-4 shrink-0 text-2xl font-black tracking-tight text-slate-100"
+            >
+              對戰結算
+            </h2>
+            {playlistTitle ? (
+              <div className="min-w-0 max-w-[52%] truncate pt-1 text-right text-sm text-slate-300">
+                {playlistTitle}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="min-w-0">
+            <h2
+              ref={headingRef}
+              className="mt-3 text-2xl font-black tracking-tight text-slate-100 sm:text-3xl"
+            >
+              對戰結算
+            </h2>
+            <p className="mt-1 truncate text-sm text-slate-300">
+              {roomName}
+              {playlistTitle ? ` ・ ${playlistTitle}` : ""}
+            </p>
+          </div>
+        )}
         {isMobileView ? (
           <div className="game-settlement-mobile-meta flex w-full flex-wrap items-center gap-1.5">
             <MetaPill
@@ -119,7 +131,7 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
               label={`玩家 ${participantsLength}`}
               accentClass="bg-sky-400/16 text-sky-100"
             />
-            {mobileMetaExpanded && elapsedLabel && (
+            {elapsedLabel && (
               <MetaPill
                 compact
                 icon={<TimerRoundedIcon sx={{ fontSize: 14 }} />}
@@ -127,21 +139,6 @@ const SettlementStageHeader: React.FC<SettlementStageHeaderProps> = ({
                 accentClass="bg-emerald-400/16 text-emerald-100"
               />
             )}
-            {mobileMetaExpanded && settlementTimeChipLabel && (
-              <MetaPill
-                compact
-                icon={<EventRoundedIcon sx={{ fontSize: 14 }} />}
-                label={settlementTimeChipLabel}
-                accentClass="bg-violet-400/14 text-violet-100"
-              />
-            )}
-            <button
-              type="button"
-              className="cursor-pointer rounded-full border border-slate-500/70 bg-slate-900/60 px-2.5 py-0.5 text-[11px] font-semibold text-slate-200 transition hover:border-slate-300/70"
-              onClick={() => setMobileMetaExpanded((prev) => !prev)}
-            >
-              {mobileMetaExpanded ? "收合" : "更多"}
-            </button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">

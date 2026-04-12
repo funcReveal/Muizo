@@ -1134,36 +1134,42 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
           closeIcon={<KeyboardDoubleArrowRightRoundedIcon className="text-[1.35rem]" />}
           drawerWidthCss="min(92vw, 360px)"
         />
-        <section className={`mt-4 ${reviewSurfaceClass}`}>
+        <section className={`relative overflow-hidden ${reviewSurfaceClass}`}>
+          {/* header glow — anchored to 題目回顧 title left-top corner */}
+          {selectedRecap && (
+            <div className="pointer-events-none absolute -left-3 -top-3 h-[6.5rem] w-[8rem] overflow-hidden rounded-br-[4rem] rounded-tl-[22px]">
+              <div className={`absolute rounded-full opacity-28 ${scoreVisualTone.statusGlowClass} left-0 top-0 h-[5.5rem] w-[6.5rem] blur-[26px]`} />
+            </div>
+          )}
           {/* header row */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
               <HistoryRoundedIcon className="text-amber-100" />
               <h3 className="text-[1.6rem] font-black tracking-tight text-white">題目回顧</h3>
             </div>
-          </div>
-
-          {/* participant selector */}
-          {sortedParticipants.length > 0 && (
-            <div
-              ref={mobileParticipantStripRef}
-              className="mq-autohide-scrollbar mt-4 overflow-x-auto pb-1"
-            >
-              <div className="inline-flex min-w-max items-center gap-2">
-                {sortedParticipants.map((p, index) => {
-                  const isActive = p.clientId === effectiveSelectedReviewParticipantClientId;
-                  return (
-                    <button key={p.clientId} type="button" onClick={() => onSelectReviewParticipantClientId(p.clientId)}
-                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition ${isActive ? "bg-sky-500/16 text-sky-50" : "border border-slate-600/70 bg-slate-900/68 text-slate-300 hover:border-slate-400"}`}
-                    >
-                      <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-current/35 px-1 text-[10px] leading-none">{index + 1}</span>
-                      <span className="max-w-[9rem] truncate">{p.username}{p.clientId === meClientId ? "（你）" : ""}</span>
-                    </button>
-                  );
-                })}
+            {sortedParticipants.length === 1 ? (
+              <div className="inline-flex max-w-[48%] shrink-0 items-center rounded-full border border-slate-600/70 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold text-slate-200">
+                <span className="truncate">
+                  {sortedParticipants[0].username}{sortedParticipants[0].clientId === meClientId ? "（你）" : ""}
+                </span>
               </div>
-            </div>
-          )}
+            ) : sortedParticipants.length > 1 ? (
+              <label className="shrink-0">
+                <span className="sr-only">選擇玩家</span>
+                <select
+                  value={effectiveSelectedReviewParticipantClientId ?? ""}
+                  onChange={(e) => onSelectReviewParticipantClientId(e.target.value)}
+                  className="cursor-pointer rounded-full border border-slate-600/70 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold text-slate-200 outline-none"
+                >
+                  {sortedParticipants.map((p) => (
+                    <option key={p.clientId} value={p.clientId}>
+                      {p.username}{p.clientId === meClientId ? "（你）" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
 
           {/* right-side drawer */}
           <Drawer
@@ -1216,17 +1222,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
               >
                 {/* question meta */}
                 <div className="relative z-10 flex flex-col gap-4">
-                  {/* glow */}
-                  <div className="pointer-events-none absolute rounded-br-[6.25rem] rounded-tl-[20px] -left-3 -top-3 h-[11.75rem] w-[13.5rem]">
-                    <div className={`absolute rounded-full opacity-70 ${scoreVisualTone.statusGlowClass} -left-[4.4rem] -top-[4.6rem] h-[9.8rem] w-[12.8rem] blur-[58px]`} />
-                  </div>
-
                   <div className="relative flex min-w-0 flex-1 flex-col items-start pr-2">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                      題目 {selectedRecap.order}
-                      {selectedReviewParticipant ? ` ・ ${selectedReviewParticipant.username}` : ""}
-                      {answerOrderLabel ? ` ・ ${answerOrderLabel}` : ""}
-                    </p>
                     <button
                       type="button"
                       className={`mq-title-link mq-title-link--hero mt-3 inline-grid max-w-full place-items-start text-left align-top text-[1.5rem] font-black leading-tight transition ${selectedRecapLink?.href ? "cursor-pointer text-white underline-offset-4 hover:text-cyan-50 hover:underline" : "cursor-default text-white"}`}
@@ -1249,20 +1245,44 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                     label="題目數據"
                     defaultOpen={false}
                     summary={(
-                      <div className="flex items-center justify-between gap-4 overflow-visible rounded-[16px] border border-white/5 bg-white/[0.025] px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold tracking-[0.22em] text-slate-500">GRADE</p>
-                          <p className={`mt-1 text-[3.2rem] font-black leading-none ${scoreVisualTone.gradeClass}`}>
-                            {selectedRecapRating?.grade ?? "E"}
-                          </p>
-                        </div>
-                        <div className="group/score relative isolate flex h-24 w-24 shrink-0 items-center justify-center overflow-visible rounded-full" style={{ background: scoreRingGradient }}>
-                          <div className={`pointer-events-none absolute -inset-4 rounded-full opacity-55 blur-[22px] ${scoreVisualTone.statusGlowClass}`} />
-                          <div className={`absolute inset-[17px] rounded-full ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
-                          <div className="relative z-10 flex h-[4.3rem] w-[4.3rem] flex-col items-center justify-center rounded-full bg-slate-950/100">
-                            <span className="text-[8px] font-semibold tracking-[0.2em] text-slate-500">SCORE</span>
-                            <span className={`mt-0.5 text-[1.55rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>{displayScore}</span>
-                            <span className="mt-0.5 text-[8px] font-semibold tracking-[0.16em] text-slate-500">{scoreRankLabel}</span>
+                      <div className="overflow-visible rounded-[16px] border border-white/5 bg-white/[0.025] px-4 pb-3 pt-3">
+                        <div className="flex items-center justify-between gap-4 overflow-visible">
+                          <div className="min-w-0 flex-1">
+                            {/* GRADE label + rank badge on same header row */}
+                            <div className="flex items-center gap-2">
+                              <p className="shrink-0 text-[10px] font-semibold tracking-[0.22em] text-slate-500">GRADE</p>
+                              {answerOrderLabel && (() => {
+                                const rank = selectedRecapRating?.answeredRank ?? 0;
+                                if (rank === 1) return (
+                                  <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/55 bg-amber-400/[0.16] px-2 py-0.5 shadow-[0_0_12px_-2px_rgba(251,191,36,0.55)]">
+                                    <EmojiEventsRoundedIcon className="shrink-0 text-[0.68rem] text-amber-300" />
+                                    <span className="text-[10px] font-black tracking-[0.04em] text-amber-100">{answerOrderLabel}</span>
+                                  </div>
+                                );
+                                if (rank === 2) return (
+                                  <span className="inline-flex items-center rounded-full border border-slate-300/42 bg-slate-400/[0.1] px-2 py-0.5 text-[10px] font-black tracking-[0.04em] text-slate-200">{answerOrderLabel}</span>
+                                );
+                                if (rank === 3) return (
+                                  <span className="inline-flex items-center rounded-full border border-amber-700/48 bg-amber-800/[0.14] px-2 py-0.5 text-[10px] font-black tracking-[0.04em] text-amber-200">{answerOrderLabel}</span>
+                                );
+                                return (
+                                  <span className="text-[10px] font-semibold text-slate-400">{answerOrderLabel}</span>
+                                );
+                              })()}
+                            </div>
+                            {/* Big grade letter — stands alone, clean */}
+                            <p className={`mt-1 text-[3.2rem] font-black leading-none ${scoreVisualTone.gradeClass}`}>
+                              {selectedRecapRating?.grade ?? "E"}
+                            </p>
+                          </div>
+                          <div className="group/score relative isolate flex h-24 w-24 shrink-0 items-center justify-center overflow-visible rounded-full" style={{ background: scoreRingGradient }}>
+                            <div className={`pointer-events-none absolute -inset-4 rounded-full opacity-55 blur-[22px] ${scoreVisualTone.statusGlowClass}`} />
+                            <div className={`absolute inset-[17px] rounded-full ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
+                            <div className="relative z-10 flex h-[4.3rem] w-[4.3rem] flex-col items-center justify-center rounded-full bg-slate-950/100">
+                              <span className="text-[8px] font-semibold tracking-[0.2em] text-slate-500">SCORE</span>
+                              <span className={`mt-0.5 text-[1.55rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>{displayScore}</span>
+                              <span className="mt-0.5 text-[8px] font-semibold tracking-[0.16em] text-slate-500">{scoreRankLabel}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
