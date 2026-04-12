@@ -82,6 +82,9 @@ import {
   getStoredRoomId,
   setRoomPassword,
   setStoredRoomId,
+  getStoredRoomSessionToken,
+  setStoredRoomSessionToken,
+  clearStoredRoomSessionToken,
 } from "../roomStorage";
 import {
   capRoomMessages,
@@ -95,7 +98,6 @@ import { useRoomProviderRoomActions } from "../useRoomProviderRoomActions";
 import { useRoomProviderReadActions } from "../useRoomProviderReadActions";
 import { useRoomProviderSettingsActions } from "../useRoomProviderSettingsActions";
 import { useRoomProviderPlaylistActions } from "../useRoomProviderPlaylistActions";
-
 
 export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -168,9 +170,11 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
 
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(null);
-  const [currentRoomId, setCurrentRoomId] = useState<string | null>(
-    () => getStoredRoomId(),
+  const [currentRoom, setCurrentRoom] = useState<RoomState["room"] | null>(
+    null,
+  );
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(() =>
+    getStoredRoomId(),
   );
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -178,7 +182,9 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     RoomSettlementSnapshot[]
   >([]);
   const [messageInput, setMessageInput] = useState("");
-  const [chatCooldownUntil, setChatCooldownUntil] = useState<number | null>(null);
+  const [chatCooldownUntil, setChatCooldownUntil] = useState<number | null>(
+    null,
+  );
   const [chatCooldownLeft, setChatCooldownLeft] = useState(0);
   const isChatCooldownActive = chatCooldownLeft > 0;
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
@@ -190,48 +196,51 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [gamePlaylist, setGamePlaylist] = useState<PlaylistItem[]>([]);
   const [isGameView, setIsGameView] = useState(false);
-  const [routeRoomResolved, setRouteRoomResolved] = useState<boolean>(
-    () => Boolean(getStoredRoomId()),
+  const [routeRoomResolved, setRouteRoomResolved] = useState<boolean>(() =>
+    Boolean(getStoredRoomId()),
   );
   const [hostRoomPassword, setHostRoomPassword] = useState<string | null>(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   // Game settings (backfilled from room/playlist on join)
-  const [playDurationSec, setPlayDurationSec] = useState(DEFAULT_PLAY_DURATION_SEC);
-  const [revealDurationSec, setRevealDurationSec] = useState(DEFAULT_REVEAL_DURATION_SEC);
-  const [startOffsetSec, setStartOffsetSec] = useState(DEFAULT_START_OFFSET_SEC);
-  const [allowCollectionClipTiming, setAllowCollectionClipTiming] = useState(true);
-
-  const setMessagesWithCap = useCallback<Dispatch<SetStateAction<ChatMessage[]>>>(
-    (value) => {
-      setMessages((previous) => {
-        const next =
-          typeof value === "function"
-            ? (value as (prev: ChatMessage[]) => ChatMessage[])(previous)
-            : value;
-        return capRoomMessages(next);
-      });
-    },
-    [],
+  const [playDurationSec, setPlayDurationSec] = useState(
+    DEFAULT_PLAY_DURATION_SEC,
   );
+  const [revealDurationSec, setRevealDurationSec] = useState(
+    DEFAULT_REVEAL_DURATION_SEC,
+  );
+  const [startOffsetSec, setStartOffsetSec] = useState(
+    DEFAULT_START_OFFSET_SEC,
+  );
+  const [allowCollectionClipTiming, setAllowCollectionClipTiming] =
+    useState(true);
+
+  const setMessagesWithCap = useCallback<
+    Dispatch<SetStateAction<ChatMessage[]>>
+  >((value) => {
+    setMessages((previous) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: ChatMessage[]) => ChatMessage[])(previous)
+          : value;
+      return capRoomMessages(next);
+    });
+  }, []);
 
   const setSettlementHistoryWithCap = useCallback<
     Dispatch<SetStateAction<RoomSettlementSnapshot[]>>
-  >(
-    (value) => {
-      setSettlementHistory((previous) => {
-        const next =
-          typeof value === "function"
-            ? (
+  >((value) => {
+    setSettlementHistory((previous) => {
+      const next =
+        typeof value === "function"
+          ? (
               value as (
                 prev: RoomSettlementSnapshot[],
               ) => RoomSettlementSnapshot[]
             )(previous)
-            : value;
-        return capSettlementHistory(next);
-      });
-    },
-    [],
-  );
+          : value;
+      return capSettlementHistory(next);
+    });
+  }, []);
 
   const socketRef = useRef<ClientSocket | null>(null);
   const createRoomInFlightRef = useRef(false);
@@ -253,6 +262,21 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     const offset = serverNow - Date.now();
     serverOffsetRef.current = offset;
     setServerOffsetMs(offset);
+  }, []);
+
+  const initialStoredRoomSessionToken = getStoredRoomSessionToken();
+
+  const roomSessionTokenRef = useRef<string | null>(
+    initialStoredRoomSessionToken,
+  );
+
+  const persistRoomSessionToken = useCallback((token: string | null) => {
+    roomSessionTokenRef.current = token;
+    if (token) {
+      setStoredRoomSessionToken(token);
+    } else {
+      clearStoredRoomSessionToken();
+    }
   }, []);
 
   const persistRoomId = useCallback((id: string | null) => {
@@ -423,6 +447,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       lastLatencyProbeRoomIdRef,
       presenceParticipantNamesRef,
       presenceSeededRoomIdRef,
+      roomSessionTokenRef,
     },
     setters: {
       setIsConnected,
@@ -460,6 +485,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       appendPresenceSystemMessage,
       mergeCachedParticipantPing,
       saveRoomPassword,
+      persistRoomSessionToken,
     },
   });
 
@@ -514,6 +540,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     pendingAnswerSubmitRef,
     answerSubmitRequestSeqRef,
     serverOffsetRef,
+    persistRoomSessionToken,
   });
 
   const {
@@ -616,7 +643,12 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     if (questionCount > questionMaxLimit) {
       updateQuestionCountBase(questionMaxLimit);
     }
-  }, [playlistItems.length, questionCount, questionMaxLimit, updateQuestionCountBase]);
+  }, [
+    playlistItems.length,
+    questionCount,
+    questionMaxLimit,
+    updateQuestionCountBase,
+  ]);
 
   // Game settings backfill from playlist timing data
   useEffect(() => {
@@ -641,17 +673,18 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       typeof firstRoomSettingsItem.endSec === "number" &&
         firstRoomSettingsItem.endSec > inferredStartOffsetSec
         ? firstRoomSettingsItem.endSec - inferredStartOffsetSec
-        : (currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC),
+        : (currentRoom.gameSettings?.playDurationSec ??
+            DEFAULT_PLAY_DURATION_SEC),
     );
     const inferredAllowCollectionClipTiming = playlistViewItems.some(
       (item) => item.timingSource === "track_clip",
     );
     const inferredRevealDurationSec = clampRevealDurationSec(
       currentRoom.gameSettings?.revealDurationSec ??
-      (typeof gameState?.revealDurationMs === "number" &&
+        (typeof gameState?.revealDurationMs === "number" &&
         gameState.revealDurationMs > 0
-        ? gameState.revealDurationMs / 1000
-        : DEFAULT_REVEAL_DURATION_SEC),
+          ? gameState.revealDurationMs / 1000
+          : DEFAULT_REVEAL_DURATION_SEC),
     );
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentRoom((prev) => {
@@ -666,7 +699,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         prev.gameSettings?.playDurationSec === merged.playDurationSec &&
         prev.gameSettings?.revealDurationSec === merged.revealDurationSec &&
         prev.gameSettings?.startOffsetSec === merged.startOffsetSec &&
-        prev.gameSettings?.allowCollectionClipTiming === merged.allowCollectionClipTiming
+        prev.gameSettings?.allowCollectionClipTiming ===
+          merged.allowCollectionClipTiming
       ) {
         return prev;
       }
@@ -687,7 +721,11 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setHostRoomPassword(null);
       return;
     }
-    const serverPassword = (currentRoom.pin ?? currentRoom.password ?? "").trim();
+    const serverPassword = (
+      currentRoom.pin ??
+      currentRoom.password ??
+      ""
+    ).trim();
     const nextPassword = serverPassword || readRoomPassword(currentRoom.id);
     if (serverPassword) {
       saveRoomPassword(currentRoom.id, serverPassword);
@@ -701,7 +739,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     currentRoom?.pin,
     saveRoomPassword,
   ]);
-
 
   const fullPlaylistCtxValue = useMemo<RoomPlaylistContextValue>(
     () => ({
@@ -888,6 +925,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setJoinPasswordInput,
       handleJoinRoom,
       resetGameSettingsDefaults,
+      persistRoomSessionToken,
     }),
     [
       getSocket,
@@ -905,6 +943,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setJoinPasswordInput,
       handleJoinRoom,
       resetGameSettingsDefaults,
+      persistRoomSessionToken,
     ],
   );
 
@@ -926,4 +965,3 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     </RoomPlaylistContext.Provider>
   );
 };
-

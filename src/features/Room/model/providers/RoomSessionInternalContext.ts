@@ -22,6 +22,7 @@ export interface RoomSessionInternalContextValue {
   syncServerOffset: (serverNow: number) => void;
   lockSessionClientId: (nextClientId: string) => void;
   persistRoomId: (id: string | null) => void;
+  persistRoomSessionToken: (token: string | null) => void;
   saveRoomPassword: (roomId: string, password: string | null) => void;
   seedPresenceParticipants: (
     roomId: string | null | undefined,

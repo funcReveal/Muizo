@@ -320,6 +320,7 @@ export interface RoomState {
   gameState?: GameState | null;
   settlementHistory: RoomSettlementSnapshot[];
   serverNow: number;
+  roomSessionToken?: string;
 }
 
 export type SitePresencePayload = {
@@ -369,7 +370,11 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<RoomState>) => void,
   ) => void;
   resumeSession: (
-    payload: { roomId: string; username: string },
+    payload: {
+      roomId: string;
+      username: string;
+      roomSessionToken: string;
+    },
     callback?: (ack: Ack<RoomState>) => void,
   ) => void;
   updateProfile: (

@@ -37,4 +37,5 @@ export const STORAGE_KEYS = {
   roomPasswordPrefix: "roomPassword:",
   profileConfirmedPrefix: "profileConfirmed:",
   showVideoPreference: "showVideoPreference",
+  roomSessionToken: "roomSessionToken",
 } as const;

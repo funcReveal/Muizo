@@ -83,6 +83,7 @@ interface UseRoomProviderCreateRoomActionParams {
   ) => void;
   lockSessionClientId: (nextClientId: string) => void;
   persistRoomId: (id: string | null) => void;
+  persistRoomSessionToken: (token: string | null) => void;
   seedPresenceParticipants: (
     roomId: string | null | undefined,
     nextParticipants: RoomParticipant[],
@@ -137,6 +138,7 @@ export const useRoomProviderCreateRoomAction = ({
   fetchPlaylistPage,
   lockSessionClientId,
   persistRoomId,
+  persistRoomSessionToken,
   seedPresenceParticipants,
   mergeCachedParticipantPing,
   syncServerOffset,
@@ -176,7 +178,7 @@ export const useRoomProviderCreateRoomAction = ({
     nextUsername ? `${nextUsername}'s room` : "新房間";
 
   const runWithTimeout = useCallback(
-    async <T,>(task: Promise<T>, timeoutMs: number, fallback: T) => {
+    async <T>(task: Promise<T>, timeoutMs: number, fallback: T) => {
       let timer: number | null = null;
       try {
         return await Promise.race<T>([
@@ -356,6 +358,7 @@ export const useRoomProviderCreateRoomAction = ({
       seedPresenceParticipants(state.room.id, state.participants);
       setMessages(state.messages);
       setSettlementHistory(state.settlementHistory ?? []);
+      persistRoomSessionToken(state.roomSessionToken ?? null);
       persistRoomId(state.room.id);
       lockSessionClientId(clientId);
       setPlaylistProgress({
@@ -716,6 +719,7 @@ export const useRoomProviderCreateRoomAction = ({
     setStatusText,
     startOffsetSec,
     syncServerOffset,
+    persistRoomSessionToken,
     username,
     apiUrl,
     runWithTimeout,

@@ -6,7 +6,8 @@ const roomPasswordKey = (roomId: string) =>
 const profileConfirmedKey = (userId: string) =>
   `${STORAGE_KEYS.profileConfirmedPrefix}${userId}`;
 
-export const getStoredUsername = () => localStorage.getItem(STORAGE_KEYS.username);
+export const getStoredUsername = () =>
+  localStorage.getItem(STORAGE_KEYS.username);
 
 export const setStoredUsername = (name: string) =>
   localStorage.setItem(STORAGE_KEYS.username, name);
@@ -21,6 +22,15 @@ export const setStoredRoomId = (roomId: string) =>
 
 export const clearStoredRoomId = () =>
   localStorage.removeItem(STORAGE_KEYS.roomId);
+
+export const getStoredRoomSessionToken = () =>
+  localStorage.getItem(STORAGE_KEYS.roomSessionToken);
+
+export const setStoredRoomSessionToken = (token: string) =>
+  localStorage.setItem(STORAGE_KEYS.roomSessionToken, token);
+
+export const clearStoredRoomSessionToken = () =>
+  localStorage.removeItem(STORAGE_KEYS.roomSessionToken);
 
 export const getStoredQuestionCount = () => {
   const saved = Number(localStorage.getItem(STORAGE_KEYS.questionCount));
@@ -48,7 +58,6 @@ export const setStoredSessionClientId = (clientId: string) =>
 
 export const clearStoredSessionClientId = () =>
   localStorage.removeItem(STORAGE_KEYS.sessionClientId);
-
 
 export const getRoomPassword = (roomId: string) =>
   localStorage.getItem(roomPasswordKey(roomId));

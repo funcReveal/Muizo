@@ -11,7 +11,11 @@
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { connectRoomSocket, disconnectRoomSocket } from "./roomSocket";
 import { translateRoomErrorDetail } from "./roomErrorText";
-import { applyGameSettingsPatch, formatAckError, mergeRoomSummaryIntoCurrentRoom } from "./roomProviderUtils";
+import {
+  applyGameSettingsPatch,
+  formatAckError,
+  mergeRoomSummaryIntoCurrentRoom,
+} from "./roomProviderUtils";
 import type {
   Ack,
   ChatMessage,
@@ -45,6 +49,7 @@ interface SocketLifecycleRefs {
   lastLatencyProbeRoomIdRef: RefObject<string | null>;
   presenceParticipantNamesRef: RefObject<Map<string, string>>;
   presenceSeededRoomIdRef: RefObject<string | null>;
+  roomSessionTokenRef: RefObject<string | null>;
 }
 
 interface SocketLifecycleSetters {
@@ -106,6 +111,7 @@ interface SocketLifecycleHandlers {
     previousParticipants: RoomParticipant[],
   ) => RoomParticipant[];
   saveRoomPassword: (roomId: string, password: string | null) => void;
+  persistRoomSessionToken: (token: string | null) => void;
 }
 
 interface UseRoomProviderSocketLifecycleParams {
@@ -152,6 +158,7 @@ export const useRoomProviderSocketLifecycle = ({
     lastLatencyProbeRoomIdRef,
     presenceParticipantNamesRef,
     presenceSeededRoomIdRef,
+    roomSessionTokenRef,
   } = refs;
   const isSyncDebugEnabled = useCallback(() => {
     if (typeof window === "undefined") return false;
@@ -208,6 +215,7 @@ export const useRoomProviderSocketLifecycle = ({
     appendPresenceSystemMessage,
     mergeCachedParticipantPing,
     saveRoomPassword,
+    persistRoomSessionToken,
   } = handlers;
   const upsertRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -264,10 +272,12 @@ export const useRoomProviderSocketLifecycle = ({
       setPlaylistSuggestions([]);
       persistRoomId(null);
       resetSessionClientId();
+      persistRoomSessionToken(null);
     },
     [
       lastLatencyProbeRoomIdRef,
       persistRoomId,
+      persistRoomSessionToken,
       resetPresenceParticipants,
       resetSessionClientId,
       setCurrentRoom,
@@ -368,57 +378,76 @@ export const useRoomProviderSocketLifecycle = ({
             }
           });
           if (storedRoomId && username) {
-            socket.emit(
-              "resumeSession",
-              { roomId: storedRoomId, username },
-              (ack: Ack<RoomState>) => {
-                if (ack?.ok) {
-                  const state = ack.data;
-                  setKickedNotice(null);
-                  syncServerOffset(state.serverNow);
-                  setCurrentRoom(applyGameSettingsPatch(state.room, {}));
-                  setParticipants((prev) =>
-                    mergeCachedParticipantPing(state.participants, prev),
-                  );
-                  seedPresenceParticipants(state.room.id, state.participants);
-                  setMessages(state.messages);
-                  setSettlementHistory(state.settlementHistory ?? []);
-                  setPlaylistProgress({
-                    received: state.room.playlist.receivedCount,
-                    total: state.room.playlist.totalCount,
-                    ready: state.room.playlist.ready,
-                  });
-                  setGameState(state.gameState ?? null);
-                  if (state.gameState?.status === "playing") {
-                    setGamePlaylist([]);
-                    setIsGameView(true);
-                    void fetchCompletePlaylist(state.room.id).then(setGamePlaylist);
+            const storedRoomSessionToken = roomSessionTokenRef.current;
+            if (!storedRoomSessionToken) {
+              persistRoomId(null);
+              persistRoomSessionToken(null);
+              resetSessionClientId();
+              setStatusText(
+                "房間恢復失敗：本地缺少 roomSessionToken，請重新加入房間。",
+              );
+              setRouteRoomResolved(true);
+            } else {
+              socket.emit(
+                "resumeSession",
+                {
+                  roomId: storedRoomId,
+                  username,
+                  roomSessionToken: storedRoomSessionToken,
+                },
+                (ack: Ack<RoomState>) => {
+                  if (ack?.ok) {
+                    const state = ack.data;
+                    setKickedNotice(null);
+                    syncServerOffset(state.serverNow);
+                    setCurrentRoom(applyGameSettingsPatch(state.room, {}));
+                    setParticipants((prev) =>
+                      mergeCachedParticipantPing(state.participants, prev),
+                    );
+                    seedPresenceParticipants(state.room.id, state.participants);
+                    setMessages(state.messages);
+                    setSettlementHistory(state.settlementHistory ?? []);
+                    setPlaylistProgress({
+                      received: state.room.playlist.receivedCount,
+                      total: state.room.playlist.totalCount,
+                      ready: state.room.playlist.ready,
+                    });
+                    setGameState(state.gameState ?? null);
+                    if (state.gameState?.status === "playing") {
+                      setGamePlaylist([]);
+                      setIsGameView(true);
+                      void fetchCompletePlaylist(state.room.id).then(
+                        setGamePlaylist,
+                      );
+                    } else {
+                      setIsGameView(false);
+                      setGamePlaylist([]);
+                    }
+                    fetchPlaylistPage(
+                      state.room.id,
+                      1,
+                      state.room.playlist.pageSize,
+                      {
+                        reset: true,
+                      },
+                    );
+                    lockSessionClientId(clientId);
+                    persistRoomId(state.room.id);
+                    persistRoomSessionToken(state.roomSessionToken ?? null);
+                    setStatusText(`已恢復房間：${state.room.name}`);
+                    setRouteRoomResolved(true);
                   } else {
-                    setIsGameView(false);
-                    setGamePlaylist([]);
+                    if (ack?.error) {
+                      setStatusText(formatAckError("恢復房間失敗", ack.error));
+                    }
+                    persistRoomId(null);
+                    persistRoomSessionToken(null);
+                    resetSessionClientId();
+                    setRouteRoomResolved(true);
                   }
-                  fetchPlaylistPage(
-                    state.room.id,
-                    1,
-                    state.room.playlist.pageSize,
-                    {
-                      reset: true,
-                    },
-                  );
-                  lockSessionClientId(clientId);
-                  persistRoomId(state.room.id);
-                  setStatusText(`已恢復房間：${state.room.name}`);
-                  setRouteRoomResolved(true);
-                } else {
-                  if (ack?.error) {
-                    setStatusText(formatAckError("恢復房間失敗", ack.error));
-                  }
-                  persistRoomId(null);
-                  resetSessionClientId();
-                  setRouteRoomResolved(true);
-                }
-              },
-            );
+                },
+              );
+            }
           } else {
             setRouteRoomResolved(true);
           }
@@ -510,6 +539,7 @@ export const useRoomProviderSocketLifecycle = ({
           });
           lockSessionClientId(clientId);
           persistRoomId(state.room.id);
+          persistRoomSessionToken(state.roomSessionToken ?? null);
           setStatusText(null);
           setRouteRoomResolved(true);
         },
@@ -536,7 +566,11 @@ export const useRoomProviderSocketLifecycle = ({
             const prevNames = presenceParticipantNamesRef.current;
             for (const participant of participants) {
               if (!prevNames.has(participant.clientId)) {
-                appendPresenceSystemMessage(roomId, participant.username, "joined");
+                appendPresenceSystemMessage(
+                  roomId,
+                  participant.username,
+                  "joined",
+                );
               }
             }
             seedPresenceParticipants(roomId, participants);
@@ -679,6 +713,7 @@ export const useRoomProviderSocketLifecycle = ({
           setPlaylistLoadingMore(false);
           setPlaylistSuggestions([]);
           persistRoomId(null);
+          persistRoomSessionToken(null);
           resetSessionClientId();
           setRouteRoomResolved(true);
         },
@@ -694,7 +729,9 @@ export const useRoomProviderSocketLifecycle = ({
             },
             statusText:
               typeof bannedUntil === "number"
-                ? `${translatedReason} 封鎖至 ${new Date(bannedUntil).toLocaleTimeString("zh-TW", {
+                ? `${translatedReason} 封鎖至 ${new Date(
+                    bannedUntil,
+                  ).toLocaleTimeString("zh-TW", {
                     hour12: false,
                   })}`
                 : translatedReason,
@@ -748,6 +785,7 @@ export const useRoomProviderSocketLifecycle = ({
     fetchPlaylistPage,
     lockSessionClientId,
     persistRoomId,
+    persistRoomSessionToken,
     setStatusText,
     setKickedNotice,
     setRouteRoomResolved,
@@ -770,6 +808,7 @@ export const useRoomProviderSocketLifecycle = ({
     appendPresenceSystemMessage,
     presenceParticipantNamesRef,
     presenceSeededRoomIdRef,
+    roomSessionTokenRef,
     syncServerOffset,
     setIsConnected,
     socketRef,
@@ -783,23 +822,30 @@ export const useRoomProviderSocketLifecycle = ({
       const socket = socketRef.current;
       if (!socket || !socket.connected) return;
       const startedAt = performance.now();
-      socket.emit("latencyProbe", { roomId }, (ack: Ack<{ serverNow: number }>) => {
-        if (!ack?.ok) return;
-        const measuredMs = Math.max(0, Math.round(performance.now() - startedAt));
-        syncServerOffset(ack.data.serverNow);
-        startTransition(() => {
-          setParticipants((prev) => {
-            let changed = false;
-            const next = prev.map((participant) => {
-              if (participant.clientId !== clientId) return participant;
-              if (participant.pingMs === measuredMs) return participant;
-              changed = true;
-              return { ...participant, pingMs: measuredMs };
+      socket.emit(
+        "latencyProbe",
+        { roomId },
+        (ack: Ack<{ serverNow: number }>) => {
+          if (!ack?.ok) return;
+          const measuredMs = Math.max(
+            0,
+            Math.round(performance.now() - startedAt),
+          );
+          syncServerOffset(ack.data.serverNow);
+          startTransition(() => {
+            setParticipants((prev) => {
+              let changed = false;
+              const next = prev.map((participant) => {
+                if (participant.clientId !== clientId) return participant;
+                if (participant.pingMs === measuredMs) return participant;
+                changed = true;
+                return { ...participant, pingMs: measuredMs };
+              });
+              return changed ? next : prev;
             });
-            return changed ? next : prev;
           });
-        });
-      });
+        },
+      );
     },
     [clientId, setParticipants, socketRef, syncServerOffset],
   );
@@ -817,7 +863,12 @@ export const useRoomProviderSocketLifecycle = ({
       requestLatencyProbe(roomId);
     }, 1500);
     return () => window.clearTimeout(timer);
-  }, [currentRoomId, isConnected, lastLatencyProbeRoomIdRef, requestLatencyProbe]);
+  }, [
+    currentRoomId,
+    isConnected,
+    lastLatencyProbeRoomIdRef,
+    requestLatencyProbe,
+  ]);
 };
 
 export default useRoomProviderSocketLifecycle;

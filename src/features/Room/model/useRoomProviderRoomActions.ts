@@ -95,6 +95,7 @@ interface UseRoomProviderRoomActionsParams {
   ) => void;
   lockSessionClientId: (nextClientId: string) => void;
   persistRoomId: (id: string | null) => void;
+  persistRoomSessionToken: (token: string | null) => void;
   resetSessionClientId: () => void;
   resetPresenceParticipants: () => void;
   setCurrentRoom: Dispatch<SetStateAction<RoomState["room"] | null>>;
@@ -143,6 +144,7 @@ export const useRoomProviderRoomActions = ({
   fetchPlaylistPage,
   lockSessionClientId,
   persistRoomId,
+  persistRoomSessionToken,
   resetSessionClientId,
   resetPresenceParticipants,
   setCurrentRoom,
@@ -219,6 +221,7 @@ export const useRoomProviderRoomActions = ({
               saveRoomPassword(state.room.id, resolvedRoomPassword);
             }
             lockSessionClientId(clientId);
+            persistRoomSessionToken(state.roomSessionToken ?? null);
             persistRoomId(state.room.id);
             setJoinPasswordInput("");
             trackEvent("room_join_success", {
@@ -269,6 +272,7 @@ export const useRoomProviderRoomActions = ({
       saveRoomPassword,
       syncServerOffset,
       username,
+      persistRoomSessionToken,
     ],
   );
 
@@ -294,6 +298,7 @@ export const useRoomProviderRoomActions = ({
           setPlaylistSuggestions([]);
           setKickedNotice(null);
           persistRoomId(null);
+          persistRoomSessionToken(null);
           resetSessionClientId();
           setStatusText("已離開房間");
           onLeft?.();
@@ -306,6 +311,7 @@ export const useRoomProviderRoomActions = ({
       currentRoom,
       getSocket,
       persistRoomId,
+      persistRoomSessionToken,
       resetPresenceParticipants,
       resetSessionClientId,
       setCurrentRoom,
@@ -346,39 +352,39 @@ export const useRoomProviderRoomActions = ({
         if (!ack) return;
 
         if (!ack.ok) {
-        let retryAfterMs: number | null =
-          typeof ack.retryAfterMs === "number" && ack.retryAfterMs > 0
-            ? ack.retryAfterMs
-            : null;
+          let retryAfterMs: number | null =
+            typeof ack.retryAfterMs === "number" && ack.retryAfterMs > 0
+              ? ack.retryAfterMs
+              : null;
 
-        if (!retryAfterMs) {
-          const matchedSeconds = ack.error.match(/請\s*(\d+)\s*秒後再試/);
-          if (matchedSeconds) {
-            retryAfterMs = Number(matchedSeconds[1]) * 1000;
+          if (!retryAfterMs) {
+            const matchedSeconds = ack.error.match(/請\s*(\d+)\s*秒後再試/);
+            if (matchedSeconds) {
+              retryAfterMs = Number(matchedSeconds[1]) * 1000;
+            }
           }
-        }
 
-        if (!retryAfterMs) {
-          if (
-            ack.error === "RATE_LIMITED" ||
-            ack.error.includes("頻繁") ||
-            ack.error.includes("過快")
-          ) {
-            retryAfterMs = 10_000;
+          if (!retryAfterMs) {
+            if (
+              ack.error === "RATE_LIMITED" ||
+              ack.error.includes("頻繁") ||
+              ack.error.includes("過快")
+            ) {
+              retryAfterMs = 10_000;
+            }
           }
-        }
 
-        if (retryAfterMs) {
-          const cooldownSeconds = Math.ceil(retryAfterMs / 1000);
-          setChatCooldownLeft(cooldownSeconds);
-          setChatCooldownUntil(Date.now() + retryAfterMs);
-          setStatusText(null);
+          if (retryAfterMs) {
+            const cooldownSeconds = Math.ceil(retryAfterMs / 1000);
+            setChatCooldownLeft(cooldownSeconds);
+            setChatCooldownUntil(Date.now() + retryAfterMs);
+            setStatusText(null);
+            return;
+          }
+
+          setStatusText(formatAckError("發送訊息失敗", ack.error));
           return;
         }
-
-        setStatusText(formatAckError("發送訊息失敗", ack.error));
-        return;
-      }
 
         setMessageInput("");
       },

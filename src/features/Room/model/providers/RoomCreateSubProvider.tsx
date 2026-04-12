@@ -51,15 +51,14 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   // Reads from parent providers.
   const { authToken, clientId, refreshAuthToken } = useAuth();
-  const {
-    activeUsername,
-    getDefaultRoomName,
-    previousUsernameRef,
-  } = useRoomAuthInternal();
+  const { activeUsername, getDefaultRoomName, previousUsernameRef } =
+    useRoomAuthInternal();
   const { setStatusText } = useStatusWrite();
   const { resetPlaylistState } = usePlaylistInputControl();
-  const { resetPlaylistPagingState, setPlaylistProgress } = usePlaylistLiveSetters();
-  const { resetCollectionSelection, clearCollectionsError } = useCollectionAccess();
+  const { resetPlaylistPagingState, setPlaylistProgress } =
+    usePlaylistLiveSetters();
+  const { resetCollectionSelection, clearCollectionsError } =
+    useCollectionAccess();
 
   const {
     playlistItems,
@@ -81,6 +80,7 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
     syncServerOffset,
     lockSessionClientId,
     persistRoomId,
+    persistRoomSessionToken,
     saveRoomPassword,
     seedPresenceParticipants,
     mergeCachedParticipantPing,
@@ -106,8 +106,8 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
   } = useRoomSessionInternal();
 
   // Local state.
-  const [roomNameInput, setRoomNameInput] = useState(
-    () => getDefaultRoomName(activeUsername),
+  const [roomNameInput, setRoomNameInput] = useState(() =>
+    getDefaultRoomName(activeUsername),
   );
   const [roomVisibilityInput, setRoomVisibilityInput] = useState<
     "public" | "private"
@@ -132,12 +132,21 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
 
     setRoomNameInput((currentValue) => {
       const trimmed = currentValue.trim();
-      if (!trimmed || trimmed === previousDefaultName || trimmed === "未命名房間") {
+      if (
+        !trimmed ||
+        trimmed === previousDefaultName ||
+        trimmed === "未命名房間"
+      ) {
         return nextDefaultName;
       }
       return currentValue;
     });
-  }, [activeUsername, currentRoom?.id, getDefaultRoomName, previousUsernameRef]);
+  }, [
+    activeUsername,
+    currentRoom?.id,
+    getDefaultRoomName,
+    previousUsernameRef,
+  ]);
 
   // Create room action.
   const { handleCreateRoom } = useRoomProviderCreateRoomAction({
@@ -167,6 +176,7 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
     fetchPlaylistPage,
     lockSessionClientId,
     persistRoomId,
+    persistRoomSessionToken,
     seedPresenceParticipants,
     mergeCachedParticipantPing,
     syncServerOffset,
