@@ -1,4 +1,5 @@
 ﻿import React from "react";
+import { createPortal } from "react-dom";
 import { Badge, Chip } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
@@ -24,7 +25,11 @@ import {
 import AnimatedScoreboardBorder from "../../../../shared/ui/AnimatedScoreboardBorder";
 import RoomUiTooltip from "../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
-import type { ChatMessage, RoomParticipant } from "../../../Room/model/types";
+import type {
+  ChatMessage,
+  QuestionScoreBreakdown,
+  RoomParticipant,
+} from "../../../Room/model/types";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import { resolveComboTier } from "../lib/gameRoomUiUtils";
@@ -37,6 +42,7 @@ interface GameRoomLeftSidebarProps {
   answeredClientIdSet: Set<string>;
   answeredRankByClientId: Map<string, number>;
   scorePartsByClientId: Map<string, { base: number; gain: number }>;
+  scoreBreakdownByClientId?: Map<string, QuestionScoreBreakdown>;
   isReveal: boolean;
   meClientId?: string;
   topTwoSwapState: TopTwoSwapState | null;
@@ -69,6 +75,115 @@ const DESKTOP_FLIP_BASE_DURATION_MS = 860;
 const DESKTOP_FLIP_MAX_DURATION_MS = 1680;
 const DESKTOP_FLIP_ROW_HEIGHT_PX = 60;
 const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
+// Must exceed the CSS animation duration (2200ms) so cleanup fires after the
+// animation ends, not during it.
+const FLOATING_SCORE_BURST_LIFETIME_MS = 2350;
+
+type FloatingScoreTier = "normal" | "boost" | "hot" | "legend";
+
+type FloatingScoreBurst = {
+  id: string;
+  amount: number;
+  combo: number;
+  kind: "gain" | "loss";
+  tier: FloatingScoreTier;
+  /** which breakdown segment this burst represents — drives the label */
+  part: FloatingScoreBreakdownPart;
+  delayMs: number;
+  /** viewport-fixed Y coordinate captured at burst creation time (stable anchor) */
+  fixedTop: number;
+  /** viewport-fixed X (left) coordinate — just outside the row's right edge */
+  fixedLeft: number;
+};
+
+/** Short Chinese label for each score breakdown part shown under the amount. */
+const FLOATING_SCORE_PART_LABEL: Record<FloatingScoreBreakdownPart, string> = {
+  base: "基礎",
+  speed: "速度",
+  decision: "首答",
+  difficulty: "難度",
+  combo: "連擊",
+  other: "",
+};
+
+type FloatingScoreBreakdownPart =
+  | "base"
+  | "speed"
+  | "decision"
+  | "difficulty"
+  | "combo"
+  | "other";
+
+const resolveFloatingScoreTier = (
+  amount: number,
+  combo: number,
+  part: FloatingScoreBreakdownPart = "other",
+): FloatingScoreTier => {
+  if (amount < 0) return combo >= 6 ? "hot" : "boost";
+  if (part === "combo") {
+    if (combo >= 8 || amount >= 70) return "legend";
+    if (combo >= 5 || amount >= 40) return "hot";
+    return "boost";
+  }
+  if (combo >= 8 || amount >= 120) return "legend";
+  if (combo >= 5 || amount >= 80) return "hot";
+  if (combo >= 3 || amount >= 36) return "boost";
+  return "normal";
+};
+
+const resolveFloatingScoreSegments = (
+  gain: number,
+  combo: number,
+  breakdown?: QuestionScoreBreakdown,
+) => {
+  const resolvedTotal = breakdown?.totalGainPoints ?? gain;
+  if (!breakdown) {
+    return gain === 0
+      ? []
+      : [
+          {
+            amount: gain,
+            tier: resolveFloatingScoreTier(gain, combo),
+            kind: gain >= 0 ? ("gain" as const) : ("loss" as const),
+            part: "other" as FloatingScoreBreakdownPart,
+          },
+        ];
+  }
+
+  const segments: Array<{
+    amount: number;
+    tier: FloatingScoreTier;
+    kind: "gain" | "loss";
+    part: FloatingScoreBreakdownPart;
+  }> = [];
+  const pushSegment = (amount: number, part: FloatingScoreBreakdownPart) => {
+    if (!amount) return;
+    segments.push({
+      amount,
+      tier: resolveFloatingScoreTier(amount, combo, part),
+      kind: amount >= 0 ? "gain" : "loss",
+      part,
+    });
+  };
+
+  pushSegment(breakdown.basePoints, "base");
+  pushSegment(breakdown.speedBonusPoints, "speed");
+  pushSegment(breakdown.decisionBonusPoints, "decision");
+  pushSegment(breakdown.difficultyBonusPoints, "difficulty");
+  pushSegment(breakdown.comboBonusPoints, "combo");
+
+  const knownTotal = segments.reduce((sum, segment) => sum + segment.amount, 0);
+  const remainder = resolvedTotal - knownTotal;
+  if (remainder !== 0) {
+    pushSegment(remainder, "other");
+  }
+
+  if (segments.length === 0 && resolvedTotal !== 0) {
+    pushSegment(resolvedTotal, "other");
+  }
+
+  return segments;
+};
 
 const WaitingJoinDots = React.memo(function WaitingJoinDots() {
   return (
@@ -113,6 +228,7 @@ interface GameRoomScorePlayerRowProps {
   hasAnswered: boolean;
   answerRank?: number;
   scoreParts: { base: number; gain: number };
+  scoreBreakdown?: QuestionScoreBreakdown;
   isMeRow: boolean;
   answerDotClass: string;
   answerDotTitle: string;
@@ -129,6 +245,7 @@ interface GameRoomScorePlayerRowProps {
   scoreboardBorderLineStyle: ScoreboardBorderLineStyleId;
   scoreboardBorderParticleCount: number;
   avatarEffectLevel: "off" | "simple" | "full";
+  enableFloatingScoreBursts: boolean;
 }
 
 const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
@@ -137,6 +254,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   hasAnswered,
   answerRank,
   scoreParts,
+  scoreBreakdown,
   isMeRow,
   answerDotClass,
   answerDotTitle,
@@ -153,9 +271,144 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   scoreboardBorderLineStyle,
   scoreboardBorderParticleCount,
   avatarEffectLevel,
+  enableFloatingScoreBursts,
 }: GameRoomScorePlayerRowProps) {
+  const [floatingBursts, setFloatingBursts] = React.useState<FloatingScoreBurst[]>([]);
+  const burstSequenceRef = React.useRef(0);
+  const activeBurstKeyRef = React.useRef<string | null>(null);
+  const removalTimerIdsRef = React.useRef<number[]>([]);
+  /** ref to the shell div — used to measure viewport position for portal bursts */
+  const shellRef = React.useRef<HTMLDivElement>(null);
+  /**
+   * Desktop-only animated score display.
+   * null  → show player.score directly (mobile, pre-reveal, or no gain).
+   * number → the score value being stepped through segment-by-segment.
+   */
+  const [animatedDisplayScore, setAnimatedDisplayScore] = React.useState<number | null>(null);
+  const scoreIncrementTimerIdsRef = React.useRef<number[]>([]);
+
+  React.useEffect(() => {
+    if (enableFloatingScoreBursts) return;
+    setFloatingBursts([]);
+    setAnimatedDisplayScore(null);
+    activeBurstKeyRef.current = null;
+    removalTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    removalTimerIdsRef.current = [];
+    scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
+    scoreIncrementTimerIdsRef.current = [];
+  }, [enableFloatingScoreBursts]);
+
+  React.useEffect(() => () => {
+    removalTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    removalTimerIdsRef.current = [];
+    scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
+    scoreIncrementTimerIdsRef.current = [];
+  }, []);
+
+  React.useEffect(() => {
+    if (!enableFloatingScoreBursts || !isReveal || scoreParts.gain === 0) {
+      if (!isReveal || scoreParts.gain === 0) {
+        activeBurstKeyRef.current = null;
+        // Reveal ended or no gain — snap back to the true score immediately.
+        setAnimatedDisplayScore(null);
+        scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
+        scoreIncrementTimerIdsRef.current = [];
+      }
+      return;
+    }
+
+    const breakdownKey = scoreBreakdown
+      ? [
+          scoreBreakdown.basePoints,
+          scoreBreakdown.speedBonusPoints,
+          scoreBreakdown.decisionBonusPoints,
+          scoreBreakdown.difficultyBonusPoints,
+          scoreBreakdown.comboBonusPoints,
+          scoreBreakdown.totalGainPoints,
+        ].join(":")
+      : "none";
+    const burstKey = `${player.clientId}:${player.score}:${scoreParts.base}:${scoreParts.gain}:${player.combo}:${breakdownKey}`;
+    if (activeBurstKeyRef.current === burstKey) return;
+    activeBurstKeyRef.current = burstKey;
+
+    const combo = Math.max(0, player.combo ?? 0);
+    // Stable anchor: capture the row's viewport position once for all segments.
+    // All segments in this reveal share the same (fixedTop, fixedLeft) so they
+    // rise from a consistent, predictable point in the black area to the right
+    // of the scoreboard. Time-delay alone creates the vertical stacking chain.
+    const shellRect = shellRef.current?.getBoundingClientRect();
+    const burstFixedTop = shellRect
+      ? shellRect.top + shellRect.height * 0.5
+      : 0;
+    const burstFixedLeft = shellRect ? shellRect.right + 10 : 0;
+
+    const segments = resolveFloatingScoreSegments(
+      scoreParts.gain,
+      combo,
+      scoreBreakdown,
+    );
+    const nextBursts = segments.map((segment, index) => {
+      burstSequenceRef.current += 1;
+      return {
+        id: `${player.clientId}-${burstSequenceRef.current}`,
+        amount: segment.amount,
+        combo,
+        kind: segment.kind,
+        tier: segment.tier,
+        part: segment.part,
+        // 190 ms between each segment — gives enough time to read each value
+        // before the next one appears; segments still form a natural rising chain.
+        delayMs: index * 190,
+        fixedTop: burstFixedTop,
+        fixedLeft: burstFixedLeft,
+      } satisfies FloatingScoreBurst;
+    });
+    if (nextBursts.length === 0) return;
+
+    setFloatingBursts((current) => [...current.slice(-2), ...nextBursts].slice(-6));
+    nextBursts.forEach((nextBurst) => {
+      const timerId = window.setTimeout(() => {
+        setFloatingBursts((current) => current.filter((burst) => burst.id !== nextBurst.id));
+        removalTimerIdsRef.current = removalTimerIdsRef.current.filter((id) => id !== timerId);
+      }, FLOATING_SCORE_BURST_LIFETIME_MS + nextBurst.delayMs);
+      removalTimerIdsRef.current.push(timerId);
+    });
+
+    // — Animated displayed score: tick up one segment at a time.
+    // Start from the base (pre-reveal) score then add each segment's amount
+    // 60 ms after its floating label appears, so the user sees the label first.
+    scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
+    scoreIncrementTimerIdsRef.current = [];
+    setAnimatedDisplayScore(scoreParts.base);
+    let runningScore = scoreParts.base;
+    nextBursts.forEach((burst) => {
+      runningScore += burst.amount;
+      const targetScore = runningScore;
+      const incrTimerId = window.setTimeout(() => {
+        setAnimatedDisplayScore(targetScore);
+        scoreIncrementTimerIdsRef.current = scoreIncrementTimerIdsRef.current.filter(
+          (id) => id !== incrTimerId,
+        );
+      // 140 ms after the burst appears → lands inside the hold phase where the
+      // floating label is fully visible, so the score tick and "+XX" feel in sync.
+      }, burst.delayMs + 140);
+      scoreIncrementTimerIdsRef.current.push(incrTimerId);
+    });
+  }, [
+    enableFloatingScoreBursts,
+    isReveal,
+    player.clientId,
+    player.combo,
+    player.score,
+    scoreBreakdown,
+    scoreParts.base,
+    scoreParts.gain,
+  ]);
+
   return (
-    <div className={rowClassName} style={rowSwapStyle}>
+    <>
+    <div className="game-room-score-row-shell" ref={shellRef}>
+      <div className={rowClassName} style={rowSwapStyle}>
       {shouldShowComboChampion && (
         <AnimatedScoreboardBorder
           animationId={effectiveScoreboardBorderMotion}
@@ -194,7 +447,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
           <span className="game-room-score-row-you-badge">YOU</span>
         )}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2 overflow-visible">
         {typeof answerRank === "number" ? (
           <Chip
             label={`第 ${answerRank} 答`}
@@ -211,9 +464,12 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
             className="game-room-chip game-room-chip--scoreboard-state"
           />
         )}
-        <span className="font-semibold text-emerald-300 tabular-nums">
-          {player.score.toLocaleString()}
-          {isReveal && scoreParts.gain !== 0 && (
+        <span className="relative font-semibold text-emerald-300 tabular-nums">
+          {(enableFloatingScoreBursts && animatedDisplayScore !== null
+            ? animatedDisplayScore
+            : player.score
+          ).toLocaleString()}
+          {!enableFloatingScoreBursts && isReveal && scoreParts.gain !== 0 && (
             <span
               className={`ml-1 ${scoreParts.gain > 0
                 ? "text-sky-300 game-room-score-gain-pop"
@@ -228,7 +484,45 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
           )}
         </span>
       </div>
+      </div>
     </div>
+    {enableFloatingScoreBursts && floatingBursts.length > 0 && createPortal(
+      <>
+        {floatingBursts.map((burst) => {
+          const label = burst.kind === "loss"
+            ? "扣分"
+            : (FLOATING_SCORE_PART_LABEL[burst.part] ?? "");
+          return (
+            <span
+              key={burst.id}
+              aria-hidden="true"
+              style={{
+                position: "fixed",
+                top: burst.fixedTop,
+                left: burst.fixedLeft,
+                // No horizontal drift — all segments rise from the same anchor.
+                "--gr-floating-score-x": "0px",
+                // Drives continuous font-size & brightness scaling in CSS.
+                "--gr-fs-combo-ratio": Math.min(1, Math.max(0, burst.combo) / 10).toFixed(3),
+                animationDelay: `${burst.delayMs}ms`,
+                zIndex: 9999,
+                pointerEvents: "none",
+              } as React.CSSProperties}
+              className={`game-room-floating-score game-room-floating-score--desktop-portal game-room-floating-score--${burst.kind} game-room-floating-score--tier-${burst.tier}`}
+            >
+              <span className="game-room-floating-score__amount">
+                {burst.amount > 0 ? `+${burst.amount}` : burst.amount}
+              </span>
+              {label && (
+                <span className="game-room-floating-score__label">{label}</span>
+              )}
+            </span>
+          );
+        })}
+      </>,
+      document.body,
+    )}
+    </>
   );
 });
 
@@ -250,6 +544,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   answeredClientIdSet,
   answeredRankByClientId,
   scorePartsByClientId,
+  scoreBreakdownByClientId,
   isReveal,
   meClientId,
   topTwoSwapState,
@@ -273,6 +568,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreboardBorderTheme = DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   scoreboardBorderParticleCount = DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
 }) => {
+  const enableDesktopFloatingScoreBursts = !mobileOverlayMode;
   const effectiveScoreboardBorderMotion = React.useMemo<ScoreboardBorderAnimationId>(() => {
     if (!scoreboardBorderEnabled) return "none";
     if (scoreboardBorderAnimation === "none") return "none";
@@ -696,6 +992,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
               base: p.score,
               gain: 0,
             };
+            const scoreBreakdown = scoreBreakdownByClientId?.get(p.clientId);
             const isMeRow = p.clientId === meClientId;
             const rowAnswerState = isReveal
               ? hasAnswered
@@ -836,7 +1133,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
               `玩家 ${idx + 1}`,
             );
 
-            const rowClassName = `game-room-score-row flex items-center justify-between text-sm ${isReveal ? "game-room-score-row--revealed" : ""
+            const rowClassName = `game-room-score-row flex items-center justify-between text-sm ${enableDesktopFloatingScoreBursts ? "game-room-score-row--desktop-floating-score" : ""} ${isReveal ? "game-room-score-row--revealed" : ""
               } ${rowAnswerState === "correct"
                 ? "game-room-score-row--correct"
                   : rowAnswerState === "wrong"
@@ -881,6 +1178,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   hasAnswered={hasAnswered}
                   answerRank={answerRank}
                   scoreParts={scoreParts}
+                  scoreBreakdown={scoreBreakdown}
                   isMeRow={isMeRow}
                   answerDotClass={answerDotClass}
                   answerDotTitle={answerDotTitle}
@@ -897,6 +1195,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   scoreboardBorderLineStyle={scoreboardBorderLineStyle}
                   scoreboardBorderParticleCount={scoreboardBorderParticleCount}
                   avatarEffectLevel={avatarEffectLevel}
+                  enableFloatingScoreBursts={enableDesktopFloatingScoreBursts}
                 />
               </div>
             );
