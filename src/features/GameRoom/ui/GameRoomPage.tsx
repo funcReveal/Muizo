@@ -1000,6 +1000,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     startCountdownSec,
     myHasChangedAnswer,
   });
+  const scoreBreakdownByClientId = React.useMemo(
+    () =>
+      new Map(
+        Object.entries(gameState.questionStats?.scoreBreakdownsByClientId ?? {}),
+      ),
+    [gameState.questionStats?.scoreBreakdownsByClientId],
+  );
 
   useGameRoomSfxEffects({
     gamePhase: gameState.phase,
@@ -1448,6 +1455,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 answeredClientIdSet={answeredClientIdSet}
                 answeredRankByClientId={answeredRankByClientId}
                 scorePartsByClientId={scorePartsByClientId}
+                scoreBreakdownByClientId={scoreBreakdownByClientId}
                 isReveal={isReveal}
                 meClientId={meClientId}
                 topTwoSwapState={topTwoSwapState}
@@ -1712,6 +1720,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     answeredClientIdSet={answeredClientIdSet}
                     answeredRankByClientId={answeredRankByClientId}
                     scorePartsByClientId={scorePartsByClientId}
+                    scoreBreakdownByClientId={scoreBreakdownByClientId}
                     isReveal={isReveal}
                     meClientId={meClientId}
                     topTwoSwapState={topTwoSwapState}

@@ -4518,6 +4518,176 @@ body {
   animation: game-room-score-loss-pop 420ms cubic-bezier(0.36, 0.01, 0.24, 1.02);
 }
 
+.game-room-score-row-shell {
+  position: relative;
+  overflow: visible;
+}
+
+.game-room-score-row--desktop-floating-score {
+  overflow: visible;
+}
+
+.game-room-floating-score-stack {
+  pointer-events: none;
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.2rem;
+  z-index: 4;
+  width: 8.5rem;
+  height: 3.75rem;
+  overflow: visible;
+}
+
+.game-room-floating-score {
+  --gr-floating-score-y-end: -52px;
+  --gr-floating-score-x: 0px;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  /* Column layout: amount on top, label below — both float together */
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: max-content;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate3d(var(--gr-floating-score-x), 10px, 0) scale(0.86);
+  animation: game-room-floating-score-rise 1900ms cubic-bezier(0.19, 0.8, 0.22, 1)
+    forwards;
+  will-change: transform, opacity, filter;
+}
+
+/* Amount: primary — inherits font-size/weight/color from parent */
+.game-room-floating-score__amount {
+  line-height: 1;
+}
+
+/* Label: secondary — smaller, slightly dimmer, right-aligned under the amount */
+.game-room-floating-score__label {
+  font-size: 0.6em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.78;
+  line-height: 1;
+  margin-top: 3px;
+}
+
+.game-room-floating-score--lane-0 {
+  --gr-floating-score-x: 0px;
+}
+
+.game-room-floating-score--lane-1 {
+  --gr-floating-score-x: -10px;
+}
+
+.game-room-floating-score--lane-2 {
+  --gr-floating-score-x: 9px;
+}
+
+.game-room-floating-score--lane-3 {
+  --gr-floating-score-x: -16px;
+}
+
+.game-room-floating-score--gain {
+  color: #d9fbff;
+  text-shadow:
+    0 0 10px rgba(34, 211, 238, 0.52),
+    0 0 22px rgba(34, 211, 238, 0.24);
+}
+
+.game-room-floating-score--loss {
+  color: #ffd1d1;
+  text-shadow:
+    0 0 10px rgba(251, 113, 133, 0.48),
+    0 0 18px rgba(244, 63, 94, 0.26);
+}
+
+.game-room-floating-score--tier-normal {
+  --gr-fs-size-base: 0.92rem;
+  font-size: 0.92rem;
+  filter: brightness(1);
+}
+
+.game-room-floating-score--tier-boost {
+  --gr-floating-score-y-end: -50px;
+  --gr-fs-size-base: 1.02rem;
+  font-size: 1.02rem;
+  filter: brightness(1.08);
+}
+
+.game-room-floating-score--tier-hot {
+  --gr-floating-score-y-end: -56px;
+  --gr-fs-size-base: 1.16rem;
+  font-size: 1.16rem;
+  filter: brightness(1.15);
+}
+
+.game-room-floating-score--tier-legend {
+  --gr-floating-score-y-end: -62px;
+  --gr-fs-size-base: 1.28rem;
+  font-size: 1.28rem;
+  filter: brightness(1.24);
+}
+
+.game-room-floating-score--gain.game-room-floating-score--tier-boost {
+  color: #bffaff;
+  text-shadow:
+    0 0 12px rgba(56, 189, 248, 0.62),
+    0 0 24px rgba(34, 211, 238, 0.28);
+}
+
+.game-room-floating-score--gain.game-room-floating-score--tier-hot {
+  color: #f4feff;
+  text-shadow:
+    0 0 14px rgba(125, 211, 252, 0.76),
+    0 0 30px rgba(34, 211, 238, 0.34),
+    0 0 44px rgba(59, 130, 246, 0.18);
+}
+
+.game-room-floating-score--gain.game-room-floating-score--tier-legend {
+  color: #fff5bc;
+  text-shadow:
+    0 0 14px rgba(253, 224, 71, 0.78),
+    0 0 32px rgba(250, 204, 21, 0.34),
+    0 0 54px rgba(56, 189, 248, 0.22);
+}
+
+.game-room-floating-score--loss.game-room-floating-score--tier-boost,
+.game-room-floating-score--loss.game-room-floating-score--tier-hot,
+.game-room-floating-score--loss.game-room-floating-score--tier-legend {
+  color: #ffe1e1;
+  text-shadow:
+    0 0 12px rgba(251, 113, 133, 0.62),
+    0 0 24px rgba(244, 63, 94, 0.32),
+    0 0 36px rgba(190, 24, 93, 0.18);
+}
+
+/*
+ * Desktop-only portal bursts (position: fixed, rendered to document.body).
+ * Overrides the right/bottom defaults from .game-room-floating-score so inline
+ * top/left positioning is unambiguous.
+ * Adds combo-progressive font-size and brightness via CSS custom properties
+ * that are set as inline styles by the React component:
+ *   --gr-fs-size-base   : tier's base font size (set by .game-room-floating-score--tier-*)
+ *   --gr-fs-combo-ratio : clamp(combo / 10, 0, 1)   (set by inline style)
+ *
+ * font-size scale: tier_base + ratio * 0.34rem  (0 → +0.34rem at combo 10)
+ * brightness scale: 1 + ratio * 0.48            (1 → 1.48 at combo 10)
+ *
+ * Because this rule appears AFTER the tier classes in the stylesheet, it wins
+ * the cascade for font-size and filter without needing !important.
+ * Mobile never receives this class (enableFloatingScoreBursts is false there).
+ */
+.game-room-floating-score--desktop-portal {
+  right: auto;
+  bottom: auto;
+  --gr-floating-score-y-end: -80px;
+  font-size: calc(var(--gr-fs-size-base, 0.92rem) + var(--gr-fs-combo-ratio, 0) * 0.34rem);
+  filter: brightness(calc(1 + var(--gr-fs-combo-ratio, 0) * 0.48));
+}
+
 .game-room-chat {
   background: transparent;
   border: none;
@@ -6505,6 +6675,38 @@ body {
   }
 }
 
+@keyframes game-room-floating-score-rise {
+  /* ① Quick pop-in from just below the anchor */
+  0% {
+    transform: translate3d(var(--gr-floating-score-x), 10px, 0) scale(0.82);
+    opacity: 0;
+    filter: brightness(0.92);
+  }
+  /* ② Settle at near-peak — burst is fully readable here (~190ms in) */
+  10% {
+    transform: translate3d(var(--gr-floating-score-x), -4px, 0) scale(1.1);
+    opacity: 1;
+  }
+  /* ③ Hold: barely moving for ~340ms so the user can read "+XX" clearly */
+  28% {
+    transform: translate3d(var(--gr-floating-score-x), -9px, 0) scale(1.05);
+    opacity: 1;
+  }
+  /* ④ Slow rise — drifts upward over ~760ms while still legible */
+  68% {
+    transform: translate3d(var(--gr-floating-score-x), calc(var(--gr-floating-score-y-end) * 0.62), 0)
+      scale(1.01);
+    opacity: 0.82;
+  }
+  /* ⑤ Gentle fade-out at the top */
+  100% {
+    transform: translate3d(var(--gr-floating-score-x), var(--gr-floating-score-y-end), 0)
+      scale(0.96);
+    opacity: 0;
+    filter: brightness(1.1);
+  }
+}
+
 @keyframes game-room-reveal-combo-break {
   0% {
     transform: translateX(0) scale(1);
@@ -6557,6 +6759,7 @@ body {
   .game-room-reveal-card--result-burst::before,
   .game-room-score-gain-pop,
   .game-room-score-loss-pop,
+  .game-room-floating-score,
   .game-room-score-row--rank-swap-up,
   .game-room-score-row--rank-swap-down {
     animation: none !important;
@@ -17706,6 +17909,10 @@ body {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.02),
       inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  }
+
+  .game-room-mobile-scoreboard-shell .game-room-floating-score-stack {
+    display: none;
   }
 
   .game-room-mobile-scoreboard-shell .game-room-score-row::before {
