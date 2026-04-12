@@ -264,6 +264,103 @@ const RecapTitleMarquee: React.FC<{ text: string; className?: string }> = ({ tex
   );
 };
 
+// ─── mobile: single-line title with custom tap-to-reveal tooltip ──────────────
+
+const MobileChoiceTitleTooltip: React.FC<{
+  text: string;
+  className?: string;
+}> = ({ text, className = "" }) => {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const textRef = React.useRef<HTMLSpanElement | HTMLButtonElement | null>(null);
+  const [isTruncated, setIsTruncated] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const tooltipId = React.useId();
+
+  React.useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    const check = () => setIsTruncated(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", handler, { capture: true });
+    return () => window.removeEventListener("pointerdown", handler, { capture: true });
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!isTruncated) setOpen(false);
+  }, [isTruncated]);
+
+  const titleTextClass = `block w-full truncate text-left ${className}`;
+
+  return (
+    <div ref={containerRef} className="relative min-w-0 overflow-visible">
+      {isTruncated ? (
+        <button
+          ref={textRef as React.RefObject<HTMLButtonElement>}
+          type="button"
+          aria-expanded={open}
+          aria-describedby={open ? tooltipId : undefined}
+          className={`${titleTextClass} cursor-pointer appearance-none border-0 bg-transparent p-0 active:opacity-70`}
+          onClick={() => setOpen((v) => !v)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setOpen(false);
+              event.currentTarget.blur();
+            }
+          }}
+        >
+          {text}
+        </button>
+      ) : (
+        <span ref={textRef as React.RefObject<HTMLSpanElement>} className={titleTextClass}>
+          {text}
+        </span>
+      )}
+      {open && isTruncated && (
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className="absolute left-0 top-[calc(100%+0.45rem)] z-50 max-w-[min(72vw,18rem)] rounded-[14px] border border-white/12 bg-[linear-gradient(180deg,rgba(16,24,40,0.97),rgba(6,12,24,0.99))] px-3 py-2 text-[0.82rem] font-semibold leading-snug text-slate-50 shadow-[0_12px_36px_-12px_rgba(0,0,0,0.92),0_0_18px_rgba(56,189,248,0.12)] backdrop-blur-md"
+        >
+          <div className="pointer-events-none absolute -top-[5px] left-4 h-[10px] w-[10px] rotate-45 border-l border-t border-white/10 bg-[rgba(16,24,40,0.97)]" />
+          {text}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MobileReviewOverlayToggle: React.FC<{
+  direction: "left" | "right";
+  onClick: () => void;
+  label: string;
+}> = ({ direction, onClick, label }) => (
+  <button
+    type="button"
+    aria-label={label}
+    onClick={onClick}
+    className={`absolute top-1/2 z-20 flex h-14 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-white/[0.08] text-[0.92rem] font-black tracking-[-0.16em] text-white/70 shadow-[0_8px_22px_-16px_rgba(255,255,255,0.55)] backdrop-blur-sm transition active:scale-[0.97] ${
+      direction === "left"
+        ? "left-0 -translate-x-1/3 pl-1"
+        : "right-0 translate-x-1/3 pr-1"
+    }`}
+  >
+    <span aria-hidden="true">{direction === "left" ? "<<" : ">>"}</span>
+  </button>
+);
+
 // ─── YouTube preview hook (extracted from HistoryReplayCompactView pattern) ──
 
 const PREVIEW_BRIDGE_ID = "settlement-review-preview";
@@ -802,6 +899,8 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   const [filter, setFilter] = React.useState<ReviewListFilter>("all");
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [expandedChoiceParticipantsKey, setExpandedChoiceParticipantsKey] = React.useState<number | null>(null);
+  // Mobile-only: controls which view is shown in the lower switchable panel
+  const [mobileReviewDetailView, setMobileReviewDetailView] = React.useState<"choices" | "metrics">("choices");
   const detailTopRef = React.useRef<HTMLDivElement | null>(null);
   const mobileDrawerListNodeRef = React.useRef<HTMLDivElement | null>(null);
   const mobileDrawerItemRefs = React.useRef(new Map<string, HTMLDivElement>());
@@ -929,7 +1028,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
       ? `${selectedRecapFilteredIndex >= 0 ? selectedRecapFilteredIndex + 1 : 1}/${filteredRecaps.length}`
       : "0/0";
 
-  React.useEffect(() => { setExpandedChoiceParticipantsKey(null); }, [selectedRecap?.key]);
+  React.useEffect(() => {
+    setExpandedChoiceParticipantsKey(null);
+    setMobileReviewDetailView("choices");
+  }, [selectedRecap?.key]);
 
   const registerMobileDrawerItemRef = React.useCallback(
     (recapKey: string) => (node: HTMLDivElement | null) => {
@@ -1221,7 +1323,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                 style={{ animation: "settlementSwapIn 240ms ease-out both" }}
               >
                 {/* question meta */}
-                <div className="relative z-10 flex flex-col gap-4">
+                <div className="relative z-10 flex flex-col gap-3">
                   <div className="relative flex min-w-0 flex-1 flex-col items-start pr-2">
                     <button
                       type="button"
@@ -1240,233 +1342,236 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                     )}
                   </div>
 
-                  {/* score ring + stats — collapsible on mobile */}
-                  <CollapsibleSection
-                    label="題目數據"
-                    defaultOpen={false}
-                    summary={(
-                      <div className="overflow-visible rounded-[16px] border border-white/5 bg-white/[0.025] px-4 pb-3 pt-3">
-                        <div className="flex items-center justify-between gap-4 overflow-visible">
-                          <div className="min-w-0 flex-1">
-                            {/* GRADE label + rank badge on same header row */}
-                            <div className="flex items-center gap-2">
-                              <p className="shrink-0 text-[10px] font-semibold tracking-[0.22em] text-slate-500">GRADE</p>
-                              {answerOrderLabel && (() => {
-                                const rank = selectedRecapRating?.answeredRank ?? 0;
-                                if (rank === 1) return (
-                                  <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/55 bg-amber-400/[0.16] px-2 py-0.5 shadow-[0_0_12px_-2px_rgba(251,191,36,0.55)]">
-                                    <EmojiEventsRoundedIcon className="shrink-0 text-[0.68rem] text-amber-300" />
-                                    <span className="text-[10px] font-black tracking-[0.04em] text-amber-100">{answerOrderLabel}</span>
+                  {/* [mobile] score summary — 第X答 integrated as sub-metric below grade */}
+                  <div className="overflow-visible rounded-[16px] border border-white/5 bg-white/[0.025] px-4 pb-4 pt-3">
+                    <div className="flex items-center justify-between gap-4 overflow-visible">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold tracking-[0.22em] text-slate-500">GRADE</p>
+                        <p className={`mt-1 text-[3.2rem] font-black leading-none ${scoreVisualTone.gradeClass}`}>
+                          {selectedRecapRating?.grade ?? "E"}
+                        </p>
+                        {/* 第 X 答 — integrated sub-metric, no capsule border */}
+                        {answerOrderLabel && (() => {
+                          const rank = selectedRecapRating?.answeredRank ?? 0;
+                          return (
+                            <div className="mt-2 flex items-center gap-1.5">
+                              {rank === 1 && <EmojiEventsRoundedIcon className="shrink-0 text-[0.78rem] text-amber-300" />}
+                              <span className={`text-[11px] font-bold leading-none ${rank === 1 ? "text-amber-200" : rank <= 3 ? "text-slate-200" : "text-slate-400"}`}>
+                                {answerOrderLabel}
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="group/score relative isolate flex h-24 w-24 shrink-0 items-center justify-center overflow-visible rounded-full" style={{ background: scoreRingGradient }}>
+                        <div className={`pointer-events-none absolute -inset-4 rounded-full opacity-55 blur-[22px] ${scoreVisualTone.statusGlowClass}`} />
+                        <div className={`absolute inset-[17px] rounded-full ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
+                        <div className="relative z-10 flex h-[4.3rem] w-[4.3rem] flex-col items-center justify-center rounded-full bg-slate-950/100">
+                          <span className="text-[8px] font-semibold tracking-[0.2em] text-slate-500">SCORE</span>
+                          <span className={`mt-0.5 text-[1.55rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>{displayScore}</span>
+                          <span className="mt-0.5 text-[8px] font-semibold tracking-[0.16em] text-slate-500">{scoreRankLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* [mobile] two-view panel — pager embedded at bottom of each view */}
+                  <div className="relative">
+                    {/* view A: 4 choices, compact cards, pager at bottom */}
+                    {mobileReviewDetailView === "choices" && (
+                      <div className="space-y-2.5 pr-2">
+                        {selectedRecap.choices.map((choice) => {
+                          const isCorrect = choice.index === selectedRecap.correctChoiceIndex;
+                          const isMine = selectedRecapAnswer.choiceIndex === choice.index;
+                          const pickedCount = countChoiceVotes(selectedRecap, choice.index);
+                          const totalAnswers = Math.max(1, Object.keys(selectedRecap.answersByClientId ?? {}).length);
+                          const pickedPercent = clampPercent((pickedCount / totalAnswers) * 100);
+                          const pickedParticipants = Object.entries(selectedRecap.answersByClientId ?? {})
+                            .filter(([, a]) => a.choiceIndex === choice.index)
+                            .sort(([, la], [, ra]) => {
+                              const lMs = typeof la.answeredAtMs === "number" ? la.answeredAtMs : Number.MAX_SAFE_INTEGER;
+                              const rMs = typeof ra.answeredAtMs === "number" ? ra.answeredAtMs : Number.MAX_SAFE_INTEGER;
+                              return lMs !== rMs ? lMs - rMs : 0;
+                            })
+                            .map(([cid]) => participantByClientId.get(cid))
+                            .filter((p): p is RoomParticipant => Boolean(p));
+                          const visiblePicked = pickedParticipants.slice(0, 4);
+                          const hiddenPicked = pickedParticipants.slice(4);
+                          const isExpanded = expandedChoiceParticipantsKey === choice.index;
+                          const choiceCardClass = `relative overflow-visible rounded-[20px] px-4 py-3 ${isCorrect ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]" : isMine ? "border border-rose-300/30 bg-[linear-gradient(180deg,rgba(64,16,28,0.68),rgba(26,10,18,0.62))]" : "bg-black/18"}`;
+                          return (
+                            <div key={`${selectedRecap.key}-${choice.index}`} className={choiceCardClass}>
+                              {pickedParticipants.length > 0 && (
+                                <div className="pointer-events-auto absolute right-4 top-0 flex -translate-y-[60%] items-center z-10">
+                                  {visiblePicked.map((p, idx) => (
+                                    <RoomUiTooltip key={`${choice.index}-${p.clientId}`} title={p.username}>
+                                      <div className="relative" style={{ marginLeft: idx === 0 ? 0 : -9 }}>
+                                        {renderParticipantMiniAvatar(p, "h-7 w-7", avatarEffectLevel)}
+                                      </div>
+                                    </RoomUiTooltip>
+                                  ))}
+                                  {hiddenPicked.length > 0 && (
+                                    <RoomUiTooltip title={<ExtraParticipantsTooltipContent participants={hiddenPicked} avatarEffectLevel={avatarEffectLevel} />} placement="top">
+                                      <button type="button"
+                                        onClick={() => setExpandedChoiceParticipantsKey((c) => c === choice.index ? null : choice.index)}
+                                        className="relative ml-1.5 inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-1.5 text-[9px] font-black text-slate-100/92 transition hover:border-slate-500/60"
+                                      >
+                                        +{hiddenPicked.length}
+                                      </button>
+                                    </RoomUiTooltip>
+                                  )}
+                                </div>
+                              )}
+                              <div className="space-y-2">
+                                {/* title (flex-1, truncated) + O/X state on far right */}
+                                <div className="flex items-start gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <MobileChoiceTitleTooltip text={choice.title} className="text-[0.98rem] font-semibold text-white leading-snug" />
                                   </div>
-                                );
-                                if (rank === 2) return (
-                                  <span className="inline-flex items-center rounded-full border border-slate-300/42 bg-slate-400/[0.1] px-2 py-0.5 text-[10px] font-black tracking-[0.04em] text-slate-200">{answerOrderLabel}</span>
-                                );
-                                if (rank === 3) return (
-                                  <span className="inline-flex items-center rounded-full border border-amber-700/48 bg-amber-800/[0.14] px-2 py-0.5 text-[10px] font-black tracking-[0.04em] text-amber-200">{answerOrderLabel}</span>
-                                );
-                                return (
-                                  <span className="text-[10px] font-semibold text-slate-400">{answerOrderLabel}</span>
-                                );
-                              })()}
+                                  {(isCorrect || isMine) && (
+                                    <div className="mt-[2px] flex shrink-0 flex-col items-center gap-0.5">
+                                      {isCorrect && <RadioButtonUncheckedRoundedIcon className="text-[0.72rem] text-emerald-400" />}
+                                      {isMine && isCorrect && <span className="text-[8px] font-black leading-none text-emerald-300/80">你</span>}
+                                      {isMine && !isCorrect && <CloseRoundedIcon className="text-[0.72rem] text-rose-400" />}
+                                    </div>
+                                  )}
+                                </div>
+                                {/* bar with ticket·percent centered inside */}
+                                <div className="relative h-[1.5rem] w-full overflow-hidden rounded-full bg-black/28">
+                                  <div
+                                    className={`absolute inset-y-0 left-0 rounded-full ${isCorrect ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))]" : isMine ? "bg-[linear-gradient(90deg,rgba(56,189,248,0.95),rgba(96,165,250,0.95))]" : "bg-[linear-gradient(90deg,rgba(100,116,139,0.9),rgba(148,163,184,0.85))]"}`}
+                                    style={{ width: `${pickedPercent}%` }}
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-[10px] font-black tabular-nums text-white [text-shadow:0_0_8px_rgba(0,0,0,0.85),0_1px_4px_rgba(0,0,0,0.95)]">
+                                      {pickedCount}票·{pickedPercent}%
+                                    </span>
+                                  </div>
+                                </div>
+                                {isExpanded && hiddenPicked.length > 0 && (
+                                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                    {hiddenPicked.map((p) => (
+                                      <div key={`${choice.index}-expanded-${p.clientId}`} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/18 px-2 py-1 text-xs text-slate-100">
+                                        {renderParticipantMiniAvatar(p, "h-7 w-7", avatarEffectLevel)}
+                                        <span className="max-w-[9rem] truncate">{p.username}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            {/* Big grade letter — stands alone, clean */}
-                            <p className={`mt-1 text-[3.2rem] font-black leading-none ${scoreVisualTone.gradeClass}`}>
-                              {selectedRecapRating?.grade ?? "E"}
-                            </p>
-                          </div>
-                          <div className="group/score relative isolate flex h-24 w-24 shrink-0 items-center justify-center overflow-visible rounded-full" style={{ background: scoreRingGradient }}>
-                            <div className={`pointer-events-none absolute -inset-4 rounded-full opacity-55 blur-[22px] ${scoreVisualTone.statusGlowClass}`} />
-                            <div className={`absolute inset-[17px] rounded-full ${scoreVisualTone.ringBaseClass} bg-slate-950/100`} />
-                            <div className="relative z-10 flex h-[4.3rem] w-[4.3rem] flex-col items-center justify-center rounded-full bg-slate-950/100">
-                              <span className="text-[8px] font-semibold tracking-[0.2em] text-slate-500">SCORE</span>
-                              <span className={`mt-0.5 text-[1.55rem] font-black leading-none ${scoreVisualTone.scoreClass}`}>{displayScore}</span>
-                              <span className="mt-0.5 text-[8px] font-semibold tracking-[0.16em] text-slate-500">{scoreRankLabel}</span>
-                            </div>
-                          </div>
+                          );
+                        })}
+                        <div className="hidden">
+                          <div className="flex items-center justify-center gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setMobileReviewDetailView("metrics")}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/40 text-slate-500 transition hover:text-slate-200"
+                          >
+                            <ChevronLeftRoundedIcon className="text-[0.85rem]" />
+                          </button>
+                          <span className="text-[10px] font-semibold tracking-[0.1em] text-slate-500">4 個選項</span>
+                          <button
+                            type="button"
+                            onClick={() => setMobileReviewDetailView("metrics")}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/40 text-slate-500 transition hover:text-slate-200"
+                          >
+                            <ChevronRightRoundedIcon className="text-[0.85rem]" />
+                          </button>
+                        </div>
                         </div>
                       </div>
                     )}
-                  >
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
-                        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><EmojiEventsRoundedIcon className="text-[1rem] text-amber-200" />全場最快</div>
-                        <p className="mt-2 text-sm font-black text-white">{selectedRecapFastestCorrectMeta ? selectedRecapFastestCorrectMeta.username : "--"}</p>
-                        <p className="mt-1 text-xs text-slate-300">{selectedRecapFastestCorrectMeta ? formatMs(selectedRecapFastestCorrectMeta.answeredAtMs) : "--"}</p>
-                      </div>
-                      <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
-                        <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.16em] text-slate-400"><TimerRoundedIcon className="text-[1rem] text-cyan-200" />中位作答</div>
-                        <p className="mt-2 text-sm font-black text-white">{typeof medianMs === "number" ? formatMs(medianMs) : "--"}</p>
-                      </div>
-                      <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
-                        <div className="text-[11px] tracking-[0.16em] text-slate-400">你的作答</div>
-                        <div className="mt-2 text-sm font-black text-white">{answeredAtMs !== null ? formatMs(answeredAtMs) : "--"}</div>
-                      </div>
-                      <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
-                        <div className="text-[11px] tracking-[0.16em] text-slate-400">比中位快慢</div>
-                        <div className={`mt-2 text-sm font-black ${speedDeltaMs === null ? "text-white" : speedDeltaMs >= 0 ? "text-emerald-100" : "text-rose-100"}`}>
-                          {speedDeltaMs === null ? "--" : `${speedDeltaMs >= 0 ? "+" : "-"}${formatMs(Math.abs(speedDeltaMs))}`}
-                        </div>
-                      </div>
-                      <div className="col-span-2 rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
-                        <div className="text-[11px] tracking-[0.16em] text-slate-400">贏過比例</div>
-                        <div className="mt-2 text-sm font-black text-white">{beatPercent > 0 ? `${beatPercent}%` : "--"}</div>
-                      </div>
-                    </div>
 
-                    {/* result bar */}
-                    <div className="mt-4 overflow-hidden rounded-[16px]">
-                      <div className="flex h-8 w-full overflow-hidden rounded-[16px]">
-                        {(selectedRecap.correctCount ?? 0) > 0 && (
-                          <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))] px-3 text-sm font-black text-emerald-50"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
-                            {selectedRecap.correctCount ?? 0}
+                    {/* view B: detailed metrics, pager at bottom */}
+                    {mobileReviewDetailView === "metrics" && (
+                      <div className="space-y-3 pl-2">
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
+                            <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] text-slate-400"><EmojiEventsRoundedIcon className="text-[0.9rem] text-amber-200" />全場最快</div>
+                            <p className="mt-1.5 text-sm font-black text-white">{selectedRecapFastestCorrectMeta ? selectedRecapFastestCorrectMeta.username : "--"}</p>
+                            <p className="mt-0.5 text-xs text-slate-300">{selectedRecapFastestCorrectMeta ? formatMs(selectedRecapFastestCorrectMeta.answeredAtMs) : "--"}</p>
                           </div>
-                        )}
-                        {(selectedRecap.wrongCount ?? 0) > 0 && (
-                          <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(244,63,94,0.95),rgba(251,113,133,0.92))] px-3 text-sm font-black text-rose-50"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
-                            {selectedRecap.wrongCount ?? 0}
+                          <div className="rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
+                            <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] text-slate-400"><TimerRoundedIcon className="text-[0.9rem] text-cyan-200" />中位作答</div>
+                            <p className="mt-1.5 text-sm font-black text-white">{typeof medianMs === "number" ? formatMs(medianMs) : "--"}</p>
                           </div>
-                        )}
-                        {(selectedRecap.unansweredCount ?? 0) > 0 && (
-                          <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(100,116,139,0.92),rgba(148,163,184,0.88))] px-3 text-sm font-black text-slate-100"
-                            style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
-                            {selectedRecap.unansweredCount ?? 0}
+                          <div className="rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
+                            <div className="text-[10px] tracking-[0.14em] text-slate-400">你的作答</div>
+                            <div className="mt-1.5 text-sm font-black text-white">{answeredAtMs !== null ? formatMs(answeredAtMs) : "--"}</div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </CollapsibleSection>
-
-                  {/* choices — collapsible */}
-                  <CollapsibleSection
-                    label="選項分析"
-                    defaultOpen={false}
-                    hideSummaryWhenOpen
-                    summary={(() => {
-                      const myChoiceIdx = selectedRecapAnswer.choiceIndex;
-                      const correctIdx = selectedRecap.correctChoiceIndex;
-                      const myChoice = myChoiceIdx !== null ? selectedRecap.choices.find((c) => c.index === myChoiceIdx) : null;
-                      const correctChoice = selectedRecap.choices.find((c) => c.index === correctIdx);
-                      if (!correctChoice) return null;
-                      const summaryChoices = [
-                        ...(myChoice && myChoice.index !== correctChoice.index ? [myChoice] : []),
-                        correctChoice,
-                      ];
-                      return (
-                        <div className="space-y-2.5">
-                          {summaryChoices.map((choice) => {
-                            const isCorrect = choice.index === correctChoice.index;
-                            const isMine = myChoice?.index === choice.index;
-                            const pickedCount = countChoiceVotes(selectedRecap, choice.index);
-                            const totalAnswers = Math.max(1, Object.keys(selectedRecap.answersByClientId ?? {}).length);
-                            const pickedPercent = clampPercent((pickedCount / totalAnswers) * 100);
-                            const choiceCardClass = `relative overflow-visible rounded-[22px] px-5 py-4 ${isCorrect ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]" : isMine ? "border border-rose-300/30 bg-[linear-gradient(180deg,rgba(64,16,28,0.68),rgba(26,10,18,0.62))]" : "bg-black/18"}`;
-                            return (
-                              <div
-                                key={`summary-${selectedRecap.key}-${choice.index}`}
-                                className={choiceCardClass}
-                              >
-                                <div className="space-y-3.5">
-                                  <div className="flex flex-col items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1 pr-2">
-                                      <ChoiceMarqueeTitle text={choice.title} disableMarquee className="text-[1.02rem] font-semibold text-white leading-[1.38]" staticStyle={multilineEllipsis2Style} />
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      {isCorrect && <span className={`${reviewStatusBadgeBaseClass} h-6 border-emerald-300/45 bg-emerald-400/15 px-2.5 text-[10px] text-emerald-100`}>正確答案</span>}
-                                      {isMine && <span className={`${reviewStatusBadgeBaseClass} h-6 border-rose-300/45 bg-rose-400/18 px-2.5 text-[10px] text-rose-100`}>你的選擇</span>}
-                                      <span className="inline-flex h-6 items-center justify-center rounded-full border border-slate-500/65 bg-slate-900/75 px-2.5 text-[10px] font-semibold text-slate-200">{pickedCount} 票</span>
-                                      <span className="inline-flex h-6 items-center justify-center rounded-full border border-white/10 bg-black/20 px-2.5 text-[10px] font-semibold text-slate-200">{pickedPercent}%</span>
-                                    </div>
-                                  </div>
-                                  <div className="h-3 w-full overflow-hidden rounded-full bg-black/25">
-                                    <div className={`h-full rounded-full ${isCorrect ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))]" : isMine ? "bg-[linear-gradient(90deg,rgba(56,189,248,0.95),rgba(96,165,250,0.95))]" : "bg-[linear-gradient(90deg,rgba(100,116,139,0.9),rgba(148,163,184,0.85))]"}`}
-                                      style={{ width: `${pickedPercent}%` }} />
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  >
-                    <div className="space-y-3.5">
-                      {selectedRecap.choices.map((choice) => {
-                        const isCorrect = choice.index === selectedRecap.correctChoiceIndex;
-                        const isMine = selectedRecapAnswer.choiceIndex === choice.index;
-                        const pickedCount = countChoiceVotes(selectedRecap, choice.index);
-                        const totalAnswers = Math.max(1, Object.keys(selectedRecap.answersByClientId ?? {}).length);
-                        const pickedPercent = clampPercent((pickedCount / totalAnswers) * 100);
-                        const pickedParticipants = Object.entries(selectedRecap.answersByClientId ?? {})
-                          .filter(([, a]) => a.choiceIndex === choice.index)
-                          .sort(([, la], [, ra]) => {
-                            const lMs = typeof la.answeredAtMs === "number" ? la.answeredAtMs : Number.MAX_SAFE_INTEGER;
-                            const rMs = typeof ra.answeredAtMs === "number" ? ra.answeredAtMs : Number.MAX_SAFE_INTEGER;
-                            return lMs !== rMs ? lMs - rMs : 0;
-                          })
-                          .map(([cid]) => participantByClientId.get(cid))
-                          .filter((p): p is RoomParticipant => Boolean(p));
-                        const visiblePicked = pickedParticipants.slice(0, 4);
-                        const hiddenPicked = pickedParticipants.slice(4);
-                        const isExpanded = expandedChoiceParticipantsKey === choice.index;
-                        const choiceCardClass = `relative overflow-visible rounded-[22px] px-5 py-4 ${isCorrect ? "border border-emerald-300/34 bg-[linear-gradient(180deg,rgba(6,42,34,0.7),rgba(4,18,20,0.66))]" : isMine ? "border border-rose-300/30 bg-[linear-gradient(180deg,rgba(64,16,28,0.68),rgba(26,10,18,0.62))]" : "bg-black/18"}`;
-                        return (
-                          <div key={`${selectedRecap.key}-${choice.index}`} className={choiceCardClass}>
-                            {pickedParticipants.length > 0 && (
-                              <div className="pointer-events-auto absolute right-4 top-0 flex -translate-y-[66%] items-center z-10">
-                                {visiblePicked.map((p, idx) => (
-                                  <RoomUiTooltip key={`${choice.index}-${p.clientId}`} title={p.username}>
-                                    <div className="relative" style={{ marginLeft: idx === 0 ? 0 : -9 }}>
-                                      {renderParticipantMiniAvatar(p, "h-8 w-8", avatarEffectLevel)}
-                                    </div>
-                                  </RoomUiTooltip>
-                                ))}
-                                {hiddenPicked.length > 0 && (
-                                  <RoomUiTooltip title={<ExtraParticipantsTooltipContent participants={hiddenPicked} avatarEffectLevel={avatarEffectLevel} />} placement="top">
-                                    <button type="button"
-                                      onClick={() => setExpandedChoiceParticipantsKey((c) => c === choice.index ? null : choice.index)}
-                                      className="relative ml-2 inline-flex h-8 min-w-[1.9rem] items-center justify-center rounded-full border border-slate-700/38 bg-[linear-gradient(180deg,rgba(24,34,52,0.66),rgba(10,15,28,0.78))] px-2 text-[9px] font-black text-slate-100/92 transition hover:border-slate-500/60"
-                                    >
-                                      +{hiddenPicked.length}
-                                    </button>
-                                  </RoomUiTooltip>
-                                )}
-                              </div>
-                            )}
-                            <div className="space-y-3.5">
-                              <div className="flex flex-col items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1 pr-2">
-                                  <ChoiceMarqueeTitle text={choice.title} disableMarquee className="text-[1.02rem] font-semibold text-white leading-[1.38]" staticStyle={multilineEllipsis2Style} />
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {isCorrect && <span className={`${reviewStatusBadgeBaseClass} h-6 border-emerald-300/45 bg-emerald-400/15 px-2.5 text-[10px] text-emerald-100`}>正確答案</span>}
-                                  {isMine && <span className={`${reviewStatusBadgeBaseClass} h-6 border-rose-300/45 bg-rose-400/18 px-2.5 text-[10px] text-rose-100`}>你的選擇</span>}
-                                  <span className="inline-flex h-6 items-center justify-center rounded-full border border-slate-500/65 bg-slate-900/75 px-2.5 text-[10px] font-semibold text-slate-200">{pickedCount} 票</span>
-                                  <span className="inline-flex h-6 items-center justify-center rounded-full border border-white/10 bg-black/20 px-2.5 text-[10px] font-semibold text-slate-200">{pickedPercent}%</span>
-                                </div>
-                              </div>
-                              <div className="h-3 w-full overflow-hidden rounded-full bg-black/25">
-                                <div className={`h-full rounded-full ${isCorrect ? "bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))]" : isMine ? "bg-[linear-gradient(90deg,rgba(56,189,248,0.95),rgba(96,165,250,0.95))]" : "bg-[linear-gradient(90deg,rgba(100,116,139,0.9),rgba(148,163,184,0.85))]"}`}
-                                  style={{ width: `${pickedPercent}%` }} />
-                              </div>
-                              {isExpanded && hiddenPicked.length > 0 && (
-                                <div className="flex flex-wrap items-center justify-end gap-2">
-                                  {hiddenPicked.map((p) => (
-                                    <div key={`${choice.index}-expanded-${p.clientId}`} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/18 px-2.5 py-1.5 text-xs text-slate-100">
-                                      {renderParticipantMiniAvatar(p, "h-7 w-7", avatarEffectLevel)}
-                                      <span className="max-w-[9rem] truncate">{p.username}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                          <div className="rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
+                            <div className="text-[10px] tracking-[0.14em] text-slate-400">比中位快慢</div>
+                            <div className={`mt-1.5 text-sm font-black ${speedDeltaMs === null ? "text-white" : speedDeltaMs >= 0 ? "text-emerald-100" : "text-rose-100"}`}>
+                              {speedDeltaMs === null ? "--" : `${speedDeltaMs >= 0 ? "+" : "-"}${formatMs(Math.abs(speedDeltaMs))}`}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </CollapsibleSection>
+                          <div className="col-span-2 rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
+                            <div className="text-[10px] tracking-[0.14em] text-slate-400">贏過比例</div>
+                            <div className="mt-1.5 text-sm font-black text-white">{beatPercent > 0 ? `${beatPercent}%` : "--"}</div>
+                          </div>
+                        </div>
+
+                        {/* result bar */}
+                        <div className="overflow-hidden rounded-[14px]">
+                          <div className="flex h-8 w-full overflow-hidden rounded-[14px]">
+                            {(selectedRecap.correctCount ?? 0) > 0 && (
+                              <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(16,185,129,0.95),rgba(45,212,191,0.95))] px-3 text-sm font-black text-emerald-50"
+                                style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.correctCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
+                                {selectedRecap.correctCount ?? 0}
+                              </div>
+                            )}
+                            {(selectedRecap.wrongCount ?? 0) > 0 && (
+                              <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(244,63,94,0.95),rgba(251,113,133,0.92))] px-3 text-sm font-black text-rose-50"
+                                style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.wrongCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
+                                {selectedRecap.wrongCount ?? 0}
+                              </div>
+                            )}
+                            {(selectedRecap.unansweredCount ?? 0) > 0 && (
+                              <div className="flex items-center justify-center bg-[linear-gradient(90deg,rgba(100,116,139,0.92),rgba(148,163,184,0.88))] px-3 text-sm font-black text-slate-100"
+                                style={{ width: `${globalResultTotal > 0 ? ((selectedRecap.unansweredCount ?? 0) / globalResultTotal) * 100 : 0}%` }}>
+                                {selectedRecap.unansweredCount ?? 0}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="hidden">
+                        <div className="flex items-center justify-center gap-3 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setMobileReviewDetailView("choices")}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/40 text-slate-500 transition hover:text-slate-200"
+                          >
+                            <ChevronLeftRoundedIcon className="text-[0.85rem]" />
+                          </button>
+                          <span className="text-[10px] font-semibold tracking-[0.1em] text-slate-500">更多數據</span>
+                          <button
+                            type="button"
+                            onClick={() => setMobileReviewDetailView("choices")}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/40 text-slate-500 transition hover:text-slate-200"
+                          >
+                            <ChevronRightRoundedIcon className="text-[0.85rem]" />
+                          </button>
+                        </div>
+                        </div>
+                      </div>
+                    )}
+                    {mobileReviewDetailView === "choices" ? (
+                      <MobileReviewOverlayToggle
+                        direction="right"
+                        label="切換到更多數據"
+                        onClick={() => setMobileReviewDetailView("metrics")}
+                      />
+                    ) : (
+                      <MobileReviewOverlayToggle
+                        direction="left"
+                        label="切換回四個選項"
+                        onClick={() => setMobileReviewDetailView("choices")}
+                      />
+                    )}
+                  </div>
 
                   {/* prev / next navigation */}
                   {filteredRecaps.length > 0 && (
