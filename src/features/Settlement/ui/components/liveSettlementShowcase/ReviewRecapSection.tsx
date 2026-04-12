@@ -271,9 +271,10 @@ const MobileChoiceTitleTooltip: React.FC<{
   className?: string;
 }> = ({ text, className = "" }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const textRef = React.useRef<HTMLSpanElement | null>(null);
+  const textRef = React.useRef<HTMLSpanElement | HTMLButtonElement | null>(null);
   const [isTruncated, setIsTruncated] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const tooltipId = React.useId();
 
   React.useLayoutEffect(() => {
     const el = textRef.current;
@@ -296,27 +297,69 @@ const MobileChoiceTitleTooltip: React.FC<{
     return () => window.removeEventListener("pointerdown", handler, { capture: true });
   }, [open]);
 
+  React.useEffect(() => {
+    if (!isTruncated) setOpen(false);
+  }, [isTruncated]);
+
+  const titleTextClass = `block w-full truncate text-left ${className}`;
+
   return (
-    <div ref={containerRef} className="relative min-w-0 overflow-hidden">
-      <span
-        ref={textRef}
-        className={`block w-full truncate ${isTruncated ? "cursor-pointer active:opacity-70" : ""} ${className}`}
-        onClick={() => { if (isTruncated) setOpen((v) => !v); }}
-      >
-        {text}
-      </span>
+    <div ref={containerRef} className="relative min-w-0 overflow-visible">
+      {isTruncated ? (
+        <button
+          ref={textRef as React.RefObject<HTMLButtonElement>}
+          type="button"
+          aria-expanded={open}
+          aria-describedby={open ? tooltipId : undefined}
+          className={`${titleTextClass} cursor-pointer appearance-none border-0 bg-transparent p-0 active:opacity-70`}
+          onClick={() => setOpen((v) => !v)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setOpen(false);
+              event.currentTarget.blur();
+            }
+          }}
+        >
+          {text}
+        </button>
+      ) : (
+        <span ref={textRef as React.RefObject<HTMLSpanElement>} className={titleTextClass}>
+          {text}
+        </span>
+      )}
       {open && isTruncated && (
         <div
+          id={tooltipId}
           role="tooltip"
-          className="absolute left-0 top-full z-50 mt-2 max-w-[min(80vw,22rem)] rounded-[14px] border border-white/[0.11] bg-[linear-gradient(180deg,rgba(18,26,44,0.97),rgba(8,14,28,0.99))] px-3.5 py-2.5 text-sm font-semibold leading-snug text-white shadow-[0_8px_36px_-8px_rgba(0,0,0,0.88)]"
+          className="absolute left-0 top-[calc(100%+0.45rem)] z-50 max-w-[min(72vw,18rem)] rounded-[14px] border border-white/12 bg-[linear-gradient(180deg,rgba(16,24,40,0.97),rgba(6,12,24,0.99))] px-3 py-2 text-[0.82rem] font-semibold leading-snug text-slate-50 shadow-[0_12px_36px_-12px_rgba(0,0,0,0.92),0_0_18px_rgba(56,189,248,0.12)] backdrop-blur-md"
         >
-          <div className="pointer-events-none absolute -top-[5px] left-4 h-[10px] w-[10px] rotate-45 border-l border-t border-white/10 bg-[rgba(18,26,44,0.97)]" />
+          <div className="pointer-events-none absolute -top-[5px] left-4 h-[10px] w-[10px] rotate-45 border-l border-t border-white/10 bg-[rgba(16,24,40,0.97)]" />
           {text}
         </div>
       )}
     </div>
   );
 };
+
+const MobileReviewOverlayToggle: React.FC<{
+  direction: "left" | "right";
+  onClick: () => void;
+  label: string;
+}> = ({ direction, onClick, label }) => (
+  <button
+    type="button"
+    aria-label={label}
+    onClick={onClick}
+    className={`absolute top-1/2 z-20 flex h-14 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/14 bg-white/[0.08] text-[0.92rem] font-black tracking-[-0.16em] text-white/70 shadow-[0_8px_22px_-16px_rgba(255,255,255,0.55)] backdrop-blur-sm transition active:scale-[0.97] ${
+      direction === "left"
+        ? "left-0 -translate-x-1/3 pl-1"
+        : "right-0 translate-x-1/3 pr-1"
+    }`}
+  >
+    <span aria-hidden="true">{direction === "left" ? "<<" : ">>"}</span>
+  </button>
+);
 
 // ─── YouTube preview hook (extracted from HistoryReplayCompactView pattern) ──
 
@@ -1333,10 +1376,10 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                   </div>
 
                   {/* [mobile] two-view panel — pager embedded at bottom of each view */}
-                  <div>
+                  <div className="relative">
                     {/* view A: 4 choices, compact cards, pager at bottom */}
                     {mobileReviewDetailView === "choices" && (
-                      <div className="space-y-2.5">
+                      <div className="space-y-2.5 pr-2">
                         {selectedRecap.choices.map((choice) => {
                           const isCorrect = choice.index === selectedRecap.correctChoiceIndex;
                           const isMine = selectedRecapAnswer.choiceIndex === choice.index;
@@ -1419,8 +1462,8 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                             </div>
                           );
                         })}
-                        {/* pager embedded at bottom of choices list */}
-                        <div className="flex items-center justify-center gap-3 pt-1">
+                        <div className="hidden">
+                          <div className="flex items-center justify-center gap-3 pt-1">
                           <button
                             type="button"
                             onClick={() => setMobileReviewDetailView("metrics")}
@@ -1437,12 +1480,13 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                             <ChevronRightRoundedIcon className="text-[0.85rem]" />
                           </button>
                         </div>
+                        </div>
                       </div>
                     )}
 
                     {/* view B: detailed metrics, pager at bottom */}
                     {mobileReviewDetailView === "metrics" && (
-                      <div className="space-y-3">
+                      <div className="space-y-3 pl-2">
                         <div className="grid grid-cols-2 gap-2.5">
                           <div className="rounded-[14px] border border-white/6 bg-white/[0.03] px-3 py-2.5">
                             <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] text-slate-400"><EmojiEventsRoundedIcon className="text-[0.9rem] text-amber-200" />全場最快</div>
@@ -1493,7 +1537,7 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                           </div>
                         </div>
 
-                        {/* pager embedded at bottom of metrics view */}
+                        <div className="hidden">
                         <div className="flex items-center justify-center gap-3 pt-0.5">
                           <button
                             type="button"
@@ -1511,7 +1555,21 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
                             <ChevronRightRoundedIcon className="text-[0.85rem]" />
                           </button>
                         </div>
+                        </div>
                       </div>
+                    )}
+                    {mobileReviewDetailView === "choices" ? (
+                      <MobileReviewOverlayToggle
+                        direction="right"
+                        label="切換到更多數據"
+                        onClick={() => setMobileReviewDetailView("metrics")}
+                      />
+                    ) : (
+                      <MobileReviewOverlayToggle
+                        direction="left"
+                        label="切換回四個選項"
+                        onClick={() => setMobileReviewDetailView("choices")}
+                      />
                     )}
                   </div>
 
