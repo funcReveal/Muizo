@@ -1,14 +1,27 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
 
+const packageJson = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+) as { version?: string };
+
+const buildTime = new Date().toISOString();
+const buildId = buildTime;
+const appVersion = packageJson.version ?? "0.0.0";
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(buildId),
+    __APP_BUILD_TIME__: JSON.stringify(buildTime),
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   server: {
     host: "0.0.0.0",
     port: 5173,
   },
-  plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
       output: {
@@ -24,4 +37,26 @@ export default defineConfig({
       },
     },
   },
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: "muizo-version-manifest",
+      generateBundle() {
+        this.emitFile({
+          type: "asset",
+          fileName: "version.json",
+          source: JSON.stringify(
+            {
+              buildId,
+              builtAt: buildTime,
+              version: appVersion,
+            },
+            null,
+            2,
+          ),
+        });
+      },
+    },
+  ],
 });

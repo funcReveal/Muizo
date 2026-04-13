@@ -6,6 +6,7 @@ import { RoomProvider } from "../features/Room/model/RoomProvider";
 import { SitePresenceProvider } from "../features/Room/model/providers/SitePresenceProvider";
 import { SettingsProvider } from "../features/Setting/model/settingsModel";
 import { AppToaster } from "../shared/ui/toast";
+import { VersionUpdateNotifier } from "./VersionUpdateNotifier";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <SitePresenceProvider>
             <RoomProvider>
               {children}
+              <VersionUpdateNotifier />
               <AppToaster />
             </RoomProvider>
           </SitePresenceProvider>
