@@ -6,6 +6,7 @@ import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
 import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 
 import type { DanmuItem } from "../../model/gameRoomTypes";
+import { DanmuContext, DanmuItemsContext } from "../../model/DanmuContext";
 
 interface GameRoomPlaybackPanelProps {
   rootRef?: React.Ref<HTMLDivElement>;
@@ -26,8 +27,6 @@ interface GameRoomPlaybackPanelProps {
   onIframeLoad: () => void;
   silentAudioRef: React.RefObject<HTMLAudioElement | null>;
   silentAudioSrc: string;
-  danmuEnabled: boolean;
-  danmuItems: DanmuItem[];
   showGuessMask: boolean;
   showPreStartMask: boolean;
   showLoadingMask: boolean;
@@ -63,6 +62,16 @@ const GameRoomDanmuLayer = React.memo(function GameRoomDanmuLayer({
   );
 });
 
+const GameRoomDanmuLayerBridge = React.memo(function GameRoomDanmuLayerBridge() {
+  const danmuCtx = React.useContext(DanmuContext);
+  const danmuItems = React.useContext(DanmuItemsContext);
+
+  if (!danmuCtx?.danmuEnabled) return null;
+  if (danmuItems.length === 0) return null;
+
+  return <GameRoomDanmuLayer danmuItems={danmuItems} />;
+});
+
 const GameRoomVideoModeSegment = React.memo(function GameRoomVideoModeSegment({
   previewMode,
   compact = false,
@@ -74,17 +83,15 @@ const GameRoomVideoModeSegment = React.memo(function GameRoomVideoModeSegment({
 }) {
   return (
     <div
-      className={`game-room-video-mode-seg ${
-        compact ? "game-room-video-mode-seg--compact" : ""
-      }`}
+      className={`game-room-video-mode-seg ${compact ? "game-room-video-mode-seg--compact" : ""
+        }`}
       role="group"
       aria-label="影片顯示模式切換"
     >
       <button
         type="button"
-        className={`game-room-video-mode-seg-btn ${
-          previewMode === "video" ? "game-room-video-mode-seg-btn--active" : ""
-        }`}
+        className={`game-room-video-mode-seg-btn ${previewMode === "video" ? "game-room-video-mode-seg-btn--active" : ""
+          }`}
         onClick={() => onChange("video")}
         aria-pressed={previewMode === "video"}
       >
@@ -92,11 +99,10 @@ const GameRoomVideoModeSegment = React.memo(function GameRoomVideoModeSegment({
       </button>
       <button
         type="button"
-        className={`game-room-video-mode-seg-btn ${
-          previewMode === "thumbnail"
-            ? "game-room-video-mode-seg-btn--active"
-            : ""
-        }`}
+        className={`game-room-video-mode-seg-btn ${previewMode === "thumbnail"
+          ? "game-room-video-mode-seg-btn--active"
+          : ""
+          }`}
         onClick={() => onChange("thumbnail")}
         aria-pressed={previewMode === "thumbnail"}
       >
@@ -125,8 +131,6 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   onIframeLoad,
   silentAudioRef,
   silentAudioSrc,
-  danmuEnabled,
-  danmuItems,
   showGuessMask,
   showPreStartMask,
   showLoadingMask,
@@ -203,11 +207,10 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       : isMobileView
         ? "h-[182px]"
         : "h-[164px] sm:h-[210px] md:h-[236px] xl:h-[258px]";
-  const iframeWrapClassName = `game-room-media-iframe-wrap ${
-    reduceGuessVideoDisplayCost
-      ? "game-room-media-iframe-wrap--guess-lite"
-      : "game-room-media-iframe-wrap--full"
-  }`;
+  const iframeWrapClassName = `game-room-media-iframe-wrap ${reduceGuessVideoDisplayCost
+    ? "game-room-media-iframe-wrap--guess-lite"
+    : "game-room-media-iframe-wrap--full"
+    }`;
   const localVolumeRef = useRef(gameVolume);
   const isDraggingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
@@ -331,30 +334,25 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       ) : null}
     </div>
   ) : null;
-
   return (
     <div
       ref={rootRef}
-      className={`game-room-panel game-room-panel--accent p-3 text-slate-50 ${
-        isMobileOverlay
-          ? "game-room-playback-panel--mobile-overlay-fill flex h-full min-h-0 flex-col"
-          : "flex-none"
-      } ${
-        isMobileView
+      className={`game-room-panel game-room-panel--accent p-3 text-slate-50 ${isMobileOverlay
+        ? "game-room-playback-panel--mobile-overlay-fill flex h-full min-h-0 flex-col"
+        : "flex-none"
+        } ${isMobileView
           ? isOverlayMode
             ? "game-room-playback-panel--mobile game-room-playback-panel--mobile-overlay"
-            : `game-room-playback-panel--mobile ${
-                shouldUseCompactMobileHeader
-                  ? "game-room-playback-panel--mobile-inline"
-                  : ""
-              }`
+            : `game-room-playback-panel--mobile ${shouldUseCompactMobileHeader
+              ? "game-room-playback-panel--mobile-inline"
+              : ""
+            }`
           : ""
-      }`}
+        }`}
     >
       <div
-        className={`${
-          isMobileOverlay ? "mb-1" : "mb-3"
-        } flex flex-wrap items-center justify-between gap-2`}
+        className={`${isMobileOverlay ? "mb-1" : "mb-3"
+          } flex flex-wrap items-center justify-between gap-2`}
       >
         <div
           className={
@@ -436,7 +434,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
           aria-hidden="true"
         />
 
-        {danmuEnabled && <GameRoomDanmuLayer danmuItems={danmuItems} />}
+        <GameRoomDanmuLayerBridge />
 
         {showGuessMask && (
           <div className="game-room-playback-mask game-room-playback-mask--guess pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
@@ -507,9 +505,8 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
 
         {shouldShowYoutubeBadge && (
           <div
-            className={`game-room-youtube-badge ${
-              isMobileView ? "game-room-youtube-badge--mobile" : ""
-            }`}
+            className={`game-room-youtube-badge ${isMobileView ? "game-room-youtube-badge--mobile" : ""
+              }`}
             aria-hidden="true"
           >
             <picture>

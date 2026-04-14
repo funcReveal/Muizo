@@ -129,7 +129,6 @@ export const useRoomProviderRoomActions = ({
   joinPasswordInput,
   setJoinPasswordInput,
   saveRoomPassword,
-  clientId,
   currentRoom,
   gameState,
   playlistProgressReady,
@@ -255,7 +254,6 @@ export const useRoomProviderRoomActions = ({
       );
     },
     [
-      clientId,
       fetchCompletePlaylist,
       fetchPlaylistPage,
       getSocket,
@@ -589,7 +587,13 @@ export const useRoomProviderRoomActions = ({
         );
       });
     },
-    [currentRoom, getSocket, setStatusText, syncServerOffset, applyGameLiveUpdate],
+    [
+      currentRoom,
+      getSocket,
+      setStatusText,
+      syncServerOffset,
+      applyGameLiveUpdate,
+    ],
   );
 
   const handleCastPlaybackExtensionVote = useCallback(
@@ -621,7 +625,13 @@ export const useRoomProviderRoomActions = ({
         );
       });
     },
-    [currentRoom, getSocket, setStatusText, syncServerOffset, applyGameLiveUpdate],
+    [
+      currentRoom,
+      getSocket,
+      setStatusText,
+      syncServerOffset,
+      applyGameLiveUpdate,
+    ],
   );
 
   useEffect(() => {
