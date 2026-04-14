@@ -8,6 +8,8 @@ export type ApiResult<T> = {
   payload: T | null;
 };
 
+export type AuthClientType = "web" | "native";
+
 export type AuthErrorDetail =
   | {
       access_token?: string;
@@ -26,6 +28,7 @@ export type AuthErrorDetail =
 export type AuthPayload = {
   ok?: boolean;
   token?: string;
+  refreshToken?: string;
   user?: AuthUser | null;
   error?: string;
   error_code?: string;
@@ -133,7 +136,12 @@ export type CollectionItemRecord = {
   start_sec: number;
   end_sec: number | null;
   answer_text: string;
-  answer_status?: "original" | "ai_modified" | "manual_reviewed" | string | null;
+  answer_status?:
+    | "original"
+    | "ai_modified"
+    | "manual_reviewed"
+    | string
+    | null;
   answer_ai_provider?:
     | "grok"
     | "perplexity"
@@ -192,12 +200,23 @@ const fetchJson = async <T>(
   }
 };
 
-export const apiRefreshAuthToken = (apiUrl: string) =>
+export const apiRefreshAuthToken = (
+  apiUrl: string,
+  params: {
+    clientType: AuthClientType;
+    refreshToken?: string | null;
+  },
+) =>
   fetchJson<AuthPayload>(`${apiUrl}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    credentials: params.clientType === "web" ? "include" : "omit",
     body: JSON.stringify({
+      clientType: params.clientType,
+      refreshToken:
+        params.clientType === "native"
+          ? (params.refreshToken ?? null)
+          : undefined,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
     }),
   });
@@ -251,26 +270,61 @@ export const apiFetchYoutubePlaylistItems = (
   });
 };
 
-export const apiAuthGoogle = (
+export const apiAuthGoogleWeb = (
   apiUrl: string,
-  code: string,
-  redirectUri: string,
+  params: {
+    code: string;
+    redirectUri: string;
+  },
 ) =>
   fetchJson<AuthPayload>(`${apiUrl}/api/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({
-      code,
-      redirectUri,
+      code: params.code,
+      redirectUri: params.redirectUri,
+      clientType: "web",
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
     }),
   });
 
-export const apiLogout = (apiUrl: string) =>
+export const apiAuthGoogleNative = (
+  apiUrl: string,
+  params: {
+    serverAuthCode: string;
+    idToken?: string | null;
+  },
+) =>
+  fetchJson<AuthPayload>(`${apiUrl}/api/auth/google/native`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    body: JSON.stringify({
+      serverAuthCode: params.serverAuthCode,
+      idToken: params.idToken ?? null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+    }),
+  });
+
+export const apiLogout = (
+  apiUrl: string,
+  params: {
+    clientType: AuthClientType;
+    refreshToken?: string | null;
+  },
+) =>
   fetchJson<{ ok?: boolean; error?: string }>(`${apiUrl}/api/auth/logout`, {
     method: "POST",
-    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    credentials: params.clientType === "web" ? "include" : "omit",
+    body: JSON.stringify({
+      clientType: params.clientType,
+      refreshToken:
+        params.clientType === "native"
+          ? (params.refreshToken ?? null)
+          : undefined,
+    }),
   });
 
 export const apiPreviewPlaylist = (

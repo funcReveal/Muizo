@@ -1,12 +1,20 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isNativeApp } from "../../../shared/platform/isNativeApp";
-import { useNativeAuthCallback } from "./useNativeAuthCallback";
-import { startNativeGoogleLogin } from "./nativeGoogleAuth";
+import {
+  signOutNativeGoogle,
+  startNativeGoogleLogin,
+} from "./nativeGoogleAuth";
 
 import type { AuthUser } from "../../../shared/auth/AuthContext";
 import {
-  apiAuthGoogle,
+  clearNativeRefreshToken,
+  getNativeRefreshToken,
+  setNativeRefreshToken,
+} from "../../../shared/auth/nativeTokenStorage";
+import {
+  apiAuthGoogleNative,
+  apiAuthGoogleWeb,
   apiLogout,
   apiRefreshAuthToken,
   apiUpsertCurrentUser,
@@ -68,11 +76,9 @@ export const useRoomAuth = ({
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
   const lastRefreshFailAtRef = useRef<number | null>(null);
 
-  const nativeRedirectUri =
-    import.meta.env.VITE_GOOGLE_NATIVE_REDIRECT_URI ?? "muizo://auth/callback";
-
   const webRedirectUri =
-    import.meta.env.VITE_GOOGLE_WEB_REDIRECT_URI ?? window.location.origin;
+    import.meta.env.VITE_GOOGLE_WEB_REDIRECT_URI ??
+    `${window.location.origin}/auth/callback`;
 
   useEffect(() => {
     localStorage.removeItem("authToken");
@@ -99,11 +105,22 @@ export const useRoomAuth = ({
   }, [onClearAuth]);
 
   const persistAuth = useCallback(
-    (token: string, user: AuthUser) => {
+    async (
+      token: string,
+      user: AuthUser,
+      options?: {
+        refreshToken?: string | null;
+        clientType?: "web" | "native";
+      },
+    ) => {
       setAuthToken(token);
       setAuthUser(user);
       setAuthExpired(false);
       persistTokenExpiry(token);
+
+      if (options?.clientType === "native" && options.refreshToken) {
+        await setNativeRefreshToken(options.refreshToken);
+      }
 
       if (typeof window !== "undefined") {
         window.localStorage.setItem(AUTH_SESSION_HINT_KEY, "1");
@@ -136,19 +153,45 @@ export const useRoomAuth = ({
 
     const run = async () => {
       const startedAt = performance.now();
+      const clientType = isNativeApp() ? "native" : "web";
 
       try {
-        const { ok, payload } = await apiRefreshAuthToken(apiUrl);
+        const nativeRefreshToken =
+          clientType === "native" ? await getNativeRefreshToken() : null;
 
-        if (!ok || !payload?.token || !payload.user) {
+        if (clientType === "native" && !nativeRefreshToken) {
           setAuthExpired(true);
           lastRefreshFailAtRef.current = Date.now();
           return null;
         }
 
+        const { ok, payload } = await apiRefreshAuthToken(apiUrl, {
+          clientType,
+          refreshToken: nativeRefreshToken,
+        });
+
+        if (!ok || !payload?.token || !payload.user) {
+          setAuthExpired(true);
+          lastRefreshFailAtRef.current = Date.now();
+
+          if (clientType === "native") {
+            await clearNativeRefreshToken();
+          }
+
+          return null;
+        }
+
         lastRefreshFailAtRef.current = null;
         setAuthExpired(false);
-        persistAuth(payload.token, payload.user);
+
+        await persistAuth(payload.token, payload.user, {
+          clientType,
+          refreshToken:
+            clientType === "native"
+              ? (payload.refreshToken ?? nativeRefreshToken)
+              : null,
+        });
+
         return payload.token;
       } catch (error) {
         console.error("[mq-auth] refresh failed", {
@@ -255,7 +298,7 @@ export const useRoomAuth = ({
     setIsProfileEditorOpen(false);
   }, []);
 
-  const exchangeGoogleCode = useCallback(
+  const exchangeGoogleWebCode = useCallback(
     async (code: string, redirectUri: string) => {
       if (!apiUrl) {
         setStatusText("尚未設定 API 位置 (API_URL)");
@@ -265,17 +308,23 @@ export const useRoomAuth = ({
       setAuthLoading(true);
 
       try {
-        const { ok, payload } = await apiAuthGoogle(apiUrl, code, redirectUri);
+        const { ok, payload } = await apiAuthGoogleWeb(apiUrl, {
+          code,
+          redirectUri,
+        });
 
         if (!ok || !payload?.token || !payload.user) {
           throw new Error(payload?.error ?? "Google 登入失敗");
         }
 
-        persistAuth(payload.token, payload.user);
+        await persistAuth(payload.token, payload.user, {
+          clientType: "web",
+        });
 
         trackEvent("login_google_success", {
           provider: "google",
           user_type: "google",
+          platform: "web",
         });
 
         setStatusText("Google 登入成功");
@@ -294,47 +343,6 @@ export const useRoomAuth = ({
     [apiUrl, persistAuth, setStatusText],
   );
 
-  useNativeAuthCallback({
-    onCodeReceived: (code) => {
-      void exchangeGoogleCode(code, nativeRedirectUri);
-    },
-    onError: (message) => {
-      setStatusText(message);
-    },
-  });
-
-  const ensureGoogleScript = () => {
-    if (window.google?.accounts?.oauth2) return Promise.resolve();
-    if (googleScriptPromiseRef.current) return googleScriptPromiseRef.current;
-
-    googleScriptPromiseRef.current = new Promise<void>((resolve, reject) => {
-      const existing = document.querySelector(
-        "script[data-google-identity]",
-      ) as HTMLScriptElement | null;
-
-      if (existing) {
-        existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener(
-          "error",
-          () => reject(new Error("Failed to load Google script")),
-          { once: true },
-        );
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.dataset.googleIdentity = "true";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load Google script"));
-      document.head.appendChild(script);
-    });
-
-    return googleScriptPromiseRef.current;
-  };
-
   const loginWithGoogle = useCallback(() => {
     trackEvent("login_google_click", {
       entry: "google_oauth",
@@ -346,14 +354,52 @@ export const useRoomAuth = ({
     }
 
     if (isNativeApp()) {
-      void startNativeGoogleLogin({
-        authBaseUrl: apiUrl,
-        callbackUrl: nativeRedirectUri,
-      }).catch((error) => {
-        setStatusText(
-          error instanceof Error ? error.message : "Google 登入失敗",
-        );
-      });
+      const run = async () => {
+        setAuthLoading(true);
+
+        try {
+          const nativeAuth = await startNativeGoogleLogin();
+
+          const { ok, payload } = await apiAuthGoogleNative(apiUrl, {
+            serverAuthCode: nativeAuth.serverAuthCode!,
+            idToken: nativeAuth.idToken,
+          });
+
+          if (
+            !ok ||
+            !payload?.token ||
+            !payload.user ||
+            !payload.refreshToken
+          ) {
+            throw new Error(payload?.error ?? "Google 原生登入失敗");
+          }
+
+          await persistAuth(payload.token, payload.user, {
+            clientType: "native",
+            refreshToken: payload.refreshToken,
+          });
+
+          trackEvent("login_google_success", {
+            provider: "google",
+            user_type: "google",
+            platform: "native",
+          });
+
+          setStatusText("Google 登入成功");
+        } catch (error) {
+          trackEvent("login_google_failed", {
+            reason: error instanceof Error ? error.message : "unknown_error",
+          });
+
+          setStatusText(
+            error instanceof Error ? error.message : "Google 登入失敗",
+          );
+        } finally {
+          setAuthLoading(false);
+        }
+      };
+
+      void run();
       return;
     }
 
@@ -366,7 +412,40 @@ export const useRoomAuth = ({
 
     const uxMode: "popup" | "redirect" = "popup";
 
-    ensureGoogleScript()
+    const ensureGoogleScript = () => {
+      if (window.google?.accounts?.oauth2) return Promise.resolve();
+      if (googleScriptPromiseRef.current) return googleScriptPromiseRef.current;
+
+      googleScriptPromiseRef.current = new Promise<void>((resolve, reject) => {
+        const existing = document.querySelector(
+          "script[data-google-identity]",
+        ) as HTMLScriptElement | null;
+
+        if (existing) {
+          existing.addEventListener("load", () => resolve(), { once: true });
+          existing.addEventListener(
+            "error",
+            () => reject(new Error("Failed to load Google script")),
+            { once: true },
+          );
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.dataset.googleIdentity = "true";
+        script.onload = () => resolve();
+        script.onerror = () =>
+          reject(new Error("Failed to load Google script"));
+        document.head.appendChild(script);
+      });
+
+      return googleScriptPromiseRef.current;
+    };
+
+    void ensureGoogleScript()
       .then(() => {
         const oauth2 = window.google?.accounts?.oauth2;
         if (!oauth2) {
@@ -390,7 +469,7 @@ export const useRoomAuth = ({
                 setStatusText(response?.error ?? "Google 登入失敗");
                 return;
               }
-              void exchangeGoogleCode(response.code, webRedirectUri);
+              void exchangeGoogleWebCode(response.code, webRedirectUri);
             },
           });
 
@@ -404,18 +483,32 @@ export const useRoomAuth = ({
       });
   }, [
     apiUrl,
-    exchangeGoogleCode,
-    nativeRedirectUri,
+    exchangeGoogleWebCode,
+    persistAuth,
     setStatusText,
     webRedirectUri,
   ]);
 
   const logout = useCallback(() => {
-    if (apiUrl) {
-      apiLogout(apiUrl).catch(() => null);
-    }
-    clearAuth();
-    setStatusText("已登出");
+    const run = async () => {
+      if (apiUrl) {
+        const clientType = isNativeApp() ? "native" : "web";
+        const nativeRefreshToken =
+          clientType === "native" ? await getNativeRefreshToken() : null;
+
+        await apiLogout(apiUrl, {
+          clientType,
+          refreshToken: nativeRefreshToken,
+        }).catch(() => null);
+      }
+
+      await clearNativeRefreshToken();
+      await signOutNativeGoogle();
+      clearAuth();
+      setStatusText("已登出");
+    };
+
+    void run();
   }, [apiUrl, clearAuth, setStatusText]);
 
   useEffect(() => {
@@ -456,8 +549,8 @@ export const useRoomAuth = ({
 
     if (!code) return;
 
-    void exchangeGoogleCode(code, webRedirectUri);
-  }, [exchangeGoogleCode, setStatusText, webRedirectUri]);
+    void exchangeGoogleWebCode(code, webRedirectUri);
+  }, [exchangeGoogleWebCode, setStatusText, webRedirectUri]);
 
   return {
     authToken,
