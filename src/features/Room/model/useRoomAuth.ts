@@ -410,7 +410,7 @@ export const useRoomAuth = ({
       return;
     }
 
-    const uxMode: "popup" | "redirect" = "redirect";
+    const uxMode: "popup" | "redirect" = "popup";
 
     const ensureGoogleScript = () => {
       if (window.google?.accounts?.oauth2) return Promise.resolve();
