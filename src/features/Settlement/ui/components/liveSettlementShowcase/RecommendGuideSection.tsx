@@ -229,8 +229,6 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
   recommendNavLabels,
   onGoPrevRecommendation,
   onGoNextRecommendation,
-  isMobileInsightOpen,
-  onToggleMobileInsightOpen,
   isMobileRecommendPanelOpen,
   onToggleMobileRecommendPanelOpen,
   previewVolume,
@@ -565,9 +563,13 @@ const RecommendGuideSection: React.FC<RecommendGuideSectionProps> = ({
             anchor="right"
             open={mobileQuestionDrawerOpen}
             onClose={closeMobileQuestionDrawer}
-            TransitionProps={{ onEntered: handleMobileDrawerEntered }}
             PaperProps={{
               className: "!w-[min(92vw,380px)] !bg-[linear-gradient(180deg,rgba(8,14,26,0.98),rgba(4,8,18,0.99))] !border-l !border-slate-700/25",
+            }}
+            slotProps={{
+              transition: {
+                onEntered: handleMobileDrawerEntered,
+              },
             }}
             sx={{ zIndex: 1700 }}
           >

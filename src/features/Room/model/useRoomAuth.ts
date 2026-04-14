@@ -1,5 +1,9 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
 
+import { isNativeApp } from "../../../shared/platform/isNativeApp";
+import { useNativeAuthCallback } from "./useNativeAuthCallback";
+import { startNativeGoogleLogin } from "./nativeGoogleAuth";
+
 import type { AuthUser } from "../../../shared/auth/AuthContext";
 import {
   apiAuthGoogle,
@@ -9,7 +13,10 @@ import {
 } from "./roomApi";
 import { USERNAME_MAX } from "./roomConstants";
 import { isProfileConfirmed, setProfileConfirmed } from "./roomStorage";
-import { clearTokenExpiry, persistTokenExpiry } from "../../../shared/auth/token";
+import {
+  clearTokenExpiry,
+  persistTokenExpiry,
+} from "../../../shared/auth/token";
 import { trackEvent } from "../../../shared/analytics/track";
 
 const AUTH_SESSION_HINT_KEY = "hasAuthSession";
@@ -61,6 +68,12 @@ export const useRoomAuth = ({
   const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
   const lastRefreshFailAtRef = useRef<number | null>(null);
 
+  const nativeRedirectUri =
+    import.meta.env.VITE_GOOGLE_NATIVE_REDIRECT_URI ?? "muizo://auth/callback";
+
+  const webRedirectUri =
+    import.meta.env.VITE_GOOGLE_WEB_REDIRECT_URI ?? window.location.origin;
+
   useEffect(() => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
@@ -91,14 +104,17 @@ export const useRoomAuth = ({
       setAuthUser(user);
       setAuthExpired(false);
       persistTokenExpiry(token);
+
       if (typeof window !== "undefined") {
         window.localStorage.setItem(AUTH_SESSION_HINT_KEY, "1");
       }
+
       const confirmed = isProfileConfirmed(user.id);
       if (!confirmed) {
         setNicknameDraft((user.display_name ?? "").slice(0, USERNAME_MAX));
         setNeedsNicknameConfirm(true);
       }
+
       if (user.display_name) {
         persistUsername(user.display_name.slice(0, USERNAME_MAX));
       }
@@ -108,22 +124,28 @@ export const useRoomAuth = ({
 
   const refreshAuthToken = useCallback(async () => {
     if (!apiUrl) return null;
+
     if (lastRefreshFailAtRef.current) {
       const elapsed = Date.now() - lastRefreshFailAtRef.current;
       if (elapsed < 30_000) return null;
     }
+
     if (refreshInFlightRef.current) {
       return refreshInFlightRef.current;
     }
+
     const run = async () => {
       const startedAt = performance.now();
+
       try {
         const { ok, payload } = await apiRefreshAuthToken(apiUrl);
+
         if (!ok || !payload?.token || !payload.user) {
           setAuthExpired(true);
           lastRefreshFailAtRef.current = Date.now();
           return null;
         }
+
         lastRefreshFailAtRef.current = null;
         setAuthExpired(false);
         persistAuth(payload.token, payload.user);
@@ -140,16 +162,19 @@ export const useRoomAuth = ({
         refreshInFlightRef.current = null;
       }
     };
+
     refreshInFlightRef.current = run();
     return refreshInFlightRef.current;
   }, [apiUrl, persistAuth]);
 
   const confirmNickname = useCallback(async () => {
     const trimmed = nicknameDraft.trim();
+
     if (!trimmed) {
       setStatusText("請先輸入暱稱");
       return false;
     }
+
     if (trimmed.length > USERNAME_MAX) {
       setStatusText(`暱稱最多 ${USERNAME_MAX} 個字`);
       return false;
@@ -157,20 +182,27 @@ export const useRoomAuth = ({
 
     if (apiUrl && authToken && authUser?.id) {
       const run = async (token: string, allowRetry: boolean) => {
-        const { ok, status, payload } = await apiUpsertCurrentUser(apiUrl, token, {
-          display_name: trimmed,
-          email: authUser.email ?? null,
-          avatar_url: authUser.avatar_url ?? null,
-        });
+        const { ok, status, payload } = await apiUpsertCurrentUser(
+          apiUrl,
+          token,
+          {
+            display_name: trimmed,
+            email: authUser.email ?? null,
+            avatar_url: authUser.avatar_url ?? null,
+          },
+        );
+
         if (ok) {
           return payload?.data ?? null;
         }
+
         if (status === 401 && allowRetry) {
           const refreshed = await refreshAuthToken();
           if (refreshed) {
             return run(refreshed, false);
           }
         }
+
         throw new Error(payload?.error ?? "更新暱稱失敗");
       };
 
@@ -186,9 +218,7 @@ export const useRoomAuth = ({
             : prev,
         );
       } catch (error) {
-        setStatusText(
-          error instanceof Error ? error.message : "更新暱稱失敗",
-        );
+        setStatusText(error instanceof Error ? error.message : "更新暱稱失敗");
         return false;
       }
     } else {
@@ -196,9 +226,11 @@ export const useRoomAuth = ({
     }
 
     persistUsername(trimmed);
+
     if (authUser?.id) {
       setProfileConfirmed(authUser.id);
     }
+
     setNeedsNicknameConfirm(false);
     setIsProfileEditorOpen(false);
     setStatusText("暱稱已設定");
@@ -229,13 +261,18 @@ export const useRoomAuth = ({
         setStatusText("尚未設定 API 位置 (API_URL)");
         return;
       }
+
       setAuthLoading(true);
+
       try {
         const { ok, payload } = await apiAuthGoogle(apiUrl, code, redirectUri);
+
         if (!ok || !payload?.token || !payload.user) {
           throw new Error(payload?.error ?? "Google 登入失敗");
         }
+
         persistAuth(payload.token, payload.user);
+
         trackEvent("login_google_success", {
           provider: "google",
           user_type: "google",
@@ -246,6 +283,7 @@ export const useRoomAuth = ({
         trackEvent("login_google_failed", {
           reason: error instanceof Error ? error.message : "unknown_error",
         });
+
         setStatusText(
           error instanceof Error ? error.message : "Google 登入失敗",
         );
@@ -256,20 +294,34 @@ export const useRoomAuth = ({
     [apiUrl, persistAuth, setStatusText],
   );
 
+  useNativeAuthCallback({
+    onCodeReceived: (code) => {
+      void exchangeGoogleCode(code, nativeRedirectUri);
+    },
+    onError: (message) => {
+      setStatusText(message);
+    },
+  });
+
   const ensureGoogleScript = () => {
     if (window.google?.accounts?.oauth2) return Promise.resolve();
     if (googleScriptPromiseRef.current) return googleScriptPromiseRef.current;
+
     googleScriptPromiseRef.current = new Promise<void>((resolve, reject) => {
       const existing = document.querySelector(
         "script[data-google-identity]",
       ) as HTMLScriptElement | null;
+
       if (existing) {
-        existing.addEventListener("load", () => resolve());
-        existing.addEventListener("error", () =>
-          reject(new Error("Failed to load Google script")),
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener(
+          "error",
+          () => reject(new Error("Failed to load Google script")),
+          { once: true },
         );
         return;
       }
+
       const script = document.createElement("script");
       script.src = "https://accounts.google.com/gsi/client";
       script.async = true;
@@ -279,6 +331,7 @@ export const useRoomAuth = ({
       script.onerror = () => reject(new Error("Failed to load Google script"));
       document.head.appendChild(script);
     });
+
     return googleScriptPromiseRef.current;
   };
 
@@ -286,13 +339,31 @@ export const useRoomAuth = ({
     trackEvent("login_google_click", {
       entry: "google_oauth",
     });
+
+    if (!apiUrl) {
+      setStatusText("尚未設定 API 位置 (API_URL)");
+      return;
+    }
+
+    if (isNativeApp()) {
+      void startNativeGoogleLogin({
+        authBaseUrl: apiUrl,
+        callbackUrl: nativeRedirectUri,
+      }).catch((error) => {
+        setStatusText(
+          error instanceof Error ? error.message : "Google 登入失敗",
+        );
+      });
+      return;
+    }
+
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
     if (!clientId) {
       setStatusText("尚未設定 Google Client ID");
       return;
     }
-    const redirectUri =
-      import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? window.location.origin;
+
     const uxMode: "popup" | "redirect" = "popup";
 
     ensureGoogleScript()
@@ -302,6 +373,7 @@ export const useRoomAuth = ({
           setStatusText("Google 登入尚未準備完成");
           return;
         }
+
         const codeClient =
           googleCodeClientRef.current ??
           oauth2.initCodeClient({
@@ -309,7 +381,7 @@ export const useRoomAuth = ({
             scope:
               "openid email profile https://www.googleapis.com/auth/youtube.readonly",
             ux_mode: uxMode,
-            redirect_uri: redirectUri,
+            redirect_uri: webRedirectUri,
             access_type: "offline",
             prompt: "consent",
             include_granted_scopes: true,
@@ -318,9 +390,10 @@ export const useRoomAuth = ({
                 setStatusText(response?.error ?? "Google 登入失敗");
                 return;
               }
-              exchangeGoogleCode(response.code, redirectUri);
+              void exchangeGoogleCode(response.code, webRedirectUri);
             },
           });
+
         googleCodeClientRef.current = codeClient;
         codeClient.requestCode();
       })
@@ -329,7 +402,13 @@ export const useRoomAuth = ({
           error instanceof Error ? error.message : "Google 登入失敗",
         );
       });
-  }, [exchangeGoogleCode, setStatusText]);
+  }, [
+    apiUrl,
+    exchangeGoogleCode,
+    nativeRedirectUri,
+    setStatusText,
+    webRedirectUri,
+  ]);
 
   const logout = useCallback(() => {
     if (apiUrl) {
@@ -341,20 +420,27 @@ export const useRoomAuth = ({
 
   useEffect(() => {
     if (!apiUrl || initialRefreshRef.current) return;
+
     initialRefreshRef.current = true;
+
     if (!hasStoredAuthSessionHint()) {
       setAuthLoading(false);
       return;
     }
+
     setAuthLoading(true);
     refreshAuthToken().finally(() => setAuthLoading(false));
   }, [apiUrl, hasStoredAuthSessionHint, refreshAuthToken]);
 
   useEffect(() => {
+    if (isNativeApp()) return;
+
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
     const error = url.searchParams.get("error");
+
     if (!code && !error) return;
+
     const signature = code ? `code:${code}` : `error:${error ?? ""}`;
     if (lastHandledAuthCodeRef.current === signature) return;
     lastHandledAuthCodeRef.current = signature;
@@ -367,12 +453,11 @@ export const useRoomAuth = ({
       setStatusText(error);
       return;
     }
+
     if (!code) return;
 
-    const redirectUri =
-      import.meta.env.VITE_GOOGLE_REDIRECT_URI ?? window.location.origin;
-    void exchangeGoogleCode(code, redirectUri);
-  }, [exchangeGoogleCode, setStatusText]);
+    void exchangeGoogleCode(code, webRedirectUri);
+  }, [exchangeGoogleCode, setStatusText, webRedirectUri]);
 
   return {
     authToken,
@@ -391,4 +476,3 @@ export const useRoomAuth = ({
     logout,
   };
 };
-

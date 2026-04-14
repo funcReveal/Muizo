@@ -1442,7 +1442,6 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
                 selectedRecapAverageCorrectMs={selectedRecapAverageCorrectMs}
                 formatMs={formatMs}
                 selectedRecapRating={selectedRecapRating}
-                multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
                 isMobileListOpen={isMobileReviewListOpen}
                 onToggleMobileListOpen={() =>
                   setIsMobileReviewListOpen((current) => !current)

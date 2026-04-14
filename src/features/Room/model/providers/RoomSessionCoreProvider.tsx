@@ -1055,7 +1055,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       handleJoinRoom,
       resetGameSettingsDefaults,
       persistRoomSessionToken,
-      resetGameSyncVersion,
+      applyGameLiveUpdate,
     }),
     [
       getSocket,
@@ -1074,6 +1074,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       handleJoinRoom,
       resetGameSettingsDefaults,
       persistRoomSessionToken,
+      applyGameLiveUpdate,
       resetGameSyncVersion,
     ],
   );

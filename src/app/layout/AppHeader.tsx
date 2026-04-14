@@ -115,6 +115,35 @@ const formatDuration = (sec: number) => {
   return `${min}m`;
 };
 
+const clampPercentage = (value: number) => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(value, 100));
+};
+
+const getLoadPercentByCores = (load: number, cpus: number) => {
+  if (!Number.isFinite(load) || !Number.isFinite(cpus) || cpus <= 0) {
+    return 0;
+  }
+
+  return Number(((load / cpus) * 100).toFixed(1));
+};
+
+const getCpuLoadLabel = (percent: number) => {
+  if (percent < 15) return "閒置";
+  if (percent < 50) return "穩定";
+  if (percent < 80) return "忙碌";
+  if (percent < 100) return "高負載";
+  return "過載";
+};
+
+const getCpuLoadColor = (percent: number) => {
+  if (percent < 15) return "#22c55e";
+  if (percent < 50) return "#38bdf8";
+  if (percent < 80) return "#f59e0b";
+  if (percent < 100) return "#fb7185";
+  return "#ef4444";
+};
+
 const AppHeader: React.FC<AppHeaderProps> = ({
   displayUsername,
   hasGuestIdentity = false,
@@ -203,6 +232,44 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }, 10_000);
     return () => window.clearInterval(timer);
   }, [fetchSystemStatus, systemOpen]);
+
+  const cpuSummary = useMemo(() => {
+    const cores = systemStatus?.os.cpus ?? 0;
+    const [load1 = 0, load5 = 0, load15 = 0] = systemStatus?.os.loadAverage ?? [
+      0, 0, 0,
+    ];
+
+    const items = [
+      {
+        key: "1m",
+        label: "1 分鐘平均負載",
+        load: load1,
+        percent: getLoadPercentByCores(load1, cores),
+      },
+      {
+        key: "5m",
+        label: "5 分鐘平均負載",
+        load: load5,
+        percent: getLoadPercentByCores(load5, cores),
+      },
+      {
+        key: "15m",
+        label: "15 分鐘平均負載",
+        load: load15,
+        percent: getLoadPercentByCores(load15, cores),
+      },
+    ];
+
+    const latestPercent = items[0]?.percent ?? 0;
+
+    return {
+      cores,
+      items,
+      latestPercent,
+      statusLabel: getCpuLoadLabel(latestPercent),
+      statusColor: getCpuLoadColor(latestPercent),
+    };
+  }, [systemStatus]);
 
   const menuItemSx = useMemo(
     () => ({
@@ -443,11 +510,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                   letterSpacing: "0.12em",
                 }}
               >
-                {isAnonymousVisitor
-                  ? ""
-                  : isGuestVisitor
-                    ? "訪客身分"
-                    : "帳號"}
+                {isAnonymousVisitor ? "" : isGuestVisitor ? "訪客身分" : "帳號"}
               </Typography>
               <Typography
                 variant="subtitle2"
@@ -582,13 +645,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                       對戰歷史
                     </Box>
                   ) : (
-                    historyMenuLabel ?? "對戰歷史"
+                    (historyMenuLabel ?? "對戰歷史")
                   )
                 }
                 secondary={
                   isAnonymousVisitor
                     ? "登入後可查看完整對戰歷程與回顧"
-                    : historyMenuDescription ?? "查看對戰歷程與回顧入口"
+                    : (historyMenuDescription ?? "查看對戰歷程與回顧入口")
                 }
               />
             </MenuItem>
@@ -785,17 +848,93 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                       borderRadius: 2,
                       border: "1px solid rgba(245, 158, 11, 0.12)",
                       background: "rgba(0,0,0,0.22)",
+                      gridColumn: "1 / -1",
                     }}
                   >
-                    <Typography variant="caption" color="var(--mc-text-muted)">
-                      CPU 核心 / 負載
-                    </Typography>
-                    <Typography variant="body2">
-                      {(systemStatus?.os.cpus ?? 0).toString()} /{" "}
-                      {(systemStatus?.os.loadAverage ?? [0, 0, 0])
-                        .map((n) => n.toFixed(2))
-                        .join(", ")}
-                    </Typography>
+                    <Stack spacing={1.2}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
+                        <Typography
+                          variant="caption"
+                          color="var(--mc-text-muted)"
+                        >
+                          CPU 負載概況
+                        </Typography>
+
+                        <Chip
+                          label={`${cpuSummary.statusLabel} · ${cpuSummary.latestPercent.toFixed(0)}%`}
+                          size="small"
+                          sx={{
+                            bgcolor: `${cpuSummary.statusColor}22`,
+                            color: "#e2e8f0",
+                            border: `1px solid ${cpuSummary.statusColor}55`,
+                          }}
+                        />
+                      </Stack>
+
+                      <Typography variant="body2">
+                        核心數：{cpuSummary.cores > 0 ? cpuSummary.cores : "-"}
+                      </Typography>
+
+                      {cpuSummary.items.map((item) => (
+                        <Box key={item.key}>
+                          <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                          >
+                            <Typography
+                              variant="caption"
+                              color="var(--mc-text-muted)"
+                            >
+                              {item.label}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "#e2e8f0" }}
+                            >
+                              {item.load.toFixed(2)} load /{" "}
+                              {item.percent.toFixed(0)}%
+                            </Typography>
+                          </Stack>
+
+                          <Box
+                            sx={{
+                              mt: 0.5,
+                              height: 8,
+                              borderRadius: 999,
+                              bgcolor: "rgba(148, 163, 184, 0.16)",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: `${clampPercentage(item.percent)}%`,
+                                height: "100%",
+                                borderRadius: "inherit",
+                                bgcolor: getCpuLoadColor(item.percent),
+                                transition: "width 0.3s ease",
+                              }}
+                            />
+                          </Box>
+                        </Box>
+                      ))}
+
+                      <Typography
+                        variant="caption"
+                        color="var(--mc-text-muted)"
+                      >
+                        這裡顯示的是 Linux load average，不是瞬時 CPU 使用率。
+                        {cpuSummary.cores > 0
+                          ? ` 以 ${cpuSummary.cores} 核心來看，load ${cpuSummary.cores.toFixed(2)} 大約代表接近滿載。`
+                          : ""}
+                      </Typography>
+                    </Stack>
                   </Box>
 
                   <Box

@@ -78,7 +78,11 @@ describe("game sync guard", () => {
     apply(newer);
     apply(older);
 
-    expect(currentGameState?.phase).toBe("reveal");
+    expect(currentGameState).not.toBeNull();
+    if (!currentGameState) {
+      throw new Error("Expected newer game state to be retained.");
+    }
+    expect((currentGameState as GameState).phase).toBe("reveal");
     expect(lastGameSyncVersion).toEqual(version(1, 2, 0, 2));
   });
 });

@@ -7,7 +7,6 @@ import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUnch
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import QueueMusicRoundedIcon from "@mui/icons-material/QueueMusicRounded";
 import PlayCircleOutlineRoundedIcon from "@mui/icons-material/PlayCircleOutlineRounded";
 import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
@@ -101,7 +100,6 @@ interface ReviewRecapSectionProps {
   selectedRecapAverageCorrectMs: number | null;
   formatMs: (value: number | null | undefined) => string;
   selectedRecapRating: SongPerformanceRating | null;
-  multilineEllipsis2Style: React.CSSProperties;
   isMobileListOpen: boolean;
   onToggleMobileListOpen: () => void;
   isMobileDetailTopOpen: boolean;
@@ -548,45 +546,6 @@ function useYouTubePreview(selectedRecapPreviewUrl: string | null) {
 
 // ─── collapsible section helper ───────────────────────────────────────────────
 
-const CollapsibleSection: React.FC<{
-  label: string;
-  defaultOpen?: boolean;
-  summary?: React.ReactNode;
-  hideSummaryWhenOpen?: boolean;
-  children: React.ReactNode;
-}> = ({ label, defaultOpen = true, summary, hideSummaryWhenOpen = false, children }) => {
-  const [open, setOpen] = React.useState(defaultOpen);
-  const shouldShowSummary = Boolean(summary) && (!open || !hideSummaryWhenOpen);
-  return (
-    <div className="rounded-[18px] border border-white/7 bg-black/16 overflow-visible">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left"
-      >
-        <span className="text-sm font-semibold text-white">{label}</span>
-        <ExpandMoreRoundedIcon className={`text-slate-400 transition ${open ? "rotate-180" : ""}`} />
-      </button>
-      {summary ? (
-        <div
-          aria-hidden={!shouldShowSummary}
-          className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${shouldShowSummary ? "max-h-[34rem] opacity-100" : "max-h-0 opacity-0"
-            }`}
-        >
-          <div className="px-4 pb-3">
-            {summary}
-          </div>
-        </div>
-      ) : null}
-      <div className={`transition-[grid-template-rows,opacity] duration-300 ${open ? "grid grid-rows-[1fr] overflow-visible opacity-100" : "grid grid-rows-[0fr] overflow-hidden opacity-0"}`}>
-        <div className={`min-h-0 overflow-visible px-4 transition-[padding] duration-300 ${open ? "pt-3 pb-4" : "pt-0 pb-0"}`}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ─── question list item ────────────────────────────────────────────────────────
 
 const RecapListItem: React.FC<{
@@ -891,7 +850,6 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   selectedRecapAverageCorrectMs,
   formatMs,
   selectedRecapRating,
-  multilineEllipsis2Style,
 }) => {
   const settingsModel = useSettingsModel();
   const avatarEffectLevel = settingsModel.avatarEffectLevel ?? DEFAULT_AVATAR_EFFECT_LEVEL_VALUE;
@@ -905,7 +863,6 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
   const mobileDrawerListNodeRef = React.useRef<HTMLDivElement | null>(null);
   const mobileDrawerItemRefs = React.useRef(new Map<string, HTMLDivElement>());
   const mobileDrawerAutoScrollFrameRef = React.useRef<number | null>(null);
-  const mobileParticipantStripRef = useAutoHideScrollbar<HTMLDivElement>();
   const desktopParticipantStripRef = useAutoHideScrollbar<HTMLDivElement>();
   const desktopReviewListRef = useAutoHideScrollbar<HTMLDivElement>();
   const mobileDrawerScrollbarRef = useAutoHideScrollbar<HTMLDivElement>();
@@ -1199,30 +1156,6 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
 
   // ── mobile layout ──────────────────────────────────────────────────────────
   if (isMobileView) {
-    const floatingDrawerTrigger = null;
-    /* legacy trigger replaced by MobileDrawerEdgeControls
-    typeof document !== "undefined"
-      ? createPortal(
-        <div className="fixed right-0.5 top-[85dvh] z-[1650] flex -translate-y-1/2 justify-end">
-          <button
-            type="button"
-            aria-label="開啟題目清單"
-            onClick={() => setDrawerOpen(true)}
-            className="inline-flex h-10 w-[7rem] cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-300/36 bg-[linear-gradient(180deg,rgba(8,20,34,0.9),rgba(4,10,22,0.96))] px-2.5 text-sm font-semibold text-cyan-50 shadow-[0_10px_28px_-18px_rgba(34,211,238,0.72)] backdrop-blur-md transition hover:border-cyan-200/58"
-          >
-            <QueueMusicRoundedIcon className="shrink-0 text-[1rem]" />
-            {filteredRecaps.length > 0 && (
-              <span className="inline-flex min-w-[3.5rem] shrink-0 items-center justify-center px-1 text-[10px] font-black leading-none tabular-nums text-cyan-100">
-                {mobileRecapProgressLabel}
-              </span>
-            )}
-          </button>
-        </div>,
-        document.body,
-      )
-      : null;
-    */
-
     return (
       <>
         <MobileDrawerEdgeControls
@@ -1278,9 +1211,13 @@ const ReviewRecapSection: React.FC<ReviewRecapSectionProps> = ({
             anchor="right"
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
-            TransitionProps={{ onEntered: handleMobileDrawerEntered }}
             PaperProps={{
               className: "!w-[min(92vw,360px)] !bg-[linear-gradient(180deg,rgba(8,14,26,0.98),rgba(4,8,18,0.99))] !border-l !border-slate-700/25",
+            }}
+            slotProps={{
+              transition: {
+                onEntered: handleMobileDrawerEntered,
+              },
             }}
             sx={{ zIndex: 1700 }}
           >
