@@ -1,10 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Drawer, Switch } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
-import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useRoomRealtime } from "../../features/Room/model/useRoomRealtime";
 import { useChatInput } from "./ChatInputContext";
 import type { ChatMessage } from "../../features/Room/model/types";
@@ -12,24 +7,13 @@ import { DanmuContext } from "../../features/GameRoom/model/DanmuContext";
 import useMobileDrawerDragDismiss from "../../features/GameRoom/ui/lib/useMobileDrawerDragDismiss";
 import useAutoHideScrollbar from "../hooks/useAutoHideScrollbar";
 import { blurActiveInteractiveElement } from "../utils/dom";
-import {
-  formatChatMessageTime,
-  formatChatQuestionProgress,
-  getChatDisplayName,
-} from "./chatMessagePresentation";
+import MobileChatDrawerContent from "./components/MobileChatDrawerContent";
+import DesktopChatWindowContent from "./components/DesktopChatWindowContent";
 
 const LAST_READ_KEY_PREFIX = "room_chat_last_read_message:";
 const MOBILE_CHAT_MIN_HEIGHT_VH = 26;
 const MOBILE_CHAT_MAX_HEIGHT_VH = 72;
 const MOBILE_CHAT_DEFAULT_HEIGHT_VH = 48;
-const GAME_ROOM_DRAWER_MODAL_PROPS = {
-  hideBackdrop: true,
-  keepMounted: true,
-  disableAutoFocus: true,
-  disableEnforceFocus: true,
-  disableRestoreFocus: true,
-  disableScrollLock: true,
-} as const;
 
 const readLastReadId = (roomId: string | null): string | null => {
   if (!roomId || typeof window === "undefined") return null;
@@ -51,12 +35,7 @@ const isFromOther = (msg: ChatMessage, clientId: string) =>
   !msg.userId.startsWith("system:") && msg.userId !== clientId;
 
 const FloatingChatWindow: React.FC = () => {
-  const {
-    currentRoom,
-    messages,
-    clientId,
-    gameState,
-  } = useRoomRealtime();
+  const { currentRoom, messages, clientId, gameState } = useRoomRealtime();
   const {
     messageInput,
     setMessageInput,
@@ -66,17 +45,24 @@ const FloatingChatWindow: React.FC = () => {
   } = useChatInput();
 
   const danmuCtx = React.useContext(DanmuContext);
+
   const [open, setOpen] = useState(false);
+  const [mobileBodyActive, setMobileBodyActive] = useState(false);
   const [roomReadState, setRoomReadState] = useState<Record<string, string | null>>({});
   const [mobileHeight, setMobileHeight] = useState(MOBILE_CHAT_DEFAULT_HEIGHT_VH);
+
   const mobileHeightRafRef = useRef<number | null>(null);
   const mobileHeightPendingRef = useRef<number>(MOBILE_CHAT_DEFAULT_HEIGHT_VH);
+
   const isMobileViewport = useMediaQuery("(max-width: 1023.95px)");
   const isMobileRoomMode = Boolean(currentRoom && isMobileViewport);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useAutoHideScrollbar<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<number | null>(null);
+  const mobileBodyRafRef = useRef<number | null>(null);
+
   const roomId = currentRoom?.id ?? null;
 
   const focusInputWithoutScroll = useCallback(() => {
@@ -89,10 +75,13 @@ const FloatingChatWindow: React.FC = () => {
     }
   }, []);
 
-  const setScrollNodeRef = useCallback((node: HTMLDivElement | null) => {
-    scrollRef.current = node;
-    scrollContainerRef(node);
-  }, [scrollContainerRef]);
+  const setScrollNodeRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollRef.current = node;
+      scrollContainerRef(node);
+    },
+    [scrollContainerRef],
+  );
 
   useEffect(() => {
     if (!open || !scrollRef.current) return;
@@ -107,24 +96,27 @@ const FloatingChatWindow: React.FC = () => {
     };
   }, [messages.length, open]);
 
-
-  const clampMobileHeight = (value: number) =>
-    Math.min(MOBILE_CHAT_MAX_HEIGHT_VH, Math.max(MOBILE_CHAT_MIN_HEIGHT_VH, value));
-
-  const handleMobileHeightChange = useCallback((nextHeight: number) => {
-    const clamped = clampMobileHeight(nextHeight);
-    mobileHeightPendingRef.current = clamped;
-
-    if (mobileHeightRafRef.current !== null) return;
-
-    mobileHeightRafRef.current = window.requestAnimationFrame(() => {
-      mobileHeightRafRef.current = null;
-      setMobileHeight((prev) => {
-        const next = mobileHeightPendingRef.current;
-        return Math.abs(prev - next) < 0.05 ? prev : next;
-      });
-    });
+  const clampMobileHeight = useCallback((value: number) => {
+    return Math.min(MOBILE_CHAT_MAX_HEIGHT_VH, Math.max(MOBILE_CHAT_MIN_HEIGHT_VH, value));
   }, []);
+
+  const handleMobileHeightChange = useCallback(
+    (nextHeight: number) => {
+      const clamped = clampMobileHeight(nextHeight);
+      mobileHeightPendingRef.current = clamped;
+
+      if (mobileHeightRafRef.current !== null) return;
+
+      mobileHeightRafRef.current = window.requestAnimationFrame(() => {
+        mobileHeightRafRef.current = null;
+        setMobileHeight((prev) => {
+          const next = mobileHeightPendingRef.current;
+          return Math.abs(prev - next) < 0.05 ? prev : next;
+        });
+      });
+    },
+    [clampMobileHeight],
+  );
 
   useEffect(() => {
     return () => {
@@ -141,6 +133,16 @@ const FloatingChatWindow: React.FC = () => {
         window.clearTimeout(focusTimerRef.current);
         focusTimerRef.current = null;
       }
+
+      if (mobileBodyRafRef.current !== null) {
+        window.cancelAnimationFrame(mobileBodyRafRef.current);
+        mobileBodyRafRef.current = null;
+      }
+
+      if (mobileHeightRafRef.current !== null) {
+        window.cancelAnimationFrame(mobileHeightRafRef.current);
+        mobileHeightRafRef.current = null;
+      }
     };
   }, []);
 
@@ -148,14 +150,19 @@ const FloatingChatWindow: React.FC = () => {
     () => messages.filter((message) => isFromOther(message, clientId)),
     [clientId, messages],
   );
+
   const persistedLastReadId = useMemo(() => readLastReadId(roomId), [roomId]);
   const latestOtherMessageId = otherMessages[otherMessages.length - 1]?.id ?? null;
+
   const unread = useMemo(() => {
     if (open || !roomId || !latestOtherMessageId) return 0;
+
     const hasRoomSnapshot = Object.prototype.hasOwnProperty.call(roomReadState, roomId);
     const lastSeenId = hasRoomSnapshot ? roomReadState[roomId] : persistedLastReadId;
+
     if (!lastSeenId) return otherMessages.length;
     if (lastSeenId === latestOtherMessageId) return 0;
+
     const lastSeenIndex = otherMessages.findIndex((message) => message.id === lastSeenId);
     return lastSeenIndex < 0
       ? otherMessages.length
@@ -177,8 +184,18 @@ const FloatingChatWindow: React.FC = () => {
       focusTimerRef.current = null;
     }
 
-    // 只在桌機自動 focus，手機不要自動叫出鍵盤
-    if (!isMobileRoomMode) {
+    if (mobileBodyRafRef.current !== null) {
+      window.cancelAnimationFrame(mobileBodyRafRef.current);
+      mobileBodyRafRef.current = null;
+    }
+
+    if (isMobileRoomMode) {
+      setMobileBodyActive(false);
+      mobileBodyRafRef.current = window.requestAnimationFrame(() => {
+        mobileBodyRafRef.current = null;
+        setMobileBodyActive(true);
+      });
+    } else {
       focusTimerRef.current = window.setTimeout(() => {
         focusTimerRef.current = null;
         focusInputWithoutScroll();
@@ -194,6 +211,12 @@ const FloatingChatWindow: React.FC = () => {
       focusTimerRef.current = null;
     }
 
+    if (mobileBodyRafRef.current !== null) {
+      window.cancelAnimationFrame(mobileBodyRafRef.current);
+      mobileBodyRafRef.current = null;
+    }
+
+    setMobileBodyActive(false);
     setOpen(false);
     markRoomRead();
   }, [markRoomRead]);
@@ -223,306 +246,68 @@ const FloatingChatWindow: React.FC = () => {
     threshold: 52,
     thresholdBuffer: 24,
   });
+
   const mobileChatDismissState = mobileChatDragDismiss.canDismiss
     ? "ready"
     : mobileChatDragDismiss.isDismissArmed
       ? "armed"
       : "idle";
 
-  const renderedMessages = useMemo(() => {
-    if (messages.length === 0) {
-      return (
-        <div className="floating-chat-empty">
-          <span className="floating-chat-empty-dot" aria-hidden="true" />
-          <span>目前還沒有新訊息</span>
-        </div>
-      );
-    }
+  const showDanmuToggle = Boolean(gameState && danmuCtx);
 
-    return messages.map((msg) => {
-      const isPresence = msg.userId === "system:presence";
-      if (isPresence) {
-        return (
-          <div key={msg.id} className="floating-chat-msg floating-chat-msg--presence">
-            <span className="floating-chat-msg-name">{msg.content}</span>
-            <span className="floating-chat-msg-time">
-              {formatChatMessageTime(msg.timestamp)}
-            </span>
-          </div>
-        );
-      }
-
-      const isMine = msg.userId === clientId;
-      const questionProgress = formatChatQuestionProgress(msg);
-
-      return (
-        <div
-          key={msg.id}
-          className={`floating-chat-msg${isMine ? " floating-chat-msg--mine" : ""}`}
-        >
-          <div className="floating-chat-msg-meta">
-            <span className="floating-chat-msg-name">{getChatDisplayName(msg)}</span>
-            <span className="floating-chat-msg-time">
-              {formatChatMessageTime(msg.timestamp)}
-            </span>
-            {questionProgress ? (
-              <span className="floating-chat-msg-progress">{questionProgress}</span>
-            ) : null}
-          </div>
-          <p className="floating-chat-msg-body">{msg.content}</p>
-        </div>
-      );
-    });
-  }, [clientId, messages]);
+  const handleDanmuEnabledChange = useCallback(
+    (checked: boolean) => {
+      danmuCtx?.onDanmuEnabledChange(checked);
+    },
+    [danmuCtx],
+  );
 
   if (isMobileRoomMode) {
     return (
-      <>
-        {!open && (
-          <button
-            type="button"
-            className="game-room-mobile-chat-drawer-trigger"
-            onClick={handleOpen}
-            aria-label={
-              unread > 0 ? `開啟聊天室，目前有 ${unread} 則未讀訊息` : "開啟聊天室"
-            }
-          >
-            <span className="game-room-mobile-chat-drawer-trigger__label">聊天室</span>
-            <div className="game-room-mobile-chat-drawer-trigger__actions">
-              <Badge
-                color="error"
-                badgeContent={unread > 99 ? "99+" : unread}
-                invisible={unread <= 0}
-              >
-                <ChatBubbleRoundedIcon fontSize="small" />
-              </Badge>
-              <span
-                className="game-room-mobile-chat-drawer-trigger__toggle"
-                aria-hidden="true"
-              >
-                <ExpandLessRoundedIcon fontSize="small" />
-              </span>
-            </div>
-          </button>
-        )}
-
-        <Drawer
-          className="game-room-mobile-drawer-root game-room-mobile-drawer-root--chat lg:!hidden"
-          anchor="bottom"
-          open={open}
-          onClose={handleClose}
-          ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
-          PaperProps={{
-            className: `game-room-mobile-chat-drawer ${open
-              ? "game-room-mobile-chat-drawer--open"
-              : "game-room-mobile-chat-drawer--closed"
-              }`,
-            style: mobileChatDragDismiss.paperStyle,
-          }}
-        >
-          <div
-            className="game-room-mobile-drawer-head game-room-mobile-drawer-head--chat"
-            role="presentation"
-            aria-label="Drag down to collapse chat"
-          >
-            <div
-              className={`game-room-mobile-drawer-handle-wrap game-room-mobile-drawer-handle-wrap--draggable game-room-mobile-drawer-handle-wrap--${mobileChatDismissState}`}
-              aria-hidden="true"
-              {...mobileChatDragDismiss.dragHandleProps}
-            >
-              <span className="game-room-mobile-drawer-handle-bar" />
-            </div>
-            <div className="game-room-mobile-chat-drawer-headline">
-              <div className="game-room-mobile-chat-drawer-title-group">
-                <span className="game-room-mobile-chat-drawer-title">聊天室</span>
-              </div>
-              <div className="game-room-mobile-chat-drawer-actions">
-                {gameState && danmuCtx && (
-                  <label
-                    className="game-room-mobile-chat-alert-toggle"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    <span>彈幕</span>
-                    <Switch
-                      size="small"
-                      color="info"
-                      checked={danmuCtx.danmuEnabled}
-                      onChange={(event) =>
-                        danmuCtx.onDanmuEnabledChange(event.target.checked)
-                      }
-                    />
-                  </label>
-                )}
-                <button
-                  type="button"
-                  className="game-room-mobile-drawer-close game-room-mobile-drawer-close--icon"
-                  onClick={handleClose}
-                  aria-label="收合聊天室"
-                >
-                  <ExpandMoreRoundedIcon fontSize="inherit" />
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="game-room-mobile-chat-drawer-body">
-            <div className="game-room-mobile-chat-drawer-panel">
-              <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
-                {renderedMessages}
-              </div>
-              <div className="floating-chat-input-wrap">
-                <div className="floating-chat-input-row">
-                  {isChatCooldownActive ? (
-                    <div className="floating-chat-cooldown-inline">
-                      輸入過於頻繁，請於 <strong>{chatCooldownLeft}</strong> 秒後重試
-                    </div>
-                  ) : (
-                    <input
-                      ref={inputRef}
-                      className="floating-chat-input"
-                      placeholder="輸入訊息"
-                      value={messageInput}
-                      onChange={(event) => {
-                        setMessageInput(event.target.value);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleSend();
-                        }
-                      }}
-                      autoComplete="off"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="floating-chat-send-btn"
-                    onClick={handleSend}
-                    aria-label="送出訊息"
-                    disabled={isChatCooldownActive || !messageInput.trim()}
-                  >
-                    <SendRoundedIcon fontSize="small" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Drawer>
-      </>
+      <MobileChatDrawerContent
+        open={open}
+        unread={unread}
+        bodyActive={mobileBodyActive}
+        showDanmuToggle={showDanmuToggle}
+        danmuEnabled={Boolean(danmuCtx?.danmuEnabled)}
+        onDanmuEnabledChange={handleDanmuEnabledChange}
+        mobileChatDismissState={mobileChatDismissState}
+        dragHandleProps={mobileChatDragDismiss.dragHandleProps}
+        paperStyle={mobileChatDragDismiss.paperStyle}
+        onOpen={handleOpen}
+        onClose={handleClose}
+        messages={messages}
+        clientId={clientId}
+        setScrollNodeRef={setScrollNodeRef}
+        inputRef={inputRef}
+        messageInput={messageInput}
+        setMessageInput={setMessageInput}
+        handleSend={handleSend}
+        isChatCooldownActive={isChatCooldownActive}
+        chatCooldownLeft={chatCooldownLeft}
+      />
     );
   }
 
   return (
-    <div className="floating-chat-root" data-open={open ? "true" : "false"}>
-      {!open && (
-        <button
-          type="button"
-          className="floating-chat-fab"
-          onClick={toggleOpen}
-          aria-label={
-            unread > 0 ? `展開聊天室，目前有 ${unread} 則未讀訊息` : "展開聊天室"
-          }
-        >
-          <Badge
-            color="error"
-            badgeContent={unread > 99 ? "99+" : unread}
-            invisible={unread <= 0}
-          >
-            <ChatBubbleRoundedIcon fontSize="small" />
-          </Badge>
-          <span className="floating-chat-fab-label">聊天室</span>
-          <span className="floating-chat-fab-toggle-icon" aria-hidden="true">
-            <ExpandLessRoundedIcon fontSize="small" />
-          </span>
-        </button>
-      )}
-
-      {open && (
-        <div className="floating-chat-window" role="dialog" aria-label="聊天室">
-          <div
-            className="floating-chat-header"
-            role="button"
-            tabIndex={0}
-            aria-expanded={open}
-            aria-label="收合聊天室"
-            onClick={toggleOpen}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                toggleOpen();
-              }
-            }}
-          >
-            <div className="floating-chat-header-title">
-              <ChatBubbleRoundedIcon sx={{ fontSize: 14, opacity: 0.8 }} />
-              <span>聊天室</span>
-            </div>
-            <div className="floating-chat-header-actions">
-              {danmuCtx && (
-                <label
-                  className="floating-chat-danmu-toggle"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                >
-                  <span>彈幕</span>
-                  <Switch
-                    size="small"
-                    color="info"
-                    checked={danmuCtx.danmuEnabled}
-                    onChange={(event) =>
-                      danmuCtx.onDanmuEnabledChange(event.target.checked)
-                    }
-                  />
-                </label>
-              )}
-              <span className="floating-chat-toggle-icon" aria-hidden="true">
-                <ExpandMoreRoundedIcon sx={{ fontSize: 18 }} />
-              </span>
-            </div>
-          </div>
-
-          <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
-            {renderedMessages}
-          </div>
-          <div className="floating-chat-input-wrap">
-            <div className="floating-chat-input-row">
-              {isChatCooldownActive ? (
-                <div className="floating-chat-cooldown-inline">
-                  輸入過於頻繁，請於 <strong>{chatCooldownLeft}</strong> 秒後重試
-                </div>
-              ) : (
-                <input
-                  ref={inputRef}
-                  className="floating-chat-input"
-                  placeholder="輸入訊息"
-                  value={messageInput}
-                  onChange={(event) => {
-                    setMessageInput(event.target.value);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  autoComplete="off"
-                />
-              )}
-              <button
-                type="button"
-                className="floating-chat-send-btn"
-                onClick={handleSend}
-                aria-label="送出訊息"
-                disabled={isChatCooldownActive || !messageInput.trim()}
-              >
-                <SendRoundedIcon fontSize="small" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <DesktopChatWindowContent
+      open={open}
+      unread={unread}
+      showDanmuToggle={showDanmuToggle}
+      danmuEnabled={Boolean(danmuCtx?.danmuEnabled)}
+      onDanmuEnabledChange={handleDanmuEnabledChange}
+      onToggle={toggleOpen}
+      messages={messages}
+      clientId={clientId}
+      setScrollNodeRef={setScrollNodeRef}
+      inputRef={inputRef}
+      messageInput={messageInput}
+      setMessageInput={setMessageInput}
+      handleSend={handleSend}
+      isChatCooldownActive={isChatCooldownActive}
+      chatCooldownLeft={chatCooldownLeft}
+    />
   );
 };
 
-export default FloatingChatWindow;
+export default React.memo(FloatingChatWindow);
