@@ -69,49 +69,15 @@ const FloatingChatWindow: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [roomReadState, setRoomReadState] = useState<Record<string, string | null>>({});
   const [mobileHeight, setMobileHeight] = useState(MOBILE_CHAT_DEFAULT_HEIGHT_VH);
+  const mobileHeightRafRef = useRef<number | null>(null);
+  const mobileHeightPendingRef = useRef<number>(MOBILE_CHAT_DEFAULT_HEIGHT_VH);
   const isMobileViewport = useMediaQuery("(max-width: 1023.95px)");
   const isMobileRoomMode = Boolean(currentRoom && isMobileViewport);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useAutoHideScrollbar<HTMLDivElement>();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const focusTimerRef = useRef<number | null>(null);
-  const restoreScrollYRef = useRef<number | null>(null);
-  const restoreScrollTimersRef = useRef<number[]>([]);
-  const viewportBaselineHeightRef = useRef<number | null>(null);
   const roomId = currentRoom?.id ?? null;
-
-  const clearRestoreScrollTimers = useCallback(() => {
-    restoreScrollTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    restoreScrollTimersRef.current = [];
-  }, []);
-
-  const captureViewportScroll = useCallback(() => {
-    if (typeof window === "undefined") return;
-    restoreScrollYRef.current = window.scrollY || window.pageYOffset || 0;
-    viewportBaselineHeightRef.current =
-      window.visualViewport?.height ?? window.innerHeight ?? null;
-  }, []);
-
-  const restoreViewportScroll = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const targetY = restoreScrollYRef.current;
-    if (targetY === null) return;
-
-    clearRestoreScrollTimers();
-    const restore = () => {
-      window.scrollTo({
-        left: 0,
-        top: targetY,
-        behavior: "auto",
-      });
-    };
-
-    restore();
-    [80, 180, 320].forEach((delayMs) => {
-      const timerId = window.setTimeout(restore, delayMs);
-      restoreScrollTimersRef.current.push(timerId);
-    });
-  }, [clearRestoreScrollTimers]);
 
   const focusInputWithoutScroll = useCallback(() => {
     const input = inputRef.current;
@@ -128,52 +94,46 @@ const FloatingChatWindow: React.FC = () => {
     scrollContainerRef(node);
   }, [scrollContainerRef]);
 
-  const scheduleRestoreViewportScroll = useCallback((delaysMs?: number[]) => {
-    if (typeof window === "undefined") return;
-    const targetY = restoreScrollYRef.current;
-    if (targetY === null) return;
-
-    clearRestoreScrollTimers();
-    const restore = () => {
-      window.scrollTo({
-        left: 0,
-        top: targetY,
-        behavior: "auto",
-      });
-    };
-
-    (delaysMs ?? [120, 260, 420]).forEach((delayMs) => {
-      const timerId = window.setTimeout(restore, delayMs);
-      restoreScrollTimersRef.current.push(timerId);
-    });
-  }, [clearRestoreScrollTimers]);
-
   useEffect(() => {
     if (!open || !scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+
+    const node = scrollRef.current;
+    const rafId = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
   }, [messages.length, open]);
 
-  useEffect(() => {
-    if (!isMobileRoomMode || !open || typeof window === "undefined") return;
-    const viewport = window.visualViewport;
-    if (!viewport) return;
 
-    const handleViewportResize = () => {
-      const baselineHeight = viewportBaselineHeightRef.current;
-      if (!baselineHeight) return;
-      const activeElement = document.activeElement;
-      const isInputFocused = activeElement === inputRef.current;
-      if (isInputFocused) return;
-      if (viewport.height >= baselineHeight - 8) {
-        scheduleRestoreViewportScroll([0, 120, 260]);
+  const clampMobileHeight = (value: number) =>
+    Math.min(MOBILE_CHAT_MAX_HEIGHT_VH, Math.max(MOBILE_CHAT_MIN_HEIGHT_VH, value));
+
+  const handleMobileHeightChange = useCallback((nextHeight: number) => {
+    const clamped = clampMobileHeight(nextHeight);
+    mobileHeightPendingRef.current = clamped;
+
+    if (mobileHeightRafRef.current !== null) return;
+
+    mobileHeightRafRef.current = window.requestAnimationFrame(() => {
+      mobileHeightRafRef.current = null;
+      setMobileHeight((prev) => {
+        const next = mobileHeightPendingRef.current;
+        return Math.abs(prev - next) < 0.05 ? prev : next;
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (mobileHeightRafRef.current !== null) {
+        window.cancelAnimationFrame(mobileHeightRafRef.current);
+        mobileHeightRafRef.current = null;
       }
     };
-
-    viewport.addEventListener("resize", handleViewportResize);
-    return () => {
-      viewport.removeEventListener("resize", handleViewportResize);
-    };
-  }, [isMobileRoomMode, open, scheduleRestoreViewportScroll]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -181,9 +141,8 @@ const FloatingChatWindow: React.FC = () => {
         window.clearTimeout(focusTimerRef.current);
         focusTimerRef.current = null;
       }
-      clearRestoreScrollTimers();
     };
-  }, [clearRestoreScrollTimers]);
+  }, []);
 
   const otherMessages = useMemo(
     () => messages.filter((message) => isFromOther(message, clientId)),
@@ -210,35 +169,34 @@ const FloatingChatWindow: React.FC = () => {
   }, [latestOtherMessageId, roomId]);
 
   const handleOpen = useCallback(() => {
-    if (isMobileRoomMode) {
-      captureViewportScroll();
-    }
     setOpen(true);
     markRoomRead();
-    if (focusTimerRef.current !== null) window.clearTimeout(focusTimerRef.current);
-    focusTimerRef.current = window.setTimeout(() => {
-      focusTimerRef.current = null;
-      focusInputWithoutScroll();
-    }, 80);
-  }, [captureViewportScroll, focusInputWithoutScroll, isMobileRoomMode, markRoomRead]);
 
-  const handleClose = useCallback(() => {
-    blurActiveInteractiveElement();
     if (focusTimerRef.current !== null) {
       window.clearTimeout(focusTimerRef.current);
       focusTimerRef.current = null;
     }
+
+    // 只在桌機自動 focus，手機不要自動叫出鍵盤
+    if (!isMobileRoomMode) {
+      focusTimerRef.current = window.setTimeout(() => {
+        focusTimerRef.current = null;
+        focusInputWithoutScroll();
+      }, 80);
+    }
+  }, [focusInputWithoutScroll, isMobileRoomMode, markRoomRead]);
+
+  const handleClose = useCallback(() => {
+    blurActiveInteractiveElement();
+
+    if (focusTimerRef.current !== null) {
+      window.clearTimeout(focusTimerRef.current);
+      focusTimerRef.current = null;
+    }
+
     setOpen(false);
     markRoomRead();
-    if (isMobileRoomMode) {
-      restoreViewportScroll();
-    }
-  }, [isMobileRoomMode, markRoomRead, restoreViewportScroll]);
-
-  const handleInputBlur = useCallback(() => {
-    if (!isMobileRoomMode) return;
-    scheduleRestoreViewportScroll();
-  }, [isMobileRoomMode, scheduleRestoreViewportScroll]);
+  }, [markRoomRead]);
 
   const toggleOpen = useCallback(() => {
     if (open) {
@@ -261,7 +219,7 @@ const FloatingChatWindow: React.FC = () => {
     height: mobileHeight,
     minHeight: MOBILE_CHAT_MIN_HEIGHT_VH,
     maxHeight: MOBILE_CHAT_MAX_HEIGHT_VH,
-    onHeightChange: setMobileHeight,
+    onHeightChange: handleMobileHeightChange,
     threshold: 52,
     thresholdBuffer: 24,
   });
@@ -271,7 +229,7 @@ const FloatingChatWindow: React.FC = () => {
       ? "armed"
       : "idle";
 
-  const renderMessages = () => {
+  const renderedMessages = useMemo(() => {
     if (messages.length === 0) {
       return (
         <div className="floating-chat-empty">
@@ -293,8 +251,10 @@ const FloatingChatWindow: React.FC = () => {
           </div>
         );
       }
+
       const isMine = msg.userId === clientId;
       const questionProgress = formatChatQuestionProgress(msg);
+
       return (
         <div
           key={msg.id}
@@ -313,7 +273,7 @@ const FloatingChatWindow: React.FC = () => {
         </div>
       );
     });
-  };
+  }, [clientId, messages]);
 
   if (isMobileRoomMode) {
     return (
@@ -408,7 +368,7 @@ const FloatingChatWindow: React.FC = () => {
           <div className="game-room-mobile-chat-drawer-body">
             <div className="game-room-mobile-chat-drawer-panel">
               <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
-                {renderMessages()}
+                {renderedMessages}
               </div>
               <div className="floating-chat-input-wrap">
                 <div className="floating-chat-input-row">
@@ -431,7 +391,6 @@ const FloatingChatWindow: React.FC = () => {
                           handleSend();
                         }
                       }}
-                      onBlur={handleInputBlur}
                       autoComplete="off"
                     />
                   )}
@@ -523,7 +482,7 @@ const FloatingChatWindow: React.FC = () => {
           </div>
 
           <div ref={setScrollNodeRef} className="floating-chat-messages mq-autohide-scrollbar">
-            {renderMessages()}
+            {renderedMessages}
           </div>
           <div className="floating-chat-input-wrap">
             <div className="floating-chat-input-row">
@@ -546,7 +505,6 @@ const FloatingChatWindow: React.FC = () => {
                       handleSend();
                     }
                   }}
-                  onBlur={handleInputBlur}
                   autoComplete="off"
                 />
               )}

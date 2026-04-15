@@ -1919,7 +1919,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           </div>
         </div>
       </DanmuItemsContext.Provider>
-    </DanmuContext.Provider >
+    </DanmuContext.Provider>
   );
 };
 
