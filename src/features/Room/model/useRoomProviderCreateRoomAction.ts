@@ -134,7 +134,6 @@ export const useRoomProviderCreateRoomAction = ({
   playlistItems,
   lastFetchedPlaylistId,
   lastFetchedPlaylistTitle,
-  clientId,
   fetchPlaylistPage,
   lockSessionClientId,
   persistRoomId,
@@ -679,7 +678,6 @@ export const useRoomProviderCreateRoomAction = ({
   }, [
     allowCollectionClipTiming,
     authToken,
-    clientId,
     createRoomInFlightRef,
     currentRoomIdRef,
     fetchPlaylistPage,

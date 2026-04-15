@@ -302,6 +302,7 @@ export const useRoomProviderSocketLifecycle = ({
       resetGameSyncVersion,
       resetPresenceParticipants,
       resetSessionClientId,
+      roomSelfClientIdRef,
       setCurrentRoom,
       setGamePlaylist,
       setGameState,
@@ -656,7 +657,8 @@ export const useRoomProviderSocketLifecycle = ({
           }
           const selfStillInRoom = participants.some(
             (participant) =>
-              participant.clientId === (roomSelfClientIdRef.current ?? clientId),
+              participant.clientId ===
+              (roomSelfClientIdRef.current ?? clientId),
           );
           if (!selfStillInRoom) {
             clearActiveRoomState({
