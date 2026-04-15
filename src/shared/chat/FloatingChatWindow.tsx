@@ -120,15 +120,6 @@ const FloatingChatWindow: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      if (mobileHeightRafRef.current !== null) {
-        window.cancelAnimationFrame(mobileHeightRafRef.current);
-        mobileHeightRafRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
       if (focusTimerRef.current !== null) {
         window.clearTimeout(focusTimerRef.current);
         focusTimerRef.current = null;
@@ -253,7 +244,7 @@ const FloatingChatWindow: React.FC = () => {
       ? "armed"
       : "idle";
 
-  const showDanmuToggle = Boolean(gameState && danmuCtx);
+  const showDanmuToggle = Boolean(gameState?.status === "playing" && danmuCtx);
 
   const handleDanmuEnabledChange = useCallback(
     (checked: boolean) => {

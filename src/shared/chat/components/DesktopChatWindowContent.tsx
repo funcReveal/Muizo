@@ -88,28 +88,34 @@ const DesktopChatWindowContent: React.FC<DesktopChatWindowContentProps> = ({
                             <span>聊天室</span>
                         </div>
 
-                        {showDanmuToggle ? (
-                            <label
-                                className="floating-chat-danmu-toggle"
-                                onClick={(event) => event.stopPropagation()}
-                                onMouseDown={(event) => event.stopPropagation()}
-                                onPointerDown={(event) => event.stopPropagation()}
-                                onTouchStart={(event) => event.stopPropagation()}
-                                onKeyDown={(event) => event.stopPropagation()}
-                            >
-                                <span>彈幕</span>
-                                <Switch
-                                    size="small"
-                                    color="info"
-                                    checked={danmuEnabled}
-                                    onChange={(event) => onDanmuEnabledChange(event.target.checked)}
+                        <div className="floating-chat-header-actions">
+                            {showDanmuToggle ? (
+                                <label
+                                    className="floating-chat-danmu-toggle"
                                     onClick={(event) => event.stopPropagation()}
                                     onMouseDown={(event) => event.stopPropagation()}
                                     onPointerDown={(event) => event.stopPropagation()}
                                     onTouchStart={(event) => event.stopPropagation()}
-                                />
-                            </label>
-                        ) : null}
+                                    onKeyDown={(event) => event.stopPropagation()}
+                                >
+                                    <span>彈幕</span>
+                                    <Switch
+                                        size="small"
+                                        color="info"
+                                        checked={danmuEnabled}
+                                        onChange={(event) => onDanmuEnabledChange(event.target.checked)}
+                                        onClick={(event) => event.stopPropagation()}
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onPointerDown={(event) => event.stopPropagation()}
+                                        onTouchStart={(event) => event.stopPropagation()}
+                                    />
+                                </label>
+                            ) : null}
+
+                            <span className="floating-chat-toggle-icon" aria-hidden="true">
+                                <ExpandMoreRoundedIcon sx={{ fontSize: 18 }} />
+                            </span>
+                        </div>
                     </div>
 
                     <ChatMessagesList

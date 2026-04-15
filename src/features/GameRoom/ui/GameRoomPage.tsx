@@ -91,6 +91,7 @@ import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useRoomUi } from "../../Room/model/useRoomUi";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
+import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -1505,6 +1506,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 onRequestExit={openExitConfirm}
               />
             </Suspense>
+
+            {!isMobileGameViewport ? <FloatingChatWindow /> : null}
             {exitGameDialog}
           </div>
         </DanmuItemsContext.Provider>
@@ -1916,6 +1919,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             {shouldShowGestureOverlay ? audioGestureOverlay : null}
             {isInitialCountdown ? startBroadcastOverlay : null}
             {exitConfirmOpen ? exitGameDialog : null}
+            <FloatingChatWindow />
           </div>
         </div>
       </DanmuItemsContext.Provider>
