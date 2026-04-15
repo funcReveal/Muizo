@@ -380,7 +380,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         ];
 
   return (
-    <header className="flex w-full min-w-0 items-center justify-between gap-3 text-[var(--mc-text)] sm:gap-4">
+    <header className="flex w-full min-w-0 items-center justify-between gap-3 text-(--mc-text) sm:gap-4">
       <button
         type="button"
         onClick={handleBrandNavigate}

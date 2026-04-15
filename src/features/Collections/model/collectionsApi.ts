@@ -91,10 +91,13 @@ export const collectionsApi = {
     if (!API_URL) {
       throw new Error("尚未設定收藏庫 API 位置 (API_URL)");
     }
-    const res = await fetch(`${API_URL}/api/collections/${collectionId}/read-token`, {
-      method: "POST",
-      headers: buildJsonHeaders(token),
-    });
+    const res = await fetch(
+      `${API_URL}/api/collections/${collectionId}/read-token`,
+      {
+        method: "POST",
+        headers: buildJsonHeaders(token),
+      },
+    );
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       throw new Error(
@@ -128,6 +131,34 @@ export const collectionsApi = {
         typeof json?.error === "string"
           ? `${json.error} (${res.status})`
           : `Failed to create collection (${res.status})`,
+      );
+    }
+    return json?.data ?? null;
+  },
+  async createCollectionWithItems(
+    token: string,
+    payload: {
+      owner_id: string;
+      title: string;
+      description?: string | null;
+      visibility?: "private" | "public";
+      items: Array<Record<string, unknown>>;
+    },
+  ) {
+    if (!API_URL) {
+      throw new Error("尚未設定收藏庫 API 位置 (API_URL)");
+    }
+    const res = await fetch(`${API_URL}/api/collections/import`, {
+      method: "POST",
+      headers: buildJsonHeaders(token),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        typeof json?.error === "string"
+          ? `${json.error} (${res.status})`
+          : `Failed to import collection (${res.status})`,
       );
     }
     return json?.data ?? null;

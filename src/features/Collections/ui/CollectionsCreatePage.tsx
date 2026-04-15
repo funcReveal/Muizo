@@ -27,6 +27,7 @@ import {
 import { useAuth } from "../../../shared/auth/AuthContext";
 import { useRoomPlaylist } from "../../Room/model/RoomPlaylistContext";
 import { useRoomCollections } from "../../Room/model/RoomCollectionsContext";
+import { collectionsApi } from "../model/collectionsApi";
 import { isAdminRole } from "../../../shared/auth/roles";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { isGoogleReauthRequired } from "../../../shared/auth/providerAuth";
@@ -53,22 +54,33 @@ const PRIVATE_SWITCH_ICON = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0f172a"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 8.73V17a1 1 0 1 0 2 0v-.27a2 2 0 1 0-2 0ZM10 8V6a2 2 0 0 1 4 0v2Z"/></svg>',
 );
 
-type DbCollection = {
-  id: string;
-  owner_id: string;
-  title: string;
-  description?: string | null;
-  visibility?: "private" | "public";
-};
-
 const DEFAULT_DURATION_SEC = 30;
-const COLLECTION_ITEMS_CHUNK_SIZE = 200;
 
 type PlaylistIssueTab =
   | "removed"
   | "privateRestricted"
   | "embedBlocked"
   | "unavailable";
+
+type DuplicatePlaylistGroup = {
+  key: string;
+  title: string;
+  uploader: string | null;
+  url: string | null;
+  videoId: string | null;
+  indexes: number[];
+  count: number;
+};
+
+type PreviewVirtualRowProps = {
+  items: Array<{
+    title: string;
+    answerText?: string;
+    uploader?: string;
+    duration?: string;
+    thumbnail?: string;
+  }>;
+};
 
 const parseDurationToSeconds = (duration?: string): number | null => {
   if (!duration) return null;
@@ -89,32 +101,53 @@ const createServerId = () =>
   crypto.randomUUID?.() ??
   `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
 
-const findDuplicatePlaylistItemKey = (
-  items: Array<{ url?: string; title?: string }>,
-) => {
-  const seen = new Set<string>();
-  for (const item of items) {
-    const key = getPlaylistItemKey(item);
-    if (!key) continue;
-    if (seen.has(key)) return key;
-    seen.add(key);
-  }
-  return null;
-};
-
-const buildJsonHeaders = (token: string) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`,
-});
-
-type PreviewVirtualRowProps = {
+const collectDuplicatePlaylistGroups = (
   items: Array<{
-    title: string;
-    answerText?: string;
+    url?: string;
+    title?: string;
     uploader?: string;
-    duration?: string;
-    thumbnail?: string;
-  }>;
+  }>,
+): DuplicatePlaylistGroup[] => {
+  const groups = new Map<
+    string,
+    {
+      title: string;
+      uploader: string | null;
+      url: string | null;
+      videoId: string | null;
+      indexes: number[];
+    }
+  >();
+
+  items.forEach((item, index) => {
+    const key = getPlaylistItemKey(item);
+    if (!key) return;
+
+    const existing = groups.get(key);
+    const videoId = extractVideoId(item.url ?? "");
+
+    if (existing) {
+      existing.indexes.push(index);
+      return;
+    }
+
+    groups.set(key, {
+      title: item.title?.trim() || "未命名影片",
+      uploader: item.uploader?.trim() || null,
+      url: item.url?.trim() || null,
+      videoId,
+      indexes: [index],
+    });
+  });
+
+  return Array.from(groups.entries())
+    .map(([key, value]) => ({
+      key,
+      ...value,
+      count: value.indexes.length,
+    }))
+    .filter((group) => group.count > 1)
+    .sort((a, b) => a.indexes[0] - b.indexes[0]);
 };
 
 const PREVIEW_ROW_HEIGHT = 60;
@@ -210,10 +243,11 @@ const CollectionsCreatePage = () => {
     null,
   );
   const [isPlaylistUrlFocused, setIsPlaylistUrlFocused] = useState(false);
-  const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] =
-    useState(false);
+  const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] = useState(false);
   const [playlistIssueTab, setPlaylistIssueTab] =
     useState<PlaylistIssueTab>("removed");
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+
   const needsGoogleReauth = isGoogleReauthRequired({
     error: youtubePlaylistsError ?? youtubeActionError,
   });
@@ -240,10 +274,17 @@ const CollectionsCreatePage = () => {
     plan: authUser?.plan,
   });
   const hasPlaylistItems = playlistItems.length > 0;
-  const duplicatePlaylistItemKey = useMemo(
-    () => findDuplicatePlaylistItemKey(playlistItems),
+
+  const duplicatePlaylistGroups = useMemo(
+    () => collectDuplicatePlaylistGroups(playlistItems),
     [playlistItems],
   );
+  const hasDuplicatePlaylistItems = duplicatePlaylistGroups.length > 0;
+  const duplicatePlaylistItemsCount = duplicatePlaylistGroups.reduce(
+    (sum, group) => sum + (group.count - 1),
+    0,
+  );
+
   const trimmedPlaylistUrl = playlistUrl.trim();
   const playlistUrlLooksValid = useMemo(() => {
     if (!trimmedPlaylistUrl) return false;
@@ -301,6 +342,15 @@ const CollectionsCreatePage = () => {
   }, [isTitleEditing]);
 
   useEffect(() => {
+    if (!hasDuplicatePlaylistItems && createError?.includes("重複")) {
+      setCreateError(null);
+    }
+    if (!hasDuplicatePlaylistItems && duplicateDialogOpen) {
+      setDuplicateDialogOpen(false);
+    }
+  }, [hasDuplicatePlaylistItems, createError, duplicateDialogOpen]);
+
+  useEffect(() => {
     if (playlistSource !== "url") return;
     if (!playlistUrlLooksValid) return;
     if (playlistLoading) return;
@@ -322,10 +372,8 @@ const CollectionsCreatePage = () => {
 
   const collectionPreview = useMemo(() => {
     if (!hasPlaylistItems) return null;
-    const first = playlistItems[0];
     return {
       title: collectionTitle || lastFetchedPlaylistTitle || "未命名收藏",
-      subtitle: first?.title ?? "",
       count: playlistItems.length,
     };
   }, [
@@ -334,6 +382,7 @@ const CollectionsCreatePage = () => {
     lastFetchedPlaylistTitle,
     playlistItems,
   ]);
+
   const previewListHeight = useMemo(
     () =>
       Math.min(
@@ -345,10 +394,12 @@ const CollectionsCreatePage = () => {
       ),
     [playlistItems.length],
   );
+
   const previewRowProps = useMemo<PreviewVirtualRowProps>(
     () => ({ items: playlistItems }),
     [playlistItems],
   );
+
   const importProgressPercent = useMemo(() => {
     if (playlistProgress.total <= 0) return null;
     return Math.min(
@@ -356,6 +407,7 @@ const CollectionsCreatePage = () => {
       Math.round((playlistProgress.received / playlistProgress.total) * 100),
     );
   }, [playlistProgress.received, playlistProgress.total]);
+
   const importProgressLabel = useMemo(() => {
     if (!playlistLoading) return null;
     if (playlistProgress.total > 0) {
@@ -370,6 +422,7 @@ const CollectionsCreatePage = () => {
     playlistProgress.total,
     playlistSource,
   ]);
+
   const createProgressPercent = useMemo(() => {
     if (!createProgress || createProgress.total <= 0) return null;
     return Math.min(
@@ -377,6 +430,7 @@ const CollectionsCreatePage = () => {
       Math.round((createProgress.completed / createProgress.total) * 100),
     );
   }, [createProgress]);
+
   const playlistIssueSummary = useMemo(() => {
     if (playlistPreviewMeta?.skippedItems?.length) {
       const removed: string[] = [];
@@ -422,6 +476,7 @@ const CollectionsCreatePage = () => {
       unknownCount: playlistPreviewMeta?.skippedCount ?? 0,
     };
   }, [playlistPreviewMeta]);
+
   const playlistIssueTotal =
     playlistIssueSummary.removed.length +
     playlistIssueSummary.privateRestricted.length +
@@ -429,6 +484,7 @@ const CollectionsCreatePage = () => {
     playlistIssueSummary.unavailable.length +
     playlistIssueSummary.unknown.length +
     playlistIssueSummary.unknownCount;
+
   const playlistIssueGroups = useMemo(
     () => [
       {
@@ -479,6 +535,7 @@ const CollectionsCreatePage = () => {
       playlistIssueSummary.unknownCount,
     ],
   );
+
   const activePlaylistIssueGroup =
     playlistIssueGroups.find((group) => group.key === playlistIssueTab) ??
     playlistIssueGroups[0];
@@ -583,10 +640,11 @@ const CollectionsCreatePage = () => {
       setCreateError("請先匯入播放清單");
       return;
     }
-    if (duplicatePlaylistItemKey) {
+    if (hasDuplicatePlaylistItems) {
       setCreateError(
-        `${DUPLICATE_SONG_ERROR}：播放清單內有重複歌曲，請先移除重複項目後再建立收藏庫。`,
+        `${DUPLICATE_SONG_ERROR}：播放清單內有重複影片，請先處理後再建立收藏庫。`,
       );
+      setDuplicateDialogOpen(true);
       return;
     }
     if (reachedCollectionLimit) {
@@ -614,33 +672,7 @@ const CollectionsCreatePage = () => {
     setCreateError(null);
     setIsCreating(true);
     setCreateStageLabel("正在建立收藏庫");
-    setCreateProgress({ completed: 0, total: 1 });
-
-    const create = async (token: string, allowRetry: boolean) => {
-      const res = await fetch(`${API_URL}/api/collections`, {
-        method: "POST",
-        headers: buildJsonHeaders(token),
-        body: JSON.stringify({
-          owner_id: ownerId,
-          title: collectionTitle.trim(),
-          description: null,
-          visibility,
-        }),
-      });
-
-      if (res.status === 401 && allowRetry) {
-        const refreshed = await refreshAuthToken();
-        if (refreshed) {
-          return create(refreshed, false);
-        }
-      }
-
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(payload?.error ?? "Failed to create collection");
-      }
-      return payload?.data as DbCollection;
-    };
+    setCreateProgress({ completed: 0, total: 3 });
 
     try {
       const token = await ensureFreshAuthToken({
@@ -650,10 +682,9 @@ const CollectionsCreatePage = () => {
       if (!token) {
         throw new Error("Unauthorized");
       }
-      const created = await create(token, true);
-      if (!created?.id) {
-        throw new Error("Missing collection id");
-      }
+
+      setCreateStageLabel("正在整理歌曲資料");
+      setCreateProgress({ completed: 1, total: 3 });
 
       const insertItems = playlistItems.map((item, idx) => {
         const durationSec =
@@ -661,9 +692,10 @@ const CollectionsCreatePage = () => {
         const safeDuration = Math.max(1, durationSec);
         const endSec = Math.min(DEFAULT_DURATION_SEC, safeDuration);
         const id = createServerId();
-        const videoId = extractVideoId(item.url);
+        const videoId = extractVideoId(item.url ?? "");
         const provider = videoId ? "youtube" : "manual";
         const sourceId = videoId ?? id;
+
         return {
           id,
           sort: idx,
@@ -678,62 +710,32 @@ const CollectionsCreatePage = () => {
           ...(durationSec ? { duration_sec: durationSec } : {}),
         };
       });
-      const totalChunks = Math.max(
-        1,
-        Math.ceil(insertItems.length / COLLECTION_ITEMS_CHUNK_SIZE),
-      );
-      setCreateProgress({ completed: 1, total: totalChunks + 1 });
-      setCreateStageLabel("正在整理歌曲資料");
 
-      const insertChunk = async (
-        token: string,
-        itemsChunk: typeof insertItems,
-        allowRetry: boolean,
-      ) => {
-        const res = await fetch(
-          `${API_URL}/api/collections/${created.id}/items`,
-          {
-            method: "POST",
-            headers: buildJsonHeaders(token),
-            body: JSON.stringify({ items: itemsChunk }),
-          },
-        );
-        if (res.status === 401 && allowRetry) {
-          const refreshed = await refreshAuthToken();
-          if (refreshed) {
-            return insertChunk(refreshed, itemsChunk, false);
-          }
-        }
-        if (!res.ok) {
-          const payload = await res.json().catch(() => null);
-          throw new Error(payload?.error ?? "Failed to insert items");
-        }
-      };
+      setCreateStageLabel("正在建立收藏庫並寫入歌曲資料");
+      setCreateProgress({ completed: 2, total: 3 });
 
-      for (
-        let index = 0;
-        index < insertItems.length;
-        index += COLLECTION_ITEMS_CHUNK_SIZE
-      ) {
-        const chunkIndex = Math.floor(index / COLLECTION_ITEMS_CHUNK_SIZE) + 1;
-        const chunk = insertItems.slice(
-          index,
-          index + COLLECTION_ITEMS_CHUNK_SIZE,
-        );
-        setCreateStageLabel(`正在匯入歌曲 ${chunkIndex} / ${totalChunks}`);
-        await insertChunk(token, chunk, true);
-        setCreateProgress({
-          completed: chunkIndex + 1,
-          total: totalChunks + 1,
-        });
+      const created = await collectionsApi.createCollectionWithItems(token, {
+        owner_id: ownerId,
+        title: collectionTitle.trim(),
+        description: null,
+        visibility,
+        items: insertItems,
+      });
+
+      if (!created?.id) {
+        throw new Error("Missing collection id");
       }
+
       setCreateStageLabel("正在開啟收藏編輯頁");
+      setCreateProgress({ completed: 3, total: 3 });
+
       trackEvent("collection_create_success", {
         collection_id: created.id,
         collection_visibility: visibility,
         item_count: insertItems.length,
         import_source: playlistSource,
       });
+
       navigate(`/collections/${created.id}/edit`, { replace: true });
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "建立收藏失敗");
@@ -776,7 +778,7 @@ const CollectionsCreatePage = () => {
                     {createStageLabel ?? "正在建立收藏庫"}
                   </div>
                   <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-                    這一步會先建立收藏，再分批寫入歌曲，題目越多等待時間越長。
+                    這一步會一次建立收藏庫並寫入歌曲資料，若中途失敗不會留下不完整的收藏庫。
                   </div>
                 </div>
               </div>
@@ -817,12 +819,13 @@ const CollectionsCreatePage = () => {
             </div>
             <Button
               variant="contained"
-              onClick={() => handleCreateCollection()}
+              onClick={() => void handleCreateCollection()}
               disabled={
                 isCreating ||
                 authLoading ||
                 !authToken ||
-                reachedCollectionLimit
+                reachedCollectionLimit ||
+                hasDuplicatePlaylistItems
               }
               size="small"
               className="shrink-0"
@@ -901,8 +904,9 @@ const CollectionsCreatePage = () => {
                             onBlur={() => setIsPlaylistUrlFocused(false)}
                             onChange={(e) => setPlaylistUrl(e.target.value)}
                             onKeyDown={(event) => {
-                              if (event.key !== "Enter" || playlistLoading)
+                              if (event.key !== "Enter" || playlistLoading) {
                                 return;
+                              }
                               event.preventDefault();
                               void handleFetchPlaylist();
                             }}
@@ -1289,6 +1293,7 @@ const CollectionsCreatePage = () => {
                       />
                     </div>
                   </div>
+
                   {playlistIssueTotal > 0 && (
                     <button
                       type="button"
@@ -1297,6 +1302,19 @@ const CollectionsCreatePage = () => {
                     >
                       <span className="font-semibold">未成功匯入原因</span>
                       <span>{playlistIssueTotal} 首，查看明細</span>
+                    </button>
+                  )}
+
+                  {hasDuplicatePlaylistItems && (
+                    <button
+                      type="button"
+                      onClick={() => setDuplicateDialogOpen(true)}
+                      className="mt-3 flex w-full cursor-pointer items-center justify-between rounded-xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-left text-xs text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-300/15"
+                    >
+                      <span className="font-semibold">偵測到重複影片</span>
+                      <span>
+                        {duplicatePlaylistItemsCount} 首重複，查看明細
+                      </span>
                     </button>
                   )}
                 </div>
@@ -1308,6 +1326,77 @@ const CollectionsCreatePage = () => {
             </div>
           </div>
         </div>
+
+        <Dialog
+          open={duplicateDialogOpen}
+          onClose={() => setDuplicateDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              border: "1px solid rgba(148, 163, 184, 0.22)",
+              background:
+                "linear-gradient(180deg, rgba(8,13,24,0.98), rgba(2,6,23,0.98))",
+              color: "var(--mc-text)",
+            },
+          }}
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-base font-semibold">重複影片明細</div>
+                <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                  共 {duplicatePlaylistItemsCount} 首重複項目，建立前必須先排除
+                </div>
+              </div>
+              <IconButton
+                size="small"
+                onClick={() => setDuplicateDialogOpen(false)}
+                aria-label="關閉重複影片明細"
+                sx={{ color: "var(--mc-text-muted)" }}
+              >
+                <CloseRounded fontSize="small" />
+              </IconButton>
+            </div>
+          </DialogTitle>
+          <DialogContent>
+            <div className="space-y-3">
+              {duplicatePlaylistGroups.map((group) => (
+                <div
+                  key={group.key}
+                  className="rounded-xl border border-rose-400/25 bg-rose-950/20 px-3 py-3"
+                >
+                  <div className="text-sm font-semibold text-[var(--mc-text)]">
+                    {group.title}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                    {group.uploader || "未知上傳者"}
+                  </div>
+                  {group.videoId && (
+                    <div className="mt-1 text-[11px] text-rose-200">
+                      videoId: {group.videoId}
+                    </div>
+                  )}
+                  <div className="mt-2 text-xs text-rose-100">
+                    出現在第 {group.indexes.map((i) => i + 1).join("、")} 首
+                  </div>
+                  {group.url && (
+                    <a
+                      href={group.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 block break-all text-[11px] text-cyan-300 underline"
+                    >
+                      {group.url}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog
           open={playlistIssueDialogOpen}
           onClose={() => setPlaylistIssueDialogOpen(false)}
