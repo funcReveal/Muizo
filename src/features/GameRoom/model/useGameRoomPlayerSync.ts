@@ -684,14 +684,19 @@ const useGameRoomPlayerSync = ({
 
   const unlockAudioAndStart = useCallback(() => {
     primeSfxAudio();
+
+    // 沒 ready 時，完全不允許進入真正解鎖
+    if (!playerReadyRef.current) {
+      resumeNeedsSyncRef.current = true;
+      return false;
+    }
+
     if (!audioUnlockedRef.current) {
       markAudioUnlocked();
     }
+
     startSilentAudio();
-    if (!playerReadyRef.current) {
-      resumeNeedsSyncRef.current = true;
-      return true;
-    }
+
     const serverNow = getServerNowMs();
     if (serverNow < startedAt) {
       debugSync("seekTo", {
@@ -710,11 +715,13 @@ const useGameRoomPlayerSync = ({
       }, 120);
       return true;
     }
+
     armInitialAudioSync();
     startPlayback(undefined, false, {
       holdAudio: true,
       reason: "startPlayback-startedAt",
     });
+
     return true;
   }, [
     armInitialAudioSync,
@@ -733,12 +740,14 @@ const useGameRoomPlayerSync = ({
     (event?: React.SyntheticEvent) => {
       event?.preventDefault();
       event?.stopPropagation();
-      primeSfxAudio();
+
+      // 第二層保護：沒 ready 不做事
+      if (!playerReadyRef.current) return;
+
       unlockAudioAndStart();
     },
-    [primeSfxAudio, unlockAudioAndStart],
+    [unlockAudioAndStart],
   );
-
   const syncToServerPosition = useCallback(
     (
       reason: string,

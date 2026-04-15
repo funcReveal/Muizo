@@ -18,6 +18,7 @@ export const AudioGestureOverlayPortal: React.FC<AudioGestureOverlayPortalProps>
   onTrigger,
 }) => {
   if (!visible || typeof document === "undefined") return null;
+
   const stopOverlayEvent = (event: React.SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -26,40 +27,57 @@ export const AudioGestureOverlayPortal: React.FC<AudioGestureOverlayPortalProps>
     };
     nativeEvent.stopImmediatePropagation?.();
   };
-  const handleTrigger = (event: React.SyntheticEvent) => {
+
+  const handleOverlayClick = (event: React.MouseEvent<HTMLDivElement>) => {
     stopOverlayEvent(event);
+
+    // 播放器還沒 ready，整個畫面雖然可點，但不做任何解鎖
+    if (!isPlayerReady) return;
+
     onTrigger(event);
   };
+
+  const handleButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    stopOverlayEvent(event);
+
+    if (!isPlayerReady) return;
+
+    onTrigger(event);
+  };
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[2400] flex items-center justify-center bg-slate-950/80"
+      className={`fixed inset-0 z-[2400] flex items-center justify-center bg-slate-950/80 ${isPlayerReady ? "cursor-pointer" : "cursor-wait"
+        }`}
       onPointerDownCapture={stopOverlayEvent}
       onPointerUpCapture={stopOverlayEvent}
-      onClick={handleTrigger}
+      onClick={handleOverlayClick}
       role="button"
       tabIndex={0}
-      aria-label="點擊後開始播放"
+      aria-label={isPlayerReady ? "點擊後開始播放" : "播放器載入中"}
     >
       <div
         className="mx-4 w-full max-w-sm rounded-2xl border border-emerald-300/40 bg-slate-900/85 px-6 py-6 text-center shadow-[0_20px_60px_rgba(2,6,23,0.6)]"
         onPointerDownCapture={stopOverlayEvent}
         onPointerUpCapture={stopOverlayEvent}
-        onClick={handleTrigger}
+        onClick={stopOverlayEvent}
       >
         <button
           type="button"
           onPointerDownCapture={stopOverlayEvent}
           onPointerUpCapture={stopOverlayEvent}
-          onClick={handleTrigger}
+          onClick={handleButtonClick}
           disabled={!isPlayerReady}
-          className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100"
+          className="rounded-full border border-emerald-300/60 bg-emerald-400/15 px-5 py-2 text-base font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+          style={{ touchAction: "manipulation" }}
         >
-          {isPlayerReady ? "點擊後開始播放" : "播放器載入中..."}
+          {isPlayerReady ? "點擊任意處開始播放" : "播放器載入中..."}
         </button>
+
         <p className="mt-3 text-xs text-slate-300">
           {isPlayerReady
-            ? "手機瀏覽器需要先手勢觸發，音樂才能播放"
-            : "請稍候播放器初始化完成後再點擊"}
+            ? "播放器已準備完成，請點擊畫面任意處以完成手勢觸發"
+            : "請稍候播放器初始化完成，完成前點擊不會關閉此畫面"}
         </p>
       </div>
     </div>,
