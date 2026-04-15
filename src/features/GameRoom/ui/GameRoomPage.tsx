@@ -7,6 +7,8 @@
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
+  type ComponentProps,
 } from "react";
 import {
   Button,
@@ -89,6 +91,7 @@ import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useRoomUi } from "../../Room/model/useRoomUi";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
+import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
 
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -136,6 +139,14 @@ const GAME_ROOM_REVEAL_AUTO_OVERLAY_STORAGE_KEY =
 
 const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
 
+const PLAYBACK_VOTE_DIALOG_PAPER_PROPS = {
+  className: "game-room-playback-vote-dialog",
+} as const;
+const HOST_MANAGE_DIALOG_PAPER_PROPS = {
+  className: "game-room-host-manage-dialog",
+} as const;
+type MuiDrawerPaperProps = NonNullable<ComponentProps<typeof Drawer>["PaperProps"]>;
+
 const clampMobileVh = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
@@ -171,9 +182,18 @@ const readInitialGameRoomRevealAutoOverlayEnabled = () => {
   );
 };
 
-const GAME_ROOM_DRAWER_MODAL_PROPS = {
+const GAME_ROOM_HOST_DRAWER_MODAL_PROPS = {
   hideBackdrop: true,
   keepMounted: true,
+  disableAutoFocus: true,
+  disableEnforceFocus: true,
+  disableRestoreFocus: true,
+  disableScrollLock: true,
+} as const;
+
+const GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS = {
+  hideBackdrop: true,
+  keepMounted: false,
   disableAutoFocus: true,
   disableEnforceFocus: true,
   disableRestoreFocus: true,
@@ -1298,6 +1318,42 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playbackVoteButtonDisabled,
     playbackVoteButtonLabel,
   ]);
+
+  const shouldMountMobileScoreboardDrawer =
+    isMobileGameViewport &&
+    (mobileScoreboardOpen || mobileAutoOverlayTransition !== "idle");
+
+  const mobileScoreboardDrawerPaperProps = useMemo<MuiDrawerPaperProps>(
+    () => ({
+      className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single ${mobileScoreboardOpen
+        ? "game-room-mobile-scoreboard-drawer--open"
+        : "game-room-mobile-scoreboard-drawer--closed"
+        } ${isMobileDrawerGestureActive
+          ? "game-room-mobile-scoreboard-drawer--dragging"
+          : ""
+        }`,
+      style: {
+        ...mobileScoreboardDragDismiss.paperStyle,
+        pointerEvents: mobileScoreboardOpen ? "auto" : "none",
+        visibility: mobileScoreboardOpen ? "visible" : "hidden",
+      } as CSSProperties,
+    }),
+    [
+      isMobileDrawerGestureActive,
+      mobileScoreboardDragDismiss.paperStyle,
+      mobileScoreboardOpen,
+    ],
+  );
+
+  const mobileHostManageDrawerPaperProps = useMemo<MuiDrawerPaperProps>(
+    () => ({
+      className:
+        "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single game-room-mobile-host-manage-drawer",
+      style: mobileHostManageDragDismiss.paperStyle as CSSProperties,
+    }),
+    [mobileHostManageDragDismiss.paperStyle],
+  );
+
   const hostManagementPanelContent = useMemo(() => {
     if (!hostManagementOpen) return null;
     return (
@@ -1450,6 +1506,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 onRequestExit={openExitConfirm}
               />
             </Suspense>
+
+            {!isMobileGameViewport ? <FloatingChatWindow /> : null}
             {exitGameDialog}
           </div>
         </DanmuItemsContext.Provider>
@@ -1660,7 +1718,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
               )}
             </section>
-            {isMobileGameViewport && (
+            {shouldMountMobileScoreboardDrawer ? (
               <>
                 {mobileBottomPanel !== null && isMobileDrawerGestureActive && (
                   <div
@@ -1676,21 +1734,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   anchor="bottom"
                   open={mobileScoreboardOpen}
                   onClose={handleCloseMobileScoreboard}
-                  ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
-                  PaperProps={{
-                    className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single ${mobileScoreboardOpen
-                      ? "game-room-mobile-scoreboard-drawer--open"
-                      : "game-room-mobile-scoreboard-drawer--closed"
-                      } ${isMobileDrawerGestureActive
-                        ? "game-room-mobile-scoreboard-drawer--dragging"
-                        : ""
-                      }`,
-                    style: {
-                      ...mobileScoreboardDragDismiss.paperStyle,
-                      pointerEvents: mobileScoreboardOpen ? "auto" : "none",
-                      visibility: mobileScoreboardOpen ? "visible" : "hidden",
-                    },
-                  }}
+                  ModalProps={GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS}
+                  PaperProps={mobileScoreboardDrawerPaperProps}
                 >
                   <div
                     className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard"
@@ -1753,62 +1798,60 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </div>
                 </Drawer>
               </>
-            )}
-            <Dialog
-              open={playbackVoteDialogOpen && canOpenPlaybackVotePrompt}
-              onClose={handleClosePlaybackVoteDialog}
-              maxWidth="xs"
-              fullWidth
-              PaperProps={{
-                className: "game-room-playback-vote-dialog",
-              }}
-            >
-              <DialogTitle>延長播放投票</DialogTitle>
-              <DialogContent dividers>
-                <Stack spacing={1.2}>
-                  <Typography variant="body2" className="text-slate-200">
-                    {playbackVoteRequesterName}{" "}
-                    {`提議將本題多播放 ${playbackVoteProposalSeconds} 秒，請在時限內表態。`}
-                  </Typography>
-                  <div className="game-room-playback-vote-dialog__stats">
-                    <span>{`同意 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`}</span>
-                    <span>{`不同意 ${playbackVoteRejectCount}`}</span>
-                    <span>{`剩 ${playbackVoteRemainingSeconds} 秒`}</span>
-                  </div>
-                </Stack>
-              </DialogContent>
-              <DialogActions>
-                <Button
-                  onClick={handleVoteReject}
-                  variant="outlined"
-                  color="inherit"
-                  disabled={playbackVoteSubmitPending !== null}
-                >
-                  {playbackVoteSubmitPending === "reject"
-                    ? "送出中..."
-                    : "維持原播放長度"}
-                </Button>
-                <Button
-                  onClick={handleVoteApprove}
-                  variant="contained"
-                  color="warning"
-                  disabled={playbackVoteSubmitPending !== null}
-                >
-                  {playbackVoteSubmitPending === "approve"
-                    ? "送出中..."
-                    : `延長 ${playbackVoteProposalSeconds} 秒`}
-                </Button>
-              </DialogActions>
-            </Dialog>
-            {isHostInGame && !isMobileGameViewport && (
+            ) : null}
+            {playbackVoteDialogOpen && canOpenPlaybackVotePrompt ? (
               <Dialog
-                open={hostManagementOpen}
+                onClose={handleClosePlaybackVoteDialog}
+                maxWidth="xs"
+                fullWidth
+                open
+                PaperProps={PLAYBACK_VOTE_DIALOG_PAPER_PROPS}
+              >
+                <DialogTitle>延長播放投票</DialogTitle>
+                <DialogContent dividers>
+                  <Stack spacing={1.2}>
+                    <Typography variant="body2" className="text-slate-200">
+                      {playbackVoteRequesterName}{" "}
+                      {`提議將本題多播放 ${playbackVoteProposalSeconds} 秒，請在時限內表態。`}
+                    </Typography>
+                    <div className="game-room-playback-vote-dialog__stats">
+                      <span>{`同意 ${playbackVoteApproveCount}/${playbackVoteMajorityCount}`}</span>
+                      <span>{`不同意 ${playbackVoteRejectCount}`}</span>
+                      <span>{`剩 ${playbackVoteRemainingSeconds} 秒`}</span>
+                    </div>
+                  </Stack>
+                </DialogContent>
+                <DialogActions>
+                  <Button
+                    onClick={handleVoteReject}
+                    variant="outlined"
+                    color="inherit"
+                    disabled={playbackVoteSubmitPending !== null}
+                  >
+                    {playbackVoteSubmitPending === "reject"
+                      ? "送出中..."
+                      : "維持原播放長度"}
+                  </Button>
+                  <Button
+                    onClick={handleVoteApprove}
+                    variant="contained"
+                    color="warning"
+                    disabled={playbackVoteSubmitPending !== null}
+                  >
+                    {playbackVoteSubmitPending === "approve"
+                      ? "送出中..."
+                      : `延長 ${playbackVoteProposalSeconds} 秒`}
+                  </Button>
+                </DialogActions>
+              </Dialog>
+            ) : null}
+            {isHostInGame && !isMobileGameViewport && hostManagementOpen ? (
+              <Dialog
+                open
                 onClose={handleCloseHostManagement}
                 maxWidth="sm"
                 fullWidth
-                PaperProps={{
-                  className: "game-room-host-manage-dialog",
-                }}
+                PaperProps={HOST_MANAGE_DIALOG_PAPER_PROPS}
               >
                 <DialogTitle>房主管理</DialogTitle>
                 <DialogContent dividers>{hostManagementPanelContent}</DialogContent>
@@ -1818,19 +1861,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </Button>
                 </DialogActions>
               </Dialog>
-            )}
-            {isHostInGame && isMobileGameViewport && (
+            ) : null}
+            {isHostInGame && isMobileGameViewport && hostManagementOpen && (
               <Drawer
                 className="game-room-mobile-drawer-root game-room-mobile-drawer-root--host-manage lg:!hidden"
                 anchor="bottom"
                 open={hostManagementOpen}
                 onClose={handleCloseHostManagement}
-                ModalProps={GAME_ROOM_DRAWER_MODAL_PROPS}
-                PaperProps={{
-                  className:
-                    "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single game-room-mobile-host-manage-drawer",
-                  style: mobileHostManageDragDismiss.paperStyle,
-                }}
+                ModalProps={GAME_ROOM_HOST_DRAWER_MODAL_PROPS}
+                PaperProps={mobileHostManageDrawerPaperProps}
               >
                 <div
                   className="game-room-mobile-drawer-head game-room-mobile-drawer-head--scoreboard game-room-mobile-host-manage-head"
@@ -1866,18 +1905,21 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 </div>
               </Drawer>
             )}
-            <ConfirmDialog
-              open={isHostInGame && Boolean(hostManagementConfirm)}
-              title={hostManagementConfirmText?.title ?? ""}
-              description={hostManagementConfirmText?.description ?? ""}
-              confirmLabel={hostManagementConfirmText?.confirmLabel ?? "確認"}
-              cancelLabel="取消"
-              onConfirm={handleConfirmHostManagementAction}
-              onCancel={handleCancelHostManagementConfirm}
-            />
-            {audioGestureOverlay}
-            {startBroadcastOverlay}
-            {exitGameDialog}
+            {isHostInGame && hostManagementConfirm ? (
+              <ConfirmDialog
+                open
+                title={hostManagementConfirmText?.title ?? ""}
+                description={hostManagementConfirmText?.description ?? ""}
+                confirmLabel={hostManagementConfirmText?.confirmLabel ?? "確認"}
+                cancelLabel="取消"
+                onConfirm={handleConfirmHostManagementAction}
+                onCancel={handleCancelHostManagementConfirm}
+              />
+            ) : null}
+            {shouldShowGestureOverlay ? audioGestureOverlay : null}
+            {isInitialCountdown ? startBroadcastOverlay : null}
+            {exitConfirmOpen ? exitGameDialog : null}
+            <FloatingChatWindow />
           </div>
         </div>
       </DanmuItemsContext.Provider>

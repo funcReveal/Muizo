@@ -299,16 +299,13 @@ const RoomsLayoutShell: React.FC = () => {
 
   return (
     <div
-      className={`flex bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start ${
-        isRoomsHubPage ? "h-dvh overflow-hidden" : "min-h-screen"
-      }`}
+      className={`flex bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start ${isRoomsHubPage ? "h-dvh overflow-hidden" : "min-h-screen"
+        }`}
     >
       <div
-        className={`flex w-full min-w-0 ${
-          isGameMode ? "max-w-none px-3 pt-3 xl:px-5" : "max-w-[1600px] p-4"
-        } flex-col ${
-          isRoomsHubPage ? "space-y-2" : "space-y-4"
-        }${currentRoom ? " pb-4" : ""} ${isRoomsHubPage ? "h-full min-h-0" : ""}`}
+        className={`flex w-full min-w-0 ${isGameMode ? "max-w-none px-3 pt-3 xl:px-5" : "max-w-[1600px] p-4"
+          } flex-col ${isRoomsHubPage ? "space-y-2" : "space-y-4"
+          }${currentRoom ? " pb-4" : ""} ${isRoomsHubPage ? "h-full min-h-0" : ""}`}
       >
         <AppHeader
           displayUsername={displayUsername}
@@ -333,11 +330,10 @@ const RoomsLayoutShell: React.FC = () => {
         )}
 
         <footer
-          className={`flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)] ${
-            currentRoom && isMobileViewport
+          className={`flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)] ${currentRoom && isMobileViewport
               ? "game-room-mobile-legal-footer"
               : ""
-          }`}
+            }`}
         >
           <button
             type="button"
@@ -423,7 +419,7 @@ const RoomsLayoutShell: React.FC = () => {
             />
           </DialogContent>
         </Dialog>
-        {currentRoom && <FloatingChatWindow />}
+        {currentRoom && !gameState && <FloatingChatWindow />}
         <Dialog
           open={needsNicknameConfirm || isProfileEditorOpen}
           onClose={() => {

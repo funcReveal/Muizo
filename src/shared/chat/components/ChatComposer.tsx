@@ -1,0 +1,61 @@
+import React from "react";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+
+interface ChatComposerProps {
+    inputRef: React.RefObject<HTMLInputElement | null>;
+    messageInput: string;
+    setMessageInput: (value: string) => void;
+    handleSend: () => void;
+    isChatCooldownActive: boolean;
+    chatCooldownLeft: number;
+}
+
+const ChatComposer: React.FC<ChatComposerProps> = ({
+    inputRef,
+    messageInput,
+    setMessageInput,
+    handleSend,
+    isChatCooldownActive,
+    chatCooldownLeft,
+}) => {
+    return (
+        <div className="floating-chat-input-wrap">
+            <div className="floating-chat-input-row">
+                {isChatCooldownActive ? (
+                    <div className="floating-chat-cooldown-inline">
+                        輸入過於頻繁，請於 <strong>{chatCooldownLeft}</strong> 秒後重試
+                    </div>
+                ) : (
+                    <input
+                        ref={inputRef}
+                        className="floating-chat-input"
+                        placeholder="輸入訊息"
+                        value={messageInput}
+                        onChange={(event) => {
+                            setMessageInput(event.target.value);
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                                event.preventDefault();
+                                handleSend();
+                            }
+                        }}
+                        autoComplete="off"
+                    />
+                )}
+
+                <button
+                    type="button"
+                    className="floating-chat-send-btn"
+                    onClick={handleSend}
+                    aria-label="送出訊息"
+                    disabled={isChatCooldownActive || !messageInput.trim()}
+                >
+                    <SendRoundedIcon fontSize="small" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default React.memo(ChatComposer);
