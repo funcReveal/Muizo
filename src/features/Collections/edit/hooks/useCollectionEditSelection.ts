@@ -21,9 +21,6 @@ type UseCollectionEditSelectionArgs = {
   hasUnsavedChanges: boolean;
   onAutoSaveCurrent: () => void;
   onBeforeSelect?: () => void;
-  setCurrentTimeSec: Dispatch<SetStateAction<number>>;
-  previewFromStart: (sec: number) => void;
-  previewBeforeEnd: (rangeStartSec: number, rangeEndSec: number) => void;
 };
 
 type TimeDraftState = {
@@ -41,9 +38,6 @@ export function useCollectionEditSelection({
   hasUnsavedChanges,
   onAutoSaveCurrent,
   onBeforeSelect,
-  setCurrentTimeSec,
-  previewFromStart,
-  previewBeforeEnd,
 }: UseCollectionEditSelectionArgs) {
   const [timeDrafts, setTimeDrafts] = useState<TimeDraftState>({
     itemId: null,
@@ -196,19 +190,10 @@ export function useCollectionEditSelection({
         startInput: formatSeconds(next),
         endInput: formatSeconds(nextEnd),
       });
-      setCurrentTimeSec(next);
 
       updateSelectedItem({ startSec: next, endSec: nextEnd });
-      previewFromStart(next);
     },
-    [
-      endSec,
-      maxSec,
-      previewFromStart,
-      selectedItem?.localId,
-      setCurrentTimeSec,
-      updateSelectedItem,
-    ],
+    [endSec, maxSec, selectedItem?.localId, updateSelectedItem],
   );
 
   const handleEndChange = useCallback(
@@ -221,21 +206,14 @@ export function useCollectionEditSelection({
         startInput: formatSeconds(nextStart),
         endInput: formatSeconds(next),
       });
-      setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), next));
 
       updateSelectedItem({ startSec: nextStart, endSec: next });
     },
-    [
-      maxSec,
-      selectedItem?.localId,
-      setCurrentTimeSec,
-      startSec,
-      updateSelectedItem,
-    ],
+    [maxSec, selectedItem?.localId, startSec, updateSelectedItem],
   );
 
   const handleRangeChange = useCallback(
-    (value: number[], activeThumb: number) => {
+    (value: number[]) => {
       const [rawStart, rawEnd] = value;
       const nextStart = Math.min(Math.max(0, rawStart), maxSec);
       const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
@@ -246,32 +224,13 @@ export function useCollectionEditSelection({
         endInput: formatSeconds(nextEnd),
       });
 
-      if (activeThumb === 0) {
-        setCurrentTimeSec(nextStart);
-        previewFromStart(nextStart);
-      } else {
-        setCurrentTimeSec((prev) =>
-          Math.min(Math.max(prev, nextStart), nextEnd),
-        );
-        previewBeforeEnd(nextStart, nextEnd);
-      }
-
       updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
     },
-    [
-      maxSec,
-      previewBeforeEnd,
-      previewFromStart,
-      selectedItem?.localId,
-      setCurrentTimeSec,
-      updateSelectedItem,
-    ],
+    [maxSec, selectedItem?.localId, updateSelectedItem],
   );
 
   const handleRangeCommit = useCallback(
-    (value: number[], activeThumb: number) => {
-      if (activeThumb !== 0) return;
-
+    (value: number[]) => {
       const [rawStart, rawEnd] = value;
       const nextStart = Math.min(Math.max(0, rawStart), maxSec);
       const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
@@ -281,20 +240,11 @@ export function useCollectionEditSelection({
         startInput: formatSeconds(nextStart),
         endInput: formatSeconds(nextEnd),
       });
-      setCurrentTimeSec(nextStart);
 
       updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
     },
-    [maxSec, selectedItem?.localId, setCurrentTimeSec, updateSelectedItem],
+    [maxSec, selectedItem?.localId, updateSelectedItem],
   );
-
-  const handleStartThumbPress = useCallback(() => {
-    previewFromStart(startSec);
-  }, [previewFromStart, startSec]);
-
-  const handleEndThumbPress = useCallback(() => {
-    previewBeforeEnd(startSec, endSec);
-  }, [endSec, previewBeforeEnd, startSec]);
 
   return {
     selectedIndex,
@@ -319,7 +269,5 @@ export function useCollectionEditSelection({
     handleEndChange,
     handleRangeChange,
     handleRangeCommit,
-    handleStartThumbPress,
-    handleEndThumbPress,
   };
 }

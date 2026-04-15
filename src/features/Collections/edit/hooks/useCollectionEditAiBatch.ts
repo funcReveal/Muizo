@@ -70,8 +70,6 @@ export type AiPreviewItem = {
 type UseCollectionEditAiBatchArgs = {
   playlistItems: EditableItem[];
   setPlaylistItems: React.Dispatch<React.SetStateAction<EditableItem[]>>;
-  selectedItem: EditableItem | null;
-  setAnswerText: React.Dispatch<React.SetStateAction<string>>;
   markDirty: () => void;
   handleSaveCollection: (mode: "manual" | "auto") => Promise<boolean>;
   saveError: string | null;
@@ -80,8 +78,6 @@ type UseCollectionEditAiBatchArgs = {
 export function useCollectionEditAiBatch({
   playlistItems,
   setPlaylistItems,
-  selectedItem,
-  setAnswerText,
   markDirty,
   handleSaveCollection,
   saveError,
@@ -132,7 +128,6 @@ export function useCollectionEditAiBatch({
   }, [aiBatchPageIndex, aiPromptPages.length]);
 
   const currentAiPromptPage = aiPromptPages[effectiveAiBatchPageIndex] ?? null;
-
   const currentAiJsonDraft = aiJsonDrafts[effectiveAiBatchPageIndex] ?? "";
 
   const aiPromptPayload = useMemo(
@@ -434,14 +429,6 @@ export function useCollectionEditAiBatch({
       }),
     );
 
-    if (selectedItem) {
-      const selectedKey = selectedItem.dbId ?? selectedItem.localId;
-      const selectedNextAnswer = updates.get(selectedKey);
-      if (selectedNextAnswer !== undefined) {
-        setAnswerText(selectedNextAnswer);
-      }
-    }
-
     markDirty();
     setAiJsonDrafts((prev) => ({
       ...prev,
@@ -523,8 +510,6 @@ export function useCollectionEditAiBatch({
     handleSaveCollection,
     markDirty,
     saveError,
-    selectedItem,
-    setAnswerText,
     setPlaylistItems,
   ]);
 

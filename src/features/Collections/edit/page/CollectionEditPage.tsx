@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@mui/material";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
@@ -35,7 +29,6 @@ import PlaylistSourceModal from "../components/playlist/PlaylistSourceModal";
 import PlayerPanel from "../components/player/PlayerPanel";
 import CollectionEditAiBatchDialog from "../components/ai/CollectionEditAiBatchDialog";
 import {
-  DEFAULT_DURATION_SEC,
   createServerId,
   extractVideoId,
   formatSeconds,
@@ -375,17 +368,49 @@ const CollectionEditPage = () => {
   }, [collectionTitle, isTitleEditing]);
 
   const collectionCount = collections.length;
-  const currentSelectedItem =
-    playlistItems.find((item) => item.localId === selectedItemId) ??
-    playlistItems[0] ??
-    null;
+
+  const {
+    selectedIndex,
+    selectedItem,
+    answerText,
+    startSec,
+    endSec,
+    startTimeInput,
+    endTimeInput,
+    maxSec,
+    effectiveEnd,
+    clipDurationSec,
+    selectedClipDurationSec,
+    updateItemAtIndex,
+    updateSelectedAnswerText,
+    handleSelectIndex,
+    handleStartInputChange,
+    handleEndInputChange,
+    handleStartChange,
+    handleEndChange,
+    handleRangeChange,
+    handleRangeCommit,
+  } = useCollectionEditSelection({
+    playlistItems,
+    selectedItemId,
+    setSelectedItemId,
+    setPlaylistItems,
+    markDirty,
+    hasUnsavedChanges,
+    onAutoSaveCurrent: () => {
+      void handleSaveCollection("auto");
+    },
+    onBeforeSelect: () => {
+      setSaveStatus("idle");
+    },
+  });
 
   const syncDurationFromPlayer = useCallback(
     (durationSec: number, targetId?: string | null) => {
       if (!Number.isFinite(durationSec) || durationSec <= 0) return;
 
       const cap = Math.max(1, Math.floor(durationSec));
-      const activeId = targetId ?? currentSelectedItem?.localId ?? null;
+      const activeId = targetId ?? selectedItemId ?? null;
 
       setPlaylistItems((prev) =>
         prev.map((item) => {
@@ -413,8 +438,10 @@ const CollectionEditPage = () => {
         }),
       );
     },
-    [currentSelectedItem?.localId],
+    [selectedItemId],
   );
+
+  const selectedVideoId = extractVideoId(selectedItem?.url);
 
   const {
     playerContainerRef,
@@ -437,73 +464,90 @@ const CollectionEditPage = () => {
     previewFromStart,
     previewBeforeEnd,
   } = useCollectionEditPlayer({
-    selectedVideoId: extractVideoId(currentSelectedItem?.url),
-    selectedItemLocalId: currentSelectedItem?.localId ?? null,
-    selectedItemStartSec: currentSelectedItem?.startSec ?? 0,
+    selectedVideoId: extractVideoId(selectedItem?.url),
+    selectedItemLocalId: selectedItem?.localId ?? null,
+    selectedItemStartSec: selectedItem?.startSec ?? 0,
     itemsLoading,
     collectionsLoading,
-    startSec: currentSelectedItem?.startSec ?? 0,
-    effectiveEnd: Math.max(
-      currentSelectedItem?.endSec ?? DEFAULT_DURATION_SEC,
-      (currentSelectedItem?.startSec ?? 0) + 1,
-    ),
+    startSec,
+    effectiveEnd,
     onDurationResolved: syncDurationFromPlayer,
   });
 
-  const {
-    selectedIndex,
-    selectedItem,
-    answerText,
-    startSec,
-    endSec,
-    startTimeInput,
-    endTimeInput,
-    maxSec,
-    effectiveEnd,
-    clipDurationSec,
-    selectedClipDurationSec,
-    updateItemAtIndex,
-    updateSelectedAnswerText,
-    handleSelectIndex,
-    handleStartInputChange,
-    handleEndInputChange,
-    handleStartChange,
-    handleEndChange,
-    handleRangeChange,
-    handleRangeCommit,
-    handleStartThumbPress,
-    handleEndThumbPress,
-  } = useCollectionEditSelection({
-    playlistItems,
-    selectedItemId,
-    setSelectedItemId,
-    setPlaylistItems,
-    markDirty,
-    hasUnsavedChanges,
-    onAutoSaveCurrent: () => {
-      void handleSaveCollection("auto");
-    },
-    onBeforeSelect: () => {
-      setSaveStatus("idle");
-    },
-    setCurrentTimeSec,
-    previewFromStart,
-    previewBeforeEnd,
-  });
-
-  const selectedVideoId = extractVideoId(selectedItem?.url);
   const clipCurrentSec = Math.min(
     Math.max(currentTimeSec - startSec, 0),
     clipDurationSec,
   );
 
-  const syncAnswerText = useCallback(
-    (valueOrUpdater: SetStateAction<string>) => {
-      void valueOrUpdater;
-      // answerText is derived from playlistItems; no local state sync is needed.
+  const handleStartChangeWithPreview = useCallback(
+    (value: number) => {
+      const next = Math.min(Math.max(0, value), maxSec);
+      handleStartChange(next);
+      setCurrentTimeSec(next);
+      previewFromStart(next);
     },
-    [],
+    [handleStartChange, maxSec, previewFromStart, setCurrentTimeSec],
   );
+
+  const handleEndChangeWithPreview = useCallback(
+    (value: number) => {
+      const next = Math.min(Math.max(0, value), maxSec);
+      const nextStart = next < startSec ? next : startSec;
+
+      handleEndChange(next);
+      setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), next));
+    },
+    [handleEndChange, maxSec, setCurrentTimeSec, startSec],
+  );
+
+  const handleRangeChangeWithPreview = useCallback(
+    (value: number[], activeThumb: number) => {
+      const [rawStart, rawEnd] = value;
+      const nextStart = Math.min(Math.max(0, rawStart), maxSec);
+      const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
+
+      handleRangeChange([nextStart, nextEnd]);
+
+      if (activeThumb === 0) {
+        setCurrentTimeSec(nextStart);
+        previewFromStart(nextStart);
+      } else {
+        setCurrentTimeSec((prev) =>
+          Math.min(Math.max(prev, nextStart), nextEnd),
+        );
+        previewBeforeEnd(nextStart, nextEnd);
+      }
+    },
+    [
+      handleRangeChange,
+      maxSec,
+      previewBeforeEnd,
+      previewFromStart,
+      setCurrentTimeSec,
+    ],
+  );
+
+  const handleRangeCommitWithPreview = useCallback(
+    (value: number[], activeThumb: number) => {
+      if (activeThumb !== 0) return;
+
+      const [rawStart, rawEnd] = value;
+      const nextStart = Math.min(Math.max(0, rawStart), maxSec);
+      const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
+
+      handleRangeCommit([nextStart, nextEnd]);
+      setCurrentTimeSec(nextStart);
+    },
+    [handleRangeCommit, maxSec, setCurrentTimeSec],
+  );
+
+  const handleStartThumbPressWithPreview = useCallback(() => {
+    previewFromStart(startSec);
+  }, [previewFromStart, startSec]);
+
+  const handleEndThumbPressWithPreview = useCallback(() => {
+    previewBeforeEnd(startSec, endSec);
+  }, [endSec, previewBeforeEnd, startSec]);
 
   const {
     aiProviderLabel,
@@ -536,8 +580,6 @@ const CollectionEditPage = () => {
   } = useCollectionEditAiBatch({
     playlistItems,
     setPlaylistItems,
-    selectedItem,
-    setAnswerText: syncAnswerText,
     markDirty,
     handleSaveCollection,
     saveError,
@@ -1290,10 +1332,10 @@ const CollectionEditPage = () => {
               startSec={startSec}
               endSec={endSec}
               maxSec={maxSec}
-              onRangeChange={handleRangeChange}
-              onRangeCommit={handleRangeCommit}
-              onStartThumbPress={handleStartThumbPress}
-              onEndThumbPress={handleEndThumbPress}
+              onRangeChange={handleRangeChangeWithPreview}
+              onRangeCommit={handleRangeCommitWithPreview}
+              onStartThumbPress={handleStartThumbPressWithPreview}
+              onEndThumbPress={handleEndThumbPressWithPreview}
               formatSeconds={formatSeconds}
               startTimeInput={startTimeInput}
               endTimeInput={endTimeInput}
@@ -1309,7 +1351,7 @@ const CollectionEditPage = () => {
                   handleStartInputChange(formatSeconds(startSec));
                   return;
                 }
-                handleStartChange(parsed);
+                handleStartChangeWithPreview(parsed);
               }}
               onEndBlur={() => {
                 const parsed = parseTimeInput(endTimeInput);
@@ -1321,7 +1363,7 @@ const CollectionEditPage = () => {
                   handleEndInputChange(formatSeconds(endSec));
                   return;
                 }
-                handleEndChange(parsed);
+                handleEndChangeWithPreview(parsed);
               }}
               onStartKeyDown={(e) => {
                 if (e.key === "Enter") {
