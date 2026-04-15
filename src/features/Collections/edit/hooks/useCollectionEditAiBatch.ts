@@ -35,6 +35,11 @@ export type AiBatchWriteState =
       message: string;
     };
 
+export type NonIdleAiBatchWriteState = Exclude<
+  AiBatchWriteState,
+  { status: "idle" }
+>;
+
 export type AiPromptPage = {
   pageIndex: number;
   start: number;
@@ -306,7 +311,7 @@ export function useCollectionEditAiBatch({
   const canApplyAiBatch =
     !aiParsedResult.error && aiPreview.changedItems.length > 0;
 
-  const pendingAiBatchSave =
+  const pendingAiBatchSave: NonIdleAiBatchWriteState | null =
     aiBatchWriteState.status === "idle" ? null : aiBatchWriteState;
 
   const canCloseAiBatchModal =

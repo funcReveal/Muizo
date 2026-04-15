@@ -15,6 +15,7 @@ import type {
   AiBatchWriteState,
   AiPageStatus,
   AiPromptPage,
+  NonIdleAiBatchWriteState,
 } from "../../hooks/useCollectionEditAiBatch";
 
 type Props = {
@@ -60,7 +61,7 @@ type Props = {
   onApplyAiBatch: () => Promise<void>;
 
   aiBatchWriteState: AiBatchWriteState;
-  pendingAiBatchSave: AiBatchWriteState | null;
+  pendingAiBatchSave: NonIdleAiBatchWriteState | null;
   canCloseAiBatchModal: boolean;
   aiBatchSaveProgressLabel: string;
   aiBatchSaveStepLabel: string;
