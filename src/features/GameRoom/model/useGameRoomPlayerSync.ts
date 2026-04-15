@@ -832,6 +832,23 @@ const useGameRoomPlayerSync = ({
     });
   }, [getServerNowMs, requestPlayerTime, startedAt, syncToServerPosition]);
 
+  const requestPlayerTimeRef = useRef(requestPlayerTime);
+  const scheduleResumeResyncRef = useRef(scheduleResumeResync);
+  const syncToServerPositionRef = useRef(syncToServerPosition);
+  const updateMediaSessionRef = useRef(updateMediaSession);
+
+  useEffect(() => {
+    requestPlayerTimeRef.current = requestPlayerTime;
+    scheduleResumeResyncRef.current = scheduleResumeResync;
+    syncToServerPositionRef.current = syncToServerPosition;
+    updateMediaSessionRef.current = updateMediaSession;
+  }, [
+    requestPlayerTime,
+    scheduleResumeResync,
+    syncToServerPosition,
+    updateMediaSession,
+  ]);
+
   useEffect(
     () => () => {
       clearInitialAudioHoldReleaseTimer();
@@ -979,16 +996,19 @@ const useGameRoomPlayerSync = ({
     if (typeof navigator === "undefined" || !("mediaSession" in navigator))
       return;
     if (typeof MediaMetadata === "undefined") return;
+
     try {
       const noop = () => {};
+
       const handleMediaSeek = () => {
         resumeNeedsSyncRef.current = true;
-        requestPlayerTime("media-seek");
+        requestPlayerTimeRef.current("media-seek");
         window.setTimeout(() => {
-          syncToServerPosition("media-seek");
-          scheduleResumeResync();
+          syncToServerPositionRef.current("media-seek");
+          scheduleResumeResyncRef.current();
         }, 120);
       };
+
       const actions: Array<MediaSessionAction> = [
         "play",
         "pause",
@@ -999,6 +1019,7 @@ const useGameRoomPlayerSync = ({
         "previoustrack",
         "nexttrack",
       ];
+
       actions.forEach((action) => {
         try {
           if (
@@ -1014,20 +1035,33 @@ const useGameRoomPlayerSync = ({
           console.error("Failed to set media session action handler", err);
         }
       });
-      updateMediaSession();
+
+      updateMediaSessionRef.current();
     } catch (err) {
       console.error("mediaSession setup failed", err);
     }
-  }, [
-    currentTrackIndex,
-    isEnded,
-    isReveal,
-    requestPlayerTime,
-    scheduleResumeResync,
-    syncToServerPosition,
-    updateMediaSession,
-    waitingToStart,
-  ]);
+
+    return () => {
+      const actions: Array<MediaSessionAction> = [
+        "play",
+        "pause",
+        "stop",
+        "seekbackward",
+        "seekforward",
+        "seekto",
+        "previoustrack",
+        "nexttrack",
+      ];
+
+      actions.forEach((action) => {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // ignore
+        }
+      });
+    };
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
