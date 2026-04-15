@@ -12,6 +12,7 @@ import { useCollectionEditor } from "../hooks/useCollectionEditor";
 import { useCollectionLoader } from "../hooks/useCollectionLoader";
 import { useCollectionEditAiBatch } from "../hooks/useCollectionEditAiBatch";
 import { useCollectionEditImport } from "../hooks/useCollectionEditImport";
+import { useCollectionEditPlayer } from "../hooks/useCollectionEditPlayer";
 import { collectionsApi } from "../../shared/api/collectionsApi";
 import {
   MAX_PRIVATE_COLLECTIONS_PER_USER,
@@ -39,13 +40,7 @@ import {
   ANSWER_MAX_LENGTH,
   CLIP_DURATION_LABEL,
   COLLECTION_SELECT_LABEL,
-  EDIT_AUTOPLAY_STORAGE_KEY,
-  EDIT_LOOP_STORAGE_KEY,
-  EDIT_MUTE_STORAGE_KEY,
-  EDIT_VOLUME_STORAGE_KEY,
   END_TIME_LABEL,
-  LEGACY_ID_KEY,
-  LEGACY_VOLUME_STORAGE_KEY,
   NEW_COLLECTION_LABEL,
   PAUSE_LABEL,
   PLAY_LABEL,
@@ -57,9 +52,7 @@ import {
   UNSAVED_PROMPT,
   VOLUME_LABEL,
 } from "../utils/editConstants";
-type YTPlayer = YT.Player;
-type YTPlayerEvent = YT.PlayerEvent;
-type YTPlayerStateEvent = YT.OnStateChangeEvent;
+
 const CollectionEditPage = () => {
   const navigate = useNavigate();
   const { collectionId } = useParams<{ collectionId?: string }>();
@@ -72,6 +65,7 @@ const CollectionEditPage = () => {
     authLoading,
     authExpired,
   } = useAuth();
+
   const {
     playlistUrl,
     playlistItems: fetchedPlaylistItems,
@@ -100,14 +94,10 @@ const CollectionEditPage = () => {
     type: "success" | "error";
     message: string;
   } | null>(null);
+
   const autoSaveTimerRef = useRef<number | null>(null);
   const saveInFlightRef = useRef(false);
-  // When we create a new collection, we update the URL to include the new id.
-  // That route-param change used to trigger a full local-state reset, which
-  // looks like a page refresh. This ref lets us treat that specific param
-  // change as a URL sync only.
   const skipRouteResetOnNextParamRef = useRef<string | null>(null);
-  const progressRafRef = useRef<number | null>(null);
   const baselineSnapshotRef = useRef<string>("");
   const baselineReadyRef = useRef(false);
   const dirtyCounterRef = useRef(0);
@@ -143,11 +133,10 @@ const CollectionEditPage = () => {
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const pendingSelectedIndexRef = useRef<number | null>(null);
-  const selectedIndexRef = useRef(0);
   const reorderRef = useRef(false);
   const reorderSelectedIdRef = useRef<string | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
-  const lastSelectedVideoIdRef = useRef<string | null>(null);
+
   const [startSec, setStartSec] = useState(0);
   const [startTimeInput, setStartTimeInput] = useState(formatSeconds(0));
   const [endSec, setEndSec] = useState(DEFAULT_DURATION_SEC);
@@ -155,65 +144,7 @@ const CollectionEditPage = () => {
     formatSeconds(DEFAULT_DURATION_SEC),
   );
   const [answerText, setAnswerText] = useState("");
-  const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<YTPlayer | null>(null);
-  const currentVideoItemIdRef = useRef<string | null>(null);
-  const playRequestedRef = useRef(false);
-  const shouldSeekToStartRef = useRef(false);
-  const selectedStartRef = useRef(0);
-  const pendingAutoStartRef = useRef<number | null>(null);
-  const autoPlaySeekedRef = useRef(false);
   const hasResetPlaylistRef = useRef(false);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const isPlayingRef = useRef<boolean>(false);
-  const [volume, setVolume] = useState(() => {
-    if (typeof window === "undefined") return 50;
-    const stored =
-      window.localStorage.getItem(EDIT_VOLUME_STORAGE_KEY) ??
-      window.localStorage.getItem(LEGACY_VOLUME_STORAGE_KEY);
-    const parsed = stored ? Number(stored) : NaN;
-    if (!Number.isFinite(parsed)) return 50;
-    return Math.min(100, Math.max(0, parsed));
-  });
-  const [isMuted, setIsMuted] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(EDIT_MUTE_STORAGE_KEY) === "1";
-  });
-  const volumeRef = useRef<number>(volume);
-  const isMutedRef = useRef<boolean>(isMuted);
-  const lastVolumeRef = useRef<number>(volume);
-  const lastAppliedPlayerVolumeRef = useRef<number | null>(null);
-  const lastAppliedPlayerMutedRef = useRef<boolean | null>(null);
-  const [autoPlayOnSwitch, setAutoPlayOnSwitch] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const saved = window.localStorage.getItem(EDIT_AUTOPLAY_STORAGE_KEY);
-    if (saved === "1") return true;
-    if (saved === "0") return false;
-    return false;
-  });
-  const [loopEnabled, setLoopEnabled] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const saved = window.localStorage.getItem(EDIT_LOOP_STORAGE_KEY);
-    if (saved === "1") return true;
-    if (saved === "0") return false;
-    return true;
-  });
-  const autoPlayRef = useRef(false);
-  useEffect(() => {
-    autoPlayRef.current = autoPlayOnSwitch;
-  }, [autoPlayOnSwitch]);
-  useEffect(() => {
-    volumeRef.current = volume;
-  }, [volume]);
-  useEffect(() => {
-    isMutedRef.current = isMuted;
-  }, [isMuted]);
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
-  const [ytReady, setYtReady] = useState(false);
-  const [currentTimeSec, setCurrentTimeSec] = useState(0);
 
   const markDirty = useCallback(() => {
     dirtyCounterRef.current += 1;
@@ -249,6 +180,7 @@ const CollectionEditPage = () => {
         })),
         deletes: [...deletes].sort(),
       };
+
       return JSON.stringify(payload);
     },
     [collectionVisibility],
@@ -277,6 +209,7 @@ const CollectionEditPage = () => {
     plan: authUser?.plan,
     itemLimitOverride: activeCollection?.item_limit_override ?? null,
   });
+
   const resetBaseline = useCallback(() => {
     baselineSnapshotRef.current = buildSnapshot(
       playlistItems,
@@ -285,11 +218,13 @@ const CollectionEditPage = () => {
     );
     baselineReadyRef.current = true;
   }, [buildSnapshot, collectionTitle, pendingDeleteIds, playlistItems]);
+
   const handleSavedBaseline = useCallback(() => {
     window.setTimeout(() => {
       resetBaseline();
     }, 0);
   }, [resetBaseline]);
+
   useCollectionLoader({
     authToken,
     ownerId,
@@ -356,13 +291,16 @@ const CollectionEditPage = () => {
     },
     onSaved: handleSavedBaseline,
   });
+
   const isReadOnly = !authToken || authExpired;
+
   useEffect(() => {
     if (collectionId && skipRouteResetOnNextParamRef.current === collectionId) {
       skipRouteResetOnNextParamRef.current = null;
       setActiveCollectionId(collectionId);
       return;
     }
+
     if (collectionId) {
       setActiveCollectionId(collectionId);
     } else {
@@ -370,6 +308,7 @@ const CollectionEditPage = () => {
       setCollectionTitle("");
       setCollectionVisibility("private");
     }
+
     baselineReadyRef.current = false;
     baselineSnapshotRef.current = "";
     setPlaylistItems([]);
@@ -392,23 +331,26 @@ const CollectionEditPage = () => {
 
   useEffect(() => {
     if (!baselineReadyRef.current) return;
+
     const snapshot = buildSnapshot(
       playlistItems,
       collectionTitle,
       pendingDeleteIds,
     );
     const isDirty = snapshot !== baselineSnapshotRef.current;
+
     if (isDirty && dirtyCounterRef.current === 0) {
-      // Data just loaded or normalized by the server; treat as baseline.
       baselineSnapshotRef.current = snapshot;
       if (hasUnsavedChanges) {
         setHasUnsavedChanges(false);
       }
       return;
     }
+
     if (isDirty !== hasUnsavedChanges) {
       setHasUnsavedChanges(isDirty);
     }
+
     if (!isDirty) {
       dirtyCounterRef.current = 0;
     }
@@ -438,34 +380,25 @@ const CollectionEditPage = () => {
       pendingSelectedIndexRef.current = null;
       return;
     }
+
     if (pendingSelectedIndexRef.current !== null) {
       const idx = pendingSelectedIndexRef.current;
       pendingSelectedIndexRef.current = null;
       const item = playlistItems[idx];
-      selectedStartRef.current = item?.startSec ?? 0;
-      pendingAutoStartRef.current = selectedStartRef.current;
-      shouldSeekToStartRef.current = true;
       setSelectedItemId(item ? item.localId : playlistItems[0].localId);
-      autoPlaySeekedRef.current = false;
       return;
     }
+
     if (!selectedItemId) {
-      selectedStartRef.current = playlistItems[0]?.startSec ?? 0;
-      pendingAutoStartRef.current = selectedStartRef.current;
-      shouldSeekToStartRef.current = true;
       setSelectedItemId(playlistItems[0].localId);
-      autoPlaySeekedRef.current = false;
       return;
     }
+
     const exists = playlistItems.some(
       (item) => item.localId === selectedItemId,
     );
     if (!exists) {
-      selectedStartRef.current = playlistItems[0]?.startSec ?? 0;
-      pendingAutoStartRef.current = selectedStartRef.current;
-      shouldSeekToStartRef.current = true;
       setSelectedItemId(playlistItems[0].localId);
-      autoPlaySeekedRef.current = false;
     }
   }, [playlistItems, selectedItemId]);
 
@@ -477,21 +410,88 @@ const CollectionEditPage = () => {
     );
     return idx >= 0 ? idx : 0;
   }, [playlistItems, selectedItemId]);
-  useEffect(() => {
-    selectedIndexRef.current = selectedIndex;
-  }, [selectedIndex]);
+
   const selectedItem = playlistItems[selectedIndex] ?? null;
-  const durationSec = useMemo(() => {
-    return (
-      parseDurationToSeconds(selectedItem?.duration) ?? DEFAULT_DURATION_SEC
-    );
-  }, [selectedItem?.duration]);
+
+  const durationSec = useMemo(
+    () =>
+      parseDurationToSeconds(selectedItem?.duration) ?? DEFAULT_DURATION_SEC,
+    [selectedItem?.duration],
+  );
   const maxSec = Math.max(1, durationSec);
 
   const collectionCount = collections.length;
   const selectedVideoId = extractVideoId(selectedItem?.url);
   const effectiveEnd = Math.max(endSec, startSec + 1);
   const clipDurationSec = Math.max(1, effectiveEnd - startSec);
+
+  const syncDurationFromPlayer = useCallback(
+    (durationSec: number, targetId?: string | null) => {
+      if (!Number.isFinite(durationSec) || durationSec <= 0) return;
+
+      const cap = Math.max(1, Math.floor(durationSec));
+      const activeId = targetId ?? selectedItem?.localId ?? null;
+
+      setPlaylistItems((prev) =>
+        prev.map((item) => {
+          if (!activeId || item.localId !== activeId) return item;
+
+          let nextEnd = item.endSec;
+          if (!Number.isFinite(nextEnd) || nextEnd > cap) {
+            nextEnd = cap;
+          }
+          if (nextEnd <= item.startSec) {
+            nextEnd = Math.min(cap, item.startSec + 1);
+          }
+
+          const prevDurationSec = parseDurationToSeconds(item.duration) ?? null;
+          const shouldUpdateDuration =
+            prevDurationSec === null || Math.abs(cap - prevDurationSec) >= 2;
+
+          const nextDuration = shouldUpdateDuration
+            ? formatSeconds(cap)
+            : item.duration;
+
+          return shouldUpdateDuration
+            ? { ...item, duration: nextDuration, endSec: nextEnd }
+            : { ...item, endSec: nextEnd };
+        }),
+      );
+    },
+    [selectedItem?.localId],
+  );
+
+  const {
+    playerContainerRef,
+    isPlayerReady,
+    isPlaying,
+    volume,
+    isMuted,
+    autoPlayOnSwitch,
+    loopEnabled,
+    currentTimeSec,
+    setCurrentTimeSec,
+    togglePlayback,
+    handleVolumeChange,
+    handleVolumeCommit,
+    handleToggleMute,
+    handleAutoPlayToggle,
+    handleLoopToggle,
+    handleProgressChange,
+    getPlayerCurrentTimeSec,
+    previewFromStart,
+    previewBeforeEnd,
+  } = useCollectionEditPlayer({
+    selectedVideoId,
+    selectedItemLocalId: selectedItem?.localId ?? null,
+    selectedItemStartSec: selectedItem?.startSec ?? 0,
+    itemsLoading,
+    collectionsLoading,
+    startSec,
+    effectiveEnd,
+    onDurationResolved: syncDurationFromPlayer,
+  });
+
   const clipCurrentSec = Math.min(
     Math.max(currentTimeSec - startSec, 0),
     clipDurationSec,
@@ -556,10 +556,12 @@ const CollectionEditPage = () => {
         );
         return;
       }
+
       if (!authToken || !activeCollectionId) {
         setCollectionVisibility(value);
         return;
       }
+
       setVisibilityUpdating(true);
       try {
         const token = await ensureFreshAuthToken({
@@ -569,6 +571,7 @@ const CollectionEditPage = () => {
         if (!token) {
           throw new Error("Unauthorized");
         }
+
         await collectionsApi.updateCollection(token, activeCollectionId, {
           visibility: value,
         });
@@ -580,6 +583,7 @@ const CollectionEditPage = () => {
               : item,
           ),
         );
+
         if (!hasUnsavedChanges) {
           resetBaseline();
         }
@@ -598,7 +602,6 @@ const CollectionEditPage = () => {
       privateCollectionsCount,
       refreshAuthToken,
       resetBaseline,
-      setCollections,
     ],
   );
 
@@ -611,6 +614,7 @@ const CollectionEditPage = () => {
       setSaveError("請先將收藏庫設為公開後再分享");
       return;
     }
+
     try {
       const shareUrl = new URL("/rooms", window.location.origin);
       shareUrl.searchParams.set("sharedCollection", activeCollectionId);
@@ -664,6 +668,7 @@ const CollectionEditPage = () => {
       options?: { selectLast?: boolean; scrollToLast?: boolean },
     ) => {
       if (!incoming.length) return { added: 0, duplicates: 0 };
+
       let addedCount = 0;
       let duplicateCount = 0;
       let firstAddedIndex: number | null = null;
@@ -674,18 +679,21 @@ const CollectionEditPage = () => {
           prev.map((item) => getPlaylistItemKey(item)).filter(Boolean),
         );
         const next = [...prev];
+
         incoming.forEach((item) => {
           const key = getPlaylistItemKey(item);
           if (key && existingKeys.has(key)) {
             duplicateCount += 1;
             return;
           }
+
           if (key) existingKeys.add(key);
           if (firstAddedIndex === null) firstAddedIndex = next.length;
           next.push(item);
           lastAddedLocalId = item.localId;
           addedCount += 1;
         });
+
         return next;
       });
 
@@ -698,10 +706,12 @@ const CollectionEditPage = () => {
           setPendingScrollIndex(firstAddedIndex + addedCount - 1);
         }
       }
+
       return { added: addedCount, duplicates: duplicateCount };
     },
-    [markDirty, setPlaylistItems],
+    [markDirty],
   );
+
   const {
     sourceModalOpen,
     setSourceModalOpen,
@@ -759,406 +769,50 @@ const CollectionEditPage = () => {
       event.preventDefault();
       event.returnValue = "";
     };
+
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasUnsavedChanges]);
-
-  useEffect(() => {
-    if (window.YT?.Player) {
-      setYtReady(true);
-      return;
-    }
-
-    let mounted = true;
-    const callback = () => {
-      if (!mounted) return;
-      setYtReady(true);
-    };
-    const prev = window.onYouTubeIframeAPIReady;
-
-    const existing = document.querySelector(
-      "script[data-yt-iframe-api]",
-    ) as HTMLScriptElement | null;
-    if (existing) {
-      if (window.YT?.Player) {
-        setYtReady(true);
-      } else {
-        window.onYouTubeIframeAPIReady = callback;
-      }
-      return () => {
-        mounted = false;
-        // Avoid leaking a callback that closes over this component instance.
-        if (window.onYouTubeIframeAPIReady === callback) {
-          window.onYouTubeIframeAPIReady = prev;
-        }
-      };
-    }
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    tag.async = true;
-    tag.dataset.ytIframeApi = "true";
-    window.onYouTubeIframeAPIReady = callback;
-    document.body.appendChild(tag);
-
-    return () => {
-      mounted = false;
-      // Avoid leaking a callback that closes over this component instance.
-      if (window.onYouTubeIframeAPIReady === callback) {
-        window.onYouTubeIframeAPIReady = prev;
-      }
-    };
-  }, []);
-
-  const syncDurationFromPlayer = useCallback(
-    (durationSec: number, targetId?: string | null) => {
-      if (!Number.isFinite(durationSec) || durationSec <= 0) return;
-      const cap = Math.max(1, Math.floor(durationSec));
-      const activeId = targetId ?? currentVideoItemIdRef.current;
-      setPlaylistItems((prev) =>
-        prev.map((item) => {
-          if (!activeId || item.localId !== activeId) return item;
-          let nextEnd = item.endSec;
-          if (!Number.isFinite(nextEnd) || nextEnd > cap) {
-            nextEnd = cap;
-          }
-          if (nextEnd <= item.startSec) {
-            nextEnd = Math.min(cap, item.startSec + 1);
-          }
-          const prevDurationSec = parseDurationToSeconds(item.duration) ?? null;
-          const shouldUpdateDuration =
-            prevDurationSec === null || Math.abs(cap - prevDurationSec) >= 2;
-          const nextDuration = shouldUpdateDuration
-            ? formatSeconds(cap)
-            : item.duration;
-          return shouldUpdateDuration
-            ? { ...item, duration: nextDuration, endSec: nextEnd }
-            : { ...item, endSec: nextEnd };
-        }),
-      );
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!ytReady || itemsLoading || collectionsLoading) return;
-    if (reorderRef.current && selectedVideoId && playerRef.current) {
-      const videoData = playerRef.current.getVideoData?.() as
-        | unknown
-        | undefined;
-      const data = videoData as Record<string, unknown> | undefined;
-      const sourceId =
-        typeof data?.source_id === "string" ? data.source_id : undefined;
-      const fallbackId =
-        typeof data?.[LEGACY_ID_KEY] === "string"
-          ? data[LEGACY_ID_KEY]
-          : undefined;
-      const currentId = sourceId ?? fallbackId;
-      if (currentId && currentId === selectedVideoId) {
-        reorderRef.current = false;
-        return;
-      }
-    }
-    if (!selectedVideoId || !playerContainerRef.current) {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-        playerRef.current = null;
-      }
-      setIsPlayerReady(false);
-      setIsPlaying(false);
-      return;
-    }
-
-    playRequestedRef.current = autoPlayRef.current;
-    if (playerRef.current) {
-      playerRef.current.destroy();
-      playerRef.current = null;
-    }
-    setIsPlayerReady(false);
-    setIsPlaying(false);
-
-    const yt = window.YT;
-    if (!yt?.Player) return;
-    const player = new yt.Player(playerContainerRef.current, {
-      videoId: selectedVideoId,
-      playerVars: {
-        autoplay: 0,
-        controls: 1,
-        rel: 0,
-        playsinline: 1,
-        start: Math.floor(selectedStartRef.current),
-      },
-      events: {
-        onReady: (event: YTPlayerEvent) => {
-          setIsPlayerReady(true);
-          event.target.setVolume?.(isMutedRef.current ? 0 : volumeRef.current);
-          const initialStart = Math.floor(selectedStartRef.current);
-          if (autoPlayRef.current) {
-            playRequestedRef.current = true;
-            event.target.loadVideoById?.({
-              videoId: selectedVideoId,
-              startSeconds: initialStart,
-            });
-            const pendingStart = pendingAutoStartRef.current;
-            if (pendingStart !== null && Number.isFinite(pendingStart)) {
-              window.setTimeout(() => {
-                event.target.seekTo?.(pendingStart, true);
-              }, 0);
-              pendingAutoStartRef.current = null;
-            }
-          } else {
-            playRequestedRef.current = false;
-            event.target.cueVideoById?.({
-              videoId: selectedVideoId,
-              startSeconds: initialStart,
-            });
-            event.target.pauseVideo?.();
-          }
-          const boundItemId = currentVideoItemIdRef.current;
-          let attempts = 0;
-          const trySync = () => {
-            const duration = event.target.getDuration?.();
-            if (duration && duration > 0) {
-              syncDurationFromPlayer(duration, boundItemId);
-              return;
-            }
-            attempts += 1;
-            if (attempts < 5) {
-              window.setTimeout(trySync, 300);
-            }
-          };
-          trySync();
-        },
-        onStateChange: (event: YTPlayerStateEvent) => {
-          const state = window.YT?.PlayerState;
-          if (!state) return;
-          if (event.data === state.PLAYING) {
-            playRequestedRef.current = true;
-            if (autoPlayRef.current && !autoPlaySeekedRef.current) {
-              const targetStart = selectedStartRef.current;
-              const current = event.target.getCurrentTime?.();
-              if (
-                typeof current === "number" &&
-                targetStart > 0 &&
-                current < targetStart - 0.2
-              ) {
-                event.target.seekTo?.(targetStart, true);
-                autoPlaySeekedRef.current = true;
-              }
-            }
-            setIsPlaying(true);
-          } else if (
-            event.data === state.PAUSED ||
-            event.data === state.ENDED
-          ) {
-            playRequestedRef.current = false;
-            setIsPlaying(false);
-          }
-        },
-      },
-    });
-
-    playerRef.current = player;
-    lastSelectedVideoIdRef.current = selectedVideoId;
-
-    return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
-        playerRef.current = null;
-      }
-    };
-  }, [
-    ytReady,
-    itemsLoading,
-    collectionsLoading,
-    selectedVideoId,
-    syncDurationFromPlayer,
-  ]);
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef.current) return;
-    if (autoPlayRef.current) return;
-    playerRef.current.seekTo?.(startSec, true);
-    setCurrentTimeSec(startSec);
-  }, [startSec, isPlayerReady, selectedVideoId]);
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef.current) return;
-    const player = playerRef.current;
-
-    if (lastAppliedPlayerMutedRef.current !== isMuted) {
-      if (isMuted) {
-        player.mute?.();
-      } else {
-        player.unMute?.();
-      }
-      lastAppliedPlayerMutedRef.current = isMuted;
-    }
-
-    if (!isMuted && lastAppliedPlayerVolumeRef.current !== volume) {
-      player.setVolume?.(volume);
-      lastAppliedPlayerVolumeRef.current = volume;
-    }
-  }, [volume, isMuted, isPlayerReady]);
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef.current) return;
-
-    const syncPlayerVolumeState = () => {
-      const player = playerRef.current;
-      if (!player) return;
-
-      const nextMuted = player.isMuted?.() ?? false;
-      const rawVolume = player.getVolume?.();
-      const nextVolume = Number.isFinite(rawVolume)
-        ? Math.min(100, Math.max(0, Math.round(rawVolume)))
-        : null;
-
-      if (typeof nextVolume === "number" && nextVolume !== volumeRef.current) {
-        volumeRef.current = nextVolume;
-        lastAppliedPlayerVolumeRef.current = nextVolume;
-        setVolume(nextVolume);
-        if (nextVolume > 0) {
-          lastVolumeRef.current = nextVolume;
-        }
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            EDIT_VOLUME_STORAGE_KEY,
-            String(nextVolume),
-          );
-        }
-      }
-
-      if (nextMuted !== isMutedRef.current) {
-        isMutedRef.current = nextMuted;
-        lastAppliedPlayerMutedRef.current = nextMuted;
-        setIsMuted(nextMuted);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            EDIT_MUTE_STORAGE_KEY,
-            nextMuted ? "1" : "0",
-          );
-        }
-      }
-    };
-
-    syncPlayerVolumeState();
-    const intervalId = window.setInterval(syncPlayerVolumeState, 250);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isPlayerReady, selectedVideoId]);
-
-  useEffect(() => {
-    if (!autoPlayRef.current) return;
-    if (!isPlayerReady || !playerRef.current) return;
-    if (!selectedItemId) return;
-    playRequestedRef.current = true;
-    if (shouldSeekToStartRef.current) {
-      shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(selectedStartRef.current, true);
-      setCurrentTimeSec(selectedStartRef.current);
-    }
-    if (pendingAutoStartRef.current !== null) {
-      const pendingStart = pendingAutoStartRef.current;
-      pendingAutoStartRef.current = null;
-      playerRef.current.seekTo?.(pendingStart, true);
-      setCurrentTimeSec(pendingStart);
-    }
-    if (!isPlayingRef.current) {
-      playerRef.current.playVideo?.();
-    }
-  }, [isPlayerReady, selectedItemId]);
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef.current) return;
-    // When paused/idle, continuously polling currentTime via rAF causes the entire
-    // EditPage (and the virtualized list) to re-render every frame. Only keep
-    // the progress loop running while actively playing.
-    if (!isPlaying) return;
-    let mounted = true;
-    let lastEmitTs = 0;
-
-    const tick = (ts: number) => {
-      if (!mounted) return;
-      const player = playerRef.current;
-      if (player && typeof player.getCurrentTime === "function") {
-        const current = player.getCurrentTime();
-        // Throttle to reduce expensive UI re-renders while keeping the progress smooth.
-        if (ts - lastEmitTs >= 66) {
-          lastEmitTs = ts;
-          setCurrentTimeSec(current);
-        }
-        if (isPlaying && current >= effectiveEnd - 0.2) {
-          if (loopEnabled) {
-            player.seekTo?.(startSec, true);
-            if (isPlaying) {
-              player.playVideo?.();
-            } else {
-              player.pauseVideo?.();
-            }
-          } else {
-            player.seekTo?.(effectiveEnd, true);
-            player.pauseVideo?.();
-          }
-        }
-      }
-      progressRafRef.current = window.requestAnimationFrame(tick);
-    };
-
-    progressRafRef.current = window.requestAnimationFrame(tick);
-    return () => {
-      mounted = false;
-      if (progressRafRef.current) {
-        window.cancelAnimationFrame(progressRafRef.current);
-        progressRafRef.current = null;
-      }
-    };
-  }, [
-    isPlayerReady,
-    startSec,
-    effectiveEnd,
-    isPlaying,
-    selectedVideoId,
-    loopEnabled,
-  ]);
 
   useEffect(() => {
     if (!selectedItem) {
       lastSelectedIdRef.current = null;
       return;
     }
-    currentVideoItemIdRef.current = selectedItem.localId;
+
     const nextId = selectedItem.localId;
     if (lastSelectedIdRef.current === nextId) return;
     if (reorderRef.current && reorderSelectedIdRef.current === nextId) {
       reorderRef.current = false;
       return;
     }
+
     lastSelectedIdRef.current = nextId;
     reorderRef.current = false;
+
     const nextStart = Math.min(selectedItem.startSec, maxSec);
     const nextEnd = Math.min(
       Math.max(selectedItem.endSec, nextStart + 1),
       maxSec,
     );
+
     setStartSec(nextStart);
     setEndSec(nextEnd);
     setStartTimeInput(formatSeconds(nextStart));
     setEndTimeInput(formatSeconds(nextEnd));
     setAnswerText(selectedItem.answerText);
     setCurrentTimeSec(nextStart);
-    shouldSeekToStartRef.current = true;
-    selectedStartRef.current = nextStart;
-  }, [selectedItemId, selectedItem, maxSec]);
+  }, [maxSec, selectedItem, selectedItemId, setCurrentTimeSec]);
 
   useEffect(() => {
     if (!selectedItem) return;
+
     const nextStart = Math.min(selectedItem.startSec, maxSec);
     const nextEnd = Math.min(
       Math.max(selectedItem.endSec, nextStart + 1),
       maxSec,
     );
+
     if (nextStart !== startSec) {
       setStartSec(nextStart);
       setStartTimeInput(formatSeconds(nextStart));
@@ -1197,10 +851,12 @@ const CollectionEditPage = () => {
     (value: string) => {
       setAnswerText(value);
       if (!selectedItem) return;
+
       const nextStatus =
         value === selectedItem.answerText
           ? (selectedItem.answerStatus ?? "original")
           : "manual_reviewed";
+
       updateSelectedItem({
         answerText: value,
         answerStatus: nextStatus,
@@ -1265,13 +921,14 @@ const CollectionEditPage = () => {
         setSaveError(error instanceof Error ? error.message : String(error));
       }
     },
-    [activeCollectionId, authToken, refreshAuthToken, setCollections],
+    [activeCollectionId, authToken, refreshAuthToken],
   );
 
   const toggleItemNoChange = useCallback(
     (index: number) => {
       const target = playlistItems[index];
       if (!target || target.answerStatus !== "original") return;
+
       updateItemAtIndex(index, {
         answerStatus: "manual_reviewed",
       });
@@ -1286,13 +943,10 @@ const CollectionEditPage = () => {
       if (hasUnsavedChanges) {
         void handleSaveCollection("auto");
       }
+
       setSaveStatus("idle");
       const target = playlistItems[nextIndex];
-      selectedStartRef.current = target?.startSec ?? 0;
-      pendingAutoStartRef.current = selectedStartRef.current;
-      shouldSeekToStartRef.current = true;
       setSelectedItemId(target ? target.localId : null);
-      autoPlaySeekedRef.current = false;
     },
     [handleSaveCollection, hasUnsavedChanges, playlistItems, selectedIndex],
   );
@@ -1320,6 +974,7 @@ const CollectionEditPage = () => {
       window.clearTimeout(highlightTimerRef.current);
     }
     if (highlightIndex === null) return;
+
     highlightTimerRef.current = window.setTimeout(() => {
       setHighlightIndex(null);
     }, 1400);
@@ -1328,25 +983,21 @@ const CollectionEditPage = () => {
   const handleStartChange = (value: number) => {
     const next = Math.min(Math.max(0, value), maxSec);
     const nextEnd = next > endSec ? next : endSec;
+
     setStartSec(next);
-    selectedStartRef.current = next;
-    pendingAutoStartRef.current = next;
     setEndSec(nextEnd);
     setStartTimeInput(formatSeconds(next));
     setEndTimeInput(formatSeconds(nextEnd));
     setCurrentTimeSec(next);
+
     updateSelectedItem({ startSec: next, endSec: nextEnd });
-    if (isPlayerReady && playerRef.current) {
-      playRequestedRef.current = true;
-      shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(next, true);
-      playerRef.current.playVideo?.();
-    }
+    previewFromStart(next);
   };
 
   const handleEndChange = (value: number) => {
     const next = Math.min(Math.max(0, value), maxSec);
     const nextStart = next < startSec ? next : startSec;
+
     setEndSec(next);
     if (next < startSec) {
       setStartSec(nextStart);
@@ -1354,6 +1005,7 @@ const CollectionEditPage = () => {
     }
     setEndTimeInput(formatSeconds(next));
     setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), next));
+
     updateSelectedItem({ startSec: nextStart, endSec: next });
   };
 
@@ -1361,69 +1013,52 @@ const CollectionEditPage = () => {
     const [rawStart, rawEnd] = value;
     const nextStart = Math.min(Math.max(0, rawStart), maxSec);
     const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
+
     setStartSec(nextStart);
-    selectedStartRef.current = nextStart;
-    pendingAutoStartRef.current = nextStart;
     setEndSec(nextEnd);
     setStartTimeInput(formatSeconds(nextStart));
     setEndTimeInput(formatSeconds(nextEnd));
+
     if (activeThumb === 0) {
       setCurrentTimeSec(nextStart);
-      if (isPlayerReady && playerRef.current) {
-        playRequestedRef.current = true;
-        shouldSeekToStartRef.current = false;
-        playerRef.current.seekTo?.(nextStart, true);
-        playerRef.current.playVideo?.();
-      }
-      selectedStartRef.current = nextStart;
-      pendingAutoStartRef.current = nextStart;
+      previewFromStart(nextStart);
     } else {
       setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), nextEnd));
-      if (isPlayerReady && playerRef.current) {
-        const previewStart = Math.max(nextStart, nextEnd - 3);
-        playRequestedRef.current = true;
-        shouldSeekToStartRef.current = false;
-        playerRef.current.seekTo?.(previewStart, true);
-        playerRef.current.playVideo?.();
-      }
+      previewBeforeEnd(nextStart, nextEnd);
     }
+
     updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
   };
 
   const handleRangeCommit = (value: number[], activeThumb: number) => {
     if (activeThumb !== 0) return;
+
     const [rawStart, rawEnd] = value;
     const nextStart = Math.min(Math.max(0, rawStart), maxSec);
     const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
+
     setStartSec(nextStart);
     setEndSec(nextEnd);
     setStartTimeInput(formatSeconds(nextStart));
     setEndTimeInput(formatSeconds(nextEnd));
     setCurrentTimeSec(nextStart);
+
     updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
   };
 
   const handleStartThumbPress = () => {
-    if (!isPlayerReady || !playerRef.current) return;
-    playRequestedRef.current = true;
-    shouldSeekToStartRef.current = false;
-    playerRef.current.seekTo?.(startSec, true);
-    playerRef.current.playVideo?.();
+    previewFromStart(startSec);
   };
 
   const handleEndThumbPress = () => {
-    if (!isPlayerReady || !playerRef.current) return;
-    const previewStart = Math.max(startSec, endSec - 3);
-    playRequestedRef.current = true;
-    shouldSeekToStartRef.current = false;
-    playerRef.current.seekTo?.(previewStart, true);
-    playerRef.current.playVideo?.();
+    previewBeforeEnd(startSec, endSec);
   };
 
   const moveItem = useCallback(
     (fromIndex: number, toIndex: number) => {
       reorderRef.current = true;
       reorderSelectedIdRef.current = lastSelectedIdRef.current;
+
       if (
         fromIndex < 0 ||
         toIndex < 0 ||
@@ -1433,6 +1068,7 @@ const CollectionEditPage = () => {
       ) {
         return;
       }
+
       setPlaylistItems((prev) => {
         const next = [...prev];
         const [moved] = next.splice(fromIndex, 1);
@@ -1469,6 +1105,7 @@ const CollectionEditPage = () => {
       const previousItems = playlistItems;
       const previousSelectedId = selectedItemId;
       const hadUnsavedChanges = hasUnsavedChanges;
+
       setSaveStatus("saving");
       setSaveError(null);
       setPlaylistItems(nextItems);
@@ -1500,6 +1137,7 @@ const CollectionEditPage = () => {
               : item,
           ),
         );
+
         if (hadUnsavedChanges) {
           setSaveStatus("idle");
         } else {
@@ -1533,130 +1171,6 @@ const CollectionEditPage = () => {
       selectedItemId,
     ],
   );
-
-  const togglePlayback = () => {
-    const player = playerRef.current;
-    if (!player) return;
-    const state = player.getPlayerState?.();
-    const playingState = window.YT?.PlayerState?.PLAYING;
-    if (playingState !== undefined && state === playingState) {
-      player.pauseVideo?.();
-      playRequestedRef.current = false;
-    } else {
-      playRequestedRef.current = true;
-      if (shouldSeekToStartRef.current) {
-        shouldSeekToStartRef.current = false;
-        player.seekTo?.(selectedStartRef.current, true);
-      }
-      player.playVideo?.();
-    }
-  };
-
-  const handleVolumeChange = (value: number) => {
-    const clamped = Math.min(100, Math.max(0, value));
-    volumeRef.current = clamped;
-    const player = playerRef.current;
-    if (player) {
-      if (clamped > 0 && isMutedRef.current) {
-        player.unMute?.();
-        isMutedRef.current = false;
-        setIsMuted(false);
-      }
-      player.setVolume?.(clamped);
-    }
-    if (clamped > 0) {
-      lastVolumeRef.current = clamped;
-    }
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(clamped));
-    }
-  };
-
-  const handleVolumeCommit = (value: number) => {
-    const clamped = Math.min(100, Math.max(0, value));
-    volumeRef.current = clamped;
-    setVolume(clamped);
-    if (clamped > 0) {
-      lastVolumeRef.current = clamped;
-      if (isMuted) {
-        isMutedRef.current = false;
-        setIsMuted(false);
-      }
-    }
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(clamped));
-    }
-  };
-
-  const handleToggleMute = () => {
-    const player = playerRef.current;
-    const nextMuted = !isMutedRef.current;
-
-    if (nextMuted) {
-      const currentAudibleVolume = Math.max(0, volumeRef.current || volume);
-      if (currentAudibleVolume > 0) {
-        lastVolumeRef.current = currentAudibleVolume;
-      }
-      player?.mute?.();
-      lastAppliedPlayerMutedRef.current = true;
-      isMutedRef.current = true;
-      setIsMuted(true);
-    } else {
-      const restored = Math.max(
-        10,
-        lastVolumeRef.current || volumeRef.current || volume || 10,
-      );
-      player?.unMute?.();
-      player?.setVolume?.(restored);
-      lastAppliedPlayerMutedRef.current = false;
-      lastAppliedPlayerVolumeRef.current = restored;
-      volumeRef.current = restored;
-      isMutedRef.current = false;
-      setVolume(restored);
-      setIsMuted(false);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(EDIT_VOLUME_STORAGE_KEY, String(restored));
-      }
-    }
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(EDIT_MUTE_STORAGE_KEY, nextMuted ? "1" : "0");
-    }
-  };
-
-  const handleAutoPlayToggle = (value: boolean) => {
-    setAutoPlayOnSwitch(value);
-    autoPlayRef.current = value;
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(EDIT_AUTOPLAY_STORAGE_KEY, value ? "1" : "0");
-    }
-  };
-
-  const handleLoopToggle = (value: boolean) => {
-    setLoopEnabled(value);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(EDIT_LOOP_STORAGE_KEY, value ? "1" : "0");
-    }
-  };
-
-  const handleProgressChange = (value: number) => {
-    const clamped = Math.min(effectiveEnd, Math.max(startSec, value));
-    setCurrentTimeSec(clamped);
-    if (playerRef.current) {
-      shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(clamped, true);
-      if (!isPlaying) {
-        playerRef.current.pauseVideo?.();
-      }
-    }
-  };
-
-  const getPlayerCurrentTimeSec = useCallback((): number | null => {
-    const player = playerRef.current;
-    if (!player) return null;
-    const t = player.getCurrentTime?.();
-    return typeof t === "number" && Number.isFinite(t) ? t : null;
-  }, []);
 
   if (authLoading) {
     return (
@@ -1704,7 +1218,6 @@ const CollectionEditPage = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-none flex-col gap-3 overflow-x-hidden min-h-0 mb-0">
-      {/* <div className="w-full md:w-full lg:w-3/5 mx-auto space-y-4"> */}
       <EditHeader
         title={collectionTitle}
         titleDraft={titleDraft}
@@ -1778,6 +1291,7 @@ const CollectionEditPage = () => {
         aiBatchDisabled={playlistItems.length === 0}
         collectionMenuOpen={collectionMenuOpen}
       />
+
       <CollectionPopover
         open={collectionMenuOpen}
         anchorEl={collectionAnchor}
@@ -1810,6 +1324,7 @@ const CollectionEditPage = () => {
           dirtyCounterRef.current = 0;
         }}
       />
+
       <ConfirmDialog
         open={confirmPublicOpen}
         title={pendingVisibility === "private" ? "設為私人？" : "設為公開？"}
@@ -1831,6 +1346,7 @@ const CollectionEditPage = () => {
           setConfirmPublicOpen(false);
         }}
       />
+
       <PlaylistSourceModal
         open={sourceModalOpen}
         mode={sourceModalMode}
@@ -1860,6 +1376,7 @@ const CollectionEditPage = () => {
         onSingleTrackAnswerChange={handleSingleTrackAnswerChange}
         onAddSingle={handleAddSingleTrack}
       />
+
       <div
         className={` p-1 shadow-[0_24px_60px_-36px_rgba(2,6,23,0.9)] overflow-hidden min-h-0 ${
           isReadOnly ? "pointer-events-none opacity-60" : ""
@@ -1870,6 +1387,7 @@ const CollectionEditPage = () => {
             {collectionsError || itemsError}
           </div>
         )}
+
         <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="order-2 lg:order-2 min-w-0">
             <PlaylistListPanel
@@ -1888,6 +1406,7 @@ const CollectionEditPage = () => {
               sourceModalOpen={sourceModalOpen}
             />
           </div>
+
           <div className="order-1 lg:order-1 min-w-0 space-y-2">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
               <PlayerPanel
@@ -1926,6 +1445,7 @@ const CollectionEditPage = () => {
                 playerContainerRef={playerContainerRef}
                 thumbnail={selectedItem?.thumbnail}
               />
+
               <AnswerPanel
                 title={TEXT.answer}
                 value={answerText}
@@ -1937,6 +1457,7 @@ const CollectionEditPage = () => {
                 }}
               />
             </div>
+
             <ClipEditorPanel
               title={TEXT.editTime}
               startLabel={TEXT.start}
@@ -2036,7 +1557,6 @@ const CollectionEditPage = () => {
         </div>
       )}
     </div>
-    // </div>
   );
 };
 
