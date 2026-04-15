@@ -33,6 +33,10 @@ const RESUME_DRIFT_TOLERANCE_SEC = 1.2;
 const WATCHDOG_DRIFT_TOLERANCE_SEC = 1.8;
 const WATCHDOG_REQUEST_INTERVAL_MS = 1400;
 const AUTO_RESUME_MIN_INTERVAL_MS = 1800;
+const RECOVERY_MONITOR_INTERVAL_MS = 500;
+const HEALTHY_MONITOR_INTERVAL_MS = 3200;
+const BACKGROUND_MONITOR_INTERVAL_MS = 2600;
+const RECENT_START_GUARD_MS = 2500;
 const INITIAL_AUDIO_HOLD_RELEASE_MS = 680;
 const SYNC_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 const PRESTART_ALIGNMENT_LEAD_MS = 280;
@@ -890,11 +894,30 @@ const useGameRoomPlayerSync = ({
 
   useEffect(() => {
     let timerId: number | null = null;
+
+    const scheduleNext = (delayMs: number) => {
+      timerId = window.setTimeout(tick, delayMs);
+    };
+
     const tick = () => {
       const visibilityHidden =
         typeof document !== "undefined" &&
         document.visibilityState !== "visible";
       const now = getServerNowMs();
+      const playerState = lastPlayerStateRef.current;
+      const recentlyStarted =
+        now >= startedAt && now - startedAt < RECENT_START_GUARD_MS;
+
+      const needsRecoverySync =
+        waitingToStart ||
+        !playerReadyRef.current ||
+        isEnded ||
+        resumeNeedsSyncRef.current ||
+        recentlyStarted ||
+        playerState === 2 ||
+        playerState === null ||
+        playerState === -1;
+
       if (
         resumeNeedsSyncRef.current &&
         playerReadyRef.current &&
@@ -902,14 +925,15 @@ const useGameRoomPlayerSync = ({
       ) {
         resumeNeedsSyncRef.current = false;
         requestPlayerTime("interval-resume");
-        timerId = window.setTimeout(tick, 420);
+        scheduleNext(420);
         return;
       }
-      if (!visibilityHidden) {
-        const playerState = lastPlayerStateRef.current;
+
+      if (!visibilityHidden && needsRecoverySync) {
         const canAutoResumeNow =
           now - lastAutoResumeAttemptAtMsRef.current >=
           AUTO_RESUME_MIN_INTERVAL_MS;
+
         if (playerReadyRef.current && now >= startedAt && !isEnded) {
           if (playerState === 2 && canAutoResumeNow) {
             lastAutoResumeAttemptAtMsRef.current = now;
@@ -924,6 +948,7 @@ const useGameRoomPlayerSync = ({
             startPlayback();
           }
         }
+
         if (
           ENABLE_STEADY_STATE_WATCHDOG &&
           playerReadyRef.current &&
@@ -934,27 +959,18 @@ const useGameRoomPlayerSync = ({
           requestPlayerTime("watchdog");
         }
       }
-      const playerState = lastPlayerStateRef.current;
-      const recentlyStarted = now >= startedAt && now - startedAt < 2500;
-
-      const needsAggressiveSync =
-        waitingToStart ||
-        !playerReadyRef.current ||
-        isEnded ||
-        resumeNeedsSyncRef.current ||
-        recentlyStarted ||
-        playerState === 2 ||
-        playerState === null ||
-        playerState === -1;
 
       const nextDelay = visibilityHidden
-        ? 2000
-        : needsAggressiveSync
-          ? 500
-          : 1400;
-      timerId = window.setTimeout(tick, nextDelay);
+        ? BACKGROUND_MONITOR_INTERVAL_MS
+        : needsRecoverySync
+          ? RECOVERY_MONITOR_INTERVAL_MS
+          : HEALTHY_MONITOR_INTERVAL_MS;
+
+      scheduleNext(nextDelay);
     };
+
     tick();
+
     return () => {
       if (timerId !== null) window.clearTimeout(timerId);
     };
