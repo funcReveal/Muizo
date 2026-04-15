@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@mui/material";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
@@ -13,6 +19,7 @@ import { useCollectionLoader } from "../hooks/useCollectionLoader";
 import { useCollectionEditAiBatch } from "../hooks/useCollectionEditAiBatch";
 import { useCollectionEditImport } from "../hooks/useCollectionEditImport";
 import { useCollectionEditPlayer } from "../hooks/useCollectionEditPlayer";
+import { useCollectionEditSelection } from "../hooks/useCollectionEditSelection";
 import { collectionsApi } from "../../shared/api/collectionsApi";
 import {
   MAX_PRIVATE_COLLECTIONS_PER_USER,
@@ -117,10 +124,10 @@ const CollectionEditPage = () => {
   const [titleDraft, setTitleDraft] = useState("");
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-
   const [collectionAnchor, setCollectionAnchor] = useState<HTMLElement | null>(
     null,
   );
+
   const shareFeedbackTimerRef = useRef<number | null>(null);
   const [playlistItems, setPlaylistItems] = useState<EditableItem[]>([]);
 
@@ -137,13 +144,6 @@ const CollectionEditPage = () => {
   const reorderSelectedIdRef = useRef<string | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
-  const [startSec, setStartSec] = useState(0);
-  const [startTimeInput, setStartTimeInput] = useState(formatSeconds(0));
-  const [endSec, setEndSec] = useState(DEFAULT_DURATION_SEC);
-  const [endTimeInput, setEndTimeInput] = useState(
-    formatSeconds(DEFAULT_DURATION_SEC),
-  );
-  const [answerText, setAnswerText] = useState("");
   const hasResetPlaylistRef = useRef(false);
 
   const markDirty = useCallback(() => {
@@ -374,63 +374,18 @@ const CollectionEditPage = () => {
     setTitleDraft(collectionTitle);
   }, [collectionTitle, isTitleEditing]);
 
-  useEffect(() => {
-    if (!playlistItems.length) {
-      setSelectedItemId(null);
-      pendingSelectedIndexRef.current = null;
-      return;
-    }
-
-    if (pendingSelectedIndexRef.current !== null) {
-      const idx = pendingSelectedIndexRef.current;
-      pendingSelectedIndexRef.current = null;
-      const item = playlistItems[idx];
-      setSelectedItemId(item ? item.localId : playlistItems[0].localId);
-      return;
-    }
-
-    if (!selectedItemId) {
-      setSelectedItemId(playlistItems[0].localId);
-      return;
-    }
-
-    const exists = playlistItems.some(
-      (item) => item.localId === selectedItemId,
-    );
-    if (!exists) {
-      setSelectedItemId(playlistItems[0].localId);
-    }
-  }, [playlistItems, selectedItemId]);
-
-  const selectedIndex = useMemo(() => {
-    if (!playlistItems.length) return 0;
-    if (!selectedItemId) return 0;
-    const idx = playlistItems.findIndex(
-      (item) => item.localId === selectedItemId,
-    );
-    return idx >= 0 ? idx : 0;
-  }, [playlistItems, selectedItemId]);
-
-  const selectedItem = playlistItems[selectedIndex] ?? null;
-
-  const durationSec = useMemo(
-    () =>
-      parseDurationToSeconds(selectedItem?.duration) ?? DEFAULT_DURATION_SEC,
-    [selectedItem?.duration],
-  );
-  const maxSec = Math.max(1, durationSec);
-
   const collectionCount = collections.length;
-  const selectedVideoId = extractVideoId(selectedItem?.url);
-  const effectiveEnd = Math.max(endSec, startSec + 1);
-  const clipDurationSec = Math.max(1, effectiveEnd - startSec);
+  const currentSelectedItem =
+    playlistItems.find((item) => item.localId === selectedItemId) ??
+    playlistItems[0] ??
+    null;
 
   const syncDurationFromPlayer = useCallback(
     (durationSec: number, targetId?: string | null) => {
       if (!Number.isFinite(durationSec) || durationSec <= 0) return;
 
       const cap = Math.max(1, Math.floor(durationSec));
-      const activeId = targetId ?? selectedItem?.localId ?? null;
+      const activeId = targetId ?? currentSelectedItem?.localId ?? null;
 
       setPlaylistItems((prev) =>
         prev.map((item) => {
@@ -458,7 +413,7 @@ const CollectionEditPage = () => {
         }),
       );
     },
-    [selectedItem?.localId],
+    [currentSelectedItem?.localId],
   );
 
   const {
@@ -482,23 +437,73 @@ const CollectionEditPage = () => {
     previewFromStart,
     previewBeforeEnd,
   } = useCollectionEditPlayer({
-    selectedVideoId,
-    selectedItemLocalId: selectedItem?.localId ?? null,
-    selectedItemStartSec: selectedItem?.startSec ?? 0,
+    selectedVideoId: extractVideoId(currentSelectedItem?.url),
+    selectedItemLocalId: currentSelectedItem?.localId ?? null,
+    selectedItemStartSec: currentSelectedItem?.startSec ?? 0,
     itemsLoading,
     collectionsLoading,
-    startSec,
-    effectiveEnd,
+    startSec: currentSelectedItem?.startSec ?? 0,
+    effectiveEnd: Math.max(
+      currentSelectedItem?.endSec ?? DEFAULT_DURATION_SEC,
+      (currentSelectedItem?.startSec ?? 0) + 1,
+    ),
     onDurationResolved: syncDurationFromPlayer,
   });
 
+  const {
+    selectedIndex,
+    selectedItem,
+    answerText,
+    startSec,
+    endSec,
+    startTimeInput,
+    endTimeInput,
+    maxSec,
+    effectiveEnd,
+    clipDurationSec,
+    selectedClipDurationSec,
+    updateItemAtIndex,
+    updateSelectedAnswerText,
+    handleSelectIndex,
+    handleStartInputChange,
+    handleEndInputChange,
+    handleStartChange,
+    handleEndChange,
+    handleRangeChange,
+    handleRangeCommit,
+    handleStartThumbPress,
+    handleEndThumbPress,
+  } = useCollectionEditSelection({
+    playlistItems,
+    selectedItemId,
+    setSelectedItemId,
+    setPlaylistItems,
+    markDirty,
+    hasUnsavedChanges,
+    onAutoSaveCurrent: () => {
+      void handleSaveCollection("auto");
+    },
+    onBeforeSelect: () => {
+      setSaveStatus("idle");
+    },
+    setCurrentTimeSec,
+    previewFromStart,
+    previewBeforeEnd,
+  });
+
+  const selectedVideoId = extractVideoId(selectedItem?.url);
   const clipCurrentSec = Math.min(
     Math.max(currentTimeSec - startSec, 0),
     clipDurationSec,
   );
-  const selectedClipDurationSec = selectedItem
-    ? Math.max(0, selectedItem.endSec - selectedItem.startSec)
-    : 0;
+
+  const syncAnswerText = useCallback(
+    (valueOrUpdater: SetStateAction<string>) => {
+      void valueOrUpdater;
+      // answerText is derived from playlistItems; no local state sync is needed.
+    },
+    [],
+  );
 
   const {
     aiProviderLabel,
@@ -532,7 +537,7 @@ const CollectionEditPage = () => {
     playlistItems,
     setPlaylistItems,
     selectedItem,
-    setAnswerText,
+    setAnswerText: syncAnswerText,
     markDirty,
     handleSaveCollection,
     saveError,
@@ -718,20 +723,16 @@ const CollectionEditPage = () => {
     sourceModalMode,
     setSourceModalMode,
     openPlaylistImportModal,
-
     playlistAddError,
     setPlaylistAddError,
-
     singleTrackUrl,
     singleTrackTitle,
     singleTrackAnswer,
     singleTrackError,
     singleTrackLoading,
-
     duplicateIndex,
     isDuplicate,
     canEditSingleMeta,
-
     handleImportPlaylist,
     handleSingleTrackUrlChange,
     handleSingleTrackTitleChange,
@@ -773,97 +774,6 @@ const CollectionEditPage = () => {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasUnsavedChanges]);
-
-  useEffect(() => {
-    if (!selectedItem) {
-      lastSelectedIdRef.current = null;
-      return;
-    }
-
-    const nextId = selectedItem.localId;
-    if (lastSelectedIdRef.current === nextId) return;
-    if (reorderRef.current && reorderSelectedIdRef.current === nextId) {
-      reorderRef.current = false;
-      return;
-    }
-
-    lastSelectedIdRef.current = nextId;
-    reorderRef.current = false;
-
-    const nextStart = Math.min(selectedItem.startSec, maxSec);
-    const nextEnd = Math.min(
-      Math.max(selectedItem.endSec, nextStart + 1),
-      maxSec,
-    );
-
-    setStartSec(nextStart);
-    setEndSec(nextEnd);
-    setStartTimeInput(formatSeconds(nextStart));
-    setEndTimeInput(formatSeconds(nextEnd));
-    setAnswerText(selectedItem.answerText);
-    setCurrentTimeSec(nextStart);
-  }, [maxSec, selectedItem, selectedItemId, setCurrentTimeSec]);
-
-  useEffect(() => {
-    if (!selectedItem) return;
-
-    const nextStart = Math.min(selectedItem.startSec, maxSec);
-    const nextEnd = Math.min(
-      Math.max(selectedItem.endSec, nextStart + 1),
-      maxSec,
-    );
-
-    if (nextStart !== startSec) {
-      setStartSec(nextStart);
-      setStartTimeInput(formatSeconds(nextStart));
-    }
-    if (nextEnd !== endSec) {
-      setEndSec(nextEnd);
-      setEndTimeInput(formatSeconds(nextEnd));
-    }
-  }, [selectedItem, maxSec, startSec, endSec]);
-
-  const updateSelectedItem = useCallback(
-    (updates: Partial<EditableItem>) => {
-      setPlaylistItems((prev) =>
-        prev.map((item, idx) =>
-          idx === selectedIndex ? { ...item, ...updates } : item,
-        ),
-      );
-      markDirty();
-    },
-    [markDirty, selectedIndex],
-  );
-
-  const updateItemAtIndex = useCallback(
-    (index: number, updates: Partial<EditableItem>) => {
-      setPlaylistItems((prev) =>
-        prev.map((item, idx) =>
-          idx === index ? { ...item, ...updates } : item,
-        ),
-      );
-      markDirty();
-    },
-    [markDirty],
-  );
-
-  const updateSelectedAnswerText = useCallback(
-    (value: string) => {
-      setAnswerText(value);
-      if (!selectedItem) return;
-
-      const nextStatus =
-        value === selectedItem.answerText
-          ? (selectedItem.answerStatus ?? "original")
-          : "manual_reviewed";
-
-      updateSelectedItem({
-        answerText: value,
-        answerStatus: nextStatus,
-      });
-    },
-    [selectedItem, updateSelectedItem],
-  );
 
   const saveReviewStatusImmediately = useCallback(() => {
     const persist = async () => {
@@ -937,20 +847,6 @@ const CollectionEditPage = () => {
     [playlistItems, saveReviewStatusImmediately, updateItemAtIndex],
   );
 
-  const handleSelectIndex = useCallback(
-    (nextIndex: number) => {
-      if (nextIndex === selectedIndex) return;
-      if (hasUnsavedChanges) {
-        void handleSaveCollection("auto");
-      }
-
-      setSaveStatus("idle");
-      const target = playlistItems[nextIndex];
-      setSelectedItemId(target ? target.localId : null);
-    },
-    [handleSaveCollection, hasUnsavedChanges, playlistItems, selectedIndex],
-  );
-
   const applyPlaylistTitle = () => {
     if (!lastFetchedPlaylistTitle) return;
     setCollectionTitle(lastFetchedPlaylistTitle);
@@ -979,80 +875,6 @@ const CollectionEditPage = () => {
       setHighlightIndex(null);
     }, 1400);
   }, [highlightIndex]);
-
-  const handleStartChange = (value: number) => {
-    const next = Math.min(Math.max(0, value), maxSec);
-    const nextEnd = next > endSec ? next : endSec;
-
-    setStartSec(next);
-    setEndSec(nextEnd);
-    setStartTimeInput(formatSeconds(next));
-    setEndTimeInput(formatSeconds(nextEnd));
-    setCurrentTimeSec(next);
-
-    updateSelectedItem({ startSec: next, endSec: nextEnd });
-    previewFromStart(next);
-  };
-
-  const handleEndChange = (value: number) => {
-    const next = Math.min(Math.max(0, value), maxSec);
-    const nextStart = next < startSec ? next : startSec;
-
-    setEndSec(next);
-    if (next < startSec) {
-      setStartSec(nextStart);
-      setStartTimeInput(formatSeconds(nextStart));
-    }
-    setEndTimeInput(formatSeconds(next));
-    setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), next));
-
-    updateSelectedItem({ startSec: nextStart, endSec: next });
-  };
-
-  const handleRangeChange = (value: number[], activeThumb: number) => {
-    const [rawStart, rawEnd] = value;
-    const nextStart = Math.min(Math.max(0, rawStart), maxSec);
-    const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
-
-    setStartSec(nextStart);
-    setEndSec(nextEnd);
-    setStartTimeInput(formatSeconds(nextStart));
-    setEndTimeInput(formatSeconds(nextEnd));
-
-    if (activeThumb === 0) {
-      setCurrentTimeSec(nextStart);
-      previewFromStart(nextStart);
-    } else {
-      setCurrentTimeSec((prev) => Math.min(Math.max(prev, nextStart), nextEnd));
-      previewBeforeEnd(nextStart, nextEnd);
-    }
-
-    updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
-  };
-
-  const handleRangeCommit = (value: number[], activeThumb: number) => {
-    if (activeThumb !== 0) return;
-
-    const [rawStart, rawEnd] = value;
-    const nextStart = Math.min(Math.max(0, rawStart), maxSec);
-    const nextEnd = Math.min(Math.max(0, rawEnd), maxSec);
-
-    setStartSec(nextStart);
-    setEndSec(nextEnd);
-    setStartTimeInput(formatSeconds(nextStart));
-    setEndTimeInput(formatSeconds(nextEnd));
-    setCurrentTimeSec(nextStart);
-
-    updateSelectedItem({ startSec: nextStart, endSec: nextEnd });
-  };
-
-  const handleStartThumbPress = () => {
-    previewFromStart(startSec);
-  };
-
-  const handleEndThumbPress = () => {
-    previewBeforeEnd(startSec, endSec);
-  };
 
   const moveItem = useCallback(
     (fromIndex: number, toIndex: number) => {
@@ -1087,16 +909,16 @@ const CollectionEditPage = () => {
 
       const nextItems = playlistItems.filter((_item, idx) => idx !== index);
       const nextSelectedId =
-        target.localId === selectedItemId
+        target.localId === selectedItem?.localId
           ? (playlistItems[index + 1]?.localId ??
             playlistItems[index - 1]?.localId ??
             null)
-          : selectedItemId;
+          : (selectedItem?.localId ?? null);
 
       if (!target.dbId || !activeCollectionId || !authToken) {
         markDirty();
         setPlaylistItems(nextItems);
-        if (nextSelectedId !== selectedItemId) {
+        if (nextSelectedId !== (selectedItem?.localId ?? null)) {
           setSelectedItemId(nextSelectedId);
         }
         return;
@@ -1168,6 +990,7 @@ const CollectionEditPage = () => {
       pendingDeleteIds,
       playlistItems,
       refreshAuthToken,
+      selectedItem?.localId,
       selectedItemId,
     ],
   );
@@ -1474,16 +1297,16 @@ const CollectionEditPage = () => {
               formatSeconds={formatSeconds}
               startTimeInput={startTimeInput}
               endTimeInput={endTimeInput}
-              onStartInputChange={(value) => setStartTimeInput(value)}
-              onEndInputChange={(value) => setEndTimeInput(value)}
+              onStartInputChange={handleStartInputChange}
+              onEndInputChange={handleEndInputChange}
               onStartBlur={() => {
                 const parsed = parseTimeInput(startTimeInput);
                 if (parsed === null) {
-                  setStartTimeInput(formatSeconds(startSec));
+                  handleStartInputChange(formatSeconds(startSec));
                   return;
                 }
                 if (parsed === startSec) {
-                  setStartTimeInput(formatSeconds(startSec));
+                  handleStartInputChange(formatSeconds(startSec));
                   return;
                 }
                 handleStartChange(parsed);
@@ -1491,11 +1314,11 @@ const CollectionEditPage = () => {
               onEndBlur={() => {
                 const parsed = parseTimeInput(endTimeInput);
                 if (parsed === null) {
-                  setEndTimeInput(formatSeconds(endSec));
+                  handleEndInputChange(formatSeconds(endSec));
                   return;
                 }
                 if (parsed === endSec) {
-                  setEndTimeInput(formatSeconds(endSec));
+                  handleEndInputChange(formatSeconds(endSec));
                   return;
                 }
                 handleEndChange(parsed);
