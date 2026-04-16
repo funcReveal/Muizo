@@ -17,7 +17,7 @@ type UseCollectionEditSelectionArgs = {
   selectedItemId: string | null;
   setSelectedItemId: Dispatch<SetStateAction<string | null>>;
   setPlaylistItems: Dispatch<SetStateAction<EditableItem[]>>;
-  markDirty: () => void;
+  markItemDirty: (localId: string) => void;
   hasUnsavedChanges: boolean;
   onAutoSaveCurrent: () => void;
   onBeforeSelect?: () => void;
@@ -34,7 +34,7 @@ export function useCollectionEditSelection({
   selectedItemId,
   setSelectedItemId,
   setPlaylistItems,
-  markDirty,
+  markItemDirty,
   hasUnsavedChanges,
   onAutoSaveCurrent,
   onBeforeSelect,
@@ -97,21 +97,24 @@ export function useCollectionEditSelection({
           item.localId === targetId ? { ...item, ...updates } : item,
         ),
       );
-      markDirty();
+      markItemDirty(targetId);
     },
-    [markDirty, selectedItem, setPlaylistItems],
+    [markItemDirty, selectedItem, setPlaylistItems],
   );
 
   const updateItemAtIndex = useCallback(
     (index: number, updates: Partial<EditableItem>) => {
+      const target = playlistItems[index];
+      if (!target) return;
+
       setPlaylistItems((prev) =>
         prev.map((item, idx) =>
           idx === index ? { ...item, ...updates } : item,
         ),
       );
-      markDirty();
+      markItemDirty(target.localId);
     },
-    [markDirty, setPlaylistItems],
+    [markItemDirty, playlistItems, setPlaylistItems],
   );
 
   const updateSelectedAnswerText = useCallback(

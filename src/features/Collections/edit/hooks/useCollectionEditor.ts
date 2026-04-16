@@ -1,4 +1,9 @@
-﻿import { useCallback, type Dispatch, type SetStateAction } from "react";
+﻿import {
+  useCallback,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 
 import type { DbCollection, EditableItem } from "../utils/editTypes";
 import { collectionsApi } from "../../shared/api/collectionsApi";
@@ -55,6 +60,8 @@ type UseCollectionEditorParams = {
   privateCollectionsCount: number;
   playlistItems: EditableItem[];
   pendingDeleteIds: string[];
+  dirtyItemIdsRef: MutableRefObject<Set<string>>;
+  fullItemResyncRef: MutableRefObject<boolean>;
   createServerId: () => string;
   parseDurationToSeconds: (duration?: string) => number | null;
   extractVideoId: (url?: string | null) => string | null;
@@ -69,7 +76,6 @@ type UseCollectionEditorParams = {
   dirtyCounterRef: React.RefObject<number>;
   saveInFlightRef: React.RefObject<boolean>;
   navigateToEdit: (id: string) => void;
-  markDirty: () => void;
   refreshAuthToken: () => Promise<string | null>;
   onAuthExpired?: () => void;
   onSaved?: () => void;
@@ -91,6 +97,8 @@ export const useCollectionEditor = ({
   privateCollectionsCount,
   playlistItems,
   pendingDeleteIds,
+  dirtyItemIdsRef,
+  fullItemResyncRef,
   createServerId,
   parseDurationToSeconds,
   extractVideoId,
@@ -115,12 +123,17 @@ export const useCollectionEditor = ({
     plan: authPlan,
     itemLimitOverride: activeCollectionItemLimitOverride,
   });
+
   const isAuthError = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     return message.includes("Unauthorized") || message.includes("401");
   };
+
   const syncItemsToDb = useCallback(
     async (collectionId: string, token: string) => {
+      const shouldResyncAllItems = fullItemResyncRef.current;
+      const dirtyItemIds = dirtyItemIdsRef.current;
+
       const updatePayloads = playlistItems.map((item, idx) => {
         const source = resolveItemSource(item, extractVideoId);
         return {
@@ -150,8 +163,19 @@ export const useCollectionEditor = ({
         };
       });
 
-      const toUpdate = updatePayloads.filter((item) => item.id);
+      const toUpdate = updatePayloads.filter(
+        (item) =>
+          item.id && (shouldResyncAllItems || dirtyItemIds.has(item.localId)),
+      );
       const toInsert = updatePayloads.filter((item) => !item.id);
+
+      if (
+        toUpdate.length === 0 &&
+        toInsert.length === 0 &&
+        pendingDeleteIds.length === 0
+      ) {
+        return;
+      }
 
       if (toUpdate.length > 0) {
         await Promise.all(
@@ -227,7 +251,9 @@ export const useCollectionEditor = ({
     },
     [
       createServerId,
+      dirtyItemIdsRef,
       extractVideoId,
+      fullItemResyncRef,
       parseDurationToSeconds,
       pendingDeleteIds,
       playlistItems,
@@ -386,16 +412,26 @@ export const useCollectionEditor = ({
           }
 
           if (collectionId) {
-            try {
-              await syncItemsToDb(collectionId, token);
-            } catch (error) {
-              if (allowRetry && isAuthError(error)) {
-                const refreshed = await refreshAuthToken();
-                if (refreshed) {
-                  return run(refreshed, false);
+            const hasPendingItemChanges =
+              pendingDeleteIds.length > 0 ||
+              fullItemResyncRef.current ||
+              playlistItems.some(
+                (item) =>
+                  !item.dbId || dirtyItemIdsRef.current.has(item.localId),
+              );
+
+            if (hasPendingItemChanges) {
+              try {
+                await syncItemsToDb(collectionId, token);
+              } catch (error) {
+                if (allowRetry && isAuthError(error)) {
+                  const refreshed = await refreshAuthToken();
+                  if (refreshed) {
+                    return run(refreshed, false);
+                  }
                 }
+                throw error;
               }
-              throw error;
             }
           }
           return created;
@@ -423,6 +459,8 @@ export const useCollectionEditor = ({
           mode,
         });
         if (noNewChanges) {
+          dirtyItemIdsRef.current.clear();
+          fullItemResyncRef.current = false;
           setHasUnsavedChanges(false);
           dirtyCounterRef.current = 0;
           onSaved?.();
@@ -459,7 +497,9 @@ export const useCollectionEditor = ({
       collectionsCount,
       privateCollectionsCount,
       dirtyCounterRef,
+      dirtyItemIdsRef,
       effectiveItemLimit,
+      fullItemResyncRef,
       playlistItems,
       refreshAuthToken,
       navigateToEdit,
@@ -475,6 +515,7 @@ export const useCollectionEditor = ({
       syncItemsToDb,
       saveInFlightRef,
       onSaved,
+      pendingDeleteIds.length,
     ],
   );
 
