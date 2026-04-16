@@ -498,7 +498,6 @@ const RoomLobbyPage: React.FC = () => {
   const {
     currentRoom,
     participants,
-    messages,
     settlementHistory,
     isConnected,
     routeRoomResolved,

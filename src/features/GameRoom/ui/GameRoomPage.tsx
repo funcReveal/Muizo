@@ -1,7 +1,5 @@
 ﻿import React, {
-  lazy,
   startTransition,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -53,9 +51,6 @@ import {
   useSettingsModel,
 } from "../../Setting/model/settingsContext";
 import { useGameSfx } from "../model/useGameSfx";
-const LiveSettlementShowcase = lazy(
-  () => import("../../Settlement/ui/components/LiveSettlementShowcase"),
-);
 import GameRoomAnswerPanel from "./components/GameRoomAnswerPanel";
 import GameRoomLeftSidebar from "./components/GameRoomLeftSidebar";
 import GameRoomPlaybackPanel from "./components/GameRoomPlaybackPanel";
@@ -195,12 +190,6 @@ const GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS = {
   disableScrollLock: true,
 } as const;
 
-const GameRoomSettlementLoader = () => (
-  <div className="flex min-h-screen w-full items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-slate-300" />
-  </div>
-);
-
 const useGameRoomGuessUrgencyFlag = ({
   getServerNowMs,
   phase,
@@ -339,7 +328,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   gameState,
   playlist,
   onExitGame,
-  onBackToLobby,
   onSubmitChoice,
   onRequestPlaybackExtensionVote,
   onCastPlaybackExtensionVote,
@@ -352,7 +340,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   isRecoveringConnection = false,
   recoveryStatusText = null,
 }) => {
-  const { setStatusText, authUser } = useRoomUi();
+  const { setStatusText } = useRoomUi();
   const { gameVolume, setGameVolume, sfxEnabled, sfxVolume, sfxPreset } =
     useSfxSettings();
   const {
@@ -871,7 +859,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
   const { topTwoSwapState, resetTopTwoSwapState } =
     useTopTwoSwapState(sortedParticipants);
-  const { questionRecaps, resetQuestionRecaps } = useGameRoomRecaps({
+  const { resetQuestionRecaps } = useGameRoomRecaps({
     isReveal,
     trackSessionKey,
     trackCursor,
@@ -1105,7 +1093,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playGameSfx,
   });
 
-  const playedQuestionCount = trackOrderLength || room.gameSettings?.questionCount || 0;
   const scoreboardRows = useMemo(
     () => buildScoreboardRows(sortedParticipants, meClientId, 12, room.maxPlayers),
     [meClientId, room.maxPlayers, sortedParticipants],
