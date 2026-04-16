@@ -137,6 +137,9 @@ const CollectionEditPage = () => {
   const reorderSelectedIdRef = useRef<string | null>(null);
   const lastSelectedIdRef = useRef<string | null>(null);
 
+  const dirtyItemIdsRef = useRef<Set<string>>(new Set());
+  const fullItemResyncRef = useRef(false);
+
   const hasResetPlaylistRef = useRef(false);
 
   const markDirty = useCallback(() => {
@@ -144,6 +147,29 @@ const CollectionEditPage = () => {
     setHasUnsavedChanges(true);
     setSaveStatus((prev) => (prev !== "idle" ? "idle" : prev));
     setSaveError((prev) => (prev ? null : prev));
+  }, []);
+
+  const markItemDirty = useCallback(
+    (localId: string) => {
+      dirtyItemIdsRef.current.add(localId);
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const markItemsDirty = useCallback(
+    (localIds: string[]) => {
+      localIds.forEach((localId) => {
+        dirtyItemIdsRef.current.add(localId);
+      });
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const resetPendingItemSyncState = useCallback(() => {
+    dirtyItemIdsRef.current.clear();
+    fullItemResyncRef.current = false;
   }, []);
 
   const buildSnapshot = useCallback(
@@ -215,8 +241,9 @@ const CollectionEditPage = () => {
   const handleSavedBaseline = useCallback(() => {
     window.setTimeout(() => {
       resetBaseline();
+      resetPendingItemSyncState();
     }, 0);
-  }, [resetBaseline]);
+  }, [resetBaseline, resetPendingItemSyncState]);
 
   useCollectionLoader({
     authToken,
@@ -271,11 +298,12 @@ const CollectionEditPage = () => {
     setHasUnsavedChanges,
     dirtyCounterRef,
     saveInFlightRef,
+    dirtyItemIdsRef,
+    fullItemResyncRef,
     navigateToEdit: (id) => {
       skipRouteResetOnNextParamRef.current = id;
       navigate(`/collections/${id}/edit`, { replace: true });
     },
-    markDirty,
     refreshAuthToken,
     onAuthExpired: () => {
       setSaveStatus("error");
@@ -302,6 +330,7 @@ const CollectionEditPage = () => {
       setCollectionVisibility("private");
     }
 
+    resetPendingItemSyncState();
     baselineReadyRef.current = false;
     baselineSnapshotRef.current = "";
     setPlaylistItems([]);
@@ -313,7 +342,7 @@ const CollectionEditPage = () => {
     setSaveError(null);
     setAutoSaveNotice(null);
     dirtyCounterRef.current = 0;
-  }, [collectionId]);
+  }, [collectionId, resetPendingItemSyncState]);
 
   useEffect(() => {
     if (itemsLoading || itemsError) return;
@@ -395,7 +424,7 @@ const CollectionEditPage = () => {
     selectedItemId,
     setSelectedItemId,
     setPlaylistItems,
-    markDirty,
+    markItemDirty,
     hasUnsavedChanges,
     onAutoSaveCurrent: () => {
       void handleSaveCollection("auto");
@@ -464,7 +493,7 @@ const CollectionEditPage = () => {
     previewFromStart,
     previewBeforeEnd,
   } = useCollectionEditPlayer({
-    selectedVideoId: extractVideoId(selectedItem?.url),
+    selectedVideoId,
     selectedItemLocalId: selectedItem?.localId ?? null,
     selectedItemStartSec: selectedItem?.startSec ?? 0,
     itemsLoading,
@@ -581,6 +610,7 @@ const CollectionEditPage = () => {
     playlistItems,
     setPlaylistItems,
     markDirty,
+    markItemsDirty,
     handleSaveCollection,
     saveError,
   });
@@ -721,6 +751,7 @@ const CollectionEditPage = () => {
       let firstAddedIndex: number | null = null;
       let lastAddedLocalId: string | null = null;
 
+      fullItemResyncRef.current = true;
       setPlaylistItems((prev) => {
         const existingKeys = new Set(
           prev.map((item) => getPlaylistItemKey(item)).filter(Boolean),
@@ -833,7 +864,11 @@ const CollectionEditPage = () => {
   }, [handleSaveCollection]);
 
   const saveTitleImmediately = useCallback(
-    async (nextTitle: string, previousTitle: string) => {
+    async (
+      nextTitle: string,
+      previousTitle: string,
+      wasCleanBeforeTitleSave: boolean,
+    ) => {
       if (!authToken || !activeCollectionId) {
         setCollectionTitle(previousTitle);
         setTitleDraft(previousTitle);
@@ -865,6 +900,14 @@ const CollectionEditPage = () => {
               : item,
           ),
         );
+
+        if (wasCleanBeforeTitleSave) {
+          window.setTimeout(() => {
+            resetBaseline();
+            setHasUnsavedChanges(false);
+          }, 0);
+        }
+
         setSaveStatus("saved");
       } catch (error) {
         setCollectionTitle(previousTitle);
@@ -873,7 +916,13 @@ const CollectionEditPage = () => {
         setSaveError(error instanceof Error ? error.message : String(error));
       }
     },
-    [activeCollectionId, authToken, refreshAuthToken],
+    [
+      activeCollectionId,
+      authToken,
+      refreshAuthToken,
+      resetBaseline,
+      setHasUnsavedChanges,
+    ],
   );
 
   const toggleItemNoChange = useCallback(
@@ -948,6 +997,8 @@ const CollectionEditPage = () => {
     async (index: number) => {
       const target = playlistItems[index];
       if (!target) return;
+
+      dirtyItemIdsRef.current.delete(target.localId);
 
       const nextItems = playlistItems.filter((_item, idx) => idx !== index);
       const nextSelectedId =
@@ -1095,13 +1146,21 @@ const CollectionEditPage = () => {
             setTitleDraft(collectionTitle);
             return;
           }
+
           const previousTitle = collectionTitle;
+          const wasCleanBeforeTitleSave = !hasUnsavedChanges;
+
           setCollectionTitle(nextTitle);
           if (!collectionTitleTouched) {
             setCollectionTitleTouched(true);
           }
           setIsTitleEditing(false);
-          void saveTitleImmediately(nextTitle, previousTitle);
+
+          void saveTitleImmediately(
+            nextTitle,
+            previousTitle,
+            wasCleanBeforeTitleSave,
+          );
         }}
         onTitleCancel={() => {
           setTitleDraft(collectionTitle);
@@ -1178,6 +1237,7 @@ const CollectionEditPage = () => {
           const selected = collections.find((item) => item.id === id);
           setCollectionTitle(selected?.title ?? "");
           setCollectionVisibility(selected?.visibility ?? "private");
+          resetPendingItemSyncState();
           setPlaylistItems([]);
           setPlaylistAddError(null);
           setPendingDeleteIds([]);

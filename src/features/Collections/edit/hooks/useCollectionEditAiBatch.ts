@@ -71,6 +71,7 @@ type UseCollectionEditAiBatchArgs = {
   playlistItems: EditableItem[];
   setPlaylistItems: React.Dispatch<React.SetStateAction<EditableItem[]>>;
   markDirty: () => void;
+  markItemsDirty: (localIds: string[]) => void;
   handleSaveCollection: (mode: "manual" | "auto") => Promise<boolean>;
   saveError: string | null;
 };
@@ -79,6 +80,7 @@ export function useCollectionEditAiBatch({
   playlistItems,
   setPlaylistItems,
   markDirty,
+  markItemsDirty,
   handleSaveCollection,
   saveError,
 }: UseCollectionEditAiBatchArgs) {
@@ -411,6 +413,9 @@ export function useCollectionEditAiBatch({
     const updates = new Map(
       aiPreview.changedItems.map((item) => [item.id, item.newAnswer] as const),
     );
+    const changedLocalIds = playlistItems
+      .filter((item) => updates.has(item.dbId ?? item.localId))
+      .map((item) => item.localId);
 
     setPlaylistItems((prev) =>
       prev.map((item) => {
@@ -429,7 +434,12 @@ export function useCollectionEditAiBatch({
       }),
     );
 
-    markDirty();
+    if (changedLocalIds.length > 0) {
+      markItemsDirty(changedLocalIds);
+    } else {
+      markDirty();
+    }
+
     setAiJsonDrafts((prev) => ({
       ...prev,
       [appliedPageIndex]: "",
@@ -443,13 +453,6 @@ export function useCollectionEditAiBatch({
     );
 
     const totalPages = aiPromptPages.length;
-
-    setAiBatchWriteState({
-      status: "applying",
-      pageIndex: appliedPageIndex,
-      count: changedCount,
-      totalPages,
-    });
 
     setAiBatchWriteState({
       status: "saving",
@@ -509,6 +512,8 @@ export function useCollectionEditAiBatch({
     effectiveAiBatchPageIndex,
     handleSaveCollection,
     markDirty,
+    markItemsDirty,
+    playlistItems,
     saveError,
     setPlaylistItems,
   ]);
