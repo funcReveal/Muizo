@@ -389,7 +389,14 @@ export const useRoomProviderSocketLifecycle = ({
         }
       }
       if (cancelled) return;
-      const authPayload = token ? { token, clientId } : { clientId };
+      const normalizedUsername =
+        typeof username === "string" && username.trim().length > 0
+          ? username.trim()
+          : undefined;
+
+      const authPayload = token
+        ? { token, clientId, username: normalizedUsername }
+        : { clientId, username: normalizedUsername };
       const s = connectRoomSocket(socketUrl, authPayload, {
         onConnect: (socket) => {
           setIsConnected(true);
