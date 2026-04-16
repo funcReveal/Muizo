@@ -206,22 +206,90 @@ const GameRoomSettlementLoader = () => (
   </div>
 );
 
+const useGameRoomGuessUrgencyFlag = ({
+  getServerNowMs,
+  phase,
+  phaseEndsAt,
+  isEnded,
+  waitingToStart,
+  allAnsweredReadyForReveal,
+  trackSessionKey,
+}: {
+  getServerNowMs: () => number;
+  phase: GameState["phase"];
+  phaseEndsAt: number;
+  isEnded: boolean;
+  waitingToStart: boolean;
+  allAnsweredReadyForReveal: boolean;
+  trackSessionKey: string;
+}) => {
+  const [, forceUrgencyTick] = useState(0);
+
+  const nowMs = getServerNowMs();
+  const remainingMs = phaseEndsAt - nowMs;
+
+  const isUrgent =
+    !isEnded &&
+    !waitingToStart &&
+    phase === "guess" &&
+    !allAnsweredReadyForReveal &&
+    remainingMs > 0 &&
+    remainingMs <= 3000;
+
+  useEffect(() => {
+    if (
+      isEnded ||
+      waitingToStart ||
+      phase !== "guess" ||
+      allAnsweredReadyForReveal
+    ) {
+      return;
+    }
+
+    const currentNowMs = getServerNowMs();
+    const currentRemainingMs = phaseEndsAt - currentNowMs;
+    if (currentRemainingMs <= 0) return;
+
+    const timerIds: number[] = [];
+
+    if (currentRemainingMs > 3000) {
+      timerIds.push(
+        window.setTimeout(() => {
+          forceUrgencyTick((value) => value + 1);
+        }, currentRemainingMs - 3000),
+      );
+    }
+
+    timerIds.push(
+      window.setTimeout(() => {
+        forceUrgencyTick((value) => value + 1);
+      }, currentRemainingMs),
+    );
+
+    return () => {
+      timerIds.forEach((timerId) => window.clearTimeout(timerId));
+    };
+  }, [
+    allAnsweredReadyForReveal,
+    getServerNowMs,
+    isEnded,
+    phase,
+    phaseEndsAt,
+    trackSessionKey,
+    waitingToStart,
+  ]);
+
+  return isUrgent;
+};
+
 const useGameRoomUiClock = ({
   getServerNowMs,
   startedAt,
-  phase,
-  phaseEndsAt,
   playbackVoteEndsAt,
-  isEnded,
-  allAnsweredReadyForReveal,
 }: {
   getServerNowMs: () => number;
   startedAt: number;
-  phase: GameState["phase"];
-  phaseEndsAt: number;
   playbackVoteEndsAt: number | null;
-  isEnded: boolean;
-  allAnsweredReadyForReveal: boolean;
 }) => {
   const [nowMs, setNowMs] = useState(getServerNowMs);
   const renderNowMs = Math.max(nowMs, getServerNowMs());
@@ -229,6 +297,7 @@ const useGameRoomUiClock = ({
   useEffect(() => {
     const currentNowMs = renderNowMs;
     let timerId: number | null = null;
+
     const scheduleTick = (delayMs: number) => {
       timerId = window.setTimeout(() => {
         startTransition(() => {
@@ -237,28 +306,20 @@ const useGameRoomUiClock = ({
       }, Math.max(40, delayMs));
     };
 
+    // 只保留開局前倒數
     if (currentNowMs < startedAt) {
-      scheduleTick(250);
-    } else if (
+      const remainingMs = startedAt - currentNowMs;
+      scheduleTick(remainingMs <= 4200 ? 125 : Math.min(1000, remainingMs));
+    }
+    // 只保留投票 dialog 倒數
+    else if (
       playbackVoteEndsAt !== null &&
       playbackVoteEndsAt > currentNowMs
     ) {
-      const nextBoundaryMs = playbackVoteEndsAt - currentNowMs > 1000
-        ? ((currentNowMs % 1000) || 1000)
-        : 160;
-      scheduleTick(nextBoundaryMs);
-    } else if (
-      !isEnded &&
-      phase === "guess" &&
-      !allAnsweredReadyForReveal
-    ) {
-      const remainingMs = phaseEndsAt - currentNowMs;
-      if (remainingMs > 0 && remainingMs <= 4200) {
-        scheduleTick(125);
-      } else if (remainingMs > 4200) {
-        const nextBoundaryMs = (currentNowMs % 1000) || 1000;
-        scheduleTick(nextBoundaryMs);
-      }
+      const remainingMs = playbackVoteEndsAt - currentNowMs;
+      const nextDelay =
+        remainingMs <= 1200 ? 160 : ((currentNowMs % 1000) || 1000);
+      scheduleTick(nextDelay);
     }
 
     return () => {
@@ -266,17 +327,7 @@ const useGameRoomUiClock = ({
         window.clearTimeout(timerId);
       }
     };
-  }, [
-    allAnsweredReadyForReveal,
-    getServerNowMs,
-    isEnded,
-    nowMs,
-    phase,
-    phaseEndsAt,
-    playbackVoteEndsAt,
-    renderNowMs,
-    startedAt,
-  ]);
+  }, [getServerNowMs, playbackVoteEndsAt, renderNowMs, startedAt]);
 
   return renderNowMs;
 };
@@ -650,12 +701,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const uiNowMs = useGameRoomUiClock({
     getServerNowMs,
     startedAt: gameState.startedAt,
-    phase: gameState.phase,
-    phaseEndsAt,
-    playbackVoteEndsAt,
-    isEnded,
-    allAnsweredReadyForReveal: allAnsweredByServer,
+    playbackVoteEndsAt: playbackVoteDialogOpen ? playbackVoteEndsAt : null,
   });
+
   const waitingToStart = gameState.startedAt > uiNowMs;
   const remainingToStartMs = Math.max(0, gameState.startedAt - uiNowMs);
   const startCountdownSec = Math.max(
@@ -668,12 +716,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const countdownTone = isFinalCountdown
     ? "border-rose-400/70 bg-rose-500/20 text-rose-100 shadow-[0_0_35px_rgba(244,63,94,0.45)]"
     : "border-amber-400/60 bg-amber-400/15 text-amber-100 shadow-[0_0_28px_rgba(251,191,36,0.35)]";
-  const phaseRemainingMs = Math.max(0, phaseEndsAt - uiNowMs);
-  const phaseRemainingMsRef = useRef(phaseRemainingMs);
 
-  useEffect(() => {
-    phaseRemainingMsRef.current = phaseRemainingMs;
-  }, [phaseRemainingMs]);
   const playbackVoteRemainingMs =
     playbackVoteEndsAt !== null
       ? Math.max(0, playbackVoteEndsAt - uiNowMs)
@@ -750,9 +793,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase === "guess" &&
     requiredAnswerCount > 0 &&
     answeredCount >= requiredAnswerCount;
+
   const allAnsweredReadyForReveal =
     gameState.phase === "guess" &&
     (allAnsweredByServer || (requiredAnswerCount === 1 && allAnsweredByLocalSnapshot));
+
   const isRevealPendingServerSync = allAnsweredReadyForReveal && !isReveal;
   const isRevealPendingOptimisticSync =
     gameState.phase === "guess" &&
@@ -760,6 +805,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !isReveal &&
     allAnsweredByLocalSnapshot &&
     !allAnsweredByServer;
+  const isGuessUrgency = useGameRoomGuessUrgencyFlag({
+    getServerNowMs,
+    phase: gameState.phase,
+    phaseEndsAt,
+    isEnded,
+    waitingToStart,
+    allAnsweredReadyForReveal,
+    trackSessionKey,
+  });
   const displayAnsweredCount =
     gameState.phase === "guess"
       ? Math.max(liveAnsweredCount, answeredCount)
@@ -936,21 +990,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     gameState.phase === "guess"
       ? effectiveGuessDurationMs
       : gameState.revealDurationMs;
-  const isGuessUrgency =
-    gameState.phase === "guess" &&
-    !allAnsweredReadyForReveal &&
-    !isInterTrackWait &&
-    !isEnded &&
-    phaseRemainingMs > 0 &&
-    phaseRemainingMs <= 3000;
-  const phaseCountdownSec =
-    !isInterTrackWait &&
-      !isEnded &&
-      !allAnsweredReadyForReveal &&
-      phaseRemainingMs > 0 &&
-      phaseRemainingMs <= 3999
-      ? Math.min(3, Math.ceil(phaseRemainingMs / 1000))
-      : null;
+
   const preStartCountdownSfxSec = startCountdownSec;
 
   const handleRequestPlaybackVote = useCallback(async () => {
@@ -959,12 +999,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       return;
     }
     if (!canRequestPlaybackExtensionVote || !onRequestPlaybackExtensionVote) return;
+
     setPlaybackVoteRequestPending(true);
     try {
+      const latestRemainingMs = Math.max(0, phaseEndsAt - getServerNowMs());
       await onRequestPlaybackExtensionVote(
-        phaseRemainingMsRef.current > 0
-          ? phaseRemainingMsRef.current
-          : undefined,
+        latestRemainingMs > 0 ? latestRemainingMs : undefined,
       );
     } finally {
       setPlaybackVoteRequestPending(false);
@@ -972,7 +1012,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   }, [
     canOpenPlaybackVotePrompt,
     canRequestPlaybackExtensionVote,
+    getServerNowMs,
     onRequestPlaybackExtensionVote,
+    phaseEndsAt,
   ]);
 
   const handleCastPlaybackVote = useCallback(
@@ -1050,7 +1092,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     isInterTrackWait,
     waitingToStart,
     preStartCountdownSfxSec,
-    phaseCountdownSec,
+    phaseEndsAt,
     meClientId,
     selectedChoice,
     myHasAnswered,
@@ -1927,4 +1969,4 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
 };
 
-export default GameRoomPage;
+export default React.memo(GameRoomPage);
