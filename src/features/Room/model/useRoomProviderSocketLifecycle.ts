@@ -131,7 +131,7 @@ interface SocketLifecycleHandlers {
 interface UseRoomProviderSocketLifecycleParams {
   username: string | null;
   authLoading: boolean;
-  shouldConnectSocket: boolean;
+  shouldConnectRoomSocket: boolean;
   authToken: string | null;
   refreshAuthToken: () => Promise<string | null>;
   clientId: string;
@@ -148,7 +148,7 @@ interface UseRoomProviderSocketLifecycleParams {
 export const useRoomProviderSocketLifecycle = ({
   username,
   authLoading,
-  shouldConnectSocket,
+  shouldConnectRoomSocket,
   authToken,
   refreshAuthToken,
   clientId,
@@ -359,10 +359,14 @@ export const useRoomProviderSocketLifecycle = ({
 
   useEffect(() => {
     if (authLoading) return;
-    if (!shouldConnectSocket) {
+
+    if (!shouldConnectRoomSocket) {
       socketSuspendedRef.current = true;
+      disconnectRoomSocket(socketRef.current);
+      socketRef.current = null;
       setIsConnected(false);
       setSitePresence(null);
+      setSessionProgress(null);
       setRouteRoomResolved(true);
       return;
     }
@@ -385,7 +389,14 @@ export const useRoomProviderSocketLifecycle = ({
         }
       }
       if (cancelled) return;
-      const authPayload = token ? { token, clientId } : { clientId };
+      const normalizedUsername =
+        typeof username === "string" && username.trim().length > 0
+          ? username.trim()
+          : undefined;
+
+      const authPayload = token
+        ? { token, clientId, username: normalizedUsername }
+        : { clientId, username: normalizedUsername };
       const s = connectRoomSocket(socketUrl, authPayload, {
         onConnect: (socket) => {
           setIsConnected(true);
@@ -395,12 +406,6 @@ export const useRoomProviderSocketLifecycle = ({
             setStatusText("已重新連線到房間伺服器");
           }
           shouldAnnounceReconnectRef.current = false;
-          void fetchRooms();
-          socket.emit("getSitePresence", (ack: Ack<SitePresencePayload>) => {
-            if (ack?.ok) {
-              setSitePresence(ack.data);
-            }
-          });
           if (storedRoomId && username) {
             const storedRoomSessionToken = roomSessionTokenRef.current;
             if (!storedRoomSessionToken) {
@@ -575,9 +580,6 @@ export const useRoomProviderSocketLifecycle = ({
               setStatusText("找不到邀請房間，可能已關閉或邀請失效。");
             }
           }
-        },
-        onSitePresenceUpdated: (payload) => {
-          setSitePresence(payload);
         },
         onRoomCreated: ({ room }) => {
           applyIncomingRoomSummary(room);
@@ -879,7 +881,7 @@ export const useRoomProviderSocketLifecycle = ({
   }, [
     username,
     authLoading,
-    shouldConnectSocket,
+    shouldConnectRoomSocket,
     authToken,
     refreshAuthToken,
     clientId,

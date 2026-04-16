@@ -167,8 +167,25 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   } = basePlaylistCtx;
 
   const { pathname } = useLocation();
-  const shouldConnectSocket =
+
+  const routeNeedsRoomRealtime =
     pathname.startsWith("/rooms") || pathname.startsWith("/invited");
+
+  const storedRoomId = getStoredRoomId();
+  const storedRoomSessionToken = getStoredRoomSessionToken();
+
+  const canResumeRoomSession = Boolean(storedRoomId && storedRoomSessionToken);
+
+  const hasRealtimeIdentity = Boolean(
+    authToken || activeUsername || canResumeRoomSession,
+  );
+
+  const shouldConnectRoomSocket =
+    routeNeedsRoomRealtime &&
+    !authLoading &&
+    Boolean(clientId) &&
+    hasRealtimeIdentity;
+
   const socketSuspendedRef = useRef(false);
 
   /**
@@ -188,8 +205,9 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     /** phase at resume time — used for richer status text */
     resumePhase: "guess" | "reveal";
   };
-  const [postResumeGate, setPostResumeGate] =
-    useState<PostResumeGate | null>(null);
+  const [postResumeGate, setPostResumeGate] = useState<PostResumeGate | null>(
+    null,
+  );
 
   const [isConnected, setIsConnected] = useState(false);
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
@@ -217,8 +235,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const [inviteNotFound, setInviteNotFound] = useState(false);
   const isInviteMode = Boolean(inviteRoomId);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [, setLastGameSyncVersion] =
-    useState<GameSyncVersion | null>(null);
+  const [, setLastGameSyncVersion] = useState<GameSyncVersion | null>(null);
   const [gamePlaylist, setGamePlaylist] = useState<PlaylistItem[]>([]);
   const [isGameView, setIsGameView] = useState(false);
   const [routeRoomResolved, setRouteRoomResolved] = useState<boolean>(() =>
@@ -234,7 +251,10 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     if (!isConnected) return true;
 
     // resumeSession handshake still in-flight (server-side stages).
-    if (sessionProgress?.flow === "resume" && sessionProgress.status === "active")
+    if (
+      sessionProgress?.flow === "resume" &&
+      sessionProgress.status === "active"
+    )
       return true;
 
     // resumeSession ack arrived but the server hasn't pushed a new phase yet.
@@ -242,7 +262,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     if (postResumeGate !== null) return true;
 
     return false;
-  }, [currentRoom?.id, currentRoomId, isConnected, postResumeGate, sessionProgress]);
+  }, [
+    currentRoom?.id,
+    currentRoomId,
+    isConnected,
+    postResumeGate,
+    sessionProgress,
+  ]);
 
   const recoveryStatusText = useMemo(() => {
     const hasTargetRoom = Boolean(currentRoomId || currentRoom?.id);
@@ -280,7 +306,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     return null;
-  }, [currentRoom?.id, currentRoomId, isConnected, postResumeGate, sessionProgress]);
+  }, [
+    currentRoom?.id,
+    currentRoomId,
+    isConnected,
+    postResumeGate,
+    sessionProgress,
+  ]);
   // Game settings (backfilled from room/playlist on join)
   const [playDurationSec, setPlayDurationSec] = useState(
     DEFAULT_PLAY_DURATION_SEC,
@@ -351,24 +383,21 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setLastGameSyncVersion(null);
   }, []);
 
-  const applyGameLiveUpdate = useCallback(
-    (payload: GameLiveUpdatePayload) => {
-      if (
-        !shouldApplyGameSyncVersion(
-          payload.syncVersion,
-          lastGameSyncVersionRef.current,
-        )
-      ) {
-        return false;
-      }
+  const applyGameLiveUpdate = useCallback((payload: GameLiveUpdatePayload) => {
+    if (
+      !shouldApplyGameSyncVersion(
+        payload.syncVersion,
+        lastGameSyncVersionRef.current,
+      )
+    ) {
+      return false;
+    }
 
-      lastGameSyncVersionRef.current = payload.syncVersion;
-      setLastGameSyncVersion(payload.syncVersion);
-      setGameState(payload.gameState);
-      return true;
-    },
-    [],
-  );
+    lastGameSyncVersionRef.current = payload.syncVersion;
+    setLastGameSyncVersion(payload.syncVersion);
+    setGameState(payload.gameState);
+    return true;
+  }, []);
 
   const initialStoredRoomSessionToken = getStoredRoomSessionToken();
 
@@ -472,6 +501,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const {
     fetchRooms,
     fetchRoomById,
+    fetchSitePresence,
     fetchSettlementHistorySummaries,
     fetchSettlementReplay,
   } = useRoomProviderReadActions({
@@ -483,6 +513,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setRooms,
     setInviteNotFound,
     setStatusText,
+    setSitePresence,
   });
 
   const { handleUpdateRoomSettings } = useRoomProviderSettingsActions({
@@ -534,7 +565,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   useRoomProviderSocketLifecycle({
     username: activeUsername,
     authLoading,
-    shouldConnectSocket,
+    shouldConnectRoomSocket,
     authToken,
     refreshAuthToken,
     clientId,
@@ -598,6 +629,36 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       applyGameLiveUpdate,
     },
   });
+
+  useEffect(() => {
+    const routeNeedsRoomBrowse =
+      pathname.startsWith("/rooms") || pathname.startsWith("/invited");
+
+    if (!routeNeedsRoomBrowse) return;
+
+    void fetchRooms();
+
+    const timer = window.setInterval(() => {
+      void fetchRooms();
+    }, 15_000);
+
+    return () => window.clearInterval(timer);
+  }, [fetchRooms, pathname]);
+
+  useEffect(() => {
+    const routeNeedsRoomBrowse =
+      pathname.startsWith("/rooms") || pathname.startsWith("/invited");
+
+    if (!routeNeedsRoomBrowse) return;
+
+    void fetchSitePresence();
+
+    const timer = window.setInterval(() => {
+      void fetchSitePresence();
+    }, 15_000);
+
+    return () => window.clearInterval(timer);
+  }, [fetchSitePresence, pathname]);
 
   const {
     handleJoinRoom,

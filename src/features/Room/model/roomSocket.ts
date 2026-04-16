@@ -40,7 +40,10 @@ type RoomSocketHandlers = {
     totalCount: number;
     ready: boolean;
   }) => void;
-  onPlaylistUpdated?: (payload: { roomId: string; playlist: PlaylistState }) => void;
+  onPlaylistUpdated?: (payload: {
+    roomId: string;
+    playlist: PlaylistState;
+  }) => void;
   onMessageAdded?: (payload: { roomId: string; message: ChatMessage }) => void;
   onGameStarted?: (payload: GameLiveUpdatePayload) => void;
   onGameUpdated?: (payload: GameLiveUpdatePayload) => void;
@@ -60,9 +63,11 @@ type RoomSocketHandlers = {
   }) => void;
 };
 
-type RoomSocketAuth =
-  | { clientId: string; token?: string }
-  | { clientId: string; token: string };
+type RoomSocketAuth = {
+  clientId: string;
+  token?: string;
+  username?: string;
+};
 
 export const connectRoomSocket = (
   socketUrl: string,
@@ -99,9 +104,7 @@ export const connectRoomSocket = (
   socket.on("playlistUpdated", (payload) =>
     handlers.onPlaylistUpdated?.(payload),
   );
-  socket.on("messageAdded", (payload) =>
-    handlers.onMessageAdded?.(payload),
-  );
+  socket.on("messageAdded", (payload) => handlers.onMessageAdded?.(payload));
   socket.on("gameStarted", (payload) => handlers.onGameStarted?.(payload));
   socket.on("gameUpdated", (payload) => handlers.onGameUpdated?.(payload));
   socket.on("roomUpdated", (payload) => handlers.onRoomUpdated?.(payload));
