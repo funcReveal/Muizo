@@ -7,11 +7,9 @@ import {
 
 import { trackEvent } from "../../../shared/analytics/track";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
-import { apiFetchRooms } from "./roomApi";
 import type { RoomCreateSourceMode } from "./RoomContext";
 import {
   CHUNK_SIZE,
-  DEFAULT_PAGE_SIZE,
   DEFAULT_PLAYBACK_EXTENSION_MODE,
   DEFAULT_ROOM_MAX_PLAYERS,
   PLAYER_MAX,
@@ -45,6 +43,88 @@ type PlaylistProgressState = {
   received: number;
   total: number;
   ready: boolean;
+};
+
+type RoomCreationState =
+  | "drafting"
+  | "uploading"
+  | "verifying"
+  | "finalizing"
+  | "ready"
+  | "failed"
+  | "aborted";
+
+type BeginRoomCreationPayload = {
+  roomMeta: {
+    name: string;
+    visibility: "public" | "private";
+    pin?: string | null;
+    maxPlayers: number | null;
+  };
+  gameSettings: {
+    questionCount: number;
+    playDurationSec: number;
+    revealDurationSec: number;
+    startOffsetSec: number;
+    allowCollectionClipTiming: boolean;
+    allowParticipantInvite: boolean;
+    playbackExtensionMode: "manual_vote" | "auto_once" | "disabled";
+  };
+  playlistManifest: {
+    sourceType?: PlaylistSourceType | null;
+    sourceId?: string | null;
+    title?: string | null;
+    totalCount: number;
+    chunkCount: number;
+    playlistHash: string;
+  };
+};
+
+type BeginRoomCreationResult = {
+  creationId: string;
+  uploadSessionId: string;
+  state: "uploading";
+  expiresAt: number;
+};
+
+type UploadRoomCreationChunkPayload = {
+  creationId: string;
+  uploadSessionId: string;
+  chunkIndex: number;
+  chunkCount: number;
+  chunkHash: string;
+  items: PlaylistItem[];
+};
+
+type UploadRoomCreationChunkResult = {
+  creationId: string;
+  state: "uploading" | "verifying";
+  receivedChunkCount: number;
+  expectedChunkCount: number;
+  receivedItemsCount: number;
+  totalCount: number;
+};
+
+type FinalizeRoomCreationPayload = {
+  creationId: string;
+  uploadSessionId: string;
+};
+
+type FinalizeRoomCreationResult = {
+  creationId: string;
+  state: RoomCreationState;
+  roomId?: string;
+  roomState?: RoomState;
+  roomSessionToken?: string;
+};
+
+type AbortRoomCreationPayload = {
+  creationId: string;
+};
+
+type AbortRoomCreationResult = {
+  creationId: string;
+  state: "aborted";
 };
 
 interface UseRoomProviderCreateRoomActionParams {
@@ -107,8 +187,36 @@ interface UseRoomProviderCreateRoomActionParams {
   setRoomMaxPlayersInput: Dispatch<SetStateAction<string>>;
 }
 
+type UnsafeSocketEmit = (
+  event: string,
+  payload: unknown,
+  callback: (ack: Ack<unknown>) => void,
+) => void;
+
+const asUnsafeEmit = (socket: ClientSocket): UnsafeSocketEmit =>
+  (socket as unknown as { emit: UnsafeSocketEmit }).emit.bind(socket);
+
+const computeStableHash = async (value: unknown) => {
+  const text = JSON.stringify(value);
+  const encoded = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+const emitAck = <T>(
+  socket: ClientSocket,
+  event: string,
+  payload: unknown,
+): Promise<Ack<T>> =>
+  new Promise((resolve) => {
+    asUnsafeEmit(socket)(event, payload, (ack) => {
+      resolve(ack as Ack<T>);
+    });
+  });
+
 export const useRoomProviderCreateRoomAction = ({
-  apiUrl,
   getSocket,
   username,
   authToken,
@@ -138,7 +246,6 @@ export const useRoomProviderCreateRoomAction = ({
   mergeCachedParticipantPing,
   syncServerOffset,
   saveRoomPassword,
-  currentRoomIdRef,
   setCurrentRoom,
   setParticipants,
   setMessages,
@@ -147,7 +254,6 @@ export const useRoomProviderCreateRoomAction = ({
   setGameState,
   setIsGameView,
   setGamePlaylist,
-  setRooms,
   setHostRoomPassword,
   setRoomNameInput,
   setRoomMaxPlayersInput,
@@ -216,6 +322,10 @@ export const useRoomProviderCreateRoomAction = ({
 
     releaseCreateRoomLockRef.current = releaseCreateRoomLock;
 
+    const finalizeCreate = () => {
+      releaseCreateRoomLock();
+    };
+
     if (authToken) {
       const token = await runWithTimeout(
         ensureFreshAuthToken({
@@ -228,7 +338,7 @@ export const useRoomProviderCreateRoomAction = ({
 
       if (!token) {
         setStatusText("登入狀態已失效，請重新登入。");
-        releaseCreateRoomLock();
+        finalizeCreate();
         return;
       }
     }
@@ -239,25 +349,25 @@ export const useRoomProviderCreateRoomAction = ({
 
     if (!trimmed) {
       setStatusText("請先輸入房間名稱。");
-      releaseCreateRoomLock();
+      finalizeCreate();
       return;
     }
 
-    if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
+    if (playlistItems.length === 0) {
       setStatusText("請先準備題庫內容，才能建立房間。");
-      releaseCreateRoomLock();
+      finalizeCreate();
       return;
     }
 
     if (playlistItems.length < questionMin) {
       setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
-      releaseCreateRoomLock();
+      finalizeCreate();
       return;
     }
 
     if (trimmedMaxPlayers && !/^\d+$/.test(trimmedMaxPlayers)) {
       setStatusText("最大玩家數必須是數字");
-      releaseCreateRoomLock();
+      finalizeCreate();
       return;
     }
 
@@ -266,20 +376,20 @@ export const useRoomProviderCreateRoomAction = ({
       : DEFAULT_ROOM_MAX_PLAYERS;
 
     if (desiredMaxPlayers < PLAYER_MIN || desiredMaxPlayers > PLAYER_MAX) {
-      setStatusText(`最大人數需介於 ${PLAYER_MIN} - ${PLAYER_MAX} 人之間 `);
-      releaseCreateRoomLock();
+      setStatusText(`最大人數需介於 ${PLAYER_MIN} - ${PLAYER_MAX} 人之間`);
+      finalizeCreate();
+      return;
+    }
+
+    if (trimmedPin && !/^\d{4}$/.test(trimmedPin)) {
+      setStatusText("PIN 需為 4 位數字。");
+      finalizeCreate();
       return;
     }
 
     const desiredVisibility = roomVisibilityInput;
-
-    if (trimmedPin && !/^\d{4}$/.test(trimmedPin)) {
-      setStatusText("PIN 需為 4 位數字。");
-      releaseCreateRoomLock();
-      return;
-    }
-
     const desiredPin = trimmedPin || null;
+
     const nextQuestionCount = clampQuestionCount(
       questionCount,
       getQuestionMax(playlistItems.length),
@@ -298,533 +408,202 @@ export const useRoomProviderCreateRoomAction = ({
       playlist_count: playlistItems.length,
     });
 
-    const uploadId =
-      crypto.randomUUID?.() ??
-      `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-
     const uploadItems = buildUploadPlaylistItems(playlistItems, {
       playDurationSec: nextPlayDurationSec,
       startOffsetSec: nextStartOffsetSec,
       allowCollectionClipTiming: nextAllowCollectionClipTiming,
     });
 
-    const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
-    const remaining = uploadItems.slice(CHUNK_SIZE);
-    const isLast = remaining.length === 0;
+    const chunkCount = Math.ceil(uploadItems.length / CHUNK_SIZE);
+    const playlistHash = await computeStableHash(uploadItems);
 
-    const payload = {
-      roomName: trimmed,
-      username,
-      pin: desiredPin ?? undefined,
-      visibility: desiredVisibility,
-      maxPlayers: desiredMaxPlayers,
+    const beginPayload: BeginRoomCreationPayload = {
+      roomMeta: {
+        name: trimmed,
+        visibility: desiredVisibility,
+        pin: desiredPin,
+        maxPlayers: desiredMaxPlayers,
+      },
       gameSettings: {
         questionCount: nextQuestionCount,
         playDurationSec: nextPlayDurationSec,
         revealDurationSec: nextRevealDurationSec,
         startOffsetSec: nextStartOffsetSec,
         allowCollectionClipTiming: nextAllowCollectionClipTiming,
+        allowParticipantInvite: false,
         playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
       },
-      playlist: {
-        uploadId,
-        id: lastFetchedPlaylistId,
-        title: lastFetchedPlaylistTitle ?? undefined,
+      playlistManifest: {
         sourceType: resolvePlaylistSourceType(roomCreateSourceMode),
+        sourceId: lastFetchedPlaylistId,
+        title: lastFetchedPlaylistTitle ?? null,
         totalCount: uploadItems.length,
-        items: firstChunk,
-        isLast,
-        pageSize: DEFAULT_PAGE_SIZE,
+        chunkCount,
+        playlistHash,
       },
     };
 
-    const createStartedAt = Date.now();
+    let creationId: string | null = null;
 
-    let createResolved = false;
-    let createFinalized = false;
-
-    const finalizeCreate = () => {
-      if (createFinalized) return;
-      createFinalized = true;
-      releaseCreateRoomLock();
-    };
-
-    const buildPlaylistProgressFromState = (
-      state: RoomState,
-    ): PlaylistProgressState => ({
-      received: state.room.playlist.receivedCount,
-      total: state.room.playlist.totalCount,
-      ready: state.room.playlist.ready,
-    });
-
-    const isPlaylistUploadComplete = (progress: PlaylistProgressState) =>
-      progress.total > 0 &&
-      progress.received >= progress.total &&
-      progress.ready;
-
-    const applyJoinedStateForCreatedRoom = (
-      state: RoomState,
-      options?: { playlistProgressOverride?: PlaylistProgressState },
-    ) => {
-      syncServerOffset(state.serverNow);
-
-      const roomWithSettings = applyGameSettingsPatch(state.room, {
-        questionCount: nextQuestionCount,
-        playDurationSec: nextPlayDurationSec,
-        revealDurationSec: nextRevealDurationSec,
-        startOffsetSec: nextStartOffsetSec,
-        allowCollectionClipTiming: nextAllowCollectionClipTiming,
-        playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
-      });
-
-      const roomWithFinalPlaylist =
-        options?.playlistProgressOverride !== undefined
-          ? {
-              ...roomWithSettings,
-              playlist: {
-                ...roomWithSettings.playlist,
-                receivedCount: options.playlistProgressOverride.received,
-                totalCount: options.playlistProgressOverride.total,
-                ready: options.playlistProgressOverride.ready,
-              },
-            }
-          : roomWithSettings;
-
-      setCurrentRoom(roomWithFinalPlaylist);
-      setParticipants((prev) =>
-        mergeCachedParticipantPing(state.participants, prev),
-      );
-      seedPresenceParticipants(state.room.id, state.participants);
-      setMessages(state.messages);
-      setSettlementHistory(state.settlementHistory ?? []);
-      persistRoomSessionToken(state.roomSessionToken ?? null);
-      persistRoomId(state.room.id);
-      lockSessionClientId(state.selfClientId);
-
-      const nextPlaylistProgress =
-        options?.playlistProgressOverride ??
-        buildPlaylistProgressFromState(state);
-
-      setPlaylistProgress(nextPlaylistProgress);
-      setGameState(state.gameState ?? null);
-      setIsGameView(false);
-      setGamePlaylist([]);
-      fetchPlaylistPage(state.room.id, 1, state.room.playlist.pageSize, {
-        reset: true,
-      });
-    };
-
-    const emitUploadPlaylistChunk = (
-      roomId: string,
-      chunk: PlaylistItem[],
-      isLastChunk: boolean,
-    ) =>
-      new Promise<{
-        receivedCount: number;
-        totalCount: number;
-        ready: boolean;
-      }>((resolve, reject) => {
-        let settled = false;
-
-        const ackTimeout = window.setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          reject(new Error("uploadPlaylistChunk ack timeout"));
-        }, 5_000);
-
-        socket.emit(
-          "uploadPlaylistChunk",
-          {
-            roomId,
-            uploadId,
-            items: chunk,
-            isLast: isLastChunk,
-          },
-          (
-            ack: Ack<{
-              receivedCount: number;
-              totalCount: number;
-              ready: boolean;
-            }>,
-          ) => {
-            if (settled) return;
-            settled = true;
-            window.clearTimeout(ackTimeout);
-
-            if (!ack) {
-              reject(new Error("uploadPlaylistChunk missing ack"));
-              return;
-            }
-
-            if (!ack.ok) {
-              reject(new Error(ack.error || "uploadPlaylistChunk failed"));
-              return;
-            }
-
-            resolve(ack.data);
-          },
-        );
-      });
-
-    const uploadRemainingPlaylistChunks = async (
-      roomId: string,
-      initialProgress: PlaylistProgressState,
-    ): Promise<PlaylistProgressState> => {
-      let latestProgress = initialProgress;
-      setPlaylistProgress(latestProgress);
-
-      if (remaining.length === 0) {
-        return latestProgress;
-      }
-
-      for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
-        const chunk = remaining.slice(i, i + CHUNK_SIZE);
-        const isLastChunk = i + CHUNK_SIZE >= remaining.length;
-
-        let uploaded = false;
-        let lastError: unknown = null;
-
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          try {
-            const result = await emitUploadPlaylistChunk(
-              roomId,
-              chunk,
-              isLastChunk,
-            );
-
-            latestProgress = {
-              received: result.receivedCount,
-              total: result.totalCount,
-              ready: result.ready,
-            };
-
-            setPlaylistProgress(latestProgress);
-            setStatusText(
-              `正在同步題庫到房間（${latestProgress.received}/${latestProgress.total}）...`,
-            );
-
-            uploaded = true;
-            lastError = null;
-            break;
-          } catch (error) {
-            lastError = error;
-
-            if (attempt === 2) {
-              break;
-            }
-
-            await new Promise<void>((resolve) =>
-              window.setTimeout(resolve, 400 * (attempt + 1)),
-            );
-          }
-        }
-
-        if (!uploaded) {
-          throw lastError instanceof Error
-            ? lastError
-            : new Error("uploadPlaylistChunk failed");
-        }
-      }
-
-      return latestProgress;
-    };
-
-    const rollbackCreatedRoom = async (roomId: string) => {
-      await new Promise<void>((resolve) => {
-        let settled = false;
-
-        const timeout = window.setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          resolve();
-        }, 2_000);
-
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        socket.emit("leaveRoom", { roomId }, (_ack: Ack<null>) => {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timeout);
-          resolve();
-        });
-      });
-    };
-
-    const commitCreatedRoom = (
-      state: RoomState,
-      finalPlaylistProgress: PlaylistProgressState,
-    ) => {
-      applyJoinedStateForCreatedRoom(state, {
-        playlistProgressOverride: finalPlaylistProgress,
-      });
-      saveRoomPassword(state.room.id, desiredPin);
-      setHostRoomPassword(desiredPin);
-      setRoomNameInput(getDefaultRoomName(username));
-      setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
-
-      trackEvent("room_create_success", {
-        room_id: state.room.id,
-        source_mode: roomCreateSourceMode,
-        room_visibility: desiredVisibility,
-        player_limit: desiredMaxPlayers,
-        question_count: nextQuestionCount,
-        playlist_count: uploadItems.length,
-      });
-
-      setStatusText(null);
-      finalizeCreate();
-    };
-
-    const tryRecoverCreatedRoomFromList = async () => {
-      if (createResolved || !createRoomInFlightRef.current) return false;
-      if (currentRoomIdRef.current) {
-        createResolved = true;
-        finalizeCreate();
-        return true;
-      }
-      if (!apiUrl) return false;
-
+    const abortCreation = async () => {
+      if (!creationId) return;
       try {
-        const roomsResult = await runWithTimeout(
-          apiFetchRooms(apiUrl),
-          4_000,
-          null,
-        );
-        if (!roomsResult) return false;
-
-        const { ok, payload } = roomsResult;
-        if (!ok) return false;
-
-        const nextRooms = ((payload?.rooms ?? payload) as RoomSummary[]) ?? [];
-        if (Array.isArray(nextRooms)) {
-          setRooms(nextRooms);
-        }
-
-        if (currentRoomIdRef.current) {
-          createResolved = true;
-          finalizeCreate();
-          return true;
-        }
-
-        const createdWindowStart = createStartedAt - 30_000;
-        const createdWindowEnd = Date.now() + 5_000;
-
-        const candidate = nextRooms
-          .filter((room) => {
-            if ((room.name ?? "").trim() !== trimmed) return false;
-            if ((room.hasPin ?? room.hasPassword) !== Boolean(desiredPin)) {
-              return false;
-            }
-            if (
-              typeof room.playlistCount === "number" &&
-              room.playlistCount > 0 &&
-              room.playlistCount !== uploadItems.length
-            ) {
-              return false;
-            }
-            if (
-              typeof room.gameSettings?.questionCount === "number" &&
-              room.gameSettings.questionCount !== nextQuestionCount
-            ) {
-              return false;
-            }
-            if (
-              room.visibility &&
-              (room.visibility === "public" || room.visibility === "private") &&
-              room.visibility !== desiredVisibility
-            ) {
-              return false;
-            }
-            if (
-              room.maxPlayers !== undefined &&
-              (room.maxPlayers ?? null) !== desiredMaxPlayers
-            ) {
-              return false;
-            }
-            if (
-              typeof room.createdAt === "number" &&
-              (room.createdAt < createdWindowStart ||
-                room.createdAt > createdWindowEnd)
-            ) {
-              return false;
-            }
-            return true;
-          })
-          .sort((a, b) => b.createdAt - a.createdAt)[0];
-
-        if (!candidate) return false;
-
-        const tryJoinCandidate = async () =>
-          await new Promise<boolean>((resolve) => {
-            socket.emit(
-              "joinRoom",
-              {
-                roomCode: candidate.roomCode,
-                username,
-                pin: desiredPin ?? undefined,
-              },
-              async (joinAck: Ack<RoomState>) => {
-                if (!joinAck?.ok) {
-                  resolve(false);
-                  return;
-                }
-
-                createResolved = true;
-
-                const state = joinAck.data;
-                const initialProgress = buildPlaylistProgressFromState(state);
-                setPlaylistProgress(initialProgress);
-                setStatusText(
-                  initialProgress.ready
-                    ? "正在完成房間初始化..."
-                    : `正在同步題庫到房間（${initialProgress.received}/${initialProgress.total}）...`,
-                );
-
-                try {
-                  const finalPlaylistProgress =
-                    await uploadRemainingPlaylistChunks(
-                      state.room.id,
-                      initialProgress,
-                    );
-
-                  if (!isPlaylistUploadComplete(finalPlaylistProgress)) {
-                    throw new Error("playlist upload incomplete");
-                  }
-
-                  commitCreatedRoom(state, finalPlaylistProgress);
-                  resolve(true);
-                } catch (error) {
-                  console.error(error);
-                  await rollbackCreatedRoom(state.room.id);
-                  setStatusText(
-                    "建立房間失敗：題庫同步未完成，已取消本次建立。",
-                  );
-                  finalizeCreate();
-                  resolve(false);
-                }
-              },
-            );
-          });
-
-        const retryIntervalsMs = [0, 350, 800];
-
-        for (
-          let joinAttempt = 0;
-          joinAttempt < retryIntervalsMs.length;
-          joinAttempt += 1
-        ) {
-          if (createResolved || !createRoomInFlightRef.current) return false;
-
-          if (joinAttempt === 0) {
-            setStatusText("已找到房間，正在自動加入。");
-          } else {
-            setStatusText(
-              `已找到房間，正在重試自動加入（${joinAttempt + 1}/${retryIntervalsMs.length}）。`,
-            );
-            await new Promise<void>((resolve) =>
-              window.setTimeout(resolve, retryIntervalsMs[joinAttempt]),
-            );
-            if (createResolved || !createRoomInFlightRef.current) return false;
-          }
-
-          const recovered = await tryJoinCandidate();
-          if (recovered) return true;
-        }
-
-        return false;
+        await emitAck<AbortRoomCreationResult>(socket, "abortRoomCreation", {
+          creationId,
+        } satisfies AbortRoomCreationPayload);
       } catch (error) {
         console.error(error);
-        return false;
       }
     };
 
-    const submitCreateRoom = (attempt: 0 | 1) => {
-      const timeoutMs = attempt === 0 ? 4_000 : 6_000;
+    const beginAck = await emitAck<BeginRoomCreationResult>(
+      socket,
+      "beginRoomCreation",
+      beginPayload,
+    );
 
-      const ackTimeout = window.setTimeout(() => {
-        if (createResolved || !createRoomInFlightRef.current) return;
+    if (!beginAck.ok) {
+      setStatusText(formatAckError("建立房間失敗", beginAck.error));
+      finalizeCreate();
+      return;
+    }
 
-        if (attempt === 0) {
-          setStatusText("建立房間逾時，正在嘗試自動加入。");
-          void tryRecoverCreatedRoomFromList().then((recovered) => {
-            if (recovered || createResolved || !createRoomInFlightRef.current) {
-              return;
-            }
-            setStatusText("建立房間逾時，正在重試。");
-            submitCreateRoom(1);
-          });
-          return;
-        }
+    creationId = beginAck.data.creationId;
+    const uploadSessionId = beginAck.data.uploadSessionId;
 
-        setStatusText("建立房間再次逾時，正在嘗試自動加入。");
-        void tryRecoverCreatedRoomFromList().then((recovered) => {
-          if (recovered || createResolved || !createRoomInFlightRef.current) {
-            return;
-          }
-          setStatusText("建立房間逾時，請稍後重試。");
-          finalizeCreate();
-        });
-      }, timeoutMs);
+    setPlaylistProgress({
+      received: 0,
+      total: uploadItems.length,
+      ready: false,
+    });
+    setStatusText(`正在同步題庫到房間（0/${uploadItems.length}）...`);
 
-      socket.emit("createRoom", payload, async (ack: Ack<RoomState>) => {
-        window.clearTimeout(ackTimeout);
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      const chunkItems = uploadItems.slice(
+        chunkIndex * CHUNK_SIZE,
+        (chunkIndex + 1) * CHUNK_SIZE,
+      );
+      const chunkHash = await computeStableHash(chunkItems);
 
-        if (createResolved) return;
+      const uploadAck = await emitAck<UploadRoomCreationChunkResult>(
+        socket,
+        "uploadRoomCreationChunk",
+        {
+          creationId,
+          uploadSessionId,
+          chunkIndex,
+          chunkCount,
+          chunkHash,
+          items: chunkItems,
+        } satisfies UploadRoomCreationChunkPayload,
+      );
 
-        if (!ack) {
-          if (attempt === 0) {
-            setStatusText("建立房間失敗，正在重試。");
-            submitCreateRoom(1);
-            return;
-          }
-          setStatusText("建立房間失敗：伺服器沒有回應。");
-          finalizeCreate();
-          return;
-        }
+      if (!uploadAck.ok) {
+        await abortCreation();
+        setStatusText(formatAckError("建立房間失敗", uploadAck.error));
+        finalizeCreate();
+        return;
+      }
 
-        if (!ack.ok) {
-          setStatusText(formatAckError("建立房間失敗", ack.error));
-          finalizeCreate();
-          return;
-        }
-
-        createResolved = true;
-
-        const state = ack.data;
-        const initialProgress = buildPlaylistProgressFromState(state);
-
-        setPlaylistProgress(initialProgress);
-        setStatusText(
-          initialProgress.ready
-            ? "正在完成房間初始化..."
-            : `正在同步題庫到房間（${initialProgress.received}/${initialProgress.total}）...`,
-        );
-
-        try {
-          const finalPlaylistProgress = await uploadRemainingPlaylistChunks(
-            state.room.id,
-            initialProgress,
-          );
-
-          if (!isPlaylistUploadComplete(finalPlaylistProgress)) {
-            throw new Error("playlist upload incomplete");
-          }
-
-          commitCreatedRoom(state, finalPlaylistProgress);
-        } catch (error) {
-          console.error(error);
-          await rollbackCreatedRoom(state.room.id);
-          setStatusText("房間建立失敗：題庫同步未完成，已取消本次建立。");
-          finalizeCreate();
-        }
+      setPlaylistProgress({
+        received: uploadAck.data.receivedItemsCount,
+        total: uploadAck.data.totalCount,
+        ready: false,
       });
-    };
 
-    submitCreateRoom(0);
+      setStatusText(
+        `正在同步題庫到房間（${uploadAck.data.receivedItemsCount}/${uploadAck.data.totalCount}）...`,
+      );
+    }
+
+    setStatusText("正在完成房間建立...");
+
+    const finalizeAck = await emitAck<FinalizeRoomCreationResult>(
+      socket,
+      "finalizeRoomCreation",
+      {
+        creationId,
+        uploadSessionId,
+      } satisfies FinalizeRoomCreationPayload,
+    );
+
+    if (
+      !finalizeAck.ok ||
+      !finalizeAck.data.roomState ||
+      !finalizeAck.data.roomId
+    ) {
+      await abortCreation();
+      setStatusText(
+        formatAckError(
+          "建立房間失敗",
+          finalizeAck.ok ? "Missing finalized room state" : finalizeAck.error,
+        ),
+      );
+      finalizeCreate();
+      return;
+    }
+
+    const finalizedState = finalizeAck.data.roomState;
+    const finalizedRoom = applyGameSettingsPatch(finalizedState.room, {
+      questionCount: nextQuestionCount,
+      playDurationSec: nextPlayDurationSec,
+      revealDurationSec: nextRevealDurationSec,
+      startOffsetSec: nextStartOffsetSec,
+      allowCollectionClipTiming: nextAllowCollectionClipTiming,
+      playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
+    });
+
+    syncServerOffset(finalizedState.serverNow);
+    setCurrentRoom(finalizedRoom);
+    setParticipants((prev) =>
+      mergeCachedParticipantPing(finalizedState.participants, prev),
+    );
+    seedPresenceParticipants(
+      finalizedState.room.id,
+      finalizedState.participants,
+    );
+    setMessages(finalizedState.messages);
+    setSettlementHistory(finalizedState.settlementHistory ?? []);
+    persistRoomSessionToken(finalizeAck.data.roomSessionToken ?? null);
+    persistRoomId(finalizeAck.data.roomId);
+    lockSessionClientId(finalizedState.selfClientId);
+
+    setPlaylistProgress({
+      received: finalizedState.room.playlist.totalCount,
+      total: finalizedState.room.playlist.totalCount,
+      ready: true,
+    });
+
+    setGameState(finalizedState.gameState ?? null);
+    setIsGameView(false);
+    setGamePlaylist([]);
+    fetchPlaylistPage(
+      finalizedState.room.id,
+      1,
+      finalizedState.room.playlist.pageSize,
+      { reset: true },
+    );
+
+    saveRoomPassword(finalizedState.room.id, desiredPin);
+    setHostRoomPassword(desiredPin);
+    setRoomNameInput(getDefaultRoomName(username));
+    setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
+
+    trackEvent("room_create_success", {
+      room_id: finalizeAck.data.roomId,
+      source_mode: roomCreateSourceMode,
+      room_visibility: desiredVisibility,
+      player_limit: desiredMaxPlayers,
+      question_count: nextQuestionCount,
+      playlist_count: uploadItems.length,
+    });
+
+    setStatusText(null);
+    finalizeCreate();
   }, [
     allowCollectionClipTiming,
     authToken,
     createRoomInFlightRef,
-    currentRoomIdRef,
     fetchPlaylistPage,
     getSocket,
     lastFetchedPlaylistId,
@@ -832,6 +611,7 @@ export const useRoomProviderCreateRoomAction = ({
     lockSessionClientId,
     mergeCachedParticipantPing,
     persistRoomId,
+    persistRoomSessionToken,
     playDurationSec,
     playlistItems,
     questionCount,
@@ -855,16 +635,13 @@ export const useRoomProviderCreateRoomAction = ({
     setMessages,
     setParticipants,
     setPlaylistProgress,
-    setRooms,
     setRoomMaxPlayersInput,
     setRoomNameInput,
     setSettlementHistory,
     setStatusText,
     startOffsetSec,
     syncServerOffset,
-    persistRoomSessionToken,
     username,
-    apiUrl,
     runWithTimeout,
   ]);
 

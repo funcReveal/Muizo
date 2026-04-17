@@ -358,6 +358,88 @@ export interface RoomState {
   roomSessionToken?: string;
 }
 
+export type RoomCreationState =
+  | "drafting"
+  | "uploading"
+  | "verifying"
+  | "finalizing"
+  | "ready"
+  | "failed"
+  | "aborted";
+
+export type BeginRoomCreationPayload = {
+  roomMeta: {
+    name: string;
+    visibility: "public" | "private";
+    pin?: string | null;
+    maxPlayers: number | null;
+  };
+  gameSettings: {
+    questionCount: number;
+    playDurationSec: number;
+    revealDurationSec: number;
+    startOffsetSec: number;
+    allowCollectionClipTiming: boolean;
+    allowParticipantInvite: boolean;
+    playbackExtensionMode: "manual_vote" | "auto_once" | "disabled";
+  };
+  playlistManifest: {
+    sourceType?: PlaylistSourceType | null;
+    sourceId?: string | null;
+    title?: string | null;
+    totalCount: number;
+    chunkCount: number;
+    playlistHash: string;
+  };
+};
+
+export type BeginRoomCreationResult = {
+  creationId: string;
+  uploadSessionId: string;
+  state: "uploading";
+  expiresAt: number;
+};
+
+export type UploadRoomCreationChunkPayload = {
+  creationId: string;
+  uploadSessionId: string;
+  chunkIndex: number;
+  chunkCount: number;
+  chunkHash: string;
+  items: PlaylistItem[];
+};
+
+export type UploadRoomCreationChunkResult = {
+  creationId: string;
+  state: "uploading" | "verifying";
+  receivedChunkCount: number;
+  expectedChunkCount: number;
+  receivedItemsCount: number;
+  totalCount: number;
+};
+
+export type FinalizeRoomCreationPayload = {
+  creationId: string;
+  uploadSessionId: string;
+};
+
+export type FinalizeRoomCreationResult = {
+  creationId: string;
+  state: RoomCreationState;
+  roomId?: string;
+  roomState?: RoomState;
+  roomSessionToken?: string;
+};
+
+export type AbortRoomCreationPayload = {
+  creationId: string;
+};
+
+export type AbortRoomCreationResult = {
+  creationId: string;
+  state: "aborted";
+};
+
 export type SitePresencePayload = {
   onlineCount: number;
   updatedAt: number;
@@ -365,6 +447,25 @@ export type SitePresencePayload = {
 
 // Client -> Server
 export interface ClientToServerEvents {
+  beginRoomCreation: (
+    payload: BeginRoomCreationPayload,
+    callback?: Ack<BeginRoomCreationResult>,
+  ) => void;
+
+  uploadRoomCreationChunk: (
+    payload: UploadRoomCreationChunkPayload,
+    callback?: Ack<UploadRoomCreationChunkResult>,
+  ) => void;
+
+  finalizeRoomCreation: (
+    payload: FinalizeRoomCreationPayload,
+    callback?: Ack<FinalizeRoomCreationResult>,
+  ) => void;
+
+  abortRoomCreation: (
+    payload: AbortRoomCreationPayload,
+    callback?: Ack<AbortRoomCreationResult>,
+  ) => void;
   createRoom: (
     payload: {
       roomName: string;
@@ -561,6 +662,15 @@ export interface ServerToClientEvents {
   roomCreated: (payload: { room: RoomSummary }) => void;
   roomRemoved: (payload: { roomId: string }) => void;
   joinedRoom: (state: RoomState) => void;
+  roomCreationProgress: (payload: {
+    creationId: string;
+    state: RoomCreationState;
+    receivedChunkCount: number;
+    expectedChunkCount: number;
+    receivedItemsCount: number;
+    totalCount: number;
+    timestamp: number;
+  }) => void;
   sessionProgress: (payload: SessionProgressPayload) => void;
   participantsUpdated: (payload: {
     roomId: string;
