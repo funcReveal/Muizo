@@ -13,10 +13,7 @@ import {
   CHUNK_SIZE,
   DEFAULT_PAGE_SIZE,
   DEFAULT_PLAYBACK_EXTENSION_MODE,
-  DEFAULT_PLAY_DURATION_SEC,
-  DEFAULT_REVEAL_DURATION_SEC,
   DEFAULT_ROOM_MAX_PLAYERS,
-  DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
   QUESTION_MIN,
@@ -25,7 +22,6 @@ import {
   applyGameSettingsPatch,
   buildUploadPlaylistItems,
   formatAckError,
-  mergeRoomSummaryIntoCurrentRoom,
 } from "./roomProviderUtils";
 import {
   clampPlayDurationSec,
@@ -157,6 +153,7 @@ export const useRoomProviderCreateRoomAction = ({
   setRoomMaxPlayersInput,
 }: UseRoomProviderCreateRoomActionParams) => {
   const questionMin = QUESTION_MIN;
+
   const resolvePlaylistSourceType = (
     sourceMode: RoomCreateSourceMode,
   ): PlaylistSourceType => {
@@ -201,19 +198,24 @@ export const useRoomProviderCreateRoomAction = ({
       setStatusText("請先設定使用者名稱");
       return;
     }
+
     if (createRoomInFlightRef.current) {
       setStatusText("正在建立房間，請稍候。");
       return;
     }
+
     createRoomInFlightRef.current = true;
     setIsCreatingRoom(true);
     setStatusText(null);
+
     const releaseCreateRoomLock = () => {
       createRoomInFlightRef.current = false;
       setIsCreatingRoom(false);
       releaseCreateRoomLockRef.current = null;
     };
+
     releaseCreateRoomLockRef.current = releaseCreateRoomLock;
+
     if (authToken) {
       const token = await runWithTimeout(
         ensureFreshAuthToken({
@@ -223,49 +225,60 @@ export const useRoomProviderCreateRoomAction = ({
         5_000,
         null,
       );
+
       if (!token) {
         setStatusText("登入狀態已失效，請重新登入。");
         releaseCreateRoomLock();
         return;
       }
     }
+
     const trimmed = roomNameInput.trim();
     const trimmedPin = roomPasswordInput.trim();
     const trimmedMaxPlayers = roomMaxPlayersInput.trim();
+
     if (!trimmed) {
       setStatusText("請先輸入房間名稱。");
       releaseCreateRoomLock();
       return;
     }
+
     if (playlistItems.length === 0 || !lastFetchedPlaylistId) {
       setStatusText("請先準備題庫內容，才能建立房間。");
       releaseCreateRoomLock();
       return;
     }
+
     if (playlistItems.length < questionMin) {
       setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
       releaseCreateRoomLock();
       return;
     }
+
     if (trimmedMaxPlayers && !/^\d+$/.test(trimmedMaxPlayers)) {
       setStatusText("最大玩家數必須是數字");
       releaseCreateRoomLock();
       return;
     }
+
     const desiredMaxPlayers = trimmedMaxPlayers
       ? Number(trimmedMaxPlayers)
       : DEFAULT_ROOM_MAX_PLAYERS;
+
     if (desiredMaxPlayers < PLAYER_MIN || desiredMaxPlayers > PLAYER_MAX) {
       setStatusText(`最大人數需介於 ${PLAYER_MIN} - ${PLAYER_MAX} 人之間 `);
       releaseCreateRoomLock();
       return;
     }
+
     const desiredVisibility = roomVisibilityInput;
+
     if (trimmedPin && !/^\d{4}$/.test(trimmedPin)) {
       setStatusText("PIN 需為 4 位數字。");
       releaseCreateRoomLock();
       return;
     }
+
     const desiredPin = trimmedPin || null;
     const nextQuestionCount = clampQuestionCount(
       questionCount,
@@ -275,6 +288,7 @@ export const useRoomProviderCreateRoomAction = ({
     const nextRevealDurationSec = clampRevealDurationSec(revealDurationSec);
     const nextStartOffsetSec = clampStartOffsetSec(startOffsetSec);
     const nextAllowCollectionClipTiming = Boolean(allowCollectionClipTiming);
+
     trackEvent("room_create_click", {
       source_mode: roomCreateSourceMode,
       room_visibility: desiredVisibility,
@@ -283,23 +297,17 @@ export const useRoomProviderCreateRoomAction = ({
       reveal_duration_sec: nextRevealDurationSec,
       playlist_count: playlistItems.length,
     });
-    const shouldSyncRoomSettings =
-      desiredVisibility !== "public" ||
-      desiredPin !== null ||
-      desiredMaxPlayers !== DEFAULT_ROOM_MAX_PLAYERS ||
-      nextPlayDurationSec !== DEFAULT_PLAY_DURATION_SEC ||
-      nextRevealDurationSec !== DEFAULT_REVEAL_DURATION_SEC ||
-      nextStartOffsetSec !== DEFAULT_START_OFFSET_SEC ||
-      !nextAllowCollectionClipTiming;
 
     const uploadId =
       crypto.randomUUID?.() ??
       `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+
     const uploadItems = buildUploadPlaylistItems(playlistItems, {
       playDurationSec: nextPlayDurationSec,
       startOffsetSec: nextStartOffsetSec,
       allowCollectionClipTiming: nextAllowCollectionClipTiming,
     });
+
     const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
     const remaining = uploadItems.slice(CHUNK_SIZE);
     const isLast = remaining.length === 0;
@@ -329,28 +337,60 @@ export const useRoomProviderCreateRoomAction = ({
         pageSize: DEFAULT_PAGE_SIZE,
       },
     };
+
     const createStartedAt = Date.now();
 
     let createResolved = false;
     let createFinalized = false;
+
     const finalizeCreate = () => {
       if (createFinalized) return;
       createFinalized = true;
       releaseCreateRoomLock();
     };
 
-    const applyJoinedStateForCreatedRoom = (state: RoomState) => {
+    const buildPlaylistProgressFromState = (
+      state: RoomState,
+    ): PlaylistProgressState => ({
+      received: state.room.playlist.receivedCount,
+      total: state.room.playlist.totalCount,
+      ready: state.room.playlist.ready,
+    });
+
+    const isPlaylistUploadComplete = (progress: PlaylistProgressState) =>
+      progress.total > 0 &&
+      progress.received >= progress.total &&
+      progress.ready;
+
+    const applyJoinedStateForCreatedRoom = (
+      state: RoomState,
+      options?: { playlistProgressOverride?: PlaylistProgressState },
+    ) => {
       syncServerOffset(state.serverNow);
-      setCurrentRoom(
-        applyGameSettingsPatch(state.room, {
-          questionCount: nextQuestionCount,
-          playDurationSec: nextPlayDurationSec,
-          revealDurationSec: nextRevealDurationSec,
-          startOffsetSec: nextStartOffsetSec,
-          allowCollectionClipTiming: nextAllowCollectionClipTiming,
-          playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
-        }),
-      );
+
+      const roomWithSettings = applyGameSettingsPatch(state.room, {
+        questionCount: nextQuestionCount,
+        playDurationSec: nextPlayDurationSec,
+        revealDurationSec: nextRevealDurationSec,
+        startOffsetSec: nextStartOffsetSec,
+        allowCollectionClipTiming: nextAllowCollectionClipTiming,
+        playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
+      });
+
+      const roomWithFinalPlaylist =
+        options?.playlistProgressOverride !== undefined
+          ? {
+              ...roomWithSettings,
+              playlist: {
+                ...roomWithSettings.playlist,
+                receivedCount: options.playlistProgressOverride.received,
+                totalCount: options.playlistProgressOverride.total,
+                ready: options.playlistProgressOverride.ready,
+              },
+            }
+          : roomWithSettings;
+
+      setCurrentRoom(roomWithFinalPlaylist);
       setParticipants((prev) =>
         mergeCachedParticipantPing(state.participants, prev),
       );
@@ -360,11 +400,12 @@ export const useRoomProviderCreateRoomAction = ({
       persistRoomSessionToken(state.roomSessionToken ?? null);
       persistRoomId(state.room.id);
       lockSessionClientId(state.selfClientId);
-      setPlaylistProgress({
-        received: state.room.playlist.receivedCount,
-        total: state.room.playlist.totalCount,
-        ready: state.room.playlist.ready,
-      });
+
+      const nextPlaylistProgress =
+        options?.playlistProgressOverride ??
+        buildPlaylistProgressFromState(state);
+
+      setPlaylistProgress(nextPlaylistProgress);
       setGameState(state.gameState ?? null);
       setIsGameView(false);
       setGamePlaylist([]);
@@ -425,8 +466,16 @@ export const useRoomProviderCreateRoomAction = ({
         );
       });
 
-    const uploadRemainingPlaylistChunks = async (roomId: string) => {
-      if (remaining.length === 0) return;
+    const uploadRemainingPlaylistChunks = async (
+      roomId: string,
+      initialProgress: PlaylistProgressState,
+    ): Promise<PlaylistProgressState> => {
+      let latestProgress = initialProgress;
+      setPlaylistProgress(latestProgress);
+
+      if (remaining.length === 0) {
+        return latestProgress;
+      }
 
       for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
         const chunk = remaining.slice(i, i + CHUNK_SIZE);
@@ -443,11 +492,16 @@ export const useRoomProviderCreateRoomAction = ({
               isLastChunk,
             );
 
-            setPlaylistProgress({
+            latestProgress = {
               received: result.receivedCount,
               total: result.totalCount,
               ready: result.ready,
-            });
+            };
+
+            setPlaylistProgress(latestProgress);
+            setStatusText(
+              `正在同步題庫到房間（${latestProgress.received}/${latestProgress.total}）...`,
+            );
 
             uploaded = true;
             lastError = null;
@@ -472,22 +526,52 @@ export const useRoomProviderCreateRoomAction = ({
         }
       }
 
-      fetchPlaylistPage(roomId, 1, DEFAULT_PAGE_SIZE, { reset: true });
+      return latestProgress;
     };
 
-    const continueUploadRemainingPlaylistChunks = (roomId: string) => {
-      if (remaining.length === 0) return;
+    const rollbackCreatedRoom = async (roomId: string) => {
+      await new Promise<void>((resolve) => {
+        let settled = false;
 
-      void uploadRemainingPlaylistChunks(roomId).catch((error) => {
-        console.error(error);
+        const timeout = window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        }, 2_000);
 
-        if (currentRoomIdRef.current === roomId) {
-          setStatusText(
-            "房間已建立，但題庫同步失敗，請重新整理頁面或重新套用題庫。",
-          );
-          fetchPlaylistPage(roomId, 1, DEFAULT_PAGE_SIZE, { reset: true });
-        }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        socket.emit("leaveRoom", { roomId }, (_ack: Ack<null>) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          resolve();
+        });
       });
+    };
+
+    const commitCreatedRoom = (
+      state: RoomState,
+      finalPlaylistProgress: PlaylistProgressState,
+    ) => {
+      applyJoinedStateForCreatedRoom(state, {
+        playlistProgressOverride: finalPlaylistProgress,
+      });
+      saveRoomPassword(state.room.id, desiredPin);
+      setHostRoomPassword(desiredPin);
+      setRoomNameInput(getDefaultRoomName(username));
+      setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
+
+      trackEvent("room_create_success", {
+        room_id: state.room.id,
+        source_mode: roomCreateSourceMode,
+        room_visibility: desiredVisibility,
+        player_limit: desiredMaxPlayers,
+        question_count: nextQuestionCount,
+        playlist_count: uploadItems.length,
+      });
+
+      setStatusText(null);
+      finalizeCreate();
     };
 
     const tryRecoverCreatedRoomFromList = async () => {
@@ -498,6 +582,7 @@ export const useRoomProviderCreateRoomAction = ({
         return true;
       }
       if (!apiUrl) return false;
+
       try {
         const roomsResult = await runWithTimeout(
           apiFetchRooms(apiUrl),
@@ -505,24 +590,30 @@ export const useRoomProviderCreateRoomAction = ({
           null,
         );
         if (!roomsResult) return false;
+
         const { ok, payload } = roomsResult;
         if (!ok) return false;
+
         const nextRooms = ((payload?.rooms ?? payload) as RoomSummary[]) ?? [];
         if (Array.isArray(nextRooms)) {
           setRooms(nextRooms);
         }
+
         if (currentRoomIdRef.current) {
           createResolved = true;
           finalizeCreate();
           return true;
         }
+
         const createdWindowStart = createStartedAt - 30_000;
         const createdWindowEnd = Date.now() + 5_000;
+
         const candidate = nextRooms
           .filter((room) => {
             if ((room.name ?? "").trim() !== trimmed) return false;
-            if ((room.hasPin ?? room.hasPassword) !== Boolean(desiredPin))
+            if ((room.hasPin ?? room.hasPassword) !== Boolean(desiredPin)) {
               return false;
+            }
             if (
               typeof room.playlistCount === "number" &&
               room.playlistCount > 0 &&
@@ -576,28 +667,53 @@ export const useRoomProviderCreateRoomAction = ({
                   resolve(false);
                   return;
                 }
+
                 createResolved = true;
+
                 const state = joinAck.data;
-                applyJoinedStateForCreatedRoom(state);
-                saveRoomPassword(state.room.id, desiredPin);
-                setHostRoomPassword(desiredPin);
-                setRoomNameInput(getDefaultRoomName(username));
-                setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
-                setStatusText(null);
-                finalizeCreate();
-                continueUploadRemainingPlaylistChunks(state.room.id);
-                resolve(true);
+                const initialProgress = buildPlaylistProgressFromState(state);
+                setPlaylistProgress(initialProgress);
+                setStatusText(
+                  initialProgress.ready
+                    ? "正在完成房間初始化..."
+                    : `正在同步題庫到房間（${initialProgress.received}/${initialProgress.total}）...`,
+                );
+
+                try {
+                  const finalPlaylistProgress =
+                    await uploadRemainingPlaylistChunks(
+                      state.room.id,
+                      initialProgress,
+                    );
+
+                  if (!isPlaylistUploadComplete(finalPlaylistProgress)) {
+                    throw new Error("playlist upload incomplete");
+                  }
+
+                  commitCreatedRoom(state, finalPlaylistProgress);
+                  resolve(true);
+                } catch (error) {
+                  console.error(error);
+                  await rollbackCreatedRoom(state.room.id);
+                  setStatusText(
+                    "建立房間失敗：題庫同步未完成，已取消本次建立。",
+                  );
+                  finalizeCreate();
+                  resolve(false);
+                }
               },
             );
           });
 
         const retryIntervalsMs = [0, 350, 800];
+
         for (
           let joinAttempt = 0;
           joinAttempt < retryIntervalsMs.length;
           joinAttempt += 1
         ) {
           if (createResolved || !createRoomInFlightRef.current) return false;
+
           if (joinAttempt === 0) {
             setStatusText("已找到房間，正在自動加入。");
           } else {
@@ -623,8 +739,10 @@ export const useRoomProviderCreateRoomAction = ({
 
     const submitCreateRoom = (attempt: 0 | 1) => {
       const timeoutMs = attempt === 0 ? 4_000 : 6_000;
+
       const ackTimeout = window.setTimeout(() => {
         if (createResolved || !createRoomInFlightRef.current) return;
+
         if (attempt === 0) {
           setStatusText("建立房間逾時，正在嘗試自動加入。");
           void tryRecoverCreatedRoomFromList().then((recovered) => {
@@ -636,6 +754,7 @@ export const useRoomProviderCreateRoomAction = ({
           });
           return;
         }
+
         setStatusText("建立房間再次逾時，正在嘗試自動加入。");
         void tryRecoverCreatedRoomFromList().then((recovered) => {
           if (recovered || createResolved || !createRoomInFlightRef.current) {
@@ -648,7 +767,9 @@ export const useRoomProviderCreateRoomAction = ({
 
       socket.emit("createRoom", payload, async (ack: Ack<RoomState>) => {
         window.clearTimeout(ackTimeout);
+
         if (createResolved) return;
+
         if (!ack) {
           if (attempt === 0) {
             setStatusText("建立房間失敗，正在重試。");
@@ -659,6 +780,7 @@ export const useRoomProviderCreateRoomAction = ({
           finalizeCreate();
           return;
         }
+
         if (!ack.ok) {
           setStatusText(formatAckError("建立房間失敗", ack.error));
           finalizeCreate();
@@ -666,87 +788,34 @@ export const useRoomProviderCreateRoomAction = ({
         }
 
         createResolved = true;
+
         const state = ack.data;
-        applyJoinedStateForCreatedRoom(state);
-        let accessSettingsWarning: string | null = null;
-        if (shouldSyncRoomSettings) {
-          await new Promise<void>((resolve) => {
-            let settled = false;
-            const settingsAckTimeout = window.setTimeout(() => {
-              if (settled) return;
-              settled = true;
-              accessSettingsWarning = "房間設定同步逾時";
-              resolve();
-            }, 4_000);
-            socket.emit(
-              "updateRoomSettings",
-              {
-                roomId: state.room.id,
-                visibility: desiredVisibility,
-                pin: desiredPin,
-                questionCount: nextQuestionCount,
-                playDurationSec: nextPlayDurationSec,
-                startOffsetSec: nextStartOffsetSec,
-                allowCollectionClipTiming: nextAllowCollectionClipTiming,
-                playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
-                maxPlayers: desiredMaxPlayers,
-              },
-              (settingsAck: Ack<{ room: RoomSummary }>) => {
-                if (settled) return;
-                settled = true;
-                window.clearTimeout(settingsAckTimeout);
-                if (!settingsAck) {
-                  accessSettingsWarning = "房間設定同步逾時";
-                  resolve();
-                  return;
-                }
-                if (!settingsAck.ok) {
-                  accessSettingsWarning = formatAckError(
-                    "房間設定同步失敗",
-                    settingsAck.error,
-                  );
-                  resolve();
-                  return;
-                }
-                setCurrentRoom((prev) =>
-                  prev
-                    ? applyGameSettingsPatch(
-                        mergeRoomSummaryIntoCurrentRoom(
-                          prev,
-                          settingsAck.data.room,
-                        ),
-                        {
-                          playDurationSec: nextPlayDurationSec,
-                          revealDurationSec: nextRevealDurationSec,
-                          startOffsetSec: nextStartOffsetSec,
-                          allowCollectionClipTiming:
-                            nextAllowCollectionClipTiming,
-                          playbackExtensionMode:
-                            DEFAULT_PLAYBACK_EXTENSION_MODE,
-                        },
-                      )
-                    : prev,
-                );
-                resolve();
-              },
-            );
-          });
+        const initialProgress = buildPlaylistProgressFromState(state);
+
+        setPlaylistProgress(initialProgress);
+        setStatusText(
+          initialProgress.ready
+            ? "正在完成房間初始化..."
+            : `正在同步題庫到房間（${initialProgress.received}/${initialProgress.total}）...`,
+        );
+
+        try {
+          const finalPlaylistProgress = await uploadRemainingPlaylistChunks(
+            state.room.id,
+            initialProgress,
+          );
+
+          if (!isPlaylistUploadComplete(finalPlaylistProgress)) {
+            throw new Error("playlist upload incomplete");
+          }
+
+          commitCreatedRoom(state, finalPlaylistProgress);
+        } catch (error) {
+          console.error(error);
+          await rollbackCreatedRoom(state.room.id);
+          setStatusText("房間建立失敗：題庫同步未完成，已取消本次建立。");
+          finalizeCreate();
         }
-        saveRoomPassword(state.room.id, desiredPin);
-        setHostRoomPassword(desiredPin);
-        setRoomNameInput(getDefaultRoomName(username));
-        setRoomMaxPlayersInput(String(DEFAULT_ROOM_MAX_PLAYERS));
-        trackEvent("room_create_success", {
-          room_id: state.room.id,
-          source_mode: roomCreateSourceMode,
-          room_visibility: desiredVisibility,
-          player_limit: desiredMaxPlayers,
-          question_count: nextQuestionCount,
-          playlist_count: uploadItems.length,
-        });
-        setStatusText(accessSettingsWarning ?? null);
-        finalizeCreate();
-        continueUploadRemainingPlaylistChunks(state.room.id);
       });
     };
 

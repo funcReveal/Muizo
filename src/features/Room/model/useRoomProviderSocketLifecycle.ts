@@ -629,6 +629,20 @@ export const useRoomProviderSocketLifecycle = ({
           setSessionProgress(payload);
         },
         onJoinedRoom: (state) => {
+          // 建房流程中，後端 createRoom 成功後也會主動 emit joinedRoom。
+          // 但我們現在要等 playlist 全部 chunk 上傳完成後，才正式 commit 進房。
+          // 所以如果現在仍在 createRoom in-flight，就先忽略這次 joinedRoom，
+          // 由 useRoomProviderCreateRoomAction.ts 在完整同步完成後自行套用最終狀態。
+          if (createRoomInFlightRef.current) {
+            syncServerOffset(state.serverNow);
+            setPlaylistProgress({
+              received: state.room.playlist.receivedCount,
+              total: state.room.playlist.totalCount,
+              ready: state.room.playlist.ready,
+            });
+            return;
+          }
+
           setSessionProgress(null);
           setKickedNotice(null);
           setClosedRoomNotice(null);
@@ -859,7 +873,10 @@ export const useRoomProviderSocketLifecycle = ({
         onRoomRemoved: ({ roomId }) => {
           removeRoomSummary(roomId);
           if (roomId !== currentRoomIdRef.current) return;
-          clearRoomAfterClosure(roomId, "房間已關閉，請返回房間列表或建立新房間。");
+          clearRoomAfterClosure(
+            roomId,
+            "房間已關閉，請返回房間列表或建立新房間。",
+          );
         },
         onKicked: ({ roomId, reason, bannedUntil }) => {
           if (roomId !== currentRoomIdRef.current) return;
