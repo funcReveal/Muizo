@@ -686,6 +686,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     liveAnsweredCount,
     liveAccuracyPct,
     requiredAnswerCount,
+    serverAnsweredCurrentParticipantCount,
     allAnsweredByServer,
     revealChoicePickMap,
   } = useGameRoomQuestionDerivedState({
@@ -810,13 +811,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     allAnsweredReadyForReveal,
     trackSessionKey,
   });
+  const displayParticipantCount =
+    requiredAnswerCount > 0
+      ? requiredAnswerCount
+      : Math.max(participants.length, liveParticipantCount);
   const displayAnsweredCount =
-    gameState.phase === "guess"
-      ? Math.max(liveAnsweredCount, answeredCount)
-      : liveAnsweredCount;
+    displayParticipantCount > 0
+      ? Math.min(
+        displayParticipantCount,
+        gameState.phase === "guess"
+          ? Math.max(serverAnsweredCurrentParticipantCount, answeredCount)
+          : Math.max(serverAnsweredCurrentParticipantCount, liveAnsweredCount),
+      )
+      : 0;
   const displayUnansweredCount =
-    gameState.phase === "guess" && liveParticipantCount > 0
-      ? Math.max(0, liveParticipantCount - displayAnsweredCount)
+    gameState.phase === "guess" && displayParticipantCount > 0
+      ? Math.max(0, displayParticipantCount - displayAnsweredCount)
       : typeof gameState.questionStats?.unansweredCount === "number"
         ? Math.max(0, Math.floor(gameState.questionStats.unansweredCount))
         : null;
@@ -1054,8 +1064,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     scorePartsByClientId,
     answeredRankByClientId,
     answeredClientIdSet,
-    liveParticipantCount,
-    liveAnsweredCount,
+    liveParticipantCount: displayParticipantCount,
+    liveAnsweredCount: displayAnsweredCount,
     liveAccuracyPct,
     selectedChoice,
     correctChoiceIndex,
@@ -1597,7 +1607,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               revealChoicePickMap={revealChoicePickMap}
               serverOffsetMs={serverOffsetMs}
               mobileHeaderAction={mobilePlaybackVoteAction}
-              liveParticipantCount={liveParticipantCount}
+              liveParticipantCount={displayParticipantCount}
               liveAnsweredCount={displayAnsweredCount}
               liveCorrectCount={
                 typeof gameState.questionStats?.correctCount === "number"
@@ -1630,7 +1640,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </span>
                   <span className="game-room-mobile-action-label">排行榜</span>
                   <span className="game-room-mobile-action-meta">
-                    已答 {answeredCount}/{participants.length || 0}
+                    已答 {displayAnsweredCount}/{displayParticipantCount || 0}
                   </span>
                 </button>
                 <div
@@ -1740,7 +1750,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     </div>
                     <div className="game-room-mobile-scoreboard-actions">
                       <span className="game-room-mobile-scoreboard-answered-pill">
-                        已答 {answeredCount}/{participants.length || 0}
+                        已答 {displayAnsweredCount}/{displayParticipantCount || 0}
                       </span>
                       <button
                         type="button"

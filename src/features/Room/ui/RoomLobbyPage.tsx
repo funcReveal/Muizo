@@ -25,6 +25,14 @@ import GameRoomDanmuProviderBridge from "../../GameRoom/ui/components/GameRoomDa
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "../../../shared/analytics/constants";
 import useAutoHideScrollbar from "../../../shared/hooks/useAutoHideScrollbar";
 import { type LobbySettlementStats } from "./components/roomLobbyPanelUtils";
+import {
+  getSettlementIdentityFromSnapshot,
+  getSettlementIdentityFromSummary,
+  shouldApplySettlementAsyncActivation,
+  shouldAutoOpenSettlementCandidate,
+  shouldClearDismissedSettlementIdentity,
+  type SettlementIdentity,
+} from "./lib/roomLobbySettlementOrchestration";
 import type {
   RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
@@ -492,6 +500,15 @@ const clearSettlementSessionCacheForClient = (clientId: string) => {
   }
 };
 
+const appendDismissedSettlementRoundKey = (
+  current: string[],
+  roundKey: string | null | undefined,
+) => {
+  if (!roundKey) return current;
+  if (current.includes(roundKey)) return current;
+  return [...current, roundKey];
+};
+
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
   const location = useLocation();
@@ -601,15 +618,18 @@ const RoomLobbyPage: React.FC = () => {
   const [settlementStartBroadcastNowMs, setSettlementStartBroadcastNowMs] =
     useState(() => Date.now() + serverOffsetMs);
   const isTabletOrMobileLobby = useMediaQuery("(max-width:1024px)");
-  const autoOpenedEndedRoundRef = useRef<string | null>(null);
+  const autoOpenedEndedSettlementIdentityRef =
+    useRef<SettlementIdentity>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
   const latestLiveRecapsRef = useRef<SettlementQuestionRecap[]>([]);
   const liveRoundStartedAtRef = useRef<number | null>(null);
   const lastTopSettlementRoundKeyRef = useRef<string | null>(null);
   const pendingAutoOpenSettlementRef = useRef<{
-    previousTopRoundKey: string | null;
+    previousTopIdentity: SettlementIdentity;
   } | null>(null);
-  const dismissedSettlementRoundKeyRef = useRef<string | null>(null);
+  const dismissedSettlementIdentityRef = useRef<SettlementIdentity>(null);
+  const dismissedSettlementRoundKeysRef = useRef<string[]>([]);
+  const settlementActivationVersionRef = useRef(0);
   const lastJoinedRoomIdRef = useRef<string | null>(null);
   const settlementSummaryListRequestRef = useRef<Promise<
     RoomSettlementHistorySummary[]
@@ -712,13 +732,15 @@ const RoomLobbyPage: React.FC = () => {
       : null;
 
   useEffect(() => {
-    autoOpenedEndedRoundRef.current = null;
+    autoOpenedEndedSettlementIdentityRef.current = null;
     prevGameStatusRef.current = null;
     latestLiveRecapsRef.current = [];
     liveRoundStartedAtRef.current = null;
     lastTopSettlementRoundKeyRef.current = null;
     pendingAutoOpenSettlementRef.current = null;
-    dismissedSettlementRoundKeyRef.current = null;
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
+    settlementActivationVersionRef.current = 0;
     settlementSummaryListRequestRef.current = null;
     const timer = window.setTimeout(() => {
       setActiveSettlementRoundKey(null);
@@ -860,6 +882,64 @@ const RoomLobbyPage: React.FC = () => {
     [roomScopedSettlementHistorySummaries],
   );
 
+  const settlementIdentityByRoundKey = useMemo(() => {
+    const next: Record<string, SettlementIdentity> = {};
+    roomScopedSettlementHistory.forEach((snapshot) => {
+      next[snapshot.roundKey] = getSettlementIdentityFromSnapshot(snapshot);
+    });
+    roomScopedSettlementHistorySummaries.forEach((summary) => {
+      next[summary.roundKey] = getSettlementIdentityFromSummary(summary);
+    });
+    Object.values(roomScopedSettlementReplayByRoundKey).forEach((snapshot) => {
+      next[snapshot.roundKey] = getSettlementIdentityFromSnapshot(snapshot);
+    });
+    return next;
+  }, [
+    roomScopedSettlementHistory,
+    roomScopedSettlementHistorySummaries,
+    roomScopedSettlementReplayByRoundKey,
+  ]);
+
+  const latestKnownSettlementIdentity =
+    getSettlementIdentityFromSnapshot(roomScopedSettlementHistory[0] ?? null) ??
+    getSettlementIdentityFromSummary(latestRoomScopedSettlementSummary);
+
+  const settlementRoundKeysByIdentity = useMemo(() => {
+    const next: Record<string, string[]> = {};
+    Object.entries(settlementIdentityByRoundKey).forEach(([roundKey, identity]) => {
+      if (!identity) return;
+      if (!next[identity]) {
+        next[identity] = [roundKey];
+        return;
+      }
+      if (!next[identity].includes(roundKey)) {
+        next[identity].push(roundKey);
+      }
+    });
+    return next;
+  }, [settlementIdentityByRoundKey]);
+
+  const isDismissedSettlement = useCallback(
+    ({
+      identity,
+      roundKey,
+    }: {
+      identity?: SettlementIdentity;
+      roundKey?: string | null;
+    }) => {
+      if (
+        identity &&
+        dismissedSettlementIdentityRef.current &&
+        identity === dismissedSettlementIdentityRef.current
+      ) {
+        return true;
+      }
+      if (!roundKey) return false;
+      return dismissedSettlementRoundKeysRef.current.includes(roundKey);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!currentRoom?.id || roomScopedSettlementHistory.length === 0) return;
     const liveSummaries = roomScopedSettlementHistory.map(
@@ -990,12 +1070,18 @@ const RoomLobbyPage: React.FC = () => {
 
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
+      const requestVersion = settlementActivationVersionRef.current + 1;
+      settlementActivationVersionRef.current = requestVersion;
       setHistoryDrawerOpen(false);
       setActiveSettlementRoundKey(roundKey);
       const cachedReplaySnapshot =
         roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
       const cachedLiveSnapshot =
         liveSettlementSnapshotByRoundKey[roundKey] ?? null;
+      const requestedIdentity =
+        getSettlementIdentityFromSnapshot(cachedReplaySnapshot) ??
+        getSettlementIdentityFromSnapshot(cachedLiveSnapshot) ??
+        getSettlementIdentityFromSummary(settlementSummaryByRoundKey[roundKey]);
       const hasReplayRecaps = hasCompleteSettlementRecaps(cachedReplaySnapshot);
       const hasLiveRecaps = hasCompleteSettlementRecaps(cachedLiveSnapshot);
       if (hasReplayRecaps || hasLiveRecaps) {
@@ -1011,19 +1097,24 @@ const RoomLobbyPage: React.FC = () => {
             settlementSummaryByRoundKey[roundKey] ??
             null;
         } catch {
-          setActiveSettlementRoundKey(null);
+          if (requestVersion === settlementActivationVersionRef.current) {
+            setActiveSettlementRoundKey(null);
+          }
           return;
         }
       }
 
       if (!summary) {
-        setActiveSettlementRoundKey(null);
+        if (requestVersion === settlementActivationVersionRef.current) {
+          setActiveSettlementRoundKey(null);
+        }
         return;
       }
 
       setLoadingSettlementRoundKey(roundKey);
       try {
         const snapshot = await fetchSettlementReplay(summary.matchId);
+        const resultIdentity = getSettlementIdentityFromSnapshot(snapshot);
         setSettlementReplayByRoundKey((prev) =>
           pruneSettlementReplayByRoundKey(
             {
@@ -1040,11 +1131,31 @@ const RoomLobbyPage: React.FC = () => {
             },
           ),
         );
-        if (snapshot.roundKey !== roundKey) {
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity:
+              requestedIdentity ?? getSettlementIdentityFromSummary(summary),
+            resultIdentity,
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          }) &&
+          snapshot.roundKey !== roundKey
+        ) {
           setActiveSettlementRoundKey(snapshot.roundKey);
         }
       } catch {
-        setActiveSettlementRoundKey(null);
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity:
+              requestedIdentity ?? getSettlementIdentityFromSummary(summary),
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          })
+        ) {
+          setActiveSettlementRoundKey(null);
+        }
       } finally {
         setLoadingSettlementRoundKey((prev) =>
           prev === roundKey ? null : prev,
@@ -1143,29 +1254,28 @@ const RoomLobbyPage: React.FC = () => {
   useEffect(() => {
     const nextStatus = gameState?.status ?? null;
     if (prevGameStatusRef.current === "ended" && nextStatus === "playing") {
-      dismissedSettlementRoundKeyRef.current = null;
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
     }
     if (prevGameStatusRef.current === "playing" && nextStatus === "ended") {
       pendingAutoOpenSettlementRef.current = {
-        previousTopRoundKey: roomScopedSettlementHistory[0]?.roundKey ?? null,
+        previousTopIdentity: latestKnownSettlementIdentity,
       };
     }
     prevGameStatusRef.current = nextStatus;
-  }, [gameState?.status, roomScopedSettlementHistory]);
+  }, [gameState?.status, latestKnownSettlementIdentity]);
 
   useEffect(() => {
-    const latestRoundKey =
-      roomScopedSettlementHistory[0]?.roundKey ??
-      latestRoomScopedSettlementSummary?.roundKey ??
-      null;
     if (
-      dismissedSettlementRoundKeyRef.current &&
-      latestRoundKey &&
-      latestRoundKey !== dismissedSettlementRoundKeyRef.current
+      shouldClearDismissedSettlementIdentity({
+        dismissedIdentity: dismissedSettlementIdentityRef.current,
+        latestIdentity: latestKnownSettlementIdentity,
+      })
     ) {
-      dismissedSettlementRoundKeyRef.current = null;
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
     }
-  }, [latestRoomScopedSettlementSummary?.roundKey, roomScopedSettlementHistory]);
+  }, [latestKnownSettlementIdentity]);
 
   useEffect(() => {
     if (!currentRoom || gameState?.status !== "ended") return;
@@ -1173,17 +1283,24 @@ const RoomLobbyPage: React.FC = () => {
     if (!pending) return;
     const snapshot = roomScopedSettlementHistory[0] ?? null;
     if (!snapshot) return;
-    if (snapshot.roundKey === pending.previousTopRoundKey) return;
-    if (snapshot.roundKey === dismissedSettlementRoundKeyRef.current) {
-      pendingAutoOpenSettlementRef.current = null;
-      return;
-    }
-    if (autoOpenedEndedRoundRef.current === snapshot.roundKey) {
+    const settlementIdentity = getSettlementIdentityFromSnapshot(snapshot);
+    if (
+      isDismissedSettlement({
+        identity: settlementIdentity,
+        roundKey: snapshot.roundKey,
+      }) ||
+      !shouldAutoOpenSettlementCandidate({
+        candidateIdentity: settlementIdentity,
+        previousTopIdentity: pending.previousTopIdentity,
+        dismissedIdentity: dismissedSettlementIdentityRef.current,
+        autoOpenedIdentity: autoOpenedEndedSettlementIdentityRef.current,
+      })
+    ) {
       pendingAutoOpenSettlementRef.current = null;
       return;
     }
 
-    autoOpenedEndedRoundRef.current = snapshot.roundKey;
+    autoOpenedEndedSettlementIdentityRef.current = settlementIdentity;
     pendingAutoOpenSettlementRef.current = null;
     // Apply both updates in the same effect tick to avoid a setTimeout(0)
     // race with this effect's cleanup when isGameView changes.
@@ -1194,6 +1311,7 @@ const RoomLobbyPage: React.FC = () => {
   }, [
     currentRoom,
     gameState?.status,
+    isDismissedSettlement,
     isGameView,
     roomScopedSettlementHistory,
     setIsGameView,
@@ -1247,7 +1365,14 @@ const RoomLobbyPage: React.FC = () => {
 
     const liveSnapshot = roomScopedSettlementHistory[0] ?? null;
     if (liveSnapshot) {
-      if (liveSnapshot.roundKey === dismissedSettlementRoundKeyRef.current) {
+      const liveSettlementIdentity =
+        getSettlementIdentityFromSnapshot(liveSnapshot);
+      if (
+        isDismissedSettlement({
+          identity: liveSettlementIdentity,
+          roundKey: liveSnapshot.roundKey,
+        })
+      ) {
         return;
       }
       setActiveSettlementRoundKey(liveSnapshot.roundKey);
@@ -1260,6 +1385,8 @@ const RoomLobbyPage: React.FC = () => {
     if (terminalSettlementRecoveryRequestRef.current) return;
 
     const roomId = currentRoom.id;
+    const requestVersion = settlementActivationVersionRef.current + 1;
+    settlementActivationVersionRef.current = requestVersion;
     const request = (async () => {
       let latestSummary = latestRoomScopedSettlementSummary;
       if (!latestSummary) {
@@ -1272,13 +1399,20 @@ const RoomLobbyPage: React.FC = () => {
       }
 
       if (!latestSummary) return;
-      if (latestSummary.roundKey === dismissedSettlementRoundKeyRef.current) {
+      const requestedIdentity = getSettlementIdentityFromSummary(latestSummary);
+      if (
+        isDismissedSettlement({
+          identity: requestedIdentity,
+          roundKey: latestSummary.roundKey,
+        })
+      ) {
         return;
       }
 
       setLoadingSettlementRoundKey(latestSummary.roundKey);
       try {
         const snapshot = await fetchSettlementReplay(latestSummary.matchId);
+        const resultIdentity = getSettlementIdentityFromSnapshot(snapshot);
         setSettlementReplayByRoundKey((prev) =>
           pruneSettlementReplayByRoundKey(
             {
@@ -1291,8 +1425,18 @@ const RoomLobbyPage: React.FC = () => {
             },
           ),
         );
-        setActiveSettlementRoundKey(snapshot.roundKey);
-        setIsGameView(false);
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity,
+            resultIdentity,
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          })
+        ) {
+          setActiveSettlementRoundKey(snapshot.roundKey);
+          setIsGameView(false);
+        }
       } catch {
         // Keep terminal settlement recovery silent after removing room-flow toasts.
       } finally {
@@ -1312,6 +1456,7 @@ const RoomLobbyPage: React.FC = () => {
     ensureSettlementSummaryListLoaded,
     fetchSettlementReplay,
     gameState?.status,
+    isDismissedSettlement,
     isGameView,
     latestRoomScopedSettlementSummary,
     roomScopedSettlementHistory,
@@ -1596,6 +1741,7 @@ const RoomLobbyPage: React.FC = () => {
 
   useEffect(() => {
     if (!isKickedFromActiveRoom) return;
+    settlementActivationVersionRef.current += 1;
     setActiveSettlementRoundKey(null);
     setLoadingSettlementRoundKey(null);
     setHistoryReplaySummary(null);
@@ -1617,6 +1763,7 @@ const RoomLobbyPage: React.FC = () => {
       const targetRoomId =
         currentRoom?.id ?? roomId ?? lastJoinedRoomIdRef.current;
       handleLeaveRoom(() => {
+        settlementActivationVersionRef.current += 1;
         setActiveSettlementRoundKey(null);
         if (clientId) {
           clearSettlementSessionCacheForClient(clientId);
@@ -1659,10 +1806,48 @@ const RoomLobbyPage: React.FC = () => {
   /** Return from settlement view to the lobby. */
   const handleBackFromSettlement = useCallback(
     () => {
-      dismissedSettlementRoundKeyRef.current = activeSettlementRoundKey;
+      settlementActivationVersionRef.current += 1;
+      pendingAutoOpenSettlementRef.current = null;
+      const dismissedIdentity =
+        getSettlementIdentityFromSnapshot(activeSettlementSnapshot) ??
+        (activeSettlementRoundKey
+          ? settlementIdentityByRoundKey[activeSettlementRoundKey] ?? null
+          : null);
+      dismissedSettlementIdentityRef.current = dismissedIdentity;
+      let nextDismissedRoundKeys =
+        dismissedIdentity && settlementRoundKeysByIdentity[dismissedIdentity]
+          ? [...settlementRoundKeysByIdentity[dismissedIdentity]]
+          : [];
+      nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+        nextDismissedRoundKeys,
+        activeSettlementRoundKey,
+      );
+      nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+        nextDismissedRoundKeys,
+        activeSettlementSnapshot?.roundKey,
+      );
+      if (dismissedIdentity && latestKnownSettlementIdentity === dismissedIdentity) {
+        nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+          nextDismissedRoundKeys,
+          roomScopedSettlementHistory[0]?.roundKey ?? null,
+        );
+        nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+          nextDismissedRoundKeys,
+          latestRoomScopedSettlementSummary?.roundKey ?? null,
+        );
+      }
+      dismissedSettlementRoundKeysRef.current = nextDismissedRoundKeys;
       setActiveSettlementRoundKey(null);
     },
-    [activeSettlementRoundKey],
+    [
+      activeSettlementRoundKey,
+      activeSettlementSnapshot,
+      latestKnownSettlementIdentity,
+      latestRoomScopedSettlementSummary?.roundKey,
+      roomScopedSettlementHistory,
+      settlementRoundKeysByIdentity,
+      settlementIdentityByRoundKey,
+    ],
   );
 
   const backNavigationConfirmText = useMemo(() => {
@@ -1746,7 +1931,8 @@ const RoomLobbyPage: React.FC = () => {
   /** Open a specific settlement round by key. */
   const handleOpenSettlementByRoundKey = useCallback(
     (roundKey: string) => {
-      dismissedSettlementRoundKeyRef.current = null;
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
       void openSettlementReviewByRoundKey(roundKey);
     },
     [openSettlementReviewByRoundKey],
@@ -1760,7 +1946,8 @@ const RoomLobbyPage: React.FC = () => {
 
   /** Open the most-recent settlement, fetching summaries if needed. */
   const handleOpenLastSettlement = useCallback(() => {
-    dismissedSettlementRoundKeyRef.current = null;
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
     if (latestSettlementSnapshot) {
       setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey);
       return;

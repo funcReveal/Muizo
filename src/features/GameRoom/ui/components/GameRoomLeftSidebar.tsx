@@ -242,6 +242,7 @@ interface GameRoomScorePlayerRowProps {
   scoreboardBorderLineStyle: ScoreboardBorderLineStyleId;
   scoreboardBorderParticleCount: number;
   avatarEffectLevel: "off" | "simple" | "full";
+  enableSegmentedScoreAnimation: boolean;
   enableFloatingScoreBursts: boolean;
   /**
    * Additional delay (ms) before showing the floating score burst.
@@ -277,6 +278,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   scoreboardBorderLineStyle,
   scoreboardBorderParticleCount,
   avatarEffectLevel,
+  enableSegmentedScoreAnimation,
   enableFloatingScoreBursts,
   burstDelayMs,
   onFloatingBurstsChange,
@@ -290,6 +292,9 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   } | null>(null);
   const removalTimerIdsRef = React.useRef<number[]>([]);
   const resolvedGain = scoreBreakdown?.totalGainPoints ?? scoreParts.gain;
+  const resolvedBaseScore = player.score - resolvedGain;
+  const shouldAnimateSegmentedScore =
+    enableSegmentedScoreAnimation && isReveal && resolvedGain !== 0;
   const shouldShowLocalFloatingBursts =
     enableFloatingScoreBursts && isReveal && isMeRow && resolvedGain !== 0;
   /**
@@ -311,7 +316,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   const scoreIncrementTimerIdsRef = React.useRef<number[]>([]);
 
   React.useEffect(() => {
-    if (enableFloatingScoreBursts) return;
+    if (enableFloatingScoreBursts || enableSegmentedScoreAnimation) return;
     if (swapPendingTimerRef.current !== null) {
       window.clearTimeout(swapPendingTimerRef.current);
       swapPendingTimerRef.current = null;
@@ -324,7 +329,14 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
     removalTimerIdsRef.current = [];
     scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
     scoreIncrementTimerIdsRef.current = [];
-  }, [enableFloatingScoreBursts]);
+  }, [enableFloatingScoreBursts, enableSegmentedScoreAnimation]);
+
+  React.useEffect(() => {
+    if (enableSegmentedScoreAnimation) return;
+    scoreIncrementTimerIdsRef.current.forEach((id) => window.clearTimeout(id));
+    scoreIncrementTimerIdsRef.current = [];
+    setAnimatedDisplayScore(null);
+  }, [enableSegmentedScoreAnimation]);
 
   React.useEffect(() => {
     onFloatingBurstsChange?.(
@@ -357,8 +369,8 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   }, []);
 
   React.useEffect(() => {
-    if (!shouldShowLocalFloatingBursts) {
-      if (!isReveal || resolvedGain === 0 || !isMeRow) {
+    if (!shouldAnimateSegmentedScore) {
+      if (!isReveal || resolvedGain === 0) {
         consumedBurstKeyRef.current = null;
         scheduledBurstRef.current = null;
         if (swapPendingTimerRef.current !== null) {
@@ -386,7 +398,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
         scoreBreakdown.totalGainPoints,
       ].join(":")
       : "none";
-    const burstKey = `${player.clientId}:${player.score}:${scoreParts.base}:${resolvedGain}:${player.combo}:${breakdownKey}`;
+    const burstKey = `${player.clientId}:${player.score}:${resolvedBaseScore}:${resolvedGain}:${player.combo}:${breakdownKey}`;
     const effectiveDelayMs = Math.max(0, burstDelayMsRef.current);
     if (consumedBurstKeyRef.current === burstKey) return;
     if (
@@ -400,7 +412,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
 
     // Capture values used inside the deferred callback so they're not stale.
     const capturedClientId = player.clientId;
-    const capturedBase = scoreParts.base;
+    const capturedBase = resolvedBaseScore;
     const capturedGain = resolvedGain;
     const capturedCombo = combo;
     const capturedBreakdown = scoreBreakdown;
@@ -439,14 +451,18 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
       });
       if (nextBursts.length === 0) return;
 
-      setFloatingBursts(nextBursts);
-      nextBursts.forEach((nextBurst) => {
-        const timerId = window.setTimeout(() => {
-          setFloatingBursts((current) => current.filter((burst) => burst.id !== nextBurst.id));
-          removalTimerIdsRef.current = removalTimerIdsRef.current.filter((id) => id !== timerId);
-        }, FLOATING_SCORE_BURST_LIFETIME_MS + nextBurst.delayMs);
-        removalTimerIdsRef.current.push(timerId);
-      });
+      if (shouldShowLocalFloatingBursts) {
+        setFloatingBursts(nextBursts);
+        nextBursts.forEach((nextBurst) => {
+          const timerId = window.setTimeout(() => {
+            setFloatingBursts((current) => current.filter((burst) => burst.id !== nextBurst.id));
+            removalTimerIdsRef.current = removalTimerIdsRef.current.filter((id) => id !== timerId);
+          }, FLOATING_SCORE_BURST_LIFETIME_MS + nextBurst.delayMs);
+          removalTimerIdsRef.current.push(timerId);
+        });
+      } else {
+        setFloatingBursts([]);
+      }
 
       // — Animated displayed score: tick up one segment at a time.
       // Start from the base (pre-reveal) score then add each segment's amount
@@ -488,7 +504,8 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
     player.score,
     resolvedGain,
     scoreBreakdown,
-    scoreParts.base,
+    resolvedBaseScore,
+    shouldAnimateSegmentedScore,
     shouldShowLocalFloatingBursts,
   ]);
 
@@ -552,7 +569,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
               />
             )}
             <span className="relative font-semibold text-emerald-300 tabular-nums">
-              {(shouldShowLocalFloatingBursts && animatedDisplayScore !== null
+              {(shouldAnimateSegmentedScore && animatedDisplayScore !== null
                 ? animatedDisplayScore
                 : player.score
               ).toLocaleString()}
@@ -1384,6 +1401,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   scoreboardBorderLineStyle={scoreboardBorderLineStyle}
                   scoreboardBorderParticleCount={scoreboardBorderParticleCount}
                   avatarEffectLevel={avatarEffectLevel}
+                  enableSegmentedScoreAnimation={enableDesktopFloatingScoreBursts}
                   enableFloatingScoreBursts={enableDesktopFloatingScoreBursts && isMeRow}
                   burstDelayMs={Math.max(
                     hasRowSwapAnimation

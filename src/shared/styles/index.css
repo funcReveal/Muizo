@@ -23624,6 +23624,11 @@ body {
     border-radius: 5px;
   }
 
+  .game-room-answer-layout--mobile .game-room-reveal-card--neutral,
+  .game-room-answer-layout--mobile .game-room-reveal-card--locked {
+    min-height: 94px;
+  }
+
   .game-room-answer-layout--mobile .game-room-reveal-card--locked {
     border-color: rgba(56, 189, 248, 0.22);
   }
@@ -23631,6 +23636,15 @@ body {
   .game-room-answer-layout--mobile .game-room-reveal-card--result {
     border-color: rgba(56, 189, 248, 0.14);
     background: rgba(4, 12, 28, 0.26);
+  }
+
+  .game-room-answer-layout--mobile .game-room-feedback-detail--mobile-compact {
+    margin-top: 1px;
+  }
+
+  .game-room-answer-layout--mobile .game-room-feedback-lines--mobile-compact {
+    gap: 3px;
+    min-height: 0;
   }
 
   .game-room-mobile-chat-entry {

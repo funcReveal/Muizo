@@ -375,6 +375,19 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     liveParticipantCount > 0
       ? `已答 ${liveAnsweredCount}/${liveParticipantCount} 人`
       : "";
+  const mobileInlineAnsweredText =
+    liveParticipantCount > 0
+      ? `已答${liveAnsweredCount}/${liveParticipantCount}`
+      : "";
+  const mobileGuessAnsweredText =
+    isMobileView && !isReveal && !isInterTrackWait && !isEnded
+      ? mobileInlineAnsweredText
+      : "";
+  const feedbackLines = React.useMemo(() => {
+    const rawLines = Array.isArray(myFeedback.lines) ? myFeedback.lines : [];
+    if (!isMobileView || isReveal) return rawLines;
+    return rawLines.filter((line) => !line.trim().startsWith("已答 "));
+  }, [isMobileView, isReveal, myFeedback.lines]);
   const inlineMetaSegments = React.useMemo(() => {
     if (!desktopStatusSecondary) return [];
     if (!isReveal && desktopStatusSecondary === inlineAnsweredText) return [];
@@ -855,11 +868,19 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                   </span>
                 )}
               </div>
-              {!isReveal && (!Array.isArray(myFeedback.lines) || myFeedback.lines.length === 0) ? (
-                myFeedback.detail && <p className="game-room-feedback-detail">{myFeedback.detail}</p>
+              {!isReveal && feedbackLines.length === 0 ? (
+                myFeedback.detail && (
+                  <p
+                    className={`game-room-feedback-detail ${isMobileView ? "game-room-feedback-detail--mobile-compact" : ""}`}
+                  >
+                    {myFeedback.detail}
+                  </p>
+                )
               ) : !isReveal && (
-                <div className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"}`}>
-                  {(Array.isArray(myFeedback.lines) ? myFeedback.lines : [])
+                <div
+                  className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"} ${isMobileView ? "game-room-feedback-lines--mobile-compact" : ""}`}
+                >
+                  {feedbackLines
                     .slice(0, 2)
                     .map((line, idx) => (
                       <p
@@ -872,7 +893,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                 </div>
               )}
               {!isReveal &&
-                (!Array.isArray(myFeedback.lines) || myFeedback.lines.length === 0) &&
+                feedbackLines.length === 0 &&
                 myFeedback.badges.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {myFeedback.badges.map((badge) => (
@@ -885,6 +906,11 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                     ))}
                   </div>
                 )}
+              {!isReveal && isMobileView && mobileGuessAnsweredText && !isRecoveringConnection ? (
+                <p className="mt-0.5 text-[11px] font-semibold text-cyan-100">
+                  {mobileGuessAnsweredText}
+                </p>
+              ) : null}
               {isReveal && (
                 <>
                   <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
