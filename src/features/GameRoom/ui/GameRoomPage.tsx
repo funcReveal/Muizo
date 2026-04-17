@@ -50,6 +50,7 @@ import {
   DEFAULT_AVATAR_EFFECT_LEVEL_VALUE,
   useSettingsModel,
 } from "../../Setting/model/settingsContext";
+import type { AvatarEffectLevel } from "../../../shared/ui/playerAvatar/playerAvatarTheme";
 import { useGameSfx } from "../model/useGameSfx";
 import GameRoomAnswerPanel from "./components/GameRoomAnswerPanel";
 import GameRoomLeftSidebar from "./components/GameRoomLeftSidebar";
@@ -79,7 +80,6 @@ import useGameRoomAnswerPanelAutoScroll from "./lib/useGameRoomAnswerPanelAutoSc
 import useMobileDrawerDragDismiss from "./lib/useMobileDrawerDragDismiss";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
-import { useRoomUi } from "../../Room/model/useRoomUi";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
 import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
@@ -128,6 +128,7 @@ const GAME_ROOM_REVEAL_AUTO_OVERLAY_STORAGE_KEY =
   "game_room_reveal_auto_overlay_enabled";
 
 const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
+const MOBILE_SCOREBOARD_PARTICLE_COUNT_CAP = 4;
 
 const PLAYBACK_VOTE_DIALOG_PAPER_PROPS = {
   className: "game-room-playback-vote-dialog",
@@ -340,7 +341,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   isRecoveringConnection = false,
   recoveryStatusText = null,
 }) => {
-  const { setStatusText } = useRoomUi();
   const { gameVolume, setGameVolume, sfxEnabled, sfxVolume, sfxPreset } =
     useSfxSettings();
   const {
@@ -427,6 +427,17 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     [serverOffsetMs],
   );
   const mobileScoreboardOpen = mobileBottomPanel === "scoreboard";
+  const mobileAvatarEffectLevel: AvatarEffectLevel = useMemo(() => {
+    if (!isMobileGameViewport) return avatarEffectLevel;
+    return avatarEffectLevel === "full" ? "simple" : avatarEffectLevel;
+  }, [avatarEffectLevel, isMobileGameViewport]);
+  const mobileScoreboardBorderParticleCount = useMemo(() => {
+    if (!isMobileGameViewport) return scoreboardBorderParticleCount;
+    return Math.min(
+      scoreboardBorderParticleCount,
+      MOBILE_SCOREBOARD_PARTICLE_COUNT_CAP,
+    );
+  }, [isMobileGameViewport, scoreboardBorderParticleCount]);
   const normalizedSplitHeights = useMemo(
     () => normalizeMobileSplitHeights(mobileScoreboardHeight),
     [mobileScoreboardHeight],
@@ -675,6 +686,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     liveAnsweredCount,
     liveAccuracyPct,
     requiredAnswerCount,
+    serverAnsweredCurrentParticipantCount,
     allAnsweredByServer,
     revealChoicePickMap,
   } = useGameRoomQuestionDerivedState({
@@ -799,13 +811,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     allAnsweredReadyForReveal,
     trackSessionKey,
   });
+  const displayParticipantCount =
+    requiredAnswerCount > 0
+      ? requiredAnswerCount
+      : Math.max(participants.length, liveParticipantCount);
   const displayAnsweredCount =
-    gameState.phase === "guess"
-      ? Math.max(liveAnsweredCount, answeredCount)
-      : liveAnsweredCount;
+    displayParticipantCount > 0
+      ? Math.min(
+        displayParticipantCount,
+        gameState.phase === "guess"
+          ? Math.max(serverAnsweredCurrentParticipantCount, answeredCount)
+          : Math.max(serverAnsweredCurrentParticipantCount, liveAnsweredCount),
+      )
+      : 0;
   const displayUnansweredCount =
-    gameState.phase === "guess" && liveParticipantCount > 0
-      ? Math.max(0, liveParticipantCount - displayAnsweredCount)
+    gameState.phase === "guess" && displayParticipantCount > 0
+      ? Math.max(0, displayParticipantCount - displayAnsweredCount)
       : typeof gameState.questionStats?.unansweredCount === "number"
         ? Math.max(0, Math.floor(gameState.questionStats.unansweredCount))
         : null;
@@ -921,15 +942,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playbackExtensionSeconds,
     meClientId,
     myPlaybackVote,
-    playbackVoteProposalSeconds,
-    playbackVoteRequesterName,
     playbackVoteResolvedSeconds,
     gamePhase: gameState.phase,
     gameStatus: gameState.status,
     setPlaybackVoteDialogOpen,
     setPlaybackVoteRequestPending,
     setPlaybackVoteSubmitPending,
-    setStatusText,
   });
 
   useEffect(() => {
@@ -1044,8 +1062,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     scorePartsByClientId,
     answeredRankByClientId,
     answeredClientIdSet,
-    liveParticipantCount,
-    liveAnsweredCount,
+    liveParticipantCount: displayParticipantCount,
+    liveAnsweredCount: displayAnsweredCount,
     liveAccuracyPct,
     selectedChoice,
     correctChoiceIndex,
@@ -1504,13 +1522,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 isReveal={isReveal}
                 meClientId={meClientId}
                 topTwoSwapState={topTwoSwapState}
-                avatarEffectLevel={avatarEffectLevel}
+                avatarEffectLevel={mobileAvatarEffectLevel}
                 scoreboardBorderEnabled={scoreboardBorderEnabled}
                 scoreboardBorderMaskEnabled={scoreboardBorderMaskEnabled}
                 scoreboardBorderAnimation={scoreboardBorderAnimation}
                 scoreboardBorderLineStyle={scoreboardBorderLineStyle}
                 scoreboardBorderTheme={scoreboardBorderTheme}
-                scoreboardBorderParticleCount={scoreboardBorderParticleCount}
+                scoreboardBorderParticleCount={
+                  mobileScoreboardBorderParticleCount
+                }
               />
             </div>
           )}
@@ -1585,7 +1605,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               revealChoicePickMap={revealChoicePickMap}
               serverOffsetMs={serverOffsetMs}
               mobileHeaderAction={mobilePlaybackVoteAction}
-              liveParticipantCount={liveParticipantCount}
+              liveParticipantCount={displayParticipantCount}
               liveAnsweredCount={displayAnsweredCount}
               liveCorrectCount={
                 typeof gameState.questionStats?.correctCount === "number"
@@ -1618,7 +1638,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </span>
                   <span className="game-room-mobile-action-label">排行榜</span>
                   <span className="game-room-mobile-action-meta">
-                    已答 {answeredCount}/{participants.length || 0}
+                    已答 {displayAnsweredCount}/{displayParticipantCount || 0}
                   </span>
                 </button>
                 <div
@@ -1728,7 +1748,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     </div>
                     <div className="game-room-mobile-scoreboard-actions">
                       <span className="game-room-mobile-scoreboard-answered-pill">
-                        已答 {answeredCount}/{participants.length || 0}
+                        已答 {displayAnsweredCount}/{displayParticipantCount || 0}
                       </span>
                       <button
                         type="button"
@@ -1760,13 +1780,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       !isMobileDrawerGestureActive
                     }
                     swapReplayToken={mobileScoreboardSwapReplayToken}
-                    avatarEffectLevel={avatarEffectLevel}
+                    avatarEffectLevel={mobileAvatarEffectLevel}
                     scoreboardBorderEnabled={scoreboardBorderEnabled}
                     scoreboardBorderMaskEnabled={scoreboardBorderMaskEnabled}
                     scoreboardBorderAnimation={scoreboardBorderAnimation}
                     scoreboardBorderLineStyle={scoreboardBorderLineStyle}
                     scoreboardBorderTheme={scoreboardBorderTheme}
-                    scoreboardBorderParticleCount={scoreboardBorderParticleCount}
+                    scoreboardBorderParticleCount={
+                      mobileScoreboardBorderParticleCount
+                    }
                   />
                 </div>
               </Drawer>
@@ -1892,7 +1914,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           {shouldShowGestureOverlay ? audioGestureOverlay : null}
           {isInitialCountdown ? startBroadcastOverlay : null}
           {exitConfirmOpen ? exitGameDialog : null}
-          <FloatingChatWindow />
+          {isMobileGameViewport ? <FloatingChatWindow /> : null}
         </div>
       </div>
     </GameRoomDanmuProviderBridge>

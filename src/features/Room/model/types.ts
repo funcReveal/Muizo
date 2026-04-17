@@ -186,6 +186,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   questionContext?: ChatMessageQuestionContext;
+  avatarUrl?: string | null;
 }
 
 export interface ChatMessageQuestionContext {

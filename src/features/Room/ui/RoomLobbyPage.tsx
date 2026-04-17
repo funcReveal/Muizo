@@ -20,9 +20,19 @@ import HistoryReplayCompactView from "../../Settlement/ui/components/HistoryRepl
 import { HistoryReplaySkeleton } from "../../Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
+import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
+import GameRoomDanmuProviderBridge from "../../GameRoom/ui/components/GameRoomDanmuProviderBridge";
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "../../../shared/analytics/constants";
 import useAutoHideScrollbar from "../../../shared/hooks/useAutoHideScrollbar";
 import { type LobbySettlementStats } from "./components/roomLobbyPanelUtils";
+import {
+  getSettlementIdentityFromSnapshot,
+  getSettlementIdentityFromSummary,
+  shouldApplySettlementAsyncActivation,
+  shouldAutoOpenSettlementCandidate,
+  shouldClearDismissedSettlementIdentity,
+  type SettlementIdentity,
+} from "./lib/roomLobbySettlementOrchestration";
 import type {
   RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
@@ -490,6 +500,15 @@ const clearSettlementSessionCacheForClient = (clientId: string) => {
   }
 };
 
+const appendDismissedSettlementRoundKey = (
+  current: string[],
+  roundKey: string | null | undefined,
+) => {
+  if (!roundKey) return current;
+  if (current.includes(roundKey)) return current;
+  return [...current, roundKey];
+};
+
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
   const location = useLocation();
@@ -504,7 +523,6 @@ const RoomLobbyPage: React.FC = () => {
     sessionProgress,
     isRecoveringConnection,
     recoveryStatusText,
-    setStatusText,
     kickedNotice,
     setKickedNotice,
     closedRoomNotice,
@@ -601,14 +619,18 @@ const RoomLobbyPage: React.FC = () => {
   const [settlementStartBroadcastNowMs, setSettlementStartBroadcastNowMs] =
     useState(() => Date.now() + serverOffsetMs);
   const isTabletOrMobileLobby = useMediaQuery("(max-width:1024px)");
-  const autoOpenedEndedRoundRef = useRef<string | null>(null);
+  const autoOpenedEndedSettlementIdentityRef =
+    useRef<SettlementIdentity>(null);
   const prevGameStatusRef = useRef<"playing" | "ended" | null>(null);
   const latestLiveRecapsRef = useRef<SettlementQuestionRecap[]>([]);
   const liveRoundStartedAtRef = useRef<number | null>(null);
   const lastTopSettlementRoundKeyRef = useRef<string | null>(null);
   const pendingAutoOpenSettlementRef = useRef<{
-    previousTopRoundKey: string | null;
+    previousTopIdentity: SettlementIdentity;
   } | null>(null);
+  const dismissedSettlementIdentityRef = useRef<SettlementIdentity>(null);
+  const dismissedSettlementRoundKeysRef = useRef<string[]>([]);
+  const settlementActivationVersionRef = useRef(0);
   const lastJoinedRoomIdRef = useRef<string | null>(null);
   const settlementSummaryListRequestRef = useRef<Promise<
     RoomSettlementHistorySummary[]
@@ -616,6 +638,9 @@ const RoomLobbyPage: React.FC = () => {
   const historyDrawerRequestRef = useRef<Promise<
     RoomSettlementHistorySummary[]
   > | null>(null);
+  const terminalSettlementRecoveryRequestRef = useRef<Promise<void> | null>(
+    null,
+  );
   const waitingChecklist = useMemo(() => {
     const backendOrder = [
       "server_validating",
@@ -723,12 +748,15 @@ const RoomLobbyPage: React.FC = () => {
       : null;
 
   useEffect(() => {
-    autoOpenedEndedRoundRef.current = null;
+    autoOpenedEndedSettlementIdentityRef.current = null;
     prevGameStatusRef.current = null;
     latestLiveRecapsRef.current = [];
     liveRoundStartedAtRef.current = null;
     lastTopSettlementRoundKeyRef.current = null;
     pendingAutoOpenSettlementRef.current = null;
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
+    settlementActivationVersionRef.current = 0;
     settlementSummaryListRequestRef.current = null;
     const timer = window.setTimeout(() => {
       setActiveSettlementRoundKey(null);
@@ -862,6 +890,72 @@ const RoomLobbyPage: React.FC = () => {
     return next;
   }, [roomScopedSettlementHistorySummaries]);
 
+  const latestRoomScopedSettlementSummary = useMemo(
+    () =>
+      [...roomScopedSettlementHistorySummaries].sort(
+        (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+      )[0] ?? null,
+    [roomScopedSettlementHistorySummaries],
+  );
+
+  const settlementIdentityByRoundKey = useMemo(() => {
+    const next: Record<string, SettlementIdentity> = {};
+    roomScopedSettlementHistory.forEach((snapshot) => {
+      next[snapshot.roundKey] = getSettlementIdentityFromSnapshot(snapshot);
+    });
+    roomScopedSettlementHistorySummaries.forEach((summary) => {
+      next[summary.roundKey] = getSettlementIdentityFromSummary(summary);
+    });
+    Object.values(roomScopedSettlementReplayByRoundKey).forEach((snapshot) => {
+      next[snapshot.roundKey] = getSettlementIdentityFromSnapshot(snapshot);
+    });
+    return next;
+  }, [
+    roomScopedSettlementHistory,
+    roomScopedSettlementHistorySummaries,
+    roomScopedSettlementReplayByRoundKey,
+  ]);
+
+  const latestKnownSettlementIdentity =
+    getSettlementIdentityFromSnapshot(roomScopedSettlementHistory[0] ?? null) ??
+    getSettlementIdentityFromSummary(latestRoomScopedSettlementSummary);
+
+  const settlementRoundKeysByIdentity = useMemo(() => {
+    const next: Record<string, string[]> = {};
+    Object.entries(settlementIdentityByRoundKey).forEach(([roundKey, identity]) => {
+      if (!identity) return;
+      if (!next[identity]) {
+        next[identity] = [roundKey];
+        return;
+      }
+      if (!next[identity].includes(roundKey)) {
+        next[identity].push(roundKey);
+      }
+    });
+    return next;
+  }, [settlementIdentityByRoundKey]);
+
+  const isDismissedSettlement = useCallback(
+    ({
+      identity,
+      roundKey,
+    }: {
+      identity?: SettlementIdentity;
+      roundKey?: string | null;
+    }) => {
+      if (
+        identity &&
+        dismissedSettlementIdentityRef.current &&
+        identity === dismissedSettlementIdentityRef.current
+      ) {
+        return true;
+      }
+      if (!roundKey) return false;
+      return dismissedSettlementRoundKeysRef.current.includes(roundKey);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!currentRoom?.id || roomScopedSettlementHistory.length === 0) return;
     const liveSummaries = roomScopedSettlementHistory.map(
@@ -942,10 +1036,6 @@ const RoomLobbyPage: React.FC = () => {
           });
           setHistoryDrawerCursor(nextCursor ?? null);
           setHistoryDrawerHasMore(Boolean(nextCursor));
-        } catch (error) {
-          setStatusText(
-            error instanceof Error ? error.message : "載入對戰歷史失敗",
-          );
         } finally {
           setHistoryDrawerLoading(false);
           setHistoryDrawerLoadingMore(false);
@@ -962,7 +1052,6 @@ const RoomLobbyPage: React.FC = () => {
       fetchSettlementHistorySummaries,
       historyDrawerCursor,
       historyDrawerHasMore,
-      setStatusText,
     ],
   );
 
@@ -997,12 +1086,18 @@ const RoomLobbyPage: React.FC = () => {
 
   const openSettlementReviewByRoundKey = useCallback(
     async (roundKey: string) => {
+      const requestVersion = settlementActivationVersionRef.current + 1;
+      settlementActivationVersionRef.current = requestVersion;
       setHistoryDrawerOpen(false);
       setActiveSettlementRoundKey(roundKey);
       const cachedReplaySnapshot =
         roomScopedSettlementReplayByRoundKey[roundKey] ?? null;
       const cachedLiveSnapshot =
         liveSettlementSnapshotByRoundKey[roundKey] ?? null;
+      const requestedIdentity =
+        getSettlementIdentityFromSnapshot(cachedReplaySnapshot) ??
+        getSettlementIdentityFromSnapshot(cachedLiveSnapshot) ??
+        getSettlementIdentityFromSummary(settlementSummaryByRoundKey[roundKey]);
       const hasReplayRecaps = hasCompleteSettlementRecaps(cachedReplaySnapshot);
       const hasLiveRecaps = hasCompleteSettlementRecaps(cachedLiveSnapshot);
       if (hasReplayRecaps || hasLiveRecaps) {
@@ -1017,26 +1112,25 @@ const RoomLobbyPage: React.FC = () => {
             loaded.find((item) => item.roundKey === roundKey) ??
             settlementSummaryByRoundKey[roundKey] ??
             null;
-        } catch (error) {
-          setStatusText(
-            error instanceof Error
-              ? error.message
-              : "讀取對戰資料失敗，請稍後再試",
-          );
-          setActiveSettlementRoundKey(null);
+        } catch {
+          if (requestVersion === settlementActivationVersionRef.current) {
+            setActiveSettlementRoundKey(null);
+          }
           return;
         }
       }
 
       if (!summary) {
-        setStatusText("找不到該場次資料");
-        setActiveSettlementRoundKey(null);
+        if (requestVersion === settlementActivationVersionRef.current) {
+          setActiveSettlementRoundKey(null);
+        }
         return;
       }
 
       setLoadingSettlementRoundKey(roundKey);
       try {
         const snapshot = await fetchSettlementReplay(summary.matchId);
+        const resultIdentity = getSettlementIdentityFromSnapshot(snapshot);
         setSettlementReplayByRoundKey((prev) =>
           pruneSettlementReplayByRoundKey(
             {
@@ -1053,12 +1147,31 @@ const RoomLobbyPage: React.FC = () => {
             },
           ),
         );
-        if (snapshot.roundKey !== roundKey) {
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity:
+              requestedIdentity ?? getSettlementIdentityFromSummary(summary),
+            resultIdentity,
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          }) &&
+          snapshot.roundKey !== roundKey
+        ) {
           setActiveSettlementRoundKey(snapshot.roundKey);
         }
-      } catch (error) {
-        setStatusText(error instanceof Error ? error.message : "載入回放失敗");
-        setActiveSettlementRoundKey(null);
+      } catch {
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity:
+              requestedIdentity ?? getSettlementIdentityFromSummary(summary),
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          })
+        ) {
+          setActiveSettlementRoundKey(null);
+        }
       } finally {
         setLoadingSettlementRoundKey((prev) =>
           prev === roundKey ? null : prev,
@@ -1073,7 +1186,6 @@ const RoomLobbyPage: React.FC = () => {
       currentRoom?.id,
       liveSettlementSnapshotByRoundKey,
       settlementSummaryByRoundKey,
-      setStatusText,
     ],
   );
 
@@ -1157,13 +1269,29 @@ const RoomLobbyPage: React.FC = () => {
 
   useEffect(() => {
     const nextStatus = gameState?.status ?? null;
+    if (prevGameStatusRef.current === "ended" && nextStatus === "playing") {
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
+    }
     if (prevGameStatusRef.current === "playing" && nextStatus === "ended") {
       pendingAutoOpenSettlementRef.current = {
-        previousTopRoundKey: roomScopedSettlementHistory[0]?.roundKey ?? null,
+        previousTopIdentity: latestKnownSettlementIdentity,
       };
     }
     prevGameStatusRef.current = nextStatus;
-  }, [gameState?.status, roomScopedSettlementHistory]);
+  }, [gameState?.status, latestKnownSettlementIdentity]);
+
+  useEffect(() => {
+    if (
+      shouldClearDismissedSettlementIdentity({
+        dismissedIdentity: dismissedSettlementIdentityRef.current,
+        latestIdentity: latestKnownSettlementIdentity,
+      })
+    ) {
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
+    }
+  }, [latestKnownSettlementIdentity]);
 
   useEffect(() => {
     if (!currentRoom || gameState?.status !== "ended") return;
@@ -1171,13 +1299,24 @@ const RoomLobbyPage: React.FC = () => {
     if (!pending) return;
     const snapshot = roomScopedSettlementHistory[0] ?? null;
     if (!snapshot) return;
-    if (snapshot.roundKey === pending.previousTopRoundKey) return;
-    if (autoOpenedEndedRoundRef.current === snapshot.roundKey) {
+    const settlementIdentity = getSettlementIdentityFromSnapshot(snapshot);
+    if (
+      isDismissedSettlement({
+        identity: settlementIdentity,
+        roundKey: snapshot.roundKey,
+      }) ||
+      !shouldAutoOpenSettlementCandidate({
+        candidateIdentity: settlementIdentity,
+        previousTopIdentity: pending.previousTopIdentity,
+        dismissedIdentity: dismissedSettlementIdentityRef.current,
+        autoOpenedIdentity: autoOpenedEndedSettlementIdentityRef.current,
+      })
+    ) {
       pendingAutoOpenSettlementRef.current = null;
       return;
     }
 
-    autoOpenedEndedRoundRef.current = snapshot.roundKey;
+    autoOpenedEndedSettlementIdentityRef.current = settlementIdentity;
     pendingAutoOpenSettlementRef.current = null;
     // Apply both updates in the same effect tick to avoid a setTimeout(0)
     // race with this effect's cleanup when isGameView changes.
@@ -1185,14 +1324,13 @@ const RoomLobbyPage: React.FC = () => {
     if (isGameView) {
       setIsGameView(false);
     }
-    setStatusText("已自動切換到最新對戰結算");
   }, [
     currentRoom,
     gameState?.status,
+    isDismissedSettlement,
     isGameView,
     roomScopedSettlementHistory,
     setIsGameView,
-    setStatusText,
   ]);
 
   const resolvedActiveSettlementRoundKey = useMemo(() => {
@@ -1236,6 +1374,110 @@ const RoomLobbyPage: React.FC = () => {
     }
     return settlementRecapsByRoundKey[activeSettlementSnapshot.roundKey];
   }, [activeSettlementSnapshot, settlementRecapsByRoundKey]);
+
+  useEffect(() => {
+    if (!currentRoom || gameState?.status !== "ended" || activeSettlementSnapshot)
+      return;
+
+    const liveSnapshot = roomScopedSettlementHistory[0] ?? null;
+    if (liveSnapshot) {
+      const liveSettlementIdentity =
+        getSettlementIdentityFromSnapshot(liveSnapshot);
+      if (
+        isDismissedSettlement({
+          identity: liveSettlementIdentity,
+          roundKey: liveSnapshot.roundKey,
+        })
+      ) {
+        return;
+      }
+      setActiveSettlementRoundKey(liveSnapshot.roundKey);
+      if (isGameView) {
+        setIsGameView(false);
+      }
+      return;
+    }
+
+    if (terminalSettlementRecoveryRequestRef.current) return;
+
+    const roomId = currentRoom.id;
+    const requestVersion = settlementActivationVersionRef.current + 1;
+    settlementActivationVersionRef.current = requestVersion;
+    const request = (async () => {
+      let latestSummary = latestRoomScopedSettlementSummary;
+      if (!latestSummary) {
+        const loaded = await ensureSettlementSummaryListLoaded();
+        latestSummary =
+          loaded
+            .filter((item) => item.roomId === roomId)
+            .sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo)[0] ??
+          null;
+      }
+
+      if (!latestSummary) return;
+      const requestedIdentity = getSettlementIdentityFromSummary(latestSummary);
+      if (
+        isDismissedSettlement({
+          identity: requestedIdentity,
+          roundKey: latestSummary.roundKey,
+        })
+      ) {
+        return;
+      }
+
+      setLoadingSettlementRoundKey(latestSummary.roundKey);
+      try {
+        const snapshot = await fetchSettlementReplay(latestSummary.matchId);
+        const resultIdentity = getSettlementIdentityFromSnapshot(snapshot);
+        setSettlementReplayByRoundKey((prev) =>
+          pruneSettlementReplayByRoundKey(
+            {
+              ...prev,
+              [snapshot.roundKey]: snapshot,
+            },
+            {
+              roomId,
+              pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
+            },
+          ),
+        );
+        if (
+          shouldApplySettlementAsyncActivation({
+            requestVersion,
+            latestRequestVersion: settlementActivationVersionRef.current,
+            requestedIdentity,
+            resultIdentity,
+            dismissedIdentity: dismissedSettlementIdentityRef.current,
+          })
+        ) {
+          setActiveSettlementRoundKey(snapshot.roundKey);
+          setIsGameView(false);
+        }
+      } catch {
+        // Keep terminal settlement recovery silent after removing room-flow toasts.
+      } finally {
+        setLoadingSettlementRoundKey((prev) =>
+          prev === latestSummary?.roundKey ? null : prev,
+        );
+      }
+    })().finally(() => {
+      terminalSettlementRecoveryRequestRef.current = null;
+    });
+
+    terminalSettlementRecoveryRequestRef.current = request;
+  }, [
+    activeSettlementRoundKey,
+    activeSettlementSnapshot,
+    currentRoom,
+    ensureSettlementSummaryListLoaded,
+    fetchSettlementReplay,
+    gameState?.status,
+    isDismissedSettlement,
+    isGameView,
+    latestRoomScopedSettlementSummary,
+    roomScopedSettlementHistory,
+    setIsGameView,
+  ]);
 
   useEffect(() => {
     if (!resolvedActiveSettlementRoundKey) return;
@@ -1389,6 +1631,29 @@ const RoomLobbyPage: React.FC = () => {
     loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
     !activeSettlementSnapshot,
   );
+  const shouldShowSharedChat = Boolean(
+    currentRoom &&
+      !(
+        isTabletOrMobileLobby &&
+        (activeSettlementSnapshot || (gameState && isGameView))
+      ) &&
+      !(gameState && isGameView && !activeSettlementSnapshot),
+  );
+  const sharedChatWindow = shouldShowSharedChat ? <FloatingChatWindow /> : null;
+  const desktopInGameSharedChat =
+    currentRoom && gameState && isGameView && !activeSettlementSnapshot && !isTabletOrMobileLobby
+      ? (
+        <GameRoomDanmuProviderBridge roomId={currentRoom.id}>
+          <FloatingChatWindow />
+        </GameRoomDanmuProviderBridge>
+      )
+      : null;
+  const isTerminalSettlementPreparing = Boolean(
+    currentRoom &&
+      gameState?.status === "ended" &&
+      isGameView &&
+      !activeSettlementSnapshot,
+  );
 
   const historyReplaySnapshot = useMemo(() => {
     if (!historyReplaySummary) return null;
@@ -1428,10 +1693,8 @@ const RoomLobbyPage: React.FC = () => {
             },
           ),
         );
-      } catch (error) {
-        setStatusText(
-          error instanceof Error ? error.message : "載入歷史回放失敗",
-        );
+      } catch {
+        // Keep history replay loading silent after removing room-flow toasts.
       } finally {
         setHistoryReplayLoadingRoundKey((prev) =>
           prev === summary.roundKey ? null : prev,
@@ -1443,7 +1706,6 @@ const RoomLobbyPage: React.FC = () => {
       currentRoom?.id,
       fetchSettlementReplay,
       roomSnapshotByRoundKey,
-      setStatusText,
     ],
   );
 
@@ -1495,6 +1757,7 @@ const RoomLobbyPage: React.FC = () => {
 
   useEffect(() => {
     if (!isKickedFromActiveRoom) return;
+    settlementActivationVersionRef.current += 1;
     setActiveSettlementRoundKey(null);
     setLoadingSettlementRoundKey(null);
     setHistoryReplaySummary(null);
@@ -1516,6 +1779,7 @@ const RoomLobbyPage: React.FC = () => {
       const targetRoomId =
         currentRoom?.id ?? roomId ?? lastJoinedRoomIdRef.current;
       handleLeaveRoom(() => {
+        settlementActivationVersionRef.current += 1;
         setActiveSettlementRoundKey(null);
         if (clientId) {
           clearSettlementSessionCacheForClient(clientId);
@@ -1557,8 +1821,49 @@ const RoomLobbyPage: React.FC = () => {
 
   /** Return from settlement view to the lobby. */
   const handleBackFromSettlement = useCallback(
-    () => setActiveSettlementRoundKey(null),
-    [],
+    () => {
+      settlementActivationVersionRef.current += 1;
+      pendingAutoOpenSettlementRef.current = null;
+      const dismissedIdentity =
+        getSettlementIdentityFromSnapshot(activeSettlementSnapshot) ??
+        (activeSettlementRoundKey
+          ? settlementIdentityByRoundKey[activeSettlementRoundKey] ?? null
+          : null);
+      dismissedSettlementIdentityRef.current = dismissedIdentity;
+      let nextDismissedRoundKeys =
+        dismissedIdentity && settlementRoundKeysByIdentity[dismissedIdentity]
+          ? [...settlementRoundKeysByIdentity[dismissedIdentity]]
+          : [];
+      nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+        nextDismissedRoundKeys,
+        activeSettlementRoundKey,
+      );
+      nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+        nextDismissedRoundKeys,
+        activeSettlementSnapshot?.roundKey,
+      );
+      if (dismissedIdentity && latestKnownSettlementIdentity === dismissedIdentity) {
+        nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+          nextDismissedRoundKeys,
+          roomScopedSettlementHistory[0]?.roundKey ?? null,
+        );
+        nextDismissedRoundKeys = appendDismissedSettlementRoundKey(
+          nextDismissedRoundKeys,
+          latestRoomScopedSettlementSummary?.roundKey ?? null,
+        );
+      }
+      dismissedSettlementRoundKeysRef.current = nextDismissedRoundKeys;
+      setActiveSettlementRoundKey(null);
+    },
+    [
+      activeSettlementRoundKey,
+      activeSettlementSnapshot,
+      latestKnownSettlementIdentity,
+      latestRoomScopedSettlementSummary?.roundKey,
+      roomScopedSettlementHistory,
+      settlementRoundKeysByIdentity,
+      settlementIdentityByRoundKey,
+    ],
   );
 
   const backNavigationConfirmText = useMemo(() => {
@@ -1642,6 +1947,8 @@ const RoomLobbyPage: React.FC = () => {
   /** Open a specific settlement round by key. */
   const handleOpenSettlementByRoundKey = useCallback(
     (roundKey: string) => {
+      dismissedSettlementIdentityRef.current = null;
+      dismissedSettlementRoundKeysRef.current = [];
       void openSettlementReviewByRoundKey(roundKey);
     },
     [openSettlementReviewByRoundKey],
@@ -1655,6 +1962,8 @@ const RoomLobbyPage: React.FC = () => {
 
   /** Open the most-recent settlement, fetching summaries if needed. */
   const handleOpenLastSettlement = useCallback(() => {
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
     if (latestSettlementSnapshot) {
       setActiveSettlementRoundKey(latestSettlementSnapshot.roundKey);
       return;
@@ -1668,21 +1977,15 @@ const RoomLobbyPage: React.FC = () => {
         (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
       )[0];
       if (!latest) {
-        setStatusText("目前沒有可查看的對戰紀錄");
         return;
       }
       await openSettlementReviewByRoundKey(latest.roundKey);
-    })().catch((error) => {
-      setStatusText(
-        error instanceof Error ? error.message : "開啟最新結算失敗，請稍後再試",
-      );
-    });
+    })().catch(() => {});
   }, [
     ensureSettlementSummaryListLoaded,
     latestSettlementSnapshot,
     mergedSettlementSummaries,
     openSettlementReviewByRoundKey,
-    setStatusText,
   ]);
 
   const loginConfirmText = useMemo(() => {
@@ -1727,7 +2030,6 @@ const RoomLobbyPage: React.FC = () => {
         removeSettlementCacheForRoom(targetRoomId ?? null);
       }
       navigate("/rooms", { replace: true });
-      setStatusText("已離開房間，前往 Google 登入");
       startGoogleLogin();
     });
   }, [
@@ -1737,7 +2039,6 @@ const RoomLobbyPage: React.FC = () => {
     navigate,
     removeSettlementCacheForRoom,
     roomId,
-    setStatusText,
     startGoogleLogin,
   ]);
   const openHistoryDrawer = useCallback(() => {
@@ -2341,6 +2642,32 @@ const RoomLobbyPage: React.FC = () => {
     );
   }
 
+  if (isTerminalSettlementPreparing) {
+    return (
+      <>
+        <div className="flex w-full min-w-0 justify-center">
+          <div className="flex min-h-[60vh] w-full max-w-[1080px] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-3 rounded-[24px] border border-[var(--mc-border)] bg-[var(--mc-surface)]/80 px-8 py-10 text-center text-[var(--mc-text)] shadow-[0_24px_60px_-40px_rgba(15,23,42,0.7)]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-slate-300" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium sm:text-base">
+                  正在準備結算...
+                </p>
+                <p className="text-xs text-[var(--mc-text-muted)] sm:text-sm">
+                  對戰已結束，正在整理本場結果
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        {battleHistoryDrawer}
+        {battleHistoryReplayDialog}
+        {settlementReviewLoadingBanner}
+        {sharedChatWindow}
+      </>
+    );
+  }
+
   if (currentRoom && gameState && isGameView && !activeSettlementSnapshot) {
     return (
       <>
@@ -2371,6 +2698,7 @@ const RoomLobbyPage: React.FC = () => {
         </div>
         {battleHistoryDrawer}
         {battleHistoryReplayDialog}
+        {desktopInGameSharedChat}
       </>
     );
   }
@@ -2402,6 +2730,7 @@ const RoomLobbyPage: React.FC = () => {
           </Suspense>
         </div>
         {settlementStartBroadcastOverlay}
+        {sharedChatWindow}
       </>
     );
   }
@@ -2468,6 +2797,7 @@ const RoomLobbyPage: React.FC = () => {
       {battleHistoryDrawer}
       {battleHistoryReplayDialog}
       {settlementReviewLoadingBanner}
+      {sharedChatWindow}
       <ConfirmDialog
         open={loginConfirmOpen}
         title={loginConfirmText.title}

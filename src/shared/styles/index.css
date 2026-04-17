@@ -4555,8 +4555,8 @@ body {
   white-space: nowrap;
   opacity: 0;
   transform: translate3d(var(--gr-floating-score-x), 10px, 0) scale(0.86);
-  animation: game-room-floating-score-rise 1900ms cubic-bezier(0.19, 0.8, 0.22, 1)
-    forwards;
+  animation: game-room-floating-score-rise 1900ms
+    cubic-bezier(0.19, 0.8, 0.22, 1) forwards;
   will-change: transform, opacity, filter;
 }
 
@@ -4689,7 +4689,9 @@ body {
   /* Keep the rise within ~40 px above the score text so bursts never drift
    * into the header or another player's row region. */
   --gr-floating-score-y-end: -42px;
-  font-size: calc(var(--gr-fs-size-base, 0.92rem) + var(--gr-fs-combo-ratio, 0) * 0.34rem);
+  font-size: calc(
+    var(--gr-fs-size-base, 0.92rem) + var(--gr-fs-combo-ratio, 0) * 0.34rem
+  );
   filter: brightness(calc(1 + var(--gr-fs-combo-ratio, 0) * 0.48));
 }
 
@@ -6716,7 +6718,11 @@ body {
   }
   /* ⑤ Fade-out at the top (y-end is now -42px max in portal mode) */
   100% {
-    transform: translate3d(var(--gr-floating-score-x), var(--gr-floating-score-y-end), 0)
+    transform: translate3d(
+        var(--gr-floating-score-x),
+        var(--gr-floating-score-y-end),
+        0
+      )
       scale(0.96);
     opacity: 0;
     filter: brightness(1.1);
@@ -6768,7 +6774,12 @@ body {
   }
   /* ⑥ Fade out */
   100% {
-    transform: translate3d(var(--gr-floating-score-x), var(--gr-floating-score-y-end), 0) scale(0.96);
+    transform: translate3d(
+        var(--gr-floating-score-x),
+        var(--gr-floating-score-y-end),
+        0
+      )
+      scale(0.96);
     opacity: 0;
     filter: brightness(1.15);
   }
@@ -6808,11 +6819,17 @@ body {
 
 /* Recovery overlay animations */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @keyframes game-room-recovery-bar {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -23607,6 +23624,11 @@ body {
     border-radius: 5px;
   }
 
+  .game-room-answer-layout--mobile .game-room-reveal-card--neutral,
+  .game-room-answer-layout--mobile .game-room-reveal-card--locked {
+    min-height: 94px;
+  }
+
   .game-room-answer-layout--mobile .game-room-reveal-card--locked {
     border-color: rgba(56, 189, 248, 0.22);
   }
@@ -23614,6 +23636,15 @@ body {
   .game-room-answer-layout--mobile .game-room-reveal-card--result {
     border-color: rgba(56, 189, 248, 0.14);
     background: rgba(4, 12, 28, 0.26);
+  }
+
+  .game-room-answer-layout--mobile .game-room-feedback-detail--mobile-compact {
+    margin-top: 1px;
+  }
+
+  .game-room-answer-layout--mobile .game-room-feedback-lines--mobile-compact {
+    gap: 3px;
+    min-height: 0;
   }
 
   .game-room-mobile-chat-entry {
@@ -24795,6 +24826,20 @@ body {
   align-items: flex-start;
 }
 
+.floating-chat-root--desktop {
+  left: 20px;
+  right: auto;
+  bottom: 0 !important;
+  inset-block-end: 0 !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.floating-chat-root--desktop .floating-chat-fab,
+.floating-chat-root--desktop .floating-chat-window {
+  margin-bottom: 0 !important;
+}
+
 .game-room-mobile-chat-drawer-trigger {
   position: fixed;
   left: 0;
@@ -25111,11 +25156,31 @@ body {
   text-align: center;
 }
 
+.floating-chat-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .floating-chat-msg-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.floating-chat-msg-avatar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 30px;
+  padding-top: 3px;
+}
+
+.floating-chat-msg-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .floating-chat-msg-name {
@@ -25154,6 +25219,7 @@ body {
   line-height: 1.45;
   word-break: break-word;
   margin: 0;
+  padding-top: 2px;
 }
 
 /* ── Input row ── */
@@ -26564,12 +26630,16 @@ body {
 .mq-autohide-scrollbar.is-scrolling,
 .mq-autohide-scrollbar:hover,
 .mq-autohide-scrollbar:focus-within {
-  scrollbar-color: var(--mq-scrollbar-thumb-color) var(--mq-scrollbar-track-color);
+  scrollbar-color: var(--mq-scrollbar-thumb-color)
+    var(--mq-scrollbar-track-color);
 }
 
-.room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar-track,
-.room-lobby-column--social .room-lobby-player-list:hover::-webkit-scrollbar-track,
-.room-lobby-column--social .room-lobby-player-list:focus-within::-webkit-scrollbar-track,
+.room-lobby-column--social
+  .room-lobby-player-list.is-scrolling::-webkit-scrollbar-track,
+.room-lobby-column--social
+  .room-lobby-player-list:hover::-webkit-scrollbar-track,
+.room-lobby-column--social
+  .room-lobby-player-list:focus-within::-webkit-scrollbar-track,
 .room-lobby-chat-log.is-scrolling::-webkit-scrollbar-track,
 .room-lobby-chat-log:hover::-webkit-scrollbar-track,
 .room-lobby-chat-log:focus-within::-webkit-scrollbar-track,
@@ -26598,9 +26668,12 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar-thumb,
-.room-lobby-column--social .room-lobby-player-list:hover::-webkit-scrollbar-thumb,
-.room-lobby-column--social .room-lobby-player-list:focus-within::-webkit-scrollbar-thumb,
+.room-lobby-column--social
+  .room-lobby-player-list.is-scrolling::-webkit-scrollbar-thumb,
+.room-lobby-column--social
+  .room-lobby-player-list:hover::-webkit-scrollbar-thumb,
+.room-lobby-column--social
+  .room-lobby-player-list:focus-within::-webkit-scrollbar-thumb,
 .room-lobby-chat-log.is-scrolling::-webkit-scrollbar-thumb,
 .room-lobby-chat-log:hover::-webkit-scrollbar-thumb,
 .room-lobby-chat-log:focus-within::-webkit-scrollbar-thumb,
@@ -26668,7 +26741,8 @@ body {
     scrollbar-width: thin;
   }
 
-  .room-lobby-column--social .room-lobby-player-list.is-scrolling::-webkit-scrollbar,
+  .room-lobby-column--social
+    .room-lobby-player-list.is-scrolling::-webkit-scrollbar,
   .room-lobby-chat-log.is-scrolling::-webkit-scrollbar,
   .room-lobby-playlist-shell .react-window.is-scrolling::-webkit-scrollbar,
   .floating-chat-messages.is-scrolling::-webkit-scrollbar,
