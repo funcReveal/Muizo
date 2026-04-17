@@ -434,7 +434,11 @@ export interface ClientToServerEvents {
       isLast?: boolean;
     },
     callback?: (
-      ack: Ack<{ receivedCount: number; totalCount: number }>,
+      ack: Ack<{
+        receivedCount: number;
+        totalCount: number;
+        ready: boolean;
+      }>,
     ) => void,
   ) => void;
   getPlaylistPage: (

@@ -373,43 +373,119 @@ export const useRoomProviderCreateRoomAction = ({
       });
     };
 
+    const emitUploadPlaylistChunk = (
+      roomId: string,
+      chunk: PlaylistItem[],
+      isLastChunk: boolean,
+    ) =>
+      new Promise<{
+        receivedCount: number;
+        totalCount: number;
+        ready: boolean;
+      }>((resolve, reject) => {
+        let settled = false;
+
+        const ackTimeout = window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error("uploadPlaylistChunk ack timeout"));
+        }, 5_000);
+
+        socket.emit(
+          "uploadPlaylistChunk",
+          {
+            roomId,
+            uploadId,
+            items: chunk,
+            isLast: isLastChunk,
+          },
+          (
+            ack: Ack<{
+              receivedCount: number;
+              totalCount: number;
+              ready: boolean;
+            }>,
+          ) => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(ackTimeout);
+
+            if (!ack) {
+              reject(new Error("uploadPlaylistChunk missing ack"));
+              return;
+            }
+
+            if (!ack.ok) {
+              reject(new Error(ack.error || "uploadPlaylistChunk failed"));
+              return;
+            }
+
+            resolve(ack.data);
+          },
+        );
+      });
+
     const uploadRemainingPlaylistChunks = async (roomId: string) => {
       if (remaining.length === 0) return;
+
       for (let i = 0; i < remaining.length; i += CHUNK_SIZE) {
         const chunk = remaining.slice(i, i + CHUNK_SIZE);
         const isLastChunk = i + CHUNK_SIZE >= remaining.length;
-        await new Promise<void>((resolve) => {
-          let settled = false;
-          const ackTimeout = window.setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            resolve();
-          }, 4_000);
-          socket.emit(
-            "uploadPlaylistChunk",
-            {
+
+        let uploaded = false;
+        let lastError: unknown = null;
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const result = await emitUploadPlaylistChunk(
               roomId,
-              uploadId,
-              items: chunk,
-              isLast: isLastChunk,
-            },
-            () => {
-              if (settled) return;
-              settled = true;
-              window.clearTimeout(ackTimeout);
-              resolve();
-            },
-          );
-        });
+              chunk,
+              isLastChunk,
+            );
+
+            setPlaylistProgress({
+              received: result.receivedCount,
+              total: result.totalCount,
+              ready: result.ready,
+            });
+
+            uploaded = true;
+            lastError = null;
+            break;
+          } catch (error) {
+            lastError = error;
+
+            if (attempt === 2) {
+              break;
+            }
+
+            await new Promise<void>((resolve) =>
+              window.setTimeout(resolve, 400 * (attempt + 1)),
+            );
+          }
+        }
+
+        if (!uploaded) {
+          throw lastError instanceof Error
+            ? lastError
+            : new Error("uploadPlaylistChunk failed");
+        }
       }
+
+      fetchPlaylistPage(roomId, 1, DEFAULT_PAGE_SIZE, { reset: true });
     };
 
     const continueUploadRemainingPlaylistChunks = (roomId: string) => {
       if (remaining.length === 0) return;
+
       void uploadRemainingPlaylistChunks(roomId).catch((error) => {
         console.error(error);
+
         if (currentRoomIdRef.current === roomId) {
-          setStatusText("已建立房間，但剩餘播放清單同步失敗。");
+          setStatusText(
+            "房間已建立，但題庫同步失敗，請重新整理頁面或重新套用題庫。",
+          );
+          fetchPlaylistPage(roomId, 1, DEFAULT_PAGE_SIZE, { reset: true });
         }
       });
     };
