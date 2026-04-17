@@ -63,6 +63,13 @@ type PostResumeGate = {
   resumePhase: "guess" | "reveal";
 } | null;
 
+type RoomClosedNotice = {
+  roomId: string;
+  kind: "closed" | "left";
+  reason: string;
+  closedAt: number;
+} | null;
+
 interface SocketLifecycleSetters {
   setIsConnected: Dispatch<SetStateAction<boolean>>;
   setRouteRoomResolved: Dispatch<SetStateAction<boolean>>;
@@ -93,6 +100,7 @@ interface SocketLifecycleSetters {
   setInviteNotFound: Dispatch<SetStateAction<boolean>>;
   setSitePresence: (payload: SitePresencePayload | null) => void;
   setPostResumeGate: Dispatch<SetStateAction<PostResumeGate>>;
+  setClosedRoomNotice: Dispatch<SetStateAction<RoomClosedNotice>>;
 }
 
 interface SocketLifecycleHandlers {
@@ -126,6 +134,11 @@ interface SocketLifecycleHandlers {
   persistRoomSessionToken: (token: string | null) => void;
   resetGameSyncVersion: () => void;
   applyGameLiveUpdate: (payload: GameLiveUpdatePayload) => boolean;
+  clearRoomAfterClosure: (
+    roomId: string | null | undefined,
+    reason?: string,
+    kind?: "closed" | "left",
+  ) => void;
 }
 
 interface UseRoomProviderSocketLifecycleParams {
@@ -217,6 +230,7 @@ export const useRoomProviderSocketLifecycle = ({
     setInviteNotFound,
     setSitePresence,
     setPostResumeGate,
+    setClosedRoomNotice,
   } = setters;
   const {
     fetchRooms,
@@ -234,6 +248,7 @@ export const useRoomProviderSocketLifecycle = ({
     persistRoomSessionToken,
     resetGameSyncVersion,
     applyGameLiveUpdate,
+    clearRoomAfterClosure,
   } = handlers;
   const upsertRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -429,6 +444,7 @@ export const useRoomProviderSocketLifecycle = ({
                   if (ack?.ok) {
                     const state = ack.data;
                     setKickedNotice(null);
+                    setClosedRoomNotice(null);
                     syncServerOffset(state.serverNow);
                     setCurrentRoom(applyGameSettingsPatch(state.room, {}));
                     setParticipants((prev) =>
@@ -497,6 +513,31 @@ export const useRoomProviderSocketLifecycle = ({
                     setStatusText(`已恢復房間：${state.room.name}`);
                     setRouteRoomResolved(true);
                   } else {
+                    if (
+                      ack?.code === "ROOM_NOT_FOUND" ||
+                      ack?.error?.trim().toLowerCase() === "room not found"
+                    ) {
+                      clearRoomAfterClosure(
+                        storedRoomId,
+                        "房間已關閉，請返回房間列表或建立新房間。",
+                      );
+                      return;
+                    }
+                    if (
+                      ack?.code === "ROOM_SESSION_LOST" ||
+                      ack?.code === "AUTH_CLIENT_MISSING" ||
+                      ack?.error?.trim().toLowerCase() === "not in room" ||
+                      ack?.error?.trim().toLowerCase() ===
+                        "you are not in any room" ||
+                      ack?.error?.trim().toLowerCase() === "missing clientid"
+                    ) {
+                      clearRoomAfterClosure(
+                        storedRoomId,
+                        "你已不在這個房間，請返回房間列表或重新加入。",
+                        "left",
+                      );
+                      return;
+                    }
                     if (ack?.error) {
                       setStatusText(formatAckError("恢復房間失敗", ack.error));
                     }
@@ -576,9 +617,8 @@ export const useRoomProviderSocketLifecycle = ({
             const found = updatedRooms.some(
               (r) => r.id === inviteRoomId || r.roomCode === inviteRoomId,
             );
-            setInviteNotFound(!found);
-            if (!found) {
-              setStatusText("找不到邀請房間，可能已關閉或邀請失效。");
+            if (found) {
+              setInviteNotFound(false);
             }
           }
         },
@@ -591,6 +631,7 @@ export const useRoomProviderSocketLifecycle = ({
         onJoinedRoom: (state) => {
           setSessionProgress(null);
           setKickedNotice(null);
+          setClosedRoomNotice(null);
           releaseCreateRoomLockRef.current?.();
           syncServerOffset(state.serverNow);
           setCurrentRoom(applyGameSettingsPatch(state.room, {}));
@@ -818,25 +859,7 @@ export const useRoomProviderSocketLifecycle = ({
         onRoomRemoved: ({ roomId }) => {
           removeRoomSummary(roomId);
           if (roomId !== currentRoomIdRef.current) return;
-          setCurrentRoom(null);
-          setParticipants([]);
-          resetPresenceParticipants();
-          setMessages([]);
-          setSettlementHistory([]);
-          setGameState(null);
-          resetGameSyncVersion();
-          roomSelfClientIdRef.current = null;
-          setGamePlaylist([]);
-          setIsGameView(false);
-          setPlaylistViewItems([]);
-          setPlaylistHasMore(false);
-          setPlaylistLoadingMore(false);
-          setPlaylistSuggestions([]);
-          setPostResumeGate(null);
-          persistRoomId(null);
-          persistRoomSessionToken(null);
-          resetSessionClientId();
-          setRouteRoomResolved(true);
+          clearRoomAfterClosure(roomId, "房間已關閉，請返回房間列表或建立新房間。");
         },
         onKicked: ({ roomId, reason, bannedUntil }) => {
           if (roomId !== currentRoomIdRef.current) return;
@@ -938,8 +961,10 @@ export const useRoomProviderSocketLifecycle = ({
     socketRef,
     applyIncomingRoomSummary,
     clearActiveRoomState,
+    clearRoomAfterClosure,
     removeRoomSummary,
     setPostResumeGate,
+    setClosedRoomNotice,
   ]);
 
   const requestLatencyProbe = useCallback(

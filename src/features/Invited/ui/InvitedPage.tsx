@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { USERNAME_MAX } from "../../Room/model/roomConstants";
-import type { RoomSummary } from "../../Room/model/types";
+import type { RoomLookupResult, RoomSummary } from "../../Room/model/types";
 import { useAuth } from "../../../shared/auth/AuthContext";
 import { useRoomSession } from "../../Room/model/RoomSessionContext";
 import { useRoomCreate } from "../../Room/model/RoomCreateContext";
@@ -132,7 +132,7 @@ const InvitedPage: React.FC = () => {
 
   const [inviteRoomApi, setInviteRoomApi] = useState<{
     roomReference: string;
-    room: RoomSummary | null;
+    result: RoomLookupResult;
   } | null>(null);
 
   useEffect(() => {
@@ -143,11 +143,15 @@ const InvitedPage: React.FC = () => {
   useEffect(() => {
     let active = true;
     if (!inviteReference) return;
-    void fetchRoomById(inviteReference).then((room) => {
+    void fetchRoomById(inviteReference).then((result) => {
       if (!active) return;
-      setInviteRoomApi({ roomReference: inviteReference, room });
-      if (room) {
+      setInviteRoomApi({ roomReference: inviteReference, result });
+      if (result.ok) {
         setStatusText(null);
+        return;
+      }
+      if (result.reason !== "not_found") {
+        setStatusText(result.message);
       }
     });
     return () => {
@@ -164,7 +168,9 @@ const InvitedPage: React.FC = () => {
   const inviteRoom = useMemo(() => {
     const apiRoom =
       inviteRoomApi && inviteRoomApi.roomReference === inviteReference
-        ? inviteRoomApi.room
+        ? inviteRoomApi.result.ok
+          ? inviteRoomApi.result.room
+          : null
         : null;
     if (apiRoom) return apiRoom;
     if (!inviteReference) return null;
@@ -177,11 +183,16 @@ const InvitedPage: React.FC = () => {
 
   const hasDirectInviteLookup =
     inviteRoomApi?.roomReference === inviteReference;
+  const directInviteLookupFailure =
+    hasDirectInviteLookup && inviteRoomApi && !inviteRoomApi.result.ok
+      ? inviteRoomApi.result
+      : null;
   const hasIdentity = Boolean(username || authUser);
   const isRoomChecking = Boolean(inviteReference) && !hasDirectInviteLookup;
   const roomMissing = Boolean(inviteReference) &&
     !isRoomChecking &&
-    (hasDirectInviteLookup ? !inviteRoomApi?.room : inviteNotFound && !inviteRoom);
+    (directInviteLookupFailure?.reason === "not_found" ||
+      (!hasDirectInviteLookup && inviteNotFound && !inviteRoom));
   const identityLabel = authUser?.display_name || username || "Guest";
   const playlistTitle =
     inviteRoom?.playlistTitle?.trim() || `題庫 ${inviteRoom?.playlistCount ?? "-"} 首`;
@@ -215,6 +226,21 @@ const InvitedPage: React.FC = () => {
         <Box className="w-full max-w-2xl">
           <Alert severity="info" variant="outlined">
             {TEXT.checkingInviteRoom}
+          </Alert>
+        </Box>
+      </div>
+    );
+  }
+
+  if (
+    directInviteLookupFailure &&
+    directInviteLookupFailure.reason !== "not_found"
+  ) {
+    return (
+      <div className="flex min-h-[calc(100dvh-210px)] w-full items-start justify-center">
+        <Box className="w-full max-w-2xl">
+          <Alert severity="warning" variant="outlined">
+            {directInviteLookupFailure.message}
           </Alert>
         </Box>
       </div>

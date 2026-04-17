@@ -6,7 +6,12 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { ClientSocket, PlaylistItem, PlaylistSuggestion } from "../types";
+import type { Ack, ClientSocket, PlaylistItem, PlaylistSuggestion } from "../types";
+
+export type TerminalRoomAckHandler = (
+  roomId: string | null | undefined,
+  ack: Ack<unknown> | null | undefined,
+) => boolean;
 
 export interface PlaylistLiveSettersContextValue {
   setPlaylistViewItems: Dispatch<SetStateAction<PlaylistItem[]>>;
@@ -84,6 +89,7 @@ export interface PlaylistSocketBridgeContextValue {
   getSocketRef: RefObject<() => ClientSocket | null>;
   loadMorePlaylistRef: RefObject<() => void>;
   onResetCollectionRef: RefObject<() => void>;
+  handleTerminalRoomAckRef: RefObject<TerminalRoomAckHandler>;
 }
 
 export const PlaylistSocketBridgeContext =

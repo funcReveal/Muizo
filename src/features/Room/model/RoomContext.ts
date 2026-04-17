@@ -9,6 +9,7 @@ import type {
   SessionProgressPayload,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
+  RoomLookupResult,
   RoomParticipant,
   RoomState,
   RoomSummary,
@@ -18,6 +19,10 @@ import type { AuthUser } from "../../../shared/auth/AuthContext";
 import type { YoutubePlaylist } from "./RoomPlaylistContext";
 import type { RoomCreateSourceMode } from "./RoomCreateContext";
 import type { RoomKickedNotice } from "./RoomSessionContext";
+import type {
+  RoomStatusNotification,
+  RoomStatusOptions,
+} from "./providers/RoomStatusContexts";
 
 // Re-export moved types so existing consumers continue to work
 export type { AuthUser } from "../../../shared/auth/AuthContext";
@@ -115,7 +120,8 @@ export interface RoomContextValue {
   messages: ChatMessage[];
   settlementHistory: RoomSettlementSnapshot[];
   statusText: string | null;
-  setStatusText: (value: string | null) => void;
+  setStatusText: (value: string | null, options?: RoomStatusOptions) => void;
+  statusNotification: RoomStatusNotification | null;
   kickedNotice: RoomKickedNotice | null;
   setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
   sessionProgress: SessionProgressPayload | null;
@@ -231,7 +237,7 @@ export interface RoomContextValue {
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
   syncServerOffset: (serverNow: number) => void;
   fetchRooms: () => Promise<void>;
-  fetchRoomById: (roomId: string) => Promise<RoomSummary | null>;
+  fetchRoomById: (roomId: string) => Promise<RoomLookupResult>;
   fetchSettlementHistorySummaries: (options?: {
     limit?: number;
     beforeEndedAt?: number | null;

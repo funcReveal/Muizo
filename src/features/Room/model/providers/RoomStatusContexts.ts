@@ -7,8 +7,23 @@ import {
 
 import type { RoomKickedNotice } from "../RoomSessionContext";
 
+export type RoomStatusLevel = "info" | "success" | "warning" | "error";
+
+export type RoomStatusNotification = {
+  id: number;
+  message: string;
+  level: RoomStatusLevel;
+  toastId?: string;
+};
+
+export type RoomStatusOptions = {
+  level?: RoomStatusLevel;
+  toastId?: string;
+};
+
 export interface StatusWriteContextValue {
-  setStatusText: (value: string | null) => void;
+  setStatusText: (value: string | null, options?: RoomStatusOptions) => void;
+  notifyStatus: (message: string, options?: RoomStatusOptions) => void;
   setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
 }
 
@@ -26,6 +41,7 @@ export const useStatusWrite = (): StatusWriteContextValue => {
 
 export interface StatusReadContextValue {
   statusText: string | null;
+  statusNotification: RoomStatusNotification | null;
   kickedNotice: RoomKickedNotice | null;
 }
 

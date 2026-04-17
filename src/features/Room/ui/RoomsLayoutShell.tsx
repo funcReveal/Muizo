@@ -45,7 +45,12 @@ const RoomsLayoutShell: React.FC = () => {
     displayUsername,
     username,
   } = useAuth();
-  const { statusText, setStatusText, currentRoom, handleLeaveRoom } =
+  const {
+    statusNotification,
+    setStatusText,
+    currentRoom,
+    handleLeaveRoom,
+  } =
     useRoomSession();
   const { gameState } = useRoomGame();
   const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
@@ -253,20 +258,37 @@ const RoomsLayoutShell: React.FC = () => {
       setStatusText("已離開房間，前往服務條款");
     });
   }, [currentRoom, handleLeaveRoom, navigate, setStatusText]);
-  const lastStatusToastRef = useRef<string | null>(null);
+  const lastStatusToastRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!statusText) {
+    if (!statusNotification) {
       lastStatusToastRef.current = null;
       return;
     }
-    if (lastStatusToastRef.current === statusText) {
+    if (lastStatusToastRef.current === statusNotification.id) {
       return;
     }
-    lastStatusToastRef.current = statusText;
-    appToast.info(statusText);
+    lastStatusToastRef.current = statusNotification.id;
+    const options = statusNotification.toastId
+      ? { id: statusNotification.toastId }
+      : undefined;
+    switch (statusNotification.level) {
+      case "success":
+        appToast.success(statusNotification.message, options);
+        break;
+      case "warning":
+        appToast.warning(statusNotification.message, options);
+        break;
+      case "error":
+        appToast.error(statusNotification.message, options);
+        break;
+      case "info":
+      default:
+        appToast.info(statusNotification.message, options);
+        break;
+    }
     setStatusText(null);
-  }, [setStatusText, statusText]);
+  }, [setStatusText, statusNotification]);
 
   const isGameMode = Boolean(currentRoom && gameState);
   const isRoomsHubPage = location.pathname === "/rooms";

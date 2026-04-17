@@ -10,16 +10,28 @@ import type {
   RoomParticipant,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
+  RoomLookupResult,
   RoomState,
   RoomSummary,
   SessionProgressPayload,
 } from "./types";
+import type {
+  RoomStatusNotification,
+  RoomStatusOptions,
+} from "./providers/RoomStatusContexts";
 
 export type RoomKickedNotice = {
   roomId: string;
   reason: string;
   bannedUntil: number | null;
   kickedAt: number;
+};
+
+export type RoomClosedNotice = {
+  roomId: string;
+  kind: "closed" | "left";
+  reason: string;
+  closedAt: number;
 };
 
 export interface RoomSessionContextValue {
@@ -31,9 +43,11 @@ export interface RoomSessionContextValue {
   settlementHistory: RoomSettlementSnapshot[];
   // UI 狀態
   statusText: string | null;
-  setStatusText: (value: string | null) => void;
+  setStatusText: (value: string | null, options?: RoomStatusOptions) => void;
+  statusNotification: RoomStatusNotification | null;
   kickedNotice: RoomKickedNotice | null;
   setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
+  closedRoomNotice: RoomClosedNotice | null;
   sessionProgress: SessionProgressPayload | null;
   // 連線
   isConnected: boolean;
@@ -45,7 +59,7 @@ export interface RoomSessionContextValue {
   // 房間列表
   rooms: RoomSummary[];
   fetchRooms: () => Promise<void>;
-  fetchRoomById: (roomId: string) => Promise<RoomSummary | null>;
+  fetchRoomById: (roomId: string) => Promise<RoomLookupResult>;
   // 邀請 / 路由
   inviteRoomId: string | null;
   inviteNotFound: boolean;

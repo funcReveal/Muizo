@@ -1,8 +1,15 @@
-import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 
 import { DEFAULT_PAGE_SIZE } from "./roomConstants";
 import type { Ack, ClientSocket, PlaylistItem } from "./types";
 import { normalizePlaylistItems } from "./roomUtils";
+import type { TerminalRoomAckHandler } from "./providers/RoomPlaylistSubContexts";
 
 type PlaylistPagePayload = {
   items: PlaylistItem[];
@@ -15,6 +22,7 @@ type PlaylistPagePayload = {
 type UseRoomProviderPlaylistPagingArgs = {
   getSocket: () => ClientSocket | null;
   onPagePayload?: (payload: PlaylistPagePayload) => void;
+  handleTerminalRoomAckRef?: RefObject<TerminalRoomAckHandler>;
 };
 
 type UseRoomProviderPlaylistPagingResult = {
@@ -41,6 +49,7 @@ type UseRoomProviderPlaylistPagingResult = {
 export const useRoomProviderPlaylistPaging = ({
   getSocket,
   onPagePayload,
+  handleTerminalRoomAckRef,
 }: UseRoomProviderPlaylistPagingArgs): UseRoomProviderPlaylistPagingResult => {
   const [playlistViewItems, setPlaylistViewItems] = useState<PlaylistItem[]>([]);
   const [playlistHasMore, setPlaylistHasMore] = useState(false);
@@ -95,12 +104,15 @@ export const useRoomProviderPlaylistPaging = ({
             setPlaylistPageCursor(ack.data.page);
             setPlaylistPageSize(ack.data.pageSize);
             onPagePayload?.(ack.data);
+          } else if (handleTerminalRoomAckRef?.current(roomId, ack)) {
+            setPlaylistViewItems([]);
+            setPlaylistHasMore(false);
           }
           setPlaylistLoadingMore(false);
         },
       );
     },
-    [getSocket, onPagePayload],
+    [getSocket, handleTerminalRoomAckRef, onPagePayload],
   );
 
   const fetchCompletePlaylist = useCallback(
@@ -130,6 +142,7 @@ export const useRoomProviderPlaylistPaging = ({
                   resolve(normalizePlaylistItems(aggregated));
                 }
               } else {
+                handleTerminalRoomAckRef?.current(roomId, ack);
                 resolve(normalizePlaylistItems(aggregated));
               }
             },
@@ -138,7 +151,7 @@ export const useRoomProviderPlaylistPaging = ({
 
         loadPage(1);
       }),
-    [getSocket, playlistPageSize],
+    [getSocket, handleTerminalRoomAckRef, playlistPageSize],
   );
 
   return {

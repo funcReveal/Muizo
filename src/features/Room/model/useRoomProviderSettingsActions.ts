@@ -51,6 +51,10 @@ interface UseRoomProviderSettingsActionsParams {
   setHostRoomPassword: Dispatch<SetStateAction<string | null>>;
   setCurrentRoom: Dispatch<SetStateAction<RoomState["room"] | null>>;
   setStatusText: (value: string | null) => void;
+  handleRoomGoneAck: (
+    roomId: string | null | undefined,
+    ack: Ack<unknown> | null | undefined,
+  ) => boolean;
 }
 
 export const useRoomProviderSettingsActions = ({
@@ -61,6 +65,7 @@ export const useRoomProviderSettingsActions = ({
   setHostRoomPassword,
   setCurrentRoom,
   setStatusText,
+  handleRoomGoneAck,
 }: UseRoomProviderSettingsActionsParams) => {
   const syncRoomPlaylistTiming = useCallback(
     async (
@@ -114,6 +119,10 @@ export const useRoomProviderSettingsActions = ({
               ready: boolean;
             }>,
           ) => {
+            if (handleRoomGoneAck(room.id, ack)) {
+              resolve(false);
+              return;
+            }
             resolve(Boolean(ack?.ok));
           },
         );
@@ -137,6 +146,10 @@ export const useRoomProviderSettingsActions = ({
                 isLast: isLastChunk,
               },
               (ack: Ack<{ receivedCount: number; totalCount: number }>) => {
+                if (handleRoomGoneAck(room.id, ack)) {
+                  resolve(false);
+                  return;
+                }
                 resolve(Boolean(ack?.ok));
               },
             );
@@ -150,7 +163,7 @@ export const useRoomProviderSettingsActions = ({
 
       return true;
     },
-    [fetchCompletePlaylist, getSocket, setStatusText],
+    [fetchCompletePlaylist, getSocket, handleRoomGoneAck, setStatusText],
   );
 
   const handleUpdateRoomSettings = useCallback(
@@ -206,6 +219,10 @@ export const useRoomProviderSettingsActions = ({
               return;
             }
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
               setStatusText(formatAckError("更新房間設定失敗", ack.error));
               resolve(false);
               return;
@@ -303,6 +320,7 @@ export const useRoomProviderSettingsActions = ({
       getSocket,
       saveRoomPassword,
       setCurrentRoom,
+      handleRoomGoneAck,
       setHostRoomPassword,
       setStatusText,
       syncRoomPlaylistTiming,

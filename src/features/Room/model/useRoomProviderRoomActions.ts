@@ -67,6 +67,10 @@ interface UseRoomProviderRoomActionsParams {
   messageInput: string;
   setMessageInput: Dispatch<SetStateAction<string>>;
   setStatusText: (value: string | null) => void;
+  handleRoomGoneAck: (
+    roomId: string | null | undefined,
+    ack: Ack<unknown> | null | undefined,
+  ) => boolean;
   setKickedNotice: Dispatch<
     SetStateAction<{
       roomId: string;
@@ -138,6 +142,7 @@ export const useRoomProviderRoomActions = ({
   setChatCooldownUntil,
   setChatCooldownLeft,
   setStatusText,
+  handleRoomGoneAck,
   setKickedNotice,
   syncServerOffset,
   mergeCachedParticipantPing,
@@ -309,6 +314,7 @@ export const useRoomProviderRoomActions = ({
           setStatusText("已離開房間");
           onLeft?.();
         } else {
+          if (handleRoomGoneAck(currentRoom.id, ack)) return;
           setStatusText(formatAckError("已離開房間", ack.error));
         }
       });
@@ -318,6 +324,7 @@ export const useRoomProviderRoomActions = ({
       getSocket,
       persistRoomId,
       persistRoomSessionToken,
+      handleRoomGoneAck,
       resetPresenceParticipants,
       resetSessionClientId,
       resetGameSyncVersion,
@@ -359,6 +366,9 @@ export const useRoomProviderRoomActions = ({
         if (!ack) return;
 
         if (!ack.ok) {
+          if (handleRoomGoneAck(currentRoom.id, ack)) {
+            return;
+          }
           let retryAfterMs: number | null =
             typeof ack.retryAfterMs === "number" && ack.retryAfterMs > 0
               ? ack.retryAfterMs
@@ -406,6 +416,7 @@ export const useRoomProviderRoomActions = ({
     setChatCooldownUntil,
     setMessageInput,
     setStatusText,
+    handleRoomGoneAck,
   ]);
 
   const handleStartGame = useCallback(() => {
@@ -440,6 +451,7 @@ export const useRoomProviderRoomActions = ({
           setIsGameView(true);
           void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
         } else {
+          if (handleRoomGoneAck(currentRoom.id, ack)) return;
           setStatusText(formatAckError("開始遊戲失敗", ack.error));
         }
       },
@@ -454,6 +466,7 @@ export const useRoomProviderRoomActions = ({
     setStatusText,
     syncServerOffset,
     applyGameLiveUpdate,
+    handleRoomGoneAck,
   ]);
 
   const handleSubmitChoice = useCallback(
@@ -526,6 +539,10 @@ export const useRoomProviderRoomActions = ({
             }
 
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve({ ok: false, error: ack.error || "Room closed" });
+                return;
+              }
               if (ack.error !== "Not in guess phase") {
                 setStatusText(formatAckError("提交答案失敗", ack.error));
               }
@@ -546,6 +563,7 @@ export const useRoomProviderRoomActions = ({
       pendingAnswerSubmitRef,
       serverOffsetRef,
       setStatusText,
+      handleRoomGoneAck,
     ],
   );
 
@@ -576,6 +594,10 @@ export const useRoomProviderRoomActions = ({
               return;
             }
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
               setStatusText(formatAckError("發起延長投票失敗", ack.error));
               resolve(false);
               return;
@@ -593,6 +615,7 @@ export const useRoomProviderRoomActions = ({
       setStatusText,
       syncServerOffset,
       applyGameLiveUpdate,
+      handleRoomGoneAck,
     ],
   );
 
@@ -614,6 +637,10 @@ export const useRoomProviderRoomActions = ({
               return;
             }
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
               setStatusText(formatAckError("送出投票失敗", ack.error));
               resolve(false);
               return;
@@ -631,6 +658,7 @@ export const useRoomProviderRoomActions = ({
       setStatusText,
       syncServerOffset,
       applyGameLiveUpdate,
+      handleRoomGoneAck,
     ],
   );
 
@@ -664,12 +692,13 @@ export const useRoomProviderRoomActions = ({
         (ack: Ack<null>) => {
           if (!ack) return;
           if (!ack.ok) {
+            if (handleRoomGoneAck(currentRoom.id, ack)) return;
             setStatusText(formatAckError("踢出玩家失敗", ack.error));
           }
         },
       );
     },
-    [currentRoom, getSocket, setStatusText],
+    [currentRoom, getSocket, handleRoomGoneAck, setStatusText],
   );
 
   const handleTransferHost = useCallback(
@@ -682,12 +711,13 @@ export const useRoomProviderRoomActions = ({
         (ack: Ack<{ hostClientId: string }>) => {
           if (!ack) return;
           if (!ack.ok) {
+            if (handleRoomGoneAck(currentRoom.id, ack)) return;
             setStatusText(formatAckError("轉移房主失敗", ack.error));
           }
         },
       );
     },
-    [currentRoom, getSocket, setStatusText],
+    [currentRoom, getSocket, handleRoomGoneAck, setStatusText],
   );
 
   return {

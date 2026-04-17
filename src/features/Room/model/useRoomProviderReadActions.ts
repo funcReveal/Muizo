@@ -10,6 +10,7 @@ import type {
   ClientSocket,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
+  RoomLookupResult,
   RoomState,
   RoomSummary,
 } from "./types";
@@ -92,23 +93,57 @@ export const useRoomProviderReadActions = ({
   }, [apiUrl, setRooms, setStatusText]);
 
   const fetchRoomById = useCallback(
-    async (roomId: string) => {
+    async (roomId: string): Promise<RoomLookupResult> => {
       if (!apiUrl) {
-        setStatusText("尚未設定 API 位置 (API_URL)");
-        return null;
+        return {
+          ok: false,
+          reason: "missing_api_url",
+          message: "尚未設定 API 位置 (API_URL)",
+        };
       }
       try {
-        const { ok, payload } = await apiFetchRoomById(apiUrl, roomId);
+        const { ok, payload, status } = await apiFetchRoomById(apiUrl, roomId);
         if (!ok) {
-          return null;
+          const code = payload?.error_code;
+          const message = payload?.error ?? "讀取房間資料失敗";
+          if (status === 404 || code === "ROOM_NOT_FOUND") {
+            return {
+              ok: false,
+              reason: "not_found",
+              message,
+              code,
+            };
+          }
+          return {
+            ok: false,
+            reason:
+              status === 408 || message.includes("逾時")
+                ? "timeout"
+                : "server_error",
+            message,
+            status,
+            code,
+          };
         }
-        return (payload?.room ?? null) as RoomSummary | null;
+        const room = payload?.room;
+        if (!room) {
+          return {
+            ok: false,
+            reason: "invalid_response",
+            message: "房間資料格式異常",
+          };
+        }
+        return { ok: true, room: room as RoomSummary };
       } catch (error) {
         console.error(error);
-        return null;
+        return {
+          ok: false,
+          reason: "network",
+          message: "無法連線到房間伺服器，請稍後再試",
+        };
       }
     },
-    [apiUrl, setStatusText],
+    [apiUrl],
   );
 
   const fetchSitePresence = useCallback(async () => {

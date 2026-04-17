@@ -30,6 +30,10 @@ interface UseRoomProviderPlaylistActionsParams {
   currentRoom: RoomState["room"] | null;
   gameStateStatus?: GameState["status"];
   setStatusText: (value: string | null) => void;
+  handleRoomGoneAck: (
+    roomId: string | null | undefined,
+    ack: Ack<unknown> | null | undefined,
+  ) => boolean;
   collections: Array<{ id: string; visibility?: string }>;
   authUserId: string | null;
   authToken: string | null;
@@ -96,6 +100,7 @@ export const useRoomProviderPlaylistActions = ({
   currentRoom,
   gameStateStatus,
   setStatusText,
+  handleRoomGoneAck,
   collections,
   authUserId,
   authToken,
@@ -213,6 +218,10 @@ export const useRoomProviderPlaylistActions = ({
               return;
             }
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
               setStatusText(formatAckError("套用播放來源失敗", ack.error));
               resolve(false);
               return;
@@ -230,7 +239,15 @@ export const useRoomProviderPlaylistActions = ({
         );
       });
     },
-    [applyPlaylistSource, currentRoom, gameStateStatus, getSocket, setPlaylistUrl, setStatusText],
+    [
+      applyPlaylistSource,
+      currentRoom,
+      gameStateStatus,
+      getSocket,
+      handleRoomGoneAck,
+      setPlaylistUrl,
+      setStatusText,
+    ],
   );
 
   const handleSuggestPlaylist = useCallback(
@@ -317,6 +334,10 @@ export const useRoomProviderPlaylistActions = ({
               return;
             }
             if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve({ ok: false, error: ack.error || "Room closed" });
+                return;
+              }
               const message = formatAckError("推薦送出失敗", ack.error);
               setStatusText(message);
               resolve({ ok: false, error: message });
@@ -339,6 +360,7 @@ export const useRoomProviderPlaylistActions = ({
       fetchYoutubeSnapshot,
       gameStateStatus,
       getSocket,
+      handleRoomGoneAck,
       setStatusText,
     ],
   );

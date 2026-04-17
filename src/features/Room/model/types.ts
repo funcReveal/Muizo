@@ -5,6 +5,7 @@ export type Ack<T> =
   | {
       ok: false;
       error: string;
+      code?: string;
       retryAfterMs?: number;
     };
 
@@ -323,6 +324,24 @@ export interface RoomSummary {
   completedQuestionCount?: number;
   totalQuestionCount?: number;
 }
+
+export type RoomLookupFailureReason =
+  | "missing_api_url"
+  | "not_found"
+  | "timeout"
+  | "network"
+  | "server_error"
+  | "invalid_response";
+
+export type RoomLookupResult =
+  | { ok: true; room: RoomSummary }
+  | {
+      ok: false;
+      reason: RoomLookupFailureReason;
+      message: string;
+      status?: number;
+      code?: string;
+    };
 
 export interface RoomState {
   room: RoomSummary & {

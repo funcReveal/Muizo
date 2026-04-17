@@ -21,6 +21,7 @@ import {
 import { useLocation } from "react-router-dom";
 
 import type {
+  Ack,
   ChatMessage,
   ClientSocket,
   GameLiveUpdatePayload,
@@ -56,6 +57,7 @@ import {
 } from "../RoomPlaylistContext";
 import {
   RoomSessionContext,
+  type RoomClosedNotice,
   type RoomSessionContextValue,
 } from "../RoomSessionContext";
 import { RoomGameContext, type RoomGameContextValue } from "../RoomGameContext";
@@ -123,7 +125,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   } = useRoomAuthInternal();
 
   const { setStatusText, setKickedNotice } = useStatusWrite();
-  const { statusText, kickedNotice } = useStatusRead();
+  const { statusText, statusNotification, kickedNotice } = useStatusRead();
 
   const {
     setPlaylistViewItems,
@@ -143,7 +145,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     fetchPublicPlaylistSnapshot,
   } = usePlaylistInputControl();
 
-  const { getSocketRef, loadMorePlaylistRef } = usePlaylistSocketBridge();
+  const { getSocketRef, loadMorePlaylistRef, handleTerminalRoomAckRef } =
+    usePlaylistSocketBridge();
 
   const { collections } = useRoomCollections();
   const { fetchCollectionSnapshot, createCollectionReadToken } =
@@ -233,6 +236,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     useState<SessionProgressPayload | null>(null);
   const [inviteRoomId, setInviteRoomId] = useState<string | null>(null);
   const [inviteNotFound, setInviteNotFound] = useState(false);
+  const [closedRoomNotice, setClosedRoomNotice] =
+    useState<RoomClosedNotice | null>(null);
   const isInviteMode = Boolean(inviteRoomId);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [, setLastGameSyncVersion] = useState<GameSyncVersion | null>(null);
@@ -446,6 +451,11 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         if (!value) return null;
         return previous.roomId === value ? previous : null;
       });
+      setClosedRoomNotice((previous) => {
+        if (!previous) return previous;
+        if (!value) return null;
+        return previous.roomId === value ? previous : null;
+      });
       if (value) {
         setRouteRoomResolved(false);
       }
@@ -498,6 +508,88 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     serverOffsetRef,
   });
 
+  const clearRoomAfterClosure = useCallback(
+    (
+      roomId: string | null | undefined,
+      reason = "房間已關閉",
+      kind: RoomClosedNotice["kind"] = "closed",
+    ) => {
+      const targetRoomId =
+        roomId ?? currentRoomIdRef.current ?? currentRoom?.id ?? "";
+      setClosedRoomNotice({
+        roomId: targetRoomId,
+        kind,
+        reason,
+        closedAt: Date.now(),
+      });
+      setKickedNotice(null);
+      setCurrentRoom(null);
+      setParticipants([]);
+      resetPresenceParticipants();
+      setMessages([]);
+      setSettlementHistory([]);
+      setPlaylistProgress({ received: 0, total: 0, ready: false });
+      setPlaylistSuggestions([]);
+      setGameState(null);
+      resetGameSyncVersion();
+      setGamePlaylist([]);
+      setIsGameView(false);
+      setPlaylistViewItems([]);
+      setPlaylistHasMore(false);
+      setPlaylistLoadingMore(false);
+      setPostResumeGate(null);
+      roomSelfClientIdRef.current = null;
+      lastLatencyProbeRoomIdRef.current = null;
+      persistRoomId(null);
+      persistRoomSessionToken(null);
+      resetSessionClientId();
+      setRouteRoomResolved(true);
+      setStatusText(reason, { level: "warning", toastId: "room-closed" });
+    },
+    [
+      currentRoom?.id,
+      persistRoomId,
+      persistRoomSessionToken,
+      resetGameSyncVersion,
+      resetPresenceParticipants,
+      resetSessionClientId,
+      setKickedNotice,
+      setPlaylistHasMore,
+      setPlaylistLoadingMore,
+      setPlaylistProgress,
+      setPlaylistSuggestions,
+      setPlaylistViewItems,
+      setStatusText,
+    ],
+  );
+
+  const handleRoomGoneAck = useCallback(
+    (roomId: string | null | undefined, ack: Ack<unknown> | null | undefined) => {
+      if (!ack || ack.ok) return false;
+      const errorCode = "code" in ack ? ack.code : undefined;
+      const normalizedError = ack.error.trim().toLowerCase();
+      const isRoomGone =
+        errorCode === "ROOM_NOT_FOUND" ||
+        normalizedError === "room not found";
+      const isSessionLost =
+        errorCode === "ROOM_SESSION_LOST" ||
+        errorCode === "AUTH_CLIENT_MISSING" ||
+        normalizedError === "not in room" ||
+        normalizedError === "you are not in any room" ||
+        normalizedError === "missing clientid";
+      if (!isRoomGone && !isSessionLost) return false;
+      clearRoomAfterClosure(
+        roomId,
+        isRoomGone
+          ? "房間已關閉，請返回房間列表或建立新房間。"
+          : "你已不在這個房間，請返回房間列表或重新加入。",
+        isRoomGone ? "closed" : "left",
+      );
+      return true;
+    },
+    [clearRoomAfterClosure],
+  );
+
   const {
     fetchRooms,
     fetchRoomById,
@@ -524,6 +616,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setHostRoomPassword,
     setCurrentRoom,
     setStatusText,
+    handleRoomGoneAck,
   });
 
   // Installed into confirmNicknameRef so AuthContext.confirmNickname delegates here
@@ -546,6 +639,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         { roomId: currentRoom.id, username: nextUsername },
         (ack) => {
           if (!ack?.ok) {
+            if (handleRoomGoneAck(currentRoom.id, ack)) return;
             setStatusText(formatAckError("更新名稱失敗", ack?.error));
           }
         },
@@ -558,6 +652,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     confirmNicknameRef,
     currentRoom,
     getSocket,
+    handleRoomGoneAck,
     nicknameDraft,
     setStatusText,
   ]);
@@ -610,6 +705,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setInviteNotFound,
       setSitePresence,
       setPostResumeGate,
+      setClosedRoomNotice,
     },
     handlers: {
       fetchRooms,
@@ -627,6 +723,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       persistRoomSessionToken,
       resetGameSyncVersion,
       applyGameLiveUpdate,
+      clearRoomAfterClosure,
     },
   });
 
@@ -714,6 +811,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     persistRoomSessionToken,
     resetGameSyncVersion,
     applyGameLiveUpdate,
+    handleRoomGoneAck,
   });
 
   const {
@@ -743,6 +841,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     handleFetchPlaylist,
     handleResetPlaylist,
     setPlaylistUrl,
+    handleRoomGoneAck,
   });
 
   const loadMorePlaylist = useCallback(() => {
@@ -765,6 +864,10 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   useLayoutEffect(() => {
     loadMorePlaylistRef.current = loadMorePlaylist;
   }, [loadMorePlaylist, loadMorePlaylistRef]);
+
+  useLayoutEffect(() => {
+    handleTerminalRoomAckRef.current = handleRoomGoneAck;
+  }, [handleRoomGoneAck, handleTerminalRoomAckRef]);
 
   useLayoutEffect(() => {
     confirmNicknameRef.current = confirmNicknameWithSocket;
@@ -798,9 +901,18 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setInviteNotFound(false);
       return;
     }
-    void fetchRoomById(inviteRoomId).then((room) => {
-      setInviteNotFound(!room);
-      if (!room) setStatusText("找不到邀請房間，請確認連結是否正確。");
+    void fetchRoomById(inviteRoomId).then((result) => {
+      if (result.ok) {
+        setInviteNotFound(false);
+        return;
+      }
+      if (result.reason === "not_found") {
+        setInviteNotFound(true);
+        setStatusText("找不到邀請房間，請確認連結是否正確。");
+        return;
+      }
+      setInviteNotFound(false);
+      setStatusText(result.message);
     });
   }, [fetchRoomById, inviteRoomId, setStatusText]);
 
@@ -959,8 +1071,10 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       settlementHistory,
       statusText,
       setStatusText,
+      statusNotification,
       kickedNotice,
       setKickedNotice,
+      closedRoomNotice,
       sessionProgress,
       isConnected,
       isRecoveringConnection,
@@ -991,8 +1105,10 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       settlementHistory,
       statusText,
       setStatusText,
+      statusNotification,
       kickedNotice,
       setKickedNotice,
+      closedRoomNotice,
       sessionProgress,
       isConnected,
       isRecoveringConnection,

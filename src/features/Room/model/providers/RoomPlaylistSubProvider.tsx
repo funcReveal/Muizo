@@ -34,7 +34,7 @@ import {
   type PlaylistLiveSettersContextValue,
   type PlaylistSocketBridgeContextValue,
 } from "./RoomPlaylistSubContexts";
-import type { ClientSocket, PlaylistSuggestion } from "../types";
+import type { Ack, ClientSocket, PlaylistSuggestion } from "../types";
 
 export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -54,6 +54,10 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   const getSocketRef = useRef<() => ClientSocket | null>(() => null);
   const loadMorePlaylistRef = useRef<() => void>(() => {});
   const onResetCollectionRef = useRef<() => void>(() => {});
+  const handleTerminalRoomAckRef = useRef(
+    (_roomId: string | null | undefined, _ack: Ack<unknown> | null | undefined) =>
+      false,
+  );
 
   const getSocket = useCallback(() => getSocketRef.current(), []);
 
@@ -139,6 +143,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   } = useRoomProviderPlaylistPaging({
     getSocket,
     onPagePayload: handlePlaylistPagePayload,
+    handleTerminalRoomAckRef,
   });
 
   const prevAuthTokenRef = useRef(authToken);
@@ -278,7 +283,12 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const bridgeValue = useMemo<PlaylistSocketBridgeContextValue>(
-    () => ({ getSocketRef, loadMorePlaylistRef, onResetCollectionRef }),
+    () => ({
+      getSocketRef,
+      loadMorePlaylistRef,
+      onResetCollectionRef,
+      handleTerminalRoomAckRef,
+    }),
     [],
   );
 

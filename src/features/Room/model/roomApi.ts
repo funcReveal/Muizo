@@ -49,6 +49,7 @@ export type RoomListPayload = {
 export type RoomByIdPayload = {
   room?: RoomSummary;
   error?: string;
+  error_code?: string;
 };
 
 export type YoutubePlaylistsPayload = {

@@ -498,7 +498,6 @@ const RoomLobbyPage: React.FC = () => {
   const {
     currentRoom,
     participants,
-    messages,
     settlementHistory,
     isConnected,
     routeRoomResolved,
@@ -508,6 +507,7 @@ const RoomLobbyPage: React.FC = () => {
     setStatusText,
     kickedNotice,
     setKickedNotice,
+    closedRoomNotice,
     hostRoomPassword,
     serverOffsetMs,
     setRouteRoomId,
@@ -684,6 +684,21 @@ const RoomLobbyPage: React.FC = () => {
   const isKickedFromActiveRoom = Boolean(
     roomId && !currentRoom && kickedNotice?.roomId === roomId,
   );
+  const isClosedActiveRoom = Boolean(
+    roomId && !currentRoom && closedRoomNotice?.roomId === roomId,
+  );
+  const unavailableRoomTitle =
+    isClosedActiveRoom && closedRoomNotice?.kind === "left"
+      ? "你已不在這個房間"
+      : isClosedActiveRoom
+        ? "房間已關閉"
+        : "找不到這個房間";
+  const unavailableRoomBadge =
+    isClosedActiveRoom && closedRoomNotice?.kind === "left"
+      ? "房間連線狀態已失效"
+      : isClosedActiveRoom
+        ? "房間狀態已結束"
+        : "請確認房號與邀請狀態";
   const kickedBannedUntilLabel = useMemo(() => {
     if (typeof kickedNotice?.bannedUntil !== "number") return null;
     return new Date(kickedNotice.bannedUntil).toLocaleString("zh-TW", {
@@ -2285,15 +2300,20 @@ const RoomLobbyPage: React.FC = () => {
             <div className="relative grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="min-w-0">
                 <h1 className="mt-5 text-2xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-3xl">
-                  找不到這個房間
+                  {unavailableRoomTitle}
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)] sm:text-[15px]">
-                  房間可能已關閉、你已被移出，或邀請連結已失效。你可以回到列表重新加入，或直接建立新房間。
+                  {isClosedActiveRoom
+                    ? closedRoomNotice?.reason ||
+                    (closedRoomNotice?.kind === "left"
+                      ? "你目前已不在這個房間。你可以回到列表重新加入，或建立新房間。"
+                      : "這個房間已由房主或系統關閉。你可以回到列表加入其他房間，或建立新房間。")
+                    : "房間可能已關閉、你已被移出，或邀請連結已失效。你可以回到列表重新加入，或直接建立新房間。"}
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100/90">
-                    請確認房號與邀請狀態
+                    {unavailableRoomBadge}
                   </span>
                 </div>
 
