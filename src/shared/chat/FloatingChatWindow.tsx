@@ -244,6 +244,9 @@ const FloatingChatWindow: React.FC = () => {
       ? "armed"
       : "idle";
 
+  const shouldSuppressGameChatOutsideDanmuBridge = Boolean(
+    isMobileRoomMode && gameState?.status === "playing" && !danmuCtx,
+  );
   const showDanmuToggle = Boolean(gameState?.status === "playing" && danmuCtx);
 
   const handleDanmuEnabledChange = useCallback(
@@ -252,6 +255,10 @@ const FloatingChatWindow: React.FC = () => {
     },
     [danmuCtx],
   );
+
+  if (shouldSuppressGameChatOutsideDanmuBridge) {
+    return null;
+  }
 
   if (isMobileRoomMode) {
     return (

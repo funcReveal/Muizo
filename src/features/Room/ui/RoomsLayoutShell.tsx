@@ -22,8 +22,6 @@ import { useRoomSession } from "../model/RoomSessionContext";
 import { useRoomGame } from "../model/RoomGameContext";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import SettingsPage from "../../Setting/ui/SettingsPage";
-import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
-import { appToast } from "../../../shared/ui/toastApi";
 
 type NavigationTarget = "rooms" | "collections" | "history" | "settings";
 
@@ -107,10 +105,9 @@ const RoomsLayoutShell: React.FC = () => {
     }
     handleLeaveRoom(() => {
       navigate("/rooms", { replace: true });
-      setStatusText("已離開房間，前往 Google 登入");
       startGoogleLogin();
     });
-  }, [currentRoom, handleLeaveRoom, navigate, setStatusText, startGoogleLogin]);
+  }, [currentRoom, handleLeaveRoom, navigate, startGoogleLogin]);
 
   const logoutConfirmText = useMemo(() => {
     if (currentRoom) {
@@ -138,7 +135,6 @@ const RoomsLayoutShell: React.FC = () => {
     (target: NavigationTarget) => {
       if (target === "settings") {
         setInRoomSettingsOpen(true);
-        setStatusText(currentRoom ? "已開啟房內設定" : "已開啟設定視窗");
         return;
       }
       const path = getNavigationPath(target);
@@ -148,7 +144,7 @@ const RoomsLayoutShell: React.FC = () => {
       }
       setNavigationConfirmTarget(target);
     },
-    [currentRoom, getNavigationPath, navigate, setStatusText],
+    [currentRoom, getNavigationPath, navigate],
   );
   const handleHistoryRequest = useCallback(() => {
     handleNavigateRequest("history");
@@ -197,17 +193,6 @@ const RoomsLayoutShell: React.FC = () => {
     }
     handleLeaveRoom(() => {
       navigate(path, { replace: target === "rooms" });
-      if (target === "settings") {
-        setStatusText("已離開房間，前往設定頁");
-        return;
-      }
-      setStatusText(
-        target === "rooms"
-          ? "已離開房間，前往房間列表"
-          : target === "collections"
-            ? "已離開房間，前往收藏庫"
-            : "已離開房間，前往對戰歷史",
-      );
     });
   }, [
     currentRoom,
@@ -215,7 +200,6 @@ const RoomsLayoutShell: React.FC = () => {
     handleLeaveRoom,
     navigate,
     navigationConfirmTarget,
-    setStatusText,
   ]);
   const handlePrivacyRequest = useCallback(() => {
     if (!currentRoom) {
@@ -239,9 +223,8 @@ const RoomsLayoutShell: React.FC = () => {
     }
     handleLeaveRoom(() => {
       navigate("/privacy");
-      setStatusText("已離開房間，前往隱私權政策");
     });
-  }, [currentRoom, handleLeaveRoom, navigate, setStatusText]);
+  }, [currentRoom, handleLeaveRoom, navigate]);
   const handleConfirmTerms = useCallback(() => {
     setTermsConfirmOpen(false);
     if (!currentRoom) {
@@ -250,9 +233,8 @@ const RoomsLayoutShell: React.FC = () => {
     }
     handleLeaveRoom(() => {
       navigate("/terms");
-      setStatusText("已離開房間，前往服務條款");
     });
-  }, [currentRoom, handleLeaveRoom, navigate, setStatusText]);
+  }, [currentRoom, handleLeaveRoom, navigate]);
   const lastStatusToastRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -264,12 +246,12 @@ const RoomsLayoutShell: React.FC = () => {
       return;
     }
     lastStatusToastRef.current = statusText;
-    appToast.info(statusText);
     setStatusText(null);
   }, [setStatusText, statusText]);
 
   const isGameMode = Boolean(currentRoom && gameState);
   const isRoomsHubPage = location.pathname === "/rooms";
+  const shouldShowDesktopRoomFooter = !currentRoom || isMobileViewport;
 
   const settingsDialogPaperProps = useMemo(
     () => ({
@@ -305,7 +287,7 @@ const RoomsLayoutShell: React.FC = () => {
       <div
         className={`flex w-full min-w-0 ${isGameMode ? "max-w-none px-3 pt-3 xl:px-5" : "max-w-[1600px] p-4"
           } flex-col ${isRoomsHubPage ? "space-y-2" : "space-y-4"
-          }${currentRoom ? " pb-4" : ""} ${isRoomsHubPage ? "h-full min-h-0" : ""}`}
+          }${currentRoom && isMobileViewport ? " pb-4" : ""} ${isRoomsHubPage ? "h-full min-h-0" : ""}`}
       >
         <AppHeader
           displayUsername={displayUsername}
@@ -329,28 +311,30 @@ const RoomsLayoutShell: React.FC = () => {
           <Outlet />
         )}
 
-        <footer
-          className={`flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)] ${currentRoom && isMobileViewport
-              ? "game-room-mobile-legal-footer"
-              : ""
-            }`}
-        >
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-            onClick={handlePrivacyRequest}
+        {shouldShowDesktopRoomFooter ? (
+          <footer
+            className={`flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)] ${currentRoom && isMobileViewport
+                ? "game-room-mobile-legal-footer"
+                : ""
+              }`}
           >
-            隱私權政策
-          </button>
-          <span className="text-[var(--mc-border)]">‧</span>
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-            onClick={handleTermsRequest}
-          >
-            服務條款
-          </button>
-        </footer>
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+              onClick={handlePrivacyRequest}
+            >
+              隱私權政策
+            </button>
+            <span className="text-[var(--mc-border)]">‧</span>
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+              onClick={handleTermsRequest}
+            >
+              服務條款
+            </button>
+          </footer>
+        ) : null}
         <ConfirmDialog
           open={loginConfirmOpen}
           title={loginConfirmText.title}
@@ -419,7 +403,6 @@ const RoomsLayoutShell: React.FC = () => {
             />
           </DialogContent>
         </Dialog>
-        {currentRoom && !gameState && <FloatingChatWindow />}
         <Dialog
           open={needsNicknameConfirm || isProfileEditorOpen}
           onClose={() => {

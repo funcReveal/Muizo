@@ -80,7 +80,6 @@ import useGameRoomAnswerPanelAutoScroll from "./lib/useGameRoomAnswerPanelAutoSc
 import useMobileDrawerDragDismiss from "./lib/useMobileDrawerDragDismiss";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
-import { useRoomUi } from "../../Room/model/useRoomUi";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
 import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
@@ -342,7 +341,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   isRecoveringConnection = false,
   recoveryStatusText = null,
 }) => {
-  const { setStatusText } = useRoomUi();
   const { gameVolume, setGameVolume, sfxEnabled, sfxVolume, sfxPreset } =
     useSfxSettings();
   const {
@@ -942,7 +940,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     setPlaybackVoteDialogOpen,
     setPlaybackVoteRequestPending,
     setPlaybackVoteSubmitPending,
-    setStatusText,
   });
 
   useEffect(() => {
@@ -1909,7 +1906,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           {shouldShowGestureOverlay ? audioGestureOverlay : null}
           {isInitialCountdown ? startBroadcastOverlay : null}
           {exitConfirmOpen ? exitGameDialog : null}
-          {!isMobileGameViewport ? <FloatingChatWindow /> : null}
+          {isMobileGameViewport ? <FloatingChatWindow /> : null}
         </div>
       </div>
     </GameRoomDanmuProviderBridge>

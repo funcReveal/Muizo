@@ -1,5 +1,6 @@
 import React from "react";
 import type { ChatMessage } from "../../../features/Room/model/types";
+import PlayerAvatar from "../../ui/playerAvatar/PlayerAvatar";
 import {
     formatChatMessageTime,
     formatChatQuestionProgress,
@@ -37,6 +38,7 @@ const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
             className="floating-chat-messages mq-autohide-scrollbar"
         >
             {messages.map((msg) => {
+                const isSystemMessage = msg.userId === "system" || msg.userId.startsWith("system:");
                 const isPresence = msg.userId === "system:presence";
 
                 if (isPresence) {
@@ -58,16 +60,33 @@ const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                         key={msg.id}
                         className={`floating-chat-msg${isMine ? " floating-chat-msg--mine" : ""}`}
                     >
-                        <div className="floating-chat-msg-meta">
-                            <span className="floating-chat-msg-name">{getChatDisplayName(msg)}</span>
-                            <span className="floating-chat-msg-time">
-                                {formatChatMessageTime(msg.timestamp)}
-                            </span>
-                            {questionProgress ? (
-                                <span className="floating-chat-msg-progress">{questionProgress}</span>
+                        <div className="floating-chat-msg-row">
+                            {!isSystemMessage ? (
+                                <div className="floating-chat-msg-avatar">
+                                    <PlayerAvatar
+                                        username={msg.username}
+                                        clientId={msg.userId}
+                                        avatarUrl={msg.avatarUrl ?? undefined}
+                                        size={30}
+                                        isMe={isMine}
+                                        hideRankMark
+                                        effectLevel="simple"
+                                    />
+                                </div>
                             ) : null}
+                            <div className="floating-chat-msg-content">
+                                <div className="floating-chat-msg-meta">
+                                    <span className="floating-chat-msg-name">{getChatDisplayName(msg)}</span>
+                                    <span className="floating-chat-msg-time">
+                                        {formatChatMessageTime(msg.timestamp)}
+                                    </span>
+                                    {questionProgress ? (
+                                        <span className="floating-chat-msg-progress">{questionProgress}</span>
+                                    ) : null}
+                                </div>
+                                <p className="floating-chat-msg-body">{msg.content}</p>
+                            </div>
                         </div>
-                        <p className="floating-chat-msg-body">{msg.content}</p>
                     </div>
                 );
             })}

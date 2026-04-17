@@ -43,7 +43,10 @@ const DesktopChatWindowContent: React.FC<DesktopChatWindowContentProps> = ({
     chatCooldownLeft,
 }) => {
     return (
-        <div className="floating-chat-root" data-open={open ? "true" : "false"}>
+        <div
+            className="floating-chat-root floating-chat-root--desktop"
+            data-open={open ? "true" : "false"}
+        >
             {!open && (
                 <button
                     type="button"

@@ -20,6 +20,8 @@ import HistoryReplayCompactView from "../../Settlement/ui/components/HistoryRepl
 import { HistoryReplaySkeleton } from "../../Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
+import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
+import GameRoomDanmuProviderBridge from "../../GameRoom/ui/components/GameRoomDanmuProviderBridge";
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "../../../shared/analytics/constants";
 import useAutoHideScrollbar from "../../../shared/hooks/useAutoHideScrollbar";
 import { type LobbySettlementStats } from "./components/roomLobbyPanelUtils";
@@ -504,7 +506,6 @@ const RoomLobbyPage: React.FC = () => {
     sessionProgress,
     isRecoveringConnection,
     recoveryStatusText,
-    setStatusText,
     kickedNotice,
     setKickedNotice,
     hostRoomPassword,
@@ -939,10 +940,6 @@ const RoomLobbyPage: React.FC = () => {
           });
           setHistoryDrawerCursor(nextCursor ?? null);
           setHistoryDrawerHasMore(Boolean(nextCursor));
-        } catch (error) {
-          setStatusText(
-            error instanceof Error ? error.message : "載入對戰歷史失敗",
-          );
         } finally {
           setHistoryDrawerLoading(false);
           setHistoryDrawerLoadingMore(false);
@@ -959,7 +956,6 @@ const RoomLobbyPage: React.FC = () => {
       fetchSettlementHistorySummaries,
       historyDrawerCursor,
       historyDrawerHasMore,
-      setStatusText,
     ],
   );
 
@@ -1014,19 +1010,13 @@ const RoomLobbyPage: React.FC = () => {
             loaded.find((item) => item.roundKey === roundKey) ??
             settlementSummaryByRoundKey[roundKey] ??
             null;
-        } catch (error) {
-          setStatusText(
-            error instanceof Error
-              ? error.message
-              : "讀取對戰資料失敗，請稍後再試",
-          );
+        } catch {
           setActiveSettlementRoundKey(null);
           return;
         }
       }
 
       if (!summary) {
-        setStatusText("找不到該場次資料");
         setActiveSettlementRoundKey(null);
         return;
       }
@@ -1053,8 +1043,7 @@ const RoomLobbyPage: React.FC = () => {
         if (snapshot.roundKey !== roundKey) {
           setActiveSettlementRoundKey(snapshot.roundKey);
         }
-      } catch (error) {
-        setStatusText(error instanceof Error ? error.message : "載入回放失敗");
+      } catch {
         setActiveSettlementRoundKey(null);
       } finally {
         setLoadingSettlementRoundKey((prev) =>
@@ -1070,7 +1059,6 @@ const RoomLobbyPage: React.FC = () => {
       currentRoom?.id,
       liveSettlementSnapshotByRoundKey,
       settlementSummaryByRoundKey,
-      setStatusText,
     ],
   );
 
@@ -1203,14 +1191,12 @@ const RoomLobbyPage: React.FC = () => {
     if (isGameView) {
       setIsGameView(false);
     }
-    setStatusText("已自動切換到最新對戰結算");
   }, [
     currentRoom,
     gameState?.status,
     isGameView,
     roomScopedSettlementHistory,
     setIsGameView,
-    setStatusText,
   ]);
 
   const resolvedActiveSettlementRoundKey = useMemo(() => {
@@ -1307,12 +1293,8 @@ const RoomLobbyPage: React.FC = () => {
         );
         setActiveSettlementRoundKey(snapshot.roundKey);
         setIsGameView(false);
-      } catch (error) {
-        setStatusText(
-          error instanceof Error
-            ? error.message
-            : "載入最新結算失敗，請稍後再試",
-        );
+      } catch {
+        // Keep terminal settlement recovery silent after removing room-flow toasts.
       } finally {
         setLoadingSettlementRoundKey((prev) =>
           prev === latestSummary?.roundKey ? null : prev,
@@ -1334,7 +1316,6 @@ const RoomLobbyPage: React.FC = () => {
     latestRoomScopedSettlementSummary,
     roomScopedSettlementHistory,
     setIsGameView,
-    setStatusText,
   ]);
 
   useEffect(() => {
@@ -1489,6 +1470,23 @@ const RoomLobbyPage: React.FC = () => {
     loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
     !activeSettlementSnapshot,
   );
+  const shouldShowSharedChat = Boolean(
+    currentRoom &&
+      !(
+        isTabletOrMobileLobby &&
+        (activeSettlementSnapshot || (gameState && isGameView))
+      ) &&
+      !(gameState && isGameView && !activeSettlementSnapshot),
+  );
+  const sharedChatWindow = shouldShowSharedChat ? <FloatingChatWindow /> : null;
+  const desktopInGameSharedChat =
+    currentRoom && gameState && isGameView && !activeSettlementSnapshot && !isTabletOrMobileLobby
+      ? (
+        <GameRoomDanmuProviderBridge roomId={currentRoom.id}>
+          <FloatingChatWindow />
+        </GameRoomDanmuProviderBridge>
+      )
+      : null;
   const isTerminalSettlementPreparing = Boolean(
     currentRoom &&
       gameState?.status === "ended" &&
@@ -1534,10 +1532,8 @@ const RoomLobbyPage: React.FC = () => {
             },
           ),
         );
-      } catch (error) {
-        setStatusText(
-          error instanceof Error ? error.message : "載入歷史回放失敗",
-        );
+      } catch {
+        // Keep history replay loading silent after removing room-flow toasts.
       } finally {
         setHistoryReplayLoadingRoundKey((prev) =>
           prev === summary.roundKey ? null : prev,
@@ -1549,7 +1545,6 @@ const RoomLobbyPage: React.FC = () => {
       currentRoom?.id,
       fetchSettlementReplay,
       roomSnapshotByRoundKey,
-      setStatusText,
     ],
   );
 
@@ -1779,21 +1774,15 @@ const RoomLobbyPage: React.FC = () => {
         (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
       )[0];
       if (!latest) {
-        setStatusText("目前沒有可查看的對戰紀錄");
         return;
       }
       await openSettlementReviewByRoundKey(latest.roundKey);
-    })().catch((error) => {
-      setStatusText(
-        error instanceof Error ? error.message : "開啟最新結算失敗，請稍後再試",
-      );
-    });
+    })().catch(() => {});
   }, [
     ensureSettlementSummaryListLoaded,
     latestSettlementSnapshot,
     mergedSettlementSummaries,
     openSettlementReviewByRoundKey,
-    setStatusText,
   ]);
 
   const loginConfirmText = useMemo(() => {
@@ -1838,7 +1827,6 @@ const RoomLobbyPage: React.FC = () => {
         removeSettlementCacheForRoom(targetRoomId ?? null);
       }
       navigate("/rooms", { replace: true });
-      setStatusText("已離開房間，前往 Google 登入");
       startGoogleLogin();
     });
   }, [
@@ -1848,7 +1836,6 @@ const RoomLobbyPage: React.FC = () => {
     navigate,
     removeSettlementCacheForRoom,
     roomId,
-    setStatusText,
     startGoogleLogin,
   ]);
   const openHistoryDrawer = useCallback(() => {
@@ -2468,6 +2455,7 @@ const RoomLobbyPage: React.FC = () => {
         {battleHistoryDrawer}
         {battleHistoryReplayDialog}
         {settlementReviewLoadingBanner}
+        {sharedChatWindow}
       </>
     );
   }
@@ -2502,6 +2490,7 @@ const RoomLobbyPage: React.FC = () => {
         </div>
         {battleHistoryDrawer}
         {battleHistoryReplayDialog}
+        {desktopInGameSharedChat}
       </>
     );
   }
@@ -2533,6 +2522,7 @@ const RoomLobbyPage: React.FC = () => {
           </Suspense>
         </div>
         {settlementStartBroadcastOverlay}
+        {sharedChatWindow}
       </>
     );
   }
@@ -2599,6 +2589,7 @@ const RoomLobbyPage: React.FC = () => {
       {battleHistoryDrawer}
       {battleHistoryReplayDialog}
       {settlementReviewLoadingBanner}
+      {sharedChatWindow}
       <ConfirmDialog
         open={loginConfirmOpen}
         title={loginConfirmText.title}
