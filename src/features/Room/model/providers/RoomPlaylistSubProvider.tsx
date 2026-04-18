@@ -55,8 +55,10 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   const loadMorePlaylistRef = useRef<() => void>(() => {});
   const onResetCollectionRef = useRef<() => void>(() => {});
   const handleTerminalRoomAckRef = useRef(
-    (_roomId: string | null | undefined, _ack: Ack<unknown> | null | undefined) =>
-      false,
+    (() => false) as (
+      roomId: string | null | undefined,
+      ack: Ack<unknown> | null | undefined,
+    ) => boolean,
   );
 
   const getSocket = useCallback(() => getSocketRef.current(), []);
