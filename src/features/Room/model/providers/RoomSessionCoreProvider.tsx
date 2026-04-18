@@ -228,7 +228,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
   const [chatCooldownLeft, setChatCooldownLeft] = useState(0);
-  const isChatCooldownActive = chatCooldownLeft > 0;
+  const effectiveChatCooldownLeft = chatCooldownUntil ? chatCooldownLeft : 0;
+  const isChatCooldownActive = effectiveChatCooldownLeft > 0;
   const [joinPasswordInput, setJoinPasswordInput] = useState("");
   const [sessionProgress, setSessionProgress] =
     useState<SessionProgressPayload | null>(null);
@@ -877,7 +878,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   // The timer self-stops when the cooldown expires — no residual interval.
   useEffect(() => {
     if (!chatCooldownUntil) {
-      setChatCooldownLeft(0);
       return;
     }
 
@@ -1140,7 +1140,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setMessageInput,
       handleSendMessage,
       isChatCooldownActive,
-      chatCooldownLeft,
+      chatCooldownLeft: effectiveChatCooldownLeft,
       currentClientId: clientId,
     }),
     [
@@ -1149,7 +1149,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setMessageInput,
       handleSendMessage,
       isChatCooldownActive,
-      chatCooldownLeft,
+      effectiveChatCooldownLeft,
     ],
   );
 
