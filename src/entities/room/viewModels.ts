@@ -1,9 +1,10 @@
-import type {
-  RoomCreateSourceMode,
-  YoutubePlaylist,
-} from "../../model/RoomContext";
-import type { CollectionSummary } from "../../model/roomApi";
-import type { RoomSummary } from "../../model/types";
+import type { RoomCreateSourceMode, RoomSummary } from "./types";
+import type { CollectionSummary } from "./api";
+
+type YoutubePlaylist = {
+  title?: string | null;
+  thumbnail?: string | null;
+};
 
 export type SourceSummary = {
   label: string;

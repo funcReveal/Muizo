@@ -39,7 +39,7 @@ import type {
   PlaylistSuggestion,
 } from "../../model/types";
 import type { YoutubePlaylist } from "../../model/RoomContext";
-import { formatDurationLabel } from "../roomsHub/roomsHubViewModels";
+import { formatDurationLabel } from "../lib/roomsHubViewModels";
 import { normalizeDisplayText } from "./roomLobbyPanelUtils";
 
 type SelectorTab = "suggestions" | "public" | "mine" | "youtube" | "link";

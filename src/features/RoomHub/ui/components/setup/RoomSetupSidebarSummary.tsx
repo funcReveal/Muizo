@@ -6,8 +6,8 @@ import {
   QuizRounded,
 } from "@mui/icons-material";
 
-import { PLAYER_MIN } from "../../../../model/roomConstants";
-import type { SourceSummary } from "../../../lib/roomsHubViewModels";
+import { PLAYER_MIN } from "../../../../../entities/room/constants";
+import type { SourceSummary } from "../../roomsHubViewModels";
 
 type RoomSetupSidebarSummaryProps = {
   roomNameInput: string;

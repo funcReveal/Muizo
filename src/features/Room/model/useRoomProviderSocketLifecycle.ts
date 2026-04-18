@@ -624,9 +624,6 @@ export const useRoomProviderSocketLifecycle = ({
         onRoomCreated: ({ room }) => {
           applyIncomingRoomSummary(room);
         },
-        onSessionProgress: (payload) => {
-          setSessionProgress(payload);
-        },
         onRoomCreationProgress: (payload) => {
           if (!createRoomInFlightRef.current) return;
 
@@ -660,6 +657,9 @@ export const useRoomProviderSocketLifecycle = ({
             default:
               break;
           }
+        },
+        onSessionProgress: (payload) => {
+          setSessionProgress(payload);
         },
         onJoinedRoom: (state) => {
           // 建房流程中，後端 createRoom 成功後也會主動 emit joinedRoom。

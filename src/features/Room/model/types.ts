@@ -466,35 +466,6 @@ export interface ClientToServerEvents {
     payload: AbortRoomCreationPayload,
     callback?: Ack<AbortRoomCreationResult>,
   ) => void;
-  createRoom: (
-    payload: {
-      roomName: string;
-      username: string;
-      password?: string;
-      pin?: string;
-      visibility?: "public" | "private";
-      maxPlayers?: number | null;
-      gameSettings?: {
-        questionCount: number;
-        playDurationSec?: number;
-        revealDurationSec?: number;
-        startOffsetSec?: number;
-        allowCollectionClipTiming?: boolean;
-        playbackExtensionMode?: PlaybackExtensionMode;
-      };
-      playlist: {
-        uploadId: string;
-        id?: string;
-        title?: string;
-        sourceType?: PlaylistSourceType | null;
-        totalCount: number;
-        items?: PlaylistItem[];
-        isLast?: boolean;
-        pageSize?: number;
-      };
-    },
-    callback?: (ack: Ack<RoomState>) => void,
-  ) => void;
   joinRoom: (
     payload: {
       roomId?: string;
@@ -527,21 +498,6 @@ export interface ClientToServerEvents {
   ) => void;
   listRooms: (callback?: (ack: Ack<RoomSummary[]>) => void) => void;
   getSitePresence: (callback?: (ack: Ack<SitePresencePayload>) => void) => void;
-  uploadPlaylistChunk: (
-    payload: {
-      roomId: string;
-      uploadId: string;
-      items: PlaylistItem[];
-      isLast?: boolean;
-    },
-    callback?: (
-      ack: Ack<{
-        receivedCount: number;
-        totalCount: number;
-        ready: boolean;
-      }>,
-    ) => void,
-  ) => void;
   getPlaylistPage: (
     payload: { roomId: string; page: number; pageSize?: number },
     callback?: (

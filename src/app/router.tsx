@@ -18,7 +18,7 @@ const LandingHomePage = lazy(
   () => import("../features/Landing/ui/LandingHomePage"),
 );
 const RoomsHubPage = lazy(
-  () => import("../features/Room/ui/roomsHub/RoomsHubPage"),
+  () => import("../features/RoomHub/ui/RoomsHubPage"),
 );
 const RoomLobbyPage = lazy(() => import("../features/Room/ui/RoomLobbyPage"));
 const RoomHistoryPage = lazy(

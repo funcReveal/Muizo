@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type RefObject, type UIEvent } from "react";
+import { useMemo, useState, type RefObject, type UIEvent } from "react";
 import {
   Button,
   Dialog,
@@ -31,7 +31,7 @@ import ViewAgendaRounded from "@mui/icons-material/ViewAgendaRounded";
 import type {
   PlaybackExtensionMode,
   RoomSummary,
-} from "../../../../model/types";
+} from "../../../../../entities/room/types";
 import VirtualJoinRoomRow, {
   type VirtualJoinRoomRowProps,
 } from "./VirtualJoinRoomRow";

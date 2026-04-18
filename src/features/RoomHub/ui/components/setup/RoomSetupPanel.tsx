@@ -26,7 +26,7 @@ import {
   REVEAL_DURATION_MIN,
   START_OFFSET_MAX,
   START_OFFSET_MIN,
-} from "../../../../model/roomConstants";
+} from "../../../../../entities/room/constants";
 import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 
 type RoomSetupPanelProps = {

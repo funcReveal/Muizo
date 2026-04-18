@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useContext } from "react";
 import { Button, TextField, useMediaQuery } from "@mui/material";
@@ -8,25 +8,27 @@ import {
   MeetingRoomRounded,
 } from "@mui/icons-material";
 
-import type { RoomSummary } from "../../model/types";
-import { useAuth } from "../../../../shared/auth/AuthContext";
-import { useRoomSession } from "../../model/RoomSessionContext";
-import { useRoomCreate } from "../../model/RoomCreateContext";
-import { useRoomCollections } from "../../model/RoomCollectionsContext";
-import { useRoomPlaylist } from "../../model/RoomPlaylistContext";
-import { useRoomGame } from "../../model/RoomGameContext";
-import { useSitePresence } from "../../model/SitePresenceContext";
+import type { RoomSummary } from "../../../entities/room/types";
+import { useAuth } from "../../../shared/auth/AuthContext";
+import {
+  useRoomSession,
+  useRoomCreate,
+  useRoomCollections,
+  useRoomPlaylist,
+  useRoomGame,
+  useSitePresence,
+} from "../../RoomSession/model/runtimeHooks";
 import {
   DEFAULT_BGM_VOLUME,
   SettingsModelContext,
-} from "../../../Setting/model/settingsContext";
-import { apiFetchRoomById } from "../../model/roomApi";
+} from "../../Setting/model/settingsContext";
+import { apiFetchRoomById } from "../../../entities/room/api";
 import {
   API_URL,
   PLAYER_MAX,
   PLAYER_MIN,
   USERNAME_MAX,
-} from "../../model/roomConstants";
+} from "../../../entities/room/constants";
 import {
   PlaylistIssueRow,
   PlaylistPreviewRow,
