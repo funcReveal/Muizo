@@ -17,7 +17,7 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import KeyboardDoubleArrowRightRoundedIcon from "@mui/icons-material/KeyboardDoubleArrowRightRounded";
 
 import type { SettlementTrackLink } from "../../../model/settlementLinks";
-import type { RoomParticipant } from "../../../../Room/model/types";
+import type { RoomParticipant } from "@features/RoomSession";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
 import useAutoHideScrollbar from "../../../../../shared/hooks/useAutoHideScrollbar";

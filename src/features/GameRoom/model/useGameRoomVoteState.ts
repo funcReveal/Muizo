@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 
-import type { GameState, PlaybackExtensionMode, RoomState } from "../../Room/model/types";
-import { DEFAULT_PLAYBACK_EXTENSION_MODE } from "../../Room/model/roomConstants";
-import { normalizePlaybackExtensionMode } from "../../Room/model/roomProviderUtils";
+import type { GameState, PlaybackExtensionMode, RoomState } from "@features/RoomSession";
+import { DEFAULT_PLAYBACK_EXTENSION_MODE } from "@domain/room/constants";
+import { normalizePlaybackExtensionMode } from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 
 interface UseGameRoomVoteStateInput {
@@ -120,3 +120,4 @@ export function useGameRoomVoteState({
     playbackVoteButtonLabel,
   };
 }
+

@@ -5,8 +5,11 @@ import VolumeDownRoundedIcon from "@mui/icons-material/VolumeDownRounded";
 import VolumeOffRoundedIcon from "@mui/icons-material/VolumeOffRounded";
 import VolumeUpRoundedIcon from "@mui/icons-material/VolumeUpRounded";
 
-import type { DanmuItem } from "../../model/gameRoomTypes";
-import { DanmuContext, DanmuItemsContext } from "../../model/DanmuContext";
+import {
+  DanmuContext,
+  DanmuItemsContext,
+  type DanmuItem,
+} from "@features/RoomChat/model/DanmuContext";
 
 interface GameRoomPlaybackPanelProps {
   rootRef?: React.Ref<HTMLDivElement>;

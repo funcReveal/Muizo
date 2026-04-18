@@ -15,7 +15,7 @@ import type {
   PlaylistItem,
   RoomParticipant,
   RoomState,
-} from "../../../Room/model/types";
+} from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "../../model/types";
 import { type RecommendCategory } from "../lib/settlementUtils";
 import OverviewSection from "./liveSettlementShowcase/OverviewSection";

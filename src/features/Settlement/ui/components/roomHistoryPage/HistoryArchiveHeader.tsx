@@ -2,7 +2,7 @@ import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded";
 import ViewListRoundedIcon from "@mui/icons-material/ViewListRounded";
 import React from "react";
 
-import type { RoomSettlementHistorySummary } from "../../../../Room/model/types";
+import type { RoomSettlementHistorySummary } from "@features/RoomSession";
 
 type HistoryListDisplayMode = "expanded" | "collapsed";
 

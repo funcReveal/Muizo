@@ -1,6 +1,6 @@
 ﻿import React from "react";
 
-import type { RoomSummary } from "../Room/model/types";
+import type { RoomSummary } from "@features/RoomSession";
 import {
   Alert,
   Box,

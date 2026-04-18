@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ChatMessage } from "../../Room/model/types";
-import type { DanmuItem } from "./gameRoomTypes";
+import type { ChatMessage } from "@features/RoomSession";
+import type { DanmuItem } from "@features/RoomChat/model/DanmuContext";
 import {
   DANMU_LANE_COUNT,
   deferStateUpdate,
@@ -175,3 +175,4 @@ const useGameRoomDanmu = ({ roomId, messages }: UseGameRoomDanmuArgs) => {
 };
 
 export default useGameRoomDanmu;
+

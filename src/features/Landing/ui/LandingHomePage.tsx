@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { USERNAME_MAX } from "../../Room/model/roomConstants";
+import { USERNAME_MAX } from "@domain/room/constants";
 import { useAuth } from "../../../shared/auth/AuthContext";
 import LandingPage from "./LandingPage";
 
@@ -47,3 +47,4 @@ const LandingHomePage: React.FC = () => {
 };
 
 export default LandingHomePage;
+

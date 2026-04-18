@@ -3,7 +3,7 @@ import React from "react";
 import type {
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
-} from "../../../../Room/model/types";
+} from "@features/RoomSession";
 import HistoryReplayCompactView from "../HistoryReplayCompactView";
 import HistoryReplayModal from "../HistoryReplayModal";
 import type { SettlementQuestionRecap } from "../GameSettlementPanel";

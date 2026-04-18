@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import type { RoomParticipant } from "../../Room/model/types";
+import type { RoomParticipant } from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "./types";
 import {
   buildAnsweredRankMap,

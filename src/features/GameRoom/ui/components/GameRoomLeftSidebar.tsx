@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { createPortal } from "react-dom";
 import { Badge, Chip } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
@@ -28,7 +28,7 @@ import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 import type {
   QuestionScoreBreakdown,
   RoomParticipant,
-} from "../../../Room/model/types";
+} from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import { resolveComboTier } from "../lib/gameRoomUiUtils";
@@ -1469,3 +1469,4 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
 };
 
 export default React.memo(GameRoomLeftSidebar);
+

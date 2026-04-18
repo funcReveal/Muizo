@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { ChatMessage, PlaylistItem, RoomParticipant, RoomState } from "../../Room/model/types";
+import type { ChatMessage, PlaylistItem, RoomParticipant, RoomState } from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import type { FrozenSettlementSnapshot } from "./gameRoomTypes";
 import {
@@ -130,3 +130,4 @@ const useSettlementSnapshot = ({
 };
 
 export default useSettlementSnapshot;
+

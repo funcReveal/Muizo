@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -21,8 +21,8 @@ import { isAdminRole } from "../../../../shared/auth/roles";
 import { isGoogleReauthRequired } from "../../../../shared/auth/providerAuth";
 import { fadeInUp } from "../../../../shared/motion/motionPresets";
 import { appToast } from "../../../../shared/ui/toastApi";
-import { useRoomPlaylist } from "../../../Room/model/RoomPlaylistContext";
-import { useRoomCollections } from "../../../Room/model/RoomCollectionsContext";
+import { useRoomPlaylist } from "@features/RoomSession";
+import { useRoomCollections } from "@features/RoomSession";
 import {
   MAX_COLLECTIONS_PER_USER,
   MAX_PRIVATE_COLLECTIONS_PER_USER,
@@ -886,3 +886,4 @@ const CollectionCreatePage = () => {
 };
 
 export default CollectionCreatePage;
+

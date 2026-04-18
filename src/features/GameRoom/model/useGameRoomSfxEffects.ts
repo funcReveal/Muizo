@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import type { GameState } from "../../Room/model/types";
+import type { GameState } from "@features/RoomSession";
 import {
   resolveCorrectResultSfxEvent,
   resolveComboMilestoneSfxEvent,
@@ -277,3 +277,4 @@ export function useGameRoomSfxEffects({
     waitingToStart,
   ]);
 }
+

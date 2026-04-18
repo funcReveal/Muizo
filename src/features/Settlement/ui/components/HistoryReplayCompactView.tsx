@@ -16,7 +16,7 @@ import type {
   PlaylistItem,
   RoomParticipant,
   RoomState,
-} from "../../../Room/model/types";
+} from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "./GameSettlementPanel";
 import {
   resolvePreviewEmbedUrl,

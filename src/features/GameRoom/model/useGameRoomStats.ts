@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { GameState, QuestionScoreBreakdown, RoomParticipant } from "../../Room/model/types";
+import type { GameState, QuestionScoreBreakdown, RoomParticipant } from "@features/RoomSession";
 import { buildMyFeedbackModel } from "./gameRoomDerivations";
 import { isComboMilestone, resolveComboBreakTier, resolveComboTier } from "../ui/lib/gameRoomUiUtils";
 
@@ -141,3 +141,4 @@ const useGameRoomStats = ({
 };
 
 export default useGameRoomStats;
+

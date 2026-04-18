@@ -1,0 +1,282 @@
+import React, { useEffect, useRef } from "react";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import {
+  Box,
+  Button,
+  List as MUIList,
+  ListItem,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+
+import { useChatInput, type ChatMessage } from "@features/RoomSession";
+import useAutoHideScrollbar from "@shared/hooks/useAutoHideScrollbar";
+import { normalizeRoomDisplayText } from "@shared/utils/text";
+
+const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
+
+const formatTime = (timestamp: number) => {
+  const d = new Date(timestamp);
+  return d.toLocaleTimeString();
+};
+
+const normalizeDisplayText = (
+  value: string | null | undefined,
+  fallback: string,
+) => normalizeRoomDisplayText(value, fallback);
+
+interface RoomLobbyChatPanelProps {
+  messages: ChatMessage[];
+  onChatInteraction?: () => void;
+  latestSettlementRoundKey?: string | null;
+  onOpenHistoryDrawer?: () => void;
+  onOpenSettlementByRoundKey?: (roundKey: string) => void;
+}
+
+const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
+  messages,
+  onChatInteraction,
+  latestSettlementRoundKey,
+  onOpenHistoryDrawer,
+  onOpenSettlementByRoundKey,
+}) => {
+  const {
+    messageInput,
+    setMessageInput,
+    handleSendMessage,
+    isChatCooldownActive,
+    chatCooldownLeft,
+  } = useChatInput();
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const autoHideScrollbarRef = useAutoHideScrollbar<HTMLDivElement>();
+
+  const setChatScrollRef = React.useCallback((node: HTMLDivElement | null) => {
+    chatScrollRef.current = node;
+    autoHideScrollbarRef(node);
+  }, [autoHideScrollbarRef]);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages.length]);
+
+  return (
+    <>
+      <Box
+        className="room-lobby-chat-log mq-autohide-scrollbar"
+        ref={setChatScrollRef}
+        sx={{
+          flex: 1,
+          border: "1px solid rgba(245,158,11,0.14)",
+          borderRadius: 2.5,
+          background:
+            "radial-gradient(320px 180px at 8% 0%, rgba(245,158,11,0.05), transparent 70%), linear-gradient(180deg, rgba(8,12,19,0.92), rgba(6,10,16,0.9))",
+          p: { xs: 1.5, md: 2 },
+          overflowY: "auto",
+          overflowX: "hidden",
+        }}
+      >
+        {messages.length === 0 ? (
+          <div className="room-lobby-chat-empty-state">
+            <div className="room-chat-empty-note room-chat-empty-note--lobby">
+              <span className="room-chat-empty-meta">
+                <span className="room-chat-empty-dot" aria-hidden="true" />
+                尚未有訊息
+              </span>
+              <Typography component="p" variant="body2" className="room-chat-empty-copy">
+                在這裡和房間成員打招呼，系統通知與結算提示也會出現在聊天室。
+              </Typography>
+            </div>
+          </div>
+        ) : (
+          <MUIList dense disablePadding>
+            {messages.map((msg) => {
+              const isPresenceSystemMessage = msg.userId === "system:presence";
+              const settlementRoundKey =
+                msg.userId === "system:settlement-review" &&
+                  msg.id.startsWith(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX)
+                  ? msg.id.slice(SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX.length)
+                  : null;
+              const isLatestSettlement =
+                settlementRoundKey !== null &&
+                latestSettlementRoundKey !== null &&
+                settlementRoundKey === latestSettlementRoundKey;
+              const canOpenSettlementReview = Boolean(
+                settlementRoundKey &&
+                onOpenSettlementByRoundKey &&
+                isLatestSettlement,
+              );
+              const canOpenHistoryDrawer = Boolean(
+                settlementRoundKey &&
+                !isLatestSettlement &&
+                onOpenHistoryDrawer,
+              );
+
+              if (isPresenceSystemMessage) {
+                return (
+                  <ListItem key={msg.id} sx={{ justifyContent: "center" }}>
+                    <Box
+                      sx={{
+                        mx: "auto",
+                        maxWidth: "100%",
+                        borderRadius: 999,
+                        px: 1.25,
+                        py: 0.5,
+                        border: "1px solid rgba(148,163,184,0.18)",
+                        background: "rgba(15,23,42,0.58)",
+                        color: "rgba(226,232,240,0.9)",
+                        fontSize: 11,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      <Box
+                        component="span"
+                        sx={{ color: "rgba(248,250,252,0.95)", fontWeight: 600 }}
+                      >
+                        {msg.content}
+                      </Box>
+                      <Box
+                        component="span"
+                        sx={{ ml: 1, color: "rgba(148,163,184,0.85)" }}
+                      >
+                        {formatTime(msg.timestamp)}
+                      </Box>
+                    </Box>
+                  </ListItem>
+                );
+              }
+
+              return (
+                <ListItem key={msg.id}>
+                  <Box
+                    className="room-lobby-chat-message"
+                    data-settlement={settlementRoundKey ? "true" : "false"}
+                    data-archived={canOpenHistoryDrawer ? "true" : "false"}
+                    sx={{
+                      maxWidth: "100%",
+                      borderRadius: 1.5,
+                      px: 1.15,
+                      py: 0.85,
+                      border: "none",
+                      borderLeft: "2px solid rgba(56,189,248,0.18)",
+                      background:
+                        "linear-gradient(180deg, rgba(10,15,24,0.34), rgba(7,11,18,0.16))",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
+                      color: "white",
+                    }}
+                  >
+                    <Stack direction="row" spacing={1}>
+                      <Typography variant="caption" fontWeight={600}>
+                        {normalizeDisplayText(
+                          msg.username,
+                          msg.userId.startsWith("system:") ? "系統" : "玩家",
+                        )}
+                      </Typography>
+                      <Typography variant="caption" color="rgba(255,255,255,0.7)">
+                        {formatTime(msg.timestamp)}
+                      </Typography>
+                    </Stack>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        mt: 0.5,
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {msg.content}
+                    </Typography>
+                    {canOpenSettlementReview && settlementRoundKey && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="inherit"
+                        sx={{ mt: 1, borderColor: "rgba(148,163,184,0.6)" }}
+                        onClick={() => {
+                          onChatInteraction?.();
+                          onOpenSettlementByRoundKey?.(settlementRoundKey);
+                        }}
+                      >
+                        查看結算
+                      </Button>
+                    )}
+                    {canOpenHistoryDrawer && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        color="inherit"
+                        sx={{ mt: 1, color: "rgba(191,219,254,0.92)" }}
+                        onClick={() => {
+                          onChatInteraction?.();
+                          onOpenHistoryDrawer?.();
+                        }}
+                      >
+                        查看歷史
+                      </Button>
+                    )}
+                  </Box>
+                </ListItem>
+              );
+            })}
+          </MUIList>
+        )}
+      </Box>
+      <Stack direction="row" spacing={1} className="room-lobby-chat-input">
+        {isChatCooldownActive ? (
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 1.5,
+              py: 0.75,
+              borderRadius: 1.5,
+              border: "1px solid rgba(245,158,11,0.32)",
+              background: "rgba(245,158,11,0.06)",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "rgba(251,191,36,0.96)",
+            }}
+          >
+            輸入過於頻繁，請於{" "}
+            <Box component="strong" sx={{ fontWeight: 700, mx: 0.5 }}>
+              {chatCooldownLeft}
+            </Box>{" "}
+            秒後重試
+          </Box>
+        ) : (
+          <TextField
+            autoComplete="off"
+            fullWidth
+            size="small"
+            placeholder="輸入訊息，按 Enter 送出"
+            value={messageInput}
+            onChange={(e) => {
+              setMessageInput(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+          />
+        )}
+        <Button
+          variant="contained"
+          onClick={handleSendMessage}
+          aria-label="送出訊息"
+          disabled={isChatCooldownActive || !messageInput.trim()}
+        >
+          <SendRoundedIcon fontSize="small" />
+        </Button>
+      </Stack>
+    </>
+  );
+};
+
+export default RoomLobbyChatPanel;

@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 
-import type { GameState, PlaylistItem, RoomState } from "../../Room/model/types";
+import type { GameState, PlaylistItem, RoomState } from "@features/RoomSession";
 import {
   DEFAULT_CLIP_SEC,
   DEFAULT_PLAY_DURATION_SEC,
   DEFAULT_START_OFFSET_SEC,
-} from "../../Room/model/roomConstants";
+} from "@domain/room/constants";
 import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 import { extractYouTubeId } from "./gameRoomUtils";
 
@@ -228,3 +228,4 @@ export function useGameRoomPlaybackState({
     trackLoadKey,
   };
 }
+

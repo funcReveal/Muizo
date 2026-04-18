@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
-import { useRoomRealtime } from "../../../Room/model/useRoomRealtime";
+import { useRoomRealtime } from "@features/RoomSession";
 import useGameRoomDanmu from "../../model/useGameRoomDanmu";
-import { DanmuContext, DanmuItemsContext } from "../../model/DanmuContext";
+import { DanmuContext, DanmuItemsContext } from "@features/RoomChat/model/DanmuContext";
 
 const GameRoomDanmuProviderBridge: React.FC<{
     roomId: string;

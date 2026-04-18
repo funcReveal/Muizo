@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GameState } from "../../Room/model/types";
+import type { GameState } from "@features/RoomSession";
 
 interface UseGameRoomPlayerSyncParams {
   serverOffsetMs: number;
@@ -1857,3 +1857,4 @@ const useGameRoomPlayerSync = ({
 };
 
 export default useGameRoomPlayerSync;
+

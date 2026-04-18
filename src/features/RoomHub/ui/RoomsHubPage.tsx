@@ -17,7 +17,7 @@ import {
   useRoomPlaylist,
   useRoomGame,
   useSitePresence,
-} from "@features/RoomSession/model/runtimeHooks";
+} from "@features/RoomSession";
 import {
   DEFAULT_BGM_VOLUME,
   SettingsModelContext,

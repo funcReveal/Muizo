@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   startTransition,
   useCallback,
   useEffect,
@@ -35,11 +35,11 @@ import type {
   PlaylistItem,
   RoomState,
   SubmitAnswerResult,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 import {
   getStoredShowVideoPreference,
   setStoredShowVideoPreference,
-} from "../../Room/model/roomStorage";
+} from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 import { blurActiveInteractiveElement } from "../../../shared/utils/dom";
 import { useGameRoomSfxEffects } from "../model/useGameRoomSfxEffects";
@@ -82,7 +82,7 @@ import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
-import FloatingChatWindow from "../../../shared/chat/FloatingChatWindow";
+import FloatingChatWindow from "@features/RoomChat";
 import GameRoomDanmuProviderBridge from "./components/GameRoomDanmuProviderBridge";
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -1922,3 +1922,4 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 };
 
 export default React.memo(GameRoomPage);
+

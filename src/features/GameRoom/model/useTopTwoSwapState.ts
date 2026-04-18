@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { RoomParticipant } from "../../Room/model/types";
+import type { RoomParticipant } from "@features/RoomSession";
 import type { TopTwoSwapState } from "./gameRoomTypes";
 import { deferStateUpdate } from "./gameRoomUtils";
 
@@ -158,3 +158,4 @@ const useTopTwoSwapState = (sortedParticipants: RoomParticipant[]) => {
 };
 
 export default useTopTwoSwapState;
+

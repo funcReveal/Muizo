@@ -4,7 +4,7 @@ import type {
   GameState,
   RoomParticipant,
   SubmitAnswerResult,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 import type { GameSfxEvent } from "../../../shared/sfx/gameSfxEngine";
 import type {
   AnswerDecisionMeta,
@@ -424,3 +424,4 @@ const useGameRoomAnswerFlow = ({
 };
 
 export default useGameRoomAnswerFlow;
+

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { GameChoice, GameQuestionStats, PlaylistItem, RoomParticipant } from "../../Room/model/types";
+import type { GameChoice, GameQuestionStats, PlaylistItem, RoomParticipant } from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import { buildSettlementQuestionRecap } from "./gameRoomDerivations";
 import { deferStateUpdate } from "./gameRoomUtils";
@@ -220,3 +220,4 @@ const useGameRoomRecaps = ({
 };
 
 export default useGameRoomRecaps;
+

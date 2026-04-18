@@ -1,4 +1,4 @@
-import type { PlaylistItem } from "../../Room/model/types";
+import type { PlaylistItem } from "@features/RoomSession";
 
 export type SettlementLinkType = "direct" | "search" | "none";
 

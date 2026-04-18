@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PlaylistItem } from "../../../Room/model/types";
+import type { PlaylistItem } from "@features/RoomSession";
 import { collectionsApi } from "../../shared/api/collectionsApi";
 import { buildEditableItems } from "../utils/editMappers";
 import type { EditableItem } from "../utils/editTypes";
@@ -336,3 +336,4 @@ export function useCollectionEditImport({
     handleAddSingleTrack,
   };
 }
+

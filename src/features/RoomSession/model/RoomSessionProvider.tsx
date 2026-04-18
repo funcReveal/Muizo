@@ -1,2 +1,2 @@
-export { RoomProvider as RoomSessionProvider } from "../../Room/model/RoomProvider";
-export { SitePresenceProvider } from "../../Room/model/providers/SitePresenceProvider";
+export { RoomProvider as RoomSessionProvider } from "./RoomProvider";
+export { SitePresenceProvider } from "./providers/SitePresenceProvider";

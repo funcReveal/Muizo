@@ -4,7 +4,7 @@ import { Button } from "@mui/material";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
 import LoadingPage from "../../../../shared/ui/LoadingPage";
 import { useAuth } from "../../../../shared/auth/AuthContext";
-import { useRoomPlaylist } from "../../../Room/model/RoomPlaylistContext";
+import { useRoomPlaylist } from "@features/RoomSession";
 import { isAdminRole } from "../../../../shared/auth/roles";
 import type { DbCollection, EditableItem } from "../utils/editTypes";
 import { buildEditableItemsFromDb } from "../utils/editMappers";
@@ -1486,3 +1486,4 @@ const CollectionEditPage = () => {
 };
 
 export default CollectionEditPage;
+

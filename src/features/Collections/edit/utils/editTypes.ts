@@ -1,4 +1,4 @@
-import type { PlaylistItem } from "../../../Room/model/types";
+import type { PlaylistItem } from "@features/RoomSession";
 
 export type AnswerStatus = "original" | "ai_modified" | "manual_reviewed";
 export type AnswerAiProvider =
@@ -50,3 +50,4 @@ export type DbCollectionItem = {
   answer_ai_updated_at?: number | null;
   answer_ai_batch_key?: string | null;
 };
+

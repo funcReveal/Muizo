@@ -1,8 +1,8 @@
-﻿import type {
+import type {
   ChatMessage,
   RoomParticipant,
   RoomState,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 
 export const MAX_DANMU_TEXT_LENGTH = 56;
@@ -253,3 +253,4 @@ export const cloneRoomForSettlement = (room: RoomState["room"]): RoomState["room
     items: room.playlist.items.map((item) => ({ ...item })),
   },
 });
+

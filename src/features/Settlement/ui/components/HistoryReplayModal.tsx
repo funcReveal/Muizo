@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import React from "react";
 
-import type { RoomSettlementHistorySummary } from "../../../Room/model/types";
+import type { RoomSettlementHistorySummary } from "@features/RoomSession";
 
 interface HistoryReplayModalProps {
   open: boolean;

@@ -1,8 +1,8 @@
-﻿import React from "react";
+import React from "react";
 import { Button, Chip, LinearProgress } from "@mui/material";
 
 import RevealChoiceAvatarRow from "./RevealChoiceAvatarRow";
-import type { GameState, PlaylistItem } from "../../../Room/model/types";
+import type { GameState, PlaylistItem } from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import type {
   MyFeedbackModel,
@@ -967,3 +967,4 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
 };
 
 export default React.memo(GameRoomAnswerPanel);
+

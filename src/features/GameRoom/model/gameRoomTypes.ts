@@ -1,10 +1,10 @@
-﻿import type {
+import type {
   ChatMessage,
   PlaylistItem,
   RoomParticipant,
   RoomSettlementQuestionAnswer,
   RoomState,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 
 export type RevealAnswerResult = RoomSettlementQuestionAnswer["result"];
@@ -20,13 +20,6 @@ export type RevealChoicePickBadge = {
 };
 
 export type RevealChoicePickMap = Record<number, RevealChoicePickBadge[]>;
-
-export type DanmuItem = {
-  id: string;
-  text: string;
-  lane: number;
-  durationMs: number;
-};
 
 export type FrozenSettlementSnapshot = {
   roundKey: string;
@@ -77,3 +70,4 @@ export type TopTwoSwapState = {
   isExactSwap: boolean;
   key: number;
 };
+

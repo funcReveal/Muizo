@@ -1,7 +1,7 @@
 import type {
   RoomParticipant,
   RoomSettlementQuestionAnswer,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../shared/utils/text";
 import type {
   SettlementQuestionRecap,
@@ -439,3 +439,4 @@ export const buildSettlementQuestionRecap = ({
     answersByClientId,
   };
 };
+

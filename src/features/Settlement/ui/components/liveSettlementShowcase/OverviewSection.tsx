@@ -2,7 +2,7 @@
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 
-import type { RoomParticipant } from "../../../../Room/model/types";
+import type { RoomParticipant } from "@features/RoomSession";
 import RoomUiTooltip from "../../../../../shared/ui/RoomUiTooltip";
 import PlayerAvatar from "../../../../../shared/ui/playerAvatar/PlayerAvatar";
 import {

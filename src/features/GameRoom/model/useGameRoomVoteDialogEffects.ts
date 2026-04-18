@@ -3,7 +3,7 @@ import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type {
   GameState,
   PlaybackExtensionVoteState,
-} from "../../Room/model/types";
+} from "@features/RoomSession";
 
 interface UseGameRoomVoteDialogEffectsInput {
   trackSessionKey: string;
@@ -120,3 +120,4 @@ export function useGameRoomVoteDialogEffects({
     trackSessionKey,
   ]);
 }
+

@@ -12,11 +12,14 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { USERNAME_MAX } from "../../Room/model/roomConstants";
-import type { RoomLookupResult, RoomSummary } from "../../Room/model/types";
 import { useAuth } from "../../../shared/auth/AuthContext";
-import { useRoomSession } from "../../Room/model/RoomSessionContext";
-import { useRoomCreate } from "../../Room/model/RoomCreateContext";
+import { USERNAME_MAX } from "@domain/room/constants";
+import {
+  useRoomCreate,
+  useRoomSession,
+  type RoomLookupResult,
+  type RoomSummary,
+} from "@features/RoomSession";
 
 const TEXT = {
   invalidInviteLink: "找不到邀請資訊，請確認連結是否正確。",

@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import RequireAuthRoute from "./guards/RequireAuthRoute";
-import RoomsLayoutShell from "@features/Room/ui/RoomsLayoutShell";
+import RoomsLayoutShell from "./layout/RoomsLayoutShell";
 import LegalLayout from "@features/Legal/ui/LegalLayout";
 import PrivacyPage from "@features/Legal/ui/PrivacyPage";
 import TermsPage from "@features/Legal/ui/TermsPage";
@@ -17,13 +17,11 @@ import TermsPage from "@features/Legal/ui/TermsPage";
 const LandingHomePage = lazy(
   () => import("@features/Landing/ui/LandingHomePage"),
 );
-const RoomsHubPage = lazy(
-  () => import("@features/RoomHub/ui/RoomsHubPage"),
+const RoomsHubPage = lazy(() => import("@features/RoomHub"));
+const RoomLobbyPage = lazy(
+  () => import("@features/RoomLobby"),
 );
-const RoomLobbyPage = lazy(() => import("@features/Room/ui/RoomLobbyPage"));
-const RoomHistoryPage = lazy(
-  () => import("@features/Room/ui/RoomHistoryPage"),
-);
+const RoomHistoryPage = lazy(() => import("@features/RoomHistory"));
 const InvitedPage = lazy(() => import("@features/Invited/ui/InvitedPage"));
 const CollectionsPage = lazy(
   () => import("@features/Collections/ui/CollectionsPage"),

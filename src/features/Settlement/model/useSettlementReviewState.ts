@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { RoomParticipant } from "../../Room/model/types";
+import type { RoomParticipant } from "@features/RoomSession";
 
 interface ScoreMetrics {
   accuracy: number;

@@ -1,4 +1,4 @@
-import type { PlaylistItem } from "../../../Room/model/types";
+import type { PlaylistItem } from "@features/RoomSession";
 import type { DbCollectionItem, EditableItem } from "./editTypes";
 import {
   DEFAULT_DURATION_SEC,
@@ -80,3 +80,4 @@ export const buildEditableItemsFromDb = (
     };
   });
 };
+

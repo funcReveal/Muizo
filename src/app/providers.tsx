@@ -5,7 +5,7 @@ import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import {
   RoomSessionProvider,
   SitePresenceProvider,
-} from "@features/RoomSession/model/RoomSessionProvider";
+} from "@features/RoomSession";
 import { SettingsProvider } from "@features/Setting/model/settingsModel";
 import { AppToaster } from "@shared/ui/toast";
 import { VersionUpdateNotifier } from "./VersionUpdateNotifier";

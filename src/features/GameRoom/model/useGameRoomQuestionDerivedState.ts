@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { GameQuestionStats, GameState, RoomParticipant } from "../../Room/model/types";
+import type { GameQuestionStats, GameState, RoomParticipant } from "@features/RoomSession";
 import { buildRevealChoicePickMap } from "./gameRoomDerivations";
 
 interface UseGameRoomQuestionDerivedStateParams {
@@ -115,3 +115,4 @@ const useGameRoomQuestionDerivedState = ({
 };
 
 export default useGameRoomQuestionDerivedState;
+
