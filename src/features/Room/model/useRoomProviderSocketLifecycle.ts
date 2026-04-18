@@ -627,6 +627,40 @@ export const useRoomProviderSocketLifecycle = ({
         onSessionProgress: (payload) => {
           setSessionProgress(payload);
         },
+        onRoomCreationProgress: (payload) => {
+          if (!createRoomInFlightRef.current) return;
+
+          setPlaylistProgress({
+            received: payload.receivedItemsCount,
+            total: payload.totalCount,
+            ready: payload.state === "ready",
+          });
+
+          switch (payload.state) {
+            case "uploading":
+              setStatusText(
+                `正在同步題庫到房間（${payload.receivedItemsCount}/${payload.totalCount}）...`,
+              );
+              break;
+            case "verifying":
+              setStatusText("正在驗證題庫完整性...");
+              break;
+            case "finalizing":
+              setStatusText("正在完成房間建立...");
+              break;
+            case "failed":
+              setStatusText("房間建立失敗。");
+              break;
+            case "aborted":
+              setStatusText("已取消房間建立。");
+              break;
+            case "ready":
+              setStatusText("房間建立完成，正在進入房間...");
+              break;
+            default:
+              break;
+          }
+        },
         onJoinedRoom: (state) => {
           // 建房流程中，後端 createRoom 成功後也會主動 emit joinedRoom。
           // 但我們現在要等 playlist 全部 chunk 上傳完成後，才正式 commit 進房。

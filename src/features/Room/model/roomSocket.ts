@@ -5,9 +5,10 @@ import type {
   ClientSocket,
   GameLiveUpdatePayload,
   PlaylistState,
-  RoomSettlementSnapshot,
   PlaylistSuggestion,
+  RoomCreationState,
   RoomParticipant,
+  RoomSettlementSnapshot,
   RoomState,
   RoomSummary,
   SessionProgressPayload,
@@ -22,6 +23,15 @@ type RoomSocketHandlers = {
   onRoomCreated?: (payload: { room: RoomSummary }) => void;
   onRoomRemoved?: (payload: { roomId: string }) => void;
   onJoinedRoom?: (state: RoomState) => void;
+  onRoomCreationProgress?: (payload: {
+    creationId: string;
+    state: RoomCreationState;
+    receivedChunkCount: number;
+    expectedChunkCount: number;
+    receivedItemsCount: number;
+    totalCount: number;
+    timestamp: number;
+  }) => void;
   onSessionProgress?: (payload: SessionProgressPayload) => void;
   onParticipantsUpdated?: (payload: {
     roomId: string;
@@ -145,6 +155,9 @@ export const connectRoomSocket = (
   socket.on("roomCreated", (payload) => handlers.onRoomCreated?.(payload));
   socket.on("roomRemoved", (payload) => handlers.onRoomRemoved?.(payload));
   socket.on("joinedRoom", (state) => handlers.onJoinedRoom?.(state));
+  socket.on("roomCreationProgress", (payload) =>
+    handlers.onRoomCreationProgress?.(payload),
+  );
   socket.on("sessionProgress", (payload) =>
     handlers.onSessionProgress?.(payload),
   );

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:android": "vite build --mode android",
     "build-nocheck": "vite build",
+    "cap:sync:android": "pnpm build:android && cap sync android",
+    "cap:run:android": "pnpm build:android && cap sync android && cap run android",
     "lint": "eslint .",
     "preview": "vite preview",
     "loadtest:seed-rooms": "node scripts/load-test/seed-rooms.mjs",
