@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 
+import { AuthSessionProvider } from "@features/RoomSession";
 import { SettingsProvider } from "@features/Setting/model/settingsModel";
 import { AppToaster } from "@shared/ui/toast";
 import { VersionUpdateNotifier } from "./VersionUpdateNotifier";
@@ -30,9 +31,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
         <SettingsProvider>
-          {children}
-          <VersionUpdateNotifier />
-          <AppToaster />
+          <AuthSessionProvider>
+            {children}
+            <VersionUpdateNotifier />
+            <AppToaster />
+          </AuthSessionProvider>
         </SettingsProvider>
       </QueryClientProvider>
     </ThemeProvider>

@@ -4,6 +4,7 @@ export {
   type ChatInputContextValue,
 } from "./model/ChatInputContext";
 export {
+  AuthSessionProvider,
   RoomSessionProvider,
   SitePresenceProvider,
 } from "./model/RoomSessionProvider";
