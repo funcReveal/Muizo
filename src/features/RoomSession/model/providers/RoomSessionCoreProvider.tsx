@@ -37,29 +37,22 @@ import {
   usePlaylistSocketBridge,
 } from "./RoomPlaylistSubContexts";
 import { useCollectionAccess } from "./RoomCollectionsAccessContext";
-import {
-  RoomSessionInternalContext,
-  type RoomSessionInternalContextValue,
-} from "./RoomSessionInternalContext";
+import type { RoomSessionInternalContextValue } from "./RoomSessionInternalContext";
+import { RoomSessionContextProviderTree } from "./RoomSessionContextProviderTree";
 import { useRoomCollections } from "../RoomCollectionsContext";
 import {
-  RoomPlaylistContext,
   useRoomPlaylist,
   type RoomPlaylistContextValue,
 } from "../RoomPlaylistContext";
 import {
-  RoomSessionContext,
   type RoomClosedNotice,
   type RoomSessionContextValue,
 } from "../RoomSessionContext";
-import { RoomGameContext, type RoomGameContextValue } from "../RoomGameContext";
+import type { RoomGameContextValue } from "../RoomGameContext";
 import {
-  RoomRealtimeContext,
-  RoomUiContext,
   type RoomRealtimeContextValue,
   type RoomUiContextValue,
 } from "../RoomContext";
-import { ChatInputContext } from "../ChatInputContext";
 import {
   API_URL,
   SOCKET_URL,
@@ -828,20 +821,18 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   return (
-    <RoomPlaylistContext.Provider value={fullPlaylistCtxValue}>
-      <RoomSessionContext.Provider value={roomSessionCtxValue}>
-        <RoomGameContext.Provider value={roomGameCtxValue}>
-          <RoomUiContext.Provider value={roomUiCtxValue}>
-            <RoomRealtimeContext.Provider value={roomRealtimeCtxValue}>
-              <ChatInputContext.Provider value={chatInputCtxValue}>
-                <RoomSessionInternalContext.Provider value={internalCtxValue}>
-                  {children}
-                </RoomSessionInternalContext.Provider>
-              </ChatInputContext.Provider>
-            </RoomRealtimeContext.Provider>
-          </RoomUiContext.Provider>
-        </RoomGameContext.Provider>
-      </RoomSessionContext.Provider>
-    </RoomPlaylistContext.Provider>
+    <RoomSessionContextProviderTree
+      values={{
+        chatInput: chatInputCtxValue,
+        game: roomGameCtxValue,
+        internal: internalCtxValue,
+        playlist: fullPlaylistCtxValue,
+        realtime: roomRealtimeCtxValue,
+        session: roomSessionCtxValue,
+        ui: roomUiCtxValue,
+      }}
+    >
+      {children}
+    </RoomSessionContextProviderTree>
   );
 };

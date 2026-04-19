@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PlaylistItem } from "./types";
-import type { YoutubePlaylist } from "./RoomContext";
+import type { YoutubePlaylist } from "./RoomPlaylistContext";
 import {
   apiFetchYoutubePlaylistItems,
   apiFetchYoutubePlaylists,

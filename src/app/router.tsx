@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import RequireAuthRoute from "./guards/RequireAuthRoute";
-import RoomsLayoutShell from "./layout/RoomsLayoutShell";
+import AppLayoutShell from "./layout/AppLayoutShell";
 import LegalLayout from "@features/Legal/ui/LegalLayout";
 import PrivacyPage from "@features/Legal/ui/PrivacyPage";
 import TermsPage from "@features/Legal/ui/TermsPage";
@@ -10,12 +10,15 @@ import TermsPage from "@features/Legal/ui/TermsPage";
 // ---------------------------------------------------------------------------
 // Route-level code splitting
 // Each page chunk loads on first navigation to that route, not on app boot.
-// Keep RoomsLayoutShell, LegalLayout, and legal pages as static imports
-// because they are thin wrappers / instantly-needed on every route.
+// Keep layout shells and legal pages as static imports because they are thin
+// wrappers / instantly-needed on their route groups.
 // ---------------------------------------------------------------------------
 
 const LandingHomePage = lazy(
   () => import("@features/Landing/ui/LandingHomePage"),
+);
+const RoomSessionLayoutShell = lazy(
+  () => import("./layout/RoomSessionLayoutShell"),
 );
 const RoomsHubPage = lazy(() => import("@features/RoomHub"));
 const RoomLobbyPage = lazy(
@@ -43,7 +46,7 @@ const PageLoader = () => (
 export function AppRouter() {
   return (
     <Routes>
-      <Route element={<RoomsLayoutShell />}>
+      <Route element={<AppLayoutShell />}>
         <Route
           path="/"
           element={
@@ -53,45 +56,8 @@ export function AppRouter() {
           }
         />
         <Route
-          path="/rooms"
-          element={
-            <Suspense fallback={<PageLoader />}>
-              <RoomsHubPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/rooms/:roomId"
-          element={
-            <Suspense fallback={<PageLoader />}>
-              <RoomLobbyPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            <RequireAuthRoute
-              badge="History Access"
-              title="先建立身分即可查看對戰歷史"
-              description="訪客可查看目前身分的對戰紀錄；登入可跨裝置保存完整歷史。"
-              highlights={["完整對戰回放", "個人戰績", "跨裝置同步"]}
-              allowGuest
-            >
-              <Suspense fallback={<PageLoader />}>
-                <RoomHistoryPage />
-              </Suspense>
-            </RequireAuthRoute>
-          }
-        />
-        <Route path="/settings" element={<Navigate to="/rooms" replace />} />
-        <Route
-          path="/invited/:roomId"
-          element={
-            <Suspense fallback={<PageLoader />}>
-              <InvitedPage />
-            </Suspense>
-          }
+          path="/settings"
+          element={<Navigate to="/rooms" replace />}
         />
         <Route
           path="/collections"
@@ -133,6 +99,54 @@ export function AppRouter() {
               highlights={["編修題目內容", "管理可見權限", "保留編輯紀錄"]}
             >
               <EditPage />
+            </RequireAuthRoute>
+          }
+        />
+      </Route>
+      <Route
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <RoomSessionLayoutShell />
+          </Suspense>
+        }
+      >
+        <Route
+          path="/rooms"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <RoomsHubPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/rooms/:roomId"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <RoomLobbyPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/invited/:roomId"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <InvitedPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <RequireAuthRoute
+              badge="History Access"
+              title="先建立身分即可查看對戰歷史"
+              description="訪客可查看目前身分的對戰紀錄；登入可跨裝置保存完整歷史。"
+              highlights={["完整對戰回放", "個人戰績", "跨裝置同步"]}
+              allowGuest
+            >
+              <Suspense fallback={<PageLoader />}>
+                <RoomHistoryPage />
+              </Suspense>
             </RequireAuthRoute>
           }
         />

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import { apiFetchYoutubePlaylistItems, apiPreviewPlaylist } from "./roomApi";
-import type { YoutubePlaylist } from "./RoomContext";
+import type { YoutubePlaylist } from "./RoomPlaylistContext";
 import type { PlaylistItem } from "./types";
 import { normalizePlaylistItems } from "./roomUtils";
 

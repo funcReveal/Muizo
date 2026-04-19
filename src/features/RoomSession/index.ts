@@ -52,6 +52,6 @@ export type {
 } from "./model/types";
 export type {
   RoomCreateSourceMode,
-  YoutubePlaylist,
-} from "./model/RoomContext";
+} from "./model/RoomCreateContext";
+export type { YoutubePlaylist } from "./model/RoomPlaylistContext";
 export type { CollectionEntry } from "./model/RoomCollectionsContext";

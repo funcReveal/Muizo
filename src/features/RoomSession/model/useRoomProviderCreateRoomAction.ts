@@ -7,7 +7,7 @@ import {
 
 import { trackEvent } from "../../../shared/analytics/track";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
-import type { RoomCreateSourceMode } from "./RoomContext";
+import type { RoomCreateSourceMode } from "./RoomCreateContext";
 import {
   CHUNK_SIZE,
   DEFAULT_PLAYBACK_EXTENSION_MODE,

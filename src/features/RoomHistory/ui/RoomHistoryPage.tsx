@@ -14,12 +14,18 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@shared/auth/AuthContext";
 import { ensureFreshAuthToken } from "@shared/auth/token";
 import {
-  type PlaylistSourceType,
   useRoomSession,
   type RoomSettlementHistorySummary,
   type RoomSettlementQuestionRecap,
   type RoomSettlementSnapshot,
 } from "@features/RoomSession";
+import {
+  getHistorySummaryPlaylistDisplayTitle,
+  getHistorySummaryPlaylistItemCount,
+  getHistorySummaryPlaylistSourceLabel,
+  isCollectionHistorySummary,
+  isYouTubeHistorySummary,
+} from "@features/Settlement/model/historySummaryAdapter";
 import type { SettlementQuestionRecap } from "@features/Settlement/ui/components/GameSettlementPanel";
 import HistoryArchiveHeader from "@features/Settlement/ui/components/roomHistoryPage/HistoryArchiveHeader";
 import HistoryReplayDialog from "@features/Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
@@ -131,82 +137,6 @@ const formatScore = (score: number | null | undefined) => {
   return Math.max(0, Math.floor(score)).toLocaleString("zh-TW");
 };
 
-const parseSummaryPlaylistTitle = (summary: RoomSettlementHistorySummary) => {
-  const topLevelTitle = summary.playlistTitle?.trim();
-  if (topLevelTitle) return topLevelTitle;
-  const summaryTitle = summary.summaryJson?.playlistTitle;
-  if (typeof summaryTitle === "string" && summaryTitle.trim().length > 0) {
-    return summaryTitle.trim();
-  }
-  return null;
-};
-
-const getHistoryPlaylistTitle = (summary: RoomSettlementHistorySummary) => {
-  const title = parseSummaryPlaylistTitle(summary);
-  if (title) return title;
-  return "未命名播放清單";
-};
-
-const parseSummaryPlaylistSourceType = (
-  summary: RoomSettlementHistorySummary,
-): PlaylistSourceType | null => {
-  const topLevelSourceType = summary.playlistSourceType;
-  if (
-    topLevelSourceType === "public_collection" ||
-    topLevelSourceType === "private_collection" ||
-    topLevelSourceType === "youtube_google_import" ||
-    topLevelSourceType === "youtube_pasted_link"
-  ) {
-    return topLevelSourceType;
-  }
-  const summarySourceType = summary.summaryJson?.playlistSourceType;
-  return summarySourceType === "public_collection" ||
-    summarySourceType === "private_collection" ||
-    summarySourceType === "youtube_google_import" ||
-    summarySourceType === "youtube_pasted_link"
-    ? summarySourceType
-    : null;
-};
-
-const getHistoryPlaylistSourceLabel = (summary: RoomSettlementHistorySummary) => {
-  const sourceType = parseSummaryPlaylistSourceType(summary);
-  switch (sourceType) {
-    case "public_collection":
-    case "private_collection":
-      return "收藏庫";
-    case "youtube_google_import":
-    case "youtube_pasted_link":
-      return "YouTube 清單";
-    default:
-      return "未知來源";
-  }
-};
-
-const isCollectionHistorySource = (summary: RoomSettlementHistorySummary) => {
-  const sourceType = parseSummaryPlaylistSourceType(summary);
-  return (
-    sourceType === "public_collection" || sourceType === "private_collection"
-  );
-};
-
-const isYouTubeHistorySource = (summary: RoomSettlementHistorySummary) => {
-  const sourceType = parseSummaryPlaylistSourceType(summary);
-  return (
-    sourceType === "youtube_google_import" || sourceType === "youtube_pasted_link"
-  );
-};
-
-const getHistoryPlaylistItemCount = (summary: RoomSettlementHistorySummary) => {
-  const topLevelCount = summary.playlistItemCount;
-  if (typeof topLevelCount === "number" && Number.isFinite(topLevelCount) && topLevelCount >= 0) {
-    return Math.floor(topLevelCount);
-  }
-  const summaryCount = summary.summaryJson?.playlistItemCount;
-  if (typeof summaryCount === "number" && Number.isFinite(summaryCount) && summaryCount >= 0) {
-    return Math.floor(summaryCount);
-  }
-  return null;
-};
 
 const formatRankFraction = (rank: number | null, playerCount: number | null | undefined) => {
   const safeCount =
@@ -1055,11 +985,11 @@ const RoomHistoryPage: React.FC = () => {
       const correctCount = item.selfPlayer?.correctCount ?? 0;
       const maxCombo = item.selfPlayer?.maxCombo ?? 0;
       const finalScore = item.selfPlayer?.finalScore ?? 0;
-      const sourceLabel = getHistoryPlaylistSourceLabel(item);
-      const playlistTitle = getHistoryPlaylistTitle(item);
-      const playlistItemCount = getHistoryPlaylistItemCount(item);
-      const isCollectionSource = isCollectionHistorySource(item);
-      const isYouTubeSource = isYouTubeHistorySource(item);
+      const sourceLabel = getHistorySummaryPlaylistSourceLabel(item);
+      const playlistTitle = getHistorySummaryPlaylistDisplayTitle(item);
+      const playlistItemCount = getHistorySummaryPlaylistItemCount(item);
+      const isCollectionSource = isCollectionHistorySummary(item);
+      const isYouTubeSource = isYouTubeHistorySummary(item);
       return (
         <button
           key={item.matchId}
