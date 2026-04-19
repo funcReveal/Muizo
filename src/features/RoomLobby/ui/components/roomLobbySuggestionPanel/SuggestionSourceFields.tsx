@@ -1,7 +1,7 @@
 import React from "react";
 import { MenuItem, TextField, Typography } from "@mui/material";
 
-import type { YoutubePlaylist } from "@features/RoomSession";
+import type { YoutubePlaylist } from "@features/PlaylistSource";
 import RoomLobbyLoadingState from "../RoomLobbyLoadingState";
 import type { CollectionOption } from "../roomLobbyPanelTypes";
 import { normalizeDisplayText } from "../roomLobbyDisplayUtils";

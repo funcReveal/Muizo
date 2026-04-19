@@ -9,9 +9,9 @@ import {
   type RoomUiContextValue,
 } from "../RoomContext";
 import {
-  RoomPlaylistContext,
-  type RoomPlaylistContextValue,
-} from "../RoomPlaylistContext";
+  PlaylistSourceContext,
+  type PlaylistSourceContextValue,
+} from "@features/PlaylistSource";
 import {
   RoomSessionContext,
   type RoomSessionContextValue,
@@ -28,7 +28,7 @@ type RoomSessionContextProviderTreeProps = {
     chatInput: ChatInputContextValue;
     game: RoomGameContextValue;
     internal: RoomSessionInternalContextValue;
-    playlist: RoomPlaylistContextValue;
+    playlist: PlaylistSourceContextValue;
     realtime: RoomRealtimeContextValue;
     session: RoomSessionContextValue;
     ui: RoomUiContextValue;
@@ -39,7 +39,7 @@ export const RoomSessionContextProviderTree = ({
   children,
   values,
 }: RoomSessionContextProviderTreeProps) => (
-  <RoomPlaylistContext.Provider value={values.playlist}>
+  <PlaylistSourceContext.Provider value={values.playlist}>
     <RoomSessionContext.Provider value={values.session}>
       <RoomGameContext.Provider value={values.game}>
         <RoomUiContext.Provider value={values.ui}>
@@ -53,5 +53,5 @@ export const RoomSessionContextProviderTree = ({
         </RoomUiContext.Provider>
       </RoomGameContext.Provider>
     </RoomSessionContext.Provider>
-  </RoomPlaylistContext.Provider>
+  </PlaylistSourceContext.Provider>
 );

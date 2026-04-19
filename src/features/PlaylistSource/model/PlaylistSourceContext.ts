@@ -1,15 +1,13 @@
 import { createContext, useContext } from "react";
 
-import type { PlaylistItem, PlaylistSuggestion } from "./types";
+import type {
+  PlaylistItem,
+  PlaylistPreviewMeta,
+  PlaylistSuggestion,
+  YoutubePlaylist,
+} from "./types";
 
-export type YoutubePlaylist = {
-  id: string;
-  title: string;
-  itemCount: number;
-  thumbnail?: string;
-};
-
-export interface RoomPlaylistContextValue {
+export interface PlaylistSourceContextValue {
   // Playlist 狀態
   playlistUrl: string;
   setPlaylistUrl: (value: string) => void;
@@ -18,16 +16,7 @@ export interface RoomPlaylistContextValue {
   playlistLoading: boolean;
   playlistStage: "input" | "preview";
   playlistLocked: boolean;
-  playlistPreviewMeta: {
-    expectedCount: number | null;
-    skippedCount: number;
-    skippedItems: Array<{
-      title?: string | null;
-      videoId?: string | null;
-      reason?: string | null;
-      status?: "removed" | "unavailable" | "private" | "blocked" | "unknown";
-    }>;
-  } | null;
+  playlistPreviewMeta: PlaylistPreviewMeta | null;
   lastFetchedPlaylistId: string | null;
   lastFetchedPlaylistTitle: string | null;
   // 分頁瀏覽
@@ -82,12 +71,14 @@ export interface RoomPlaylistContextValue {
   handleApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
 }
 
-export const RoomPlaylistContext =
-  createContext<RoomPlaylistContextValue | null>(null);
+export const PlaylistSourceContext =
+  createContext<PlaylistSourceContextValue | null>(null);
 
-export const useRoomPlaylist = (): RoomPlaylistContextValue => {
-  const ctx = useContext(RoomPlaylistContext);
+export const usePlaylistSource = (): PlaylistSourceContextValue => {
+  const ctx = useContext(PlaylistSourceContext);
   if (!ctx)
-    throw new Error("useRoomPlaylist must be used within a RoomProvider");
+    throw new Error(
+      "usePlaylistSource must be used within a PlaylistSourceProvider",
+    );
   return ctx;
 };

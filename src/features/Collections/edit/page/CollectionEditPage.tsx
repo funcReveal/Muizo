@@ -4,7 +4,7 @@ import { Button } from "@mui/material";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
 import LoadingPage from "../../../../shared/ui/LoadingPage";
 import { useAuth } from "../../../../shared/auth/AuthContext";
-import { useRoomPlaylist } from "@features/RoomSession";
+import { usePlaylistSource } from "@features/PlaylistSource";
 import { isAdminRole } from "../../../../shared/auth/roles";
 import type { DbCollection, EditableItem } from "../utils/editTypes";
 import { buildEditableItemsFromDb } from "../utils/editMappers";
@@ -75,7 +75,7 @@ const CollectionEditPage = () => {
     handleFetchPlaylist,
     handleResetPlaylist,
     setPlaylistUrl,
-  } = useRoomPlaylist();
+  } = usePlaylistSource();
 
   const [collections, setCollections] = useState<DbCollection[]>([]);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(

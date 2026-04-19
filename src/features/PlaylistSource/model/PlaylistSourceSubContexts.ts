@@ -6,11 +6,37 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { Ack, ClientSocket, PlaylistItem, PlaylistSuggestion } from "../types";
+import type {
+  PlaylistItem,
+  PlaylistSuggestion,
+} from "./types";
+
+export type PlaylistSourceAck<T> =
+  | { ok: true; data: T }
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+      retryAfterMs?: number;
+    };
+
+export type PlaylistSourceSocket = {
+  emit: (
+    event: "getPlaylistPage",
+    payload: { roomId: string; page: number; pageSize?: number },
+    callback: (ack: PlaylistSourceAck<{
+      items: PlaylistItem[];
+      totalCount: number;
+      page: number;
+      pageSize: number;
+      ready: boolean;
+    }>) => void,
+  ) => void;
+};
 
 export type TerminalRoomAckHandler = (
   roomId: string | null | undefined,
-  ack: Ack<unknown> | null | undefined,
+  ack: PlaylistSourceAck<unknown> | null | undefined,
 ) => boolean;
 
 export interface PlaylistLiveSettersContextValue {
@@ -39,7 +65,7 @@ export const usePlaylistLiveSetters = (): PlaylistLiveSettersContextValue => {
   const ctx = useContext(PlaylistLiveSettersContext);
   if (!ctx) {
     throw new Error(
-      "usePlaylistLiveSetters must be used within RoomPlaylistSubProvider",
+      "usePlaylistLiveSetters must be used within PlaylistSourceProvider",
     );
   }
   return ctx;
@@ -79,14 +105,14 @@ export const usePlaylistInputControl =
     const ctx = useContext(PlaylistInputControlContext);
     if (!ctx) {
       throw new Error(
-        "usePlaylistInputControl must be used within RoomPlaylistSubProvider",
+        "usePlaylistInputControl must be used within PlaylistSourceProvider",
       );
     }
     return ctx;
   };
 
 export interface PlaylistSocketBridgeContextValue {
-  getSocketRef: RefObject<() => ClientSocket | null>;
+  getSocketRef: RefObject<() => PlaylistSourceSocket | null>;
   loadMorePlaylistRef: RefObject<() => void>;
   onResetCollectionRef: RefObject<() => void>;
   handleTerminalRoomAckRef: RefObject<TerminalRoomAckHandler>;
@@ -99,7 +125,7 @@ export const usePlaylistSocketBridge = (): PlaylistSocketBridgeContextValue => {
   const ctx = useContext(PlaylistSocketBridgeContext);
   if (!ctx) {
     throw new Error(
-      "usePlaylistSocketBridge must be used within RoomPlaylistSubProvider",
+      "usePlaylistSocketBridge must be used within PlaylistSourceProvider",
     );
   }
   return ctx;

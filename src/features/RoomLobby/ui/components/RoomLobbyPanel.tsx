@@ -39,7 +39,7 @@ import type {
   RoomParticipant,
   RoomState,
 } from "@features/RoomSession";
-import type { YoutubePlaylist } from "@features/RoomSession";
+import type { YoutubePlaylist } from "@features/PlaylistSource";
 import {
   clampPlayDurationSec,
   clampQuestionCount,

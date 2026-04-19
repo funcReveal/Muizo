@@ -1,6 +1,5 @@
 import type { AuthUser } from "../../../shared/auth/AuthContext";
-import type { YoutubePlaylist } from "./RoomPlaylistContext";
-import type { PlaylistItem, RoomSummary } from "./types";
+import type { RoomSummary } from "./types";
 
 export type ApiResult<T> = {
   ok: boolean;
@@ -51,50 +50,6 @@ export type RoomByIdPayload = {
   error?: string;
   error_code?: string;
 };
-
-export type YoutubePlaylistsPayload = {
-  ok?: boolean;
-  data?: YoutubePlaylist[];
-  error?: string;
-  error_code?: string;
-};
-
-export type YoutubePlaylistItemsPayload = {
-  ok?: boolean;
-  data?: {
-    playlistId: string;
-    title?: string;
-    items: PlaylistItem[];
-    expectedCount?: number | null;
-    skippedCount?: number;
-    skippedItems?: Array<{
-      title?: string | null;
-      videoId?: string | null;
-      reason?: string | null;
-      status?: "removed" | "unavailable" | "private" | "blocked" | "unknown";
-    }>;
-  };
-  error?: string;
-  error_code?: string;
-};
-
-export type PlaylistPreviewPayload =
-  | {
-      playlistId: string;
-      title?: string;
-      items: PlaylistItem[];
-      expectedCount: number | null;
-      skippedCount: number;
-      skippedItems?: Array<{
-        title?: string | null;
-        videoId?: string | null;
-        reason?: string | null;
-        status?: "removed" | "unavailable" | "private" | "blocked" | "unknown";
-      }>;
-    }
-  | {
-      error: string;
-    };
 
 export type CollectionSummary = {
   id: string;
@@ -255,31 +210,6 @@ export const apiFetchRoomById = (apiUrl: string, roomId: string) =>
 export const apiFetchSitePresence = (apiUrl: string) =>
   fetchJson<SitePresenceHttpPayload>(`${apiUrl}/api/site-presence`);
 
-export const apiFetchYoutubePlaylists = (apiUrl: string, token: string) =>
-  fetchJson<YoutubePlaylistsPayload>(`${apiUrl}/api/youtube/playlists`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-export const apiFetchYoutubePlaylistItems = (
-  apiUrl: string,
-  token: string,
-  playlistId: string,
-  startIndex?: number,
-  pageSize?: number,
-) => {
-  const url = new URL(`${apiUrl}/api/youtube/playlist-items`);
-  url.searchParams.set("playlistId", playlistId);
-  if (startIndex !== undefined) {
-    url.searchParams.set("startIndex", String(startIndex));
-  }
-  if (pageSize !== undefined) {
-    url.searchParams.set("pageSize", String(pageSize));
-  }
-  return fetchJson<YoutubePlaylistItemsPayload>(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-};
-
 export const apiAuthGoogleWeb = (
   apiUrl: string,
   params: {
@@ -335,17 +265,6 @@ export const apiLogout = (
           ? (params.refreshToken ?? null)
           : undefined,
     }),
-  });
-
-export const apiPreviewPlaylist = (
-  apiUrl: string,
-  url: string,
-  playlistId?: string,
-) =>
-  fetchJson<PlaylistPreviewPayload>(`${apiUrl}/api/playlists/preview`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, playlistId }),
   });
 
 export const apiFetchCollections = (

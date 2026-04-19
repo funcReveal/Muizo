@@ -35,15 +35,13 @@ import {
   usePlaylistInputControl,
   usePlaylistLiveSetters,
   usePlaylistSocketBridge,
-} from "./RoomPlaylistSubContexts";
+  usePlaylistSource,
+  type PlaylistSourceContextValue,
+} from "@features/PlaylistSource";
 import { useCollectionAccess } from "./RoomCollectionsAccessContext";
 import type { RoomSessionInternalContextValue } from "./RoomSessionInternalContext";
 import { RoomSessionContextProviderTree } from "./RoomSessionContextProviderTree";
 import { useRoomCollections } from "../RoomCollectionsContext";
-import {
-  useRoomPlaylist,
-  type RoomPlaylistContextValue,
-} from "../RoomPlaylistContext";
 import {
   type RoomClosedNotice,
   type RoomSessionContextValue,
@@ -130,7 +128,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     useCollectionAccess();
 
   // Base playlist context re-provided below with real socket handlers
-  const basePlaylistCtx = useRoomPlaylist();
+  const basePlaylistCtx = usePlaylistSource();
   const {
     playlistItems,
     lastFetchedPlaylistId,
@@ -600,7 +598,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setHostRoomPassword,
   });
 
-  const fullPlaylistCtxValue = useMemo<RoomPlaylistContextValue>(
+  const fullPlaylistCtxValue = useMemo<PlaylistSourceContextValue>(
     () => ({
       ...basePlaylistCtx,
       loadMorePlaylist,

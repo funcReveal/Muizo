@@ -20,7 +20,7 @@ import { CollectionAccessContext } from "./RoomCollectionsAccessContext";
 import {
   usePlaylistInputControl,
   usePlaylistSocketBridge,
-} from "./RoomPlaylistSubContexts";
+} from "@features/PlaylistSource";
 
 export const RoomCollectionsSubProvider: React.FC<{ children: ReactNode }> = ({
   children,

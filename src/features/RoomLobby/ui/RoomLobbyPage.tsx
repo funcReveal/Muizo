@@ -41,10 +41,10 @@ import { translateRoomErrorDetail } from "@features/RoomSession";
 import { useAuth } from "@shared/auth/AuthContext";
 import {
   useRoomSession,
-  useRoomPlaylist,
   useRoomCollections,
   useRoomGame,
 } from "@features/RoomSession";
+import { usePlaylistSource } from "@features/PlaylistSource";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded heavy components
@@ -562,7 +562,7 @@ const RoomLobbyPage: React.FC = () => {
     handleApplyCollectionDirect,
     handleApplyYoutubePlaylistDirect,
     handleFetchPlaylistByUrl,
-  } = useRoomPlaylist();
+  } = usePlaylistSource();
   const {
     collections,
     collectionsLoading,

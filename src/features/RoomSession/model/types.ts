@@ -3,6 +3,18 @@ import type {
   PlaybackExtensionMode,
 } from "./gameTypes";
 import type { RoomSettlementSnapshot } from "./settlementTypes";
+import type {
+  PlaylistItem,
+  PlaylistSourceType,
+  PlaylistState,
+} from "@features/PlaylistSource";
+
+export type {
+  PlaylistItem,
+  PlaylistSourceType,
+  PlaylistState,
+  PlaylistSuggestion,
+} from "@features/PlaylistSource";
 
 export type Ack<T> =
   | { ok: true; data: T }
@@ -12,46 +24,6 @@ export type Ack<T> =
       code?: string;
       retryAfterMs?: number;
     };
-
-export interface PlaylistItem {
-  title: string;
-  url: string;
-  uploader?: string;
-  channelId?: string;
-  duration?: string;
-  thumbnail?: string;
-  startSec?: number;
-  endSec?: number;
-  hasExplicitStartSec?: boolean;
-  hasExplicitEndSec?: boolean;
-  timingSource?: "room_settings" | "track_clip";
-  collectionClipStartSec?: number;
-  collectionClipEndSec?: number;
-  collectionHasExplicitStartSec?: boolean;
-  collectionHasExplicitEndSec?: boolean;
-  answerText?: string;
-  videoId?: string;
-  sourceId?: string | null;
-  provider?: string;
-}
-
-export type PlaylistSourceType =
-  | "public_collection"
-  | "private_collection"
-  | "youtube_google_import"
-  | "youtube_pasted_link";
-
-export interface PlaylistState {
-  id?: string;
-  title?: string;
-  sourceType?: PlaylistSourceType | null;
-  uploadId?: string;
-  items: PlaylistItem[];
-  totalCount: number;
-  receivedCount: number;
-  ready: boolean;
-  pageSize: number;
-}
 
 export type {
   GameChoice,
@@ -65,19 +37,6 @@ export type {
   SubmitAnswerAckData,
   SubmitAnswerResult,
 } from "./gameTypes";
-
-export interface PlaylistSuggestion {
-  clientId: string;
-  username: string;
-  type: "collection" | "playlist";
-  value: string;
-  suggestedAt: number;
-  title?: string | null;
-  totalCount?: number;
-  sourceId?: string | null;
-  items?: PlaylistItem[];
-  readToken?: string | null;
-}
 
 export interface RoomParticipant {
   clientId: string;

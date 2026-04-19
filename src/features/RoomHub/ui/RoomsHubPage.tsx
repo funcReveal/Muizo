@@ -14,10 +14,10 @@ import {
   useRoomSession,
   useRoomCreate,
   useRoomCollections,
-  useRoomPlaylist,
   useRoomGame,
   useSitePresence,
 } from "@features/RoomSession";
+import { usePlaylistSource } from "@features/PlaylistSource";
 import {
   DEFAULT_BGM_VOLUME,
   SettingsModelContext,
@@ -234,7 +234,7 @@ const RoomsHubPage: React.FC = () => {
     questionMin,
     questionMaxLimit,
     updateQuestionCount,
-  } = useRoomPlaylist();
+  } = usePlaylistSource();
   const {
     roomNameInput,
     setRoomNameInput,

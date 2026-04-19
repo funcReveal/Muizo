@@ -21,7 +21,7 @@ import { isAdminRole } from "../../../../shared/auth/roles";
 import { isGoogleReauthRequired } from "../../../../shared/auth/providerAuth";
 import { fadeInUp } from "../../../../shared/motion/motionPresets";
 import { appToast } from "../../../../shared/ui/toastApi";
-import { useRoomPlaylist } from "@features/RoomSession";
+import { usePlaylistSource } from "@features/PlaylistSource";
 import { useRoomCollections } from "@features/RoomSession";
 import {
   MAX_COLLECTIONS_PER_USER,
@@ -71,7 +71,7 @@ const CollectionCreatePage = () => {
     youtubePlaylistsError,
     fetchYoutubePlaylists,
     importYoutubePlaylist,
-  } = useRoomPlaylist();
+  } = usePlaylistSource();
   const { collections, collectionScope, fetchCollections } =
     useRoomCollections();
 

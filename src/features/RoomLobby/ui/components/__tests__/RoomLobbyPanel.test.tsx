@@ -11,7 +11,7 @@ import type {
   RoomParticipant,
   RoomState,
 } from "@features/RoomSession";
-import type { YoutubePlaylist } from "@features/RoomSession";
+import type { YoutubePlaylist } from "@features/PlaylistSource";
 import type { CollectionOption } from "../roomLobbyPanelTypes";
 import RoomLobbyPanel from "../RoomLobbyPanel";
 

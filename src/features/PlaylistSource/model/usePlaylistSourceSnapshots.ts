@@ -1,12 +1,14 @@
 import { useCallback } from "react";
 
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
-import { apiFetchYoutubePlaylistItems, apiPreviewPlaylist } from "./roomApi";
-import type { YoutubePlaylist } from "./RoomPlaylistContext";
-import type { PlaylistItem } from "./types";
-import { normalizePlaylistItems } from "./roomUtils";
+import {
+  apiFetchYoutubePlaylistItems,
+  apiPreviewPlaylist,
+} from "./playlistSourceApi";
+import type { PlaylistItem, YoutubePlaylist } from "./types";
+import { normalizePlaylistItems } from "./playlistSourceUtils";
 
-interface UseRoomPlaylistSnapshotsParams {
+interface UsePlaylistSourceSnapshotsParams {
   apiUrl: string;
   authToken: string | null;
   refreshAuthToken: () => Promise<string | null>;
@@ -21,13 +23,13 @@ interface PlaylistSnapshot {
   sourceId: string;
 }
 
-export const useRoomPlaylistSnapshots = ({
+export const usePlaylistSourceSnapshots = ({
   apiUrl,
   authToken,
   refreshAuthToken,
   youtubePlaylists,
   extractVideoIdFromUrl,
-}: UseRoomPlaylistSnapshotsParams) => {
+}: UsePlaylistSourceSnapshotsParams) => {
   const fetchYoutubeSnapshot = useCallback(
     async (playlistId: string): Promise<PlaylistSnapshot> => {
       if (!apiUrl) {
@@ -138,5 +140,5 @@ export const useRoomPlaylistSnapshots = ({
   };
 };
 
-export default useRoomPlaylistSnapshots;
+export default usePlaylistSourceSnapshots;
 

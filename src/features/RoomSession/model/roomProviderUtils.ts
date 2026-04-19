@@ -15,8 +15,10 @@ import {
   clampStartOffsetSec,
   extractYoutubeChannelId,
   formatSeconds,
-  normalizePlaylistItems,
 } from "./roomUtils";
+import {
+  normalizePlaylistItems,
+} from "@features/PlaylistSource";
 import { resolveSettlementTrackLink } from "../../Settlement/model/settlementLinks";
 import type {
   ChatMessage,
@@ -93,30 +95,6 @@ export const mapCollectionItemsToPlaylist = (
       provider,
     };
   });
-
-export const extractVideoIdFromUrl = (url: string) => {
-  try {
-    const parsed = new URL(url);
-    const vid = parsed.searchParams.get("v");
-    if (vid) return vid;
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    return segments.pop() || null;
-  } catch {
-    try {
-      const parsed = new URL(`https://${url}`);
-      const vid = parsed.searchParams.get("v");
-      if (vid) return vid;
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      return segments.pop() || null;
-    } catch {
-      const match =
-        url.match(/[?&]v=([^&]+)/) ||
-        url.match(/youtu\.be\/([^?&]+)/) ||
-        url.match(/youtube\.com\/embed\/([^?&]+)/);
-      return match?.[1] ?? null;
-    }
-  }
-};
 
 export const formatAckError = (prefix: string, error?: string) => {
   const safePrefix = sanitizePossibleGarbledText(prefix, "操作失敗");

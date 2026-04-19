@@ -38,7 +38,7 @@ import type {
   PlaylistSourceType,
   PlaylistSuggestion,
 } from "@features/RoomSession";
-import type { YoutubePlaylist } from "@features/RoomSession";
+import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { formatDurationLabel } from "../lib/roomsHubViewModels";
 import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
 

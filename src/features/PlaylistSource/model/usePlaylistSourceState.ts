@@ -1,26 +1,32 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { PlaylistItem } from "./types";
-import type { YoutubePlaylist } from "./RoomPlaylistContext";
+import type {
+  PlaylistItem,
+  PlaylistPreviewMeta,
+  YoutubePlaylist,
+} from "./types";
 import {
   apiFetchYoutubePlaylistItems,
   apiFetchYoutubePlaylists,
   apiPreviewPlaylist,
-} from "./roomApi";
+} from "./playlistSourceApi";
 import {
   clampQuestionCount,
   getQuestionMax,
   normalizePlaylistItems,
-} from "./roomUtils";
-import { QUESTION_STEP } from "./roomConstants";
-import { getStoredQuestionCount } from "./roomStorage";
+} from "./playlistSourceUtils";
+import {
+  QUESTION_MIN,
+  QUESTION_STEP,
+} from "@domain/room/constants";
+import { getStoredQuestionCount } from "./playlistSourceStorage";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 import {
   isGoogleReauthRequired,
   toGoogleReauthMessage,
 } from "../../../shared/auth/providerAuth";
 
-type UseRoomPlaylistOptions = {
+type UsePlaylistSourceStateOptions = {
   apiUrl: string;
   authToken: string | null;
   refreshAuthToken: () => Promise<string | null>;
@@ -28,7 +34,7 @@ type UseRoomPlaylistOptions = {
   onResetCollection: () => void;
 };
 
-export type UseRoomPlaylistResult = {
+export type UsePlaylistSourceStateResult = {
   playlistUrl: string;
   setPlaylistUrl: (value: string) => void;
   playlistItems: PlaylistItem[];
@@ -37,16 +43,7 @@ export type UseRoomPlaylistResult = {
   playlistLoading: boolean;
   playlistStage: "input" | "preview";
   playlistLocked: boolean;
-  playlistPreviewMeta: {
-    expectedCount: number | null;
-    skippedCount: number;
-    skippedItems: Array<{
-      title?: string | null;
-      videoId?: string | null;
-      reason?: string | null;
-      status?: "removed" | "unavailable" | "private" | "blocked" | "unknown";
-    }>;
-  } | null;
+  playlistPreviewMeta: PlaylistPreviewMeta | null;
   lastFetchedPlaylistId: string | null;
   lastFetchedPlaylistTitle: string | null;
   questionCount: number;
@@ -74,8 +71,6 @@ export type UseRoomPlaylistResult = {
   resetPlaylistState: () => void;
   resetYoutubePlaylists: () => void;
 };
-
-const QUESTION_MIN = 5;
 
 const normalizePlaylistPreviewErrorMessage = (message: string) => {
   const normalized = message.trim().toLowerCase();
@@ -133,13 +128,13 @@ const normalizePlaylistPreviewErrorMessage = (message: string) => {
   return message;
 };
 
-export const useRoomPlaylist = ({
+export const usePlaylistSourceState = ({
   apiUrl,
   authToken,
   refreshAuthToken,
   setStatusText,
   onResetCollection,
-}: UseRoomPlaylistOptions): UseRoomPlaylistResult => {
+}: UsePlaylistSourceStateOptions): UsePlaylistSourceStateResult => {
   const [playlistUrl, setPlaylistUrl] = useState("");
   const [playlistItems, setPlaylistItems] = useState<PlaylistItem[]>([]);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
@@ -148,16 +143,8 @@ export const useRoomPlaylist = ({
     "input",
   );
   const [playlistLocked, setPlaylistLocked] = useState(false);
-  const [playlistPreviewMeta, setPlaylistPreviewMeta] = useState<{
-    expectedCount: number | null;
-    skippedCount: number;
-    skippedItems: Array<{
-      title?: string | null;
-      videoId?: string | null;
-      reason?: string | null;
-      status?: "removed" | "unavailable" | "private" | "blocked" | "unknown";
-    }>;
-  } | null>(null);
+  const [playlistPreviewMeta, setPlaylistPreviewMeta] =
+    useState<PlaylistPreviewMeta | null>(null);
   const [lastFetchedPlaylistId, setLastFetchedPlaylistId] = useState<
     string | null
   >(null);

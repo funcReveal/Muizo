@@ -1,9 +1,9 @@
 /**
- * RoomPlaylistSubProvider
+ * PlaylistSourceProvider
  *
- * Owns playlist source state for the room lobby.
- * It exposes the base RoomPlaylistContext plus smaller bridge contexts that
- * other room providers use to patch in socket-driven behavior.
+ * Owns playlist source/import state shared by room and collection flows.
+ * It also exposes bridge contexts that room providers use to patch in
+ * socket-driven behavior.
  */
 import {
   useCallback,
@@ -14,18 +14,20 @@ import {
   type ReactNode,
 } from "react";
 
-import { useAuth } from "../../../../shared/auth/AuthContext";
+import { useAuth } from "../../../shared/auth/AuthContext";
 import {
-  RoomPlaylistContext,
-  type RoomPlaylistContextValue,
-} from "../RoomPlaylistContext";
-import { useRoomPlaylist as useRoomPlaylistHook } from "../useRoomPlaylist";
-import { useRoomPlaylistSnapshots } from "../useRoomPlaylistSnapshots";
-import { useRoomProviderPlaylistPaging } from "../useRoomProviderPlaylistPaging";
-import { extractVideoIdFromUrl } from "../roomProviderUtils";
-import { setStoredQuestionCount } from "../roomStorage";
-import { API_URL, QUESTION_MAX } from "../roomConstants";
-import { useStatusWrite } from "./RoomStatusContexts";
+  PlaylistSourceContext,
+  type PlaylistSourceContextValue,
+} from "./PlaylistSourceContext";
+import { usePlaylistSourceState } from "./usePlaylistSourceState";
+import { usePlaylistSourceSnapshots } from "./usePlaylistSourceSnapshots";
+import { usePlaylistSourcePaging } from "./usePlaylistSourcePaging";
+import { extractVideoIdFromUrl } from "./playlistSourceUtils";
+import { setStoredQuestionCount } from "./playlistSourceStorage";
+import {
+  API_URL,
+  QUESTION_MAX,
+} from "@domain/room/constants";
 import {
   PlaylistInputControlContext,
   PlaylistLiveSettersContext,
@@ -33,14 +35,23 @@ import {
   type PlaylistInputControlContextValue,
   type PlaylistLiveSettersContextValue,
   type PlaylistSocketBridgeContextValue,
-} from "./RoomPlaylistSubContexts";
-import type { Ack, ClientSocket, PlaylistSuggestion } from "../types";
+  type PlaylistSourceAck,
+  type PlaylistSourceSocket,
+} from "./PlaylistSourceSubContexts";
+import type {
+  PlaylistSuggestion,
+} from "./types";
 
-export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
+type PlaylistSourceProviderProps = {
+  children: ReactNode;
+  setStatusText?: (value: string | null) => void;
+};
+
+export const PlaylistSourceProvider: React.FC<PlaylistSourceProviderProps> = ({
   children,
+  setStatusText = () => {},
 }) => {
   const { authToken, refreshAuthToken } = useAuth();
-  const { setStatusText } = useStatusWrite();
 
   const [playlistProgress, setPlaylistProgress] = useState<{
     received: number;
@@ -51,13 +62,13 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     PlaylistSuggestion[]
   >([]);
 
-  const getSocketRef = useRef<() => ClientSocket | null>(() => null);
+  const getSocketRef = useRef<() => PlaylistSourceSocket | null>(() => null);
   const loadMorePlaylistRef = useRef<() => void>(() => {});
   const onResetCollectionRef = useRef<() => void>(() => {});
   const handleTerminalRoomAckRef = useRef(
     (() => false) as (
       roomId: string | null | undefined,
-      ack: Ack<unknown> | null | undefined,
+      ack: PlaylistSourceAck<unknown> | null | undefined,
     ) => boolean,
   );
 
@@ -94,7 +105,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     clearPlaylistError,
     resetPlaylistState,
     resetYoutubePlaylists,
-  } = useRoomPlaylistHook({
+  } = usePlaylistSourceState({
     apiUrl: API_URL,
     authToken,
     refreshAuthToken,
@@ -103,7 +114,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   });
 
   const { fetchYoutubeSnapshot, fetchPublicPlaylistSnapshot } =
-    useRoomPlaylistSnapshots({
+    usePlaylistSourceSnapshots({
       apiUrl: API_URL,
       authToken,
       refreshAuthToken,
@@ -142,7 +153,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
     resetPlaylistPagingState,
     fetchPlaylistPage,
     fetchCompletePlaylist,
-  } = useRoomProviderPlaylistPaging({
+  } = usePlaylistSourcePaging({
     getSocket,
     onPagePayload: handlePlaylistPagePayload,
     handleTerminalRoomAckRef,
@@ -164,7 +175,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   const noopBool = useCallback(async () => false as const, []);
   const noopSuggest = useCallback(async () => ({ ok: false as const }), []);
 
-  const playlistContextValue = useMemo<RoomPlaylistContextValue>(
+  const playlistContextValue = useMemo<PlaylistSourceContextValue>(
     () => ({
       playlistUrl,
       setPlaylistUrl,
@@ -195,15 +206,15 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
       youtubePlaylistsError,
       fetchYoutubePlaylists,
       importYoutubePlaylist,
-      handleFetchPlaylistByUrl: noop as RoomPlaylistContextValue["handleFetchPlaylistByUrl"],
+      handleFetchPlaylistByUrl: noop as PlaylistSourceContextValue["handleFetchPlaylistByUrl"],
       handleFetchPlaylist,
       handleResetPlaylist,
-      handleChangePlaylist: noop as RoomPlaylistContextValue["handleChangePlaylist"],
+      handleChangePlaylist: noop as PlaylistSourceContextValue["handleChangePlaylist"],
       handleApplyPlaylistUrlDirect: noopBool,
       handleApplyCollectionDirect: noopBool,
       handleApplyYoutubePlaylistDirect: noopBool,
-      handleSuggestPlaylist: noopSuggest as RoomPlaylistContextValue["handleSuggestPlaylist"],
-      handleApplySuggestionSnapshot: noop as RoomPlaylistContextValue["handleApplySuggestionSnapshot"],
+      handleSuggestPlaylist: noopSuggest as PlaylistSourceContextValue["handleSuggestPlaylist"],
+      handleApplySuggestionSnapshot: noop as PlaylistSourceContextValue["handleApplySuggestionSnapshot"],
     }),
     [
       playlistUrl,
@@ -295,7 +306,7 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   return (
-    <RoomPlaylistContext.Provider value={playlistContextValue}>
+    <PlaylistSourceContext.Provider value={playlistContextValue}>
       <PlaylistLiveSettersContext.Provider value={liveSettersValue}>
         <PlaylistInputControlContext.Provider value={inputControlValue}>
           <PlaylistSocketBridgeContext.Provider value={bridgeValue}>
@@ -303,6 +314,6 @@ export const RoomPlaylistSubProvider: React.FC<{ children: ReactNode }> = ({
           </PlaylistSocketBridgeContext.Provider>
         </PlaylistInputControlContext.Provider>
       </PlaylistLiveSettersContext.Provider>
-    </RoomPlaylistContext.Provider>
+    </PlaylistSourceContext.Provider>
   );
 };

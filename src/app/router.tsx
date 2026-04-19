@@ -20,6 +20,9 @@ const LandingHomePage = lazy(
 const RoomSessionLayoutShell = lazy(
   () => import("./layout/RoomSessionLayoutShell"),
 );
+const CollectionContentLayoutShell = lazy(
+  () => import("./layout/CollectionContentLayoutShell"),
+);
 const RoomsHubPage = lazy(() => import("@features/RoomHub"));
 const RoomLobbyPage = lazy(
   () => import("@features/RoomLobby"),
@@ -75,33 +78,43 @@ export function AppRouter() {
           }
         />
         <Route
-          path="/collections/new"
           element={
-            <RequireAuthRoute
-              badge="Create Collection"
-              title="建立收藏需先登入"
-              description="登入後即可建立新收藏，並同步到你的帳號。"
-              highlights={["建立個人題庫", "同步播放清單", "後續可再編輯"]}
-            >
-              <Suspense fallback={<PageLoader />}>
-                <CollectionsCreatePage />
-              </Suspense>
-            </RequireAuthRoute>
+            <Suspense fallback={<PageLoader />}>
+              <CollectionContentLayoutShell />
+            </Suspense>
           }
-        />
-        <Route
-          path="/collections/:collectionId/edit"
-          element={
-            <RequireAuthRoute
-              badge="Edit Collection"
-              title="編輯收藏需先登入"
-              description="請先登入帳號，再進行收藏內容編修與管理。"
-              highlights={["編修題目內容", "管理可見權限", "保留編輯紀錄"]}
-            >
-              <EditPage />
-            </RequireAuthRoute>
-          }
-        />
+        >
+          <Route
+            path="/collections/new"
+            element={
+              <RequireAuthRoute
+                badge="Create Collection"
+                title="建立收藏需先登入"
+                description="登入後即可建立新收藏，並同步到你的帳號。"
+                highlights={["建立個人題庫", "同步播放清單", "後續可再編輯"]}
+              >
+                <Suspense fallback={<PageLoader />}>
+                  <CollectionsCreatePage />
+                </Suspense>
+              </RequireAuthRoute>
+            }
+          />
+          <Route
+            path="/collections/:collectionId/edit"
+            element={
+              <RequireAuthRoute
+                badge="Edit Collection"
+                title="編輯收藏需先登入"
+                description="請先登入帳號，再進行收藏內容編修與管理。"
+                highlights={["編修題目內容", "管理可見權限", "保留編輯紀錄"]}
+              >
+                <Suspense fallback={<PageLoader />}>
+                  <EditPage />
+                </Suspense>
+              </RequireAuthRoute>
+            }
+          />
+        </Route>
       </Route>
       <Route
         element={

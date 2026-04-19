@@ -7,7 +7,7 @@
  * - RoomAuthInternalContext: `activeUsername`, `getDefaultRoomName`,
  *   `previousUsernameRef`
  * - StatusWriteContext: `setStatusText`
- * - RoomPlaylistContext: `playlistItems`, `lastFetchedPlaylistId`,
+ * - PlaylistSourceContext: `playlistItems`, `lastFetchedPlaylistId`,
  *   `lastFetchedPlaylistTitle`, `questionCount`
  * - RoomGameContext: `playDurationSec`, `revealDurationSec`, `startOffsetSec`,
  *   `allowCollectionClipTiming`
@@ -32,10 +32,10 @@ import { useStatusWrite } from "./RoomStatusContexts";
 import {
   usePlaylistInputControl,
   usePlaylistLiveSetters,
-} from "./RoomPlaylistSubContexts";
+  usePlaylistSource,
+} from "@features/PlaylistSource";
 import { useCollectionAccess } from "./RoomCollectionsAccessContext";
 import { useRoomSessionInternal } from "./RoomSessionInternalContext";
-import { useRoomPlaylist } from "../RoomPlaylistContext";
 import { useRoomGame } from "../RoomGameContext";
 import { useRoomSession } from "../RoomSessionContext";
 import {
@@ -65,7 +65,7 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
     lastFetchedPlaylistId,
     lastFetchedPlaylistTitle,
     questionCount,
-  } = useRoomPlaylist();
+  } = usePlaylistSource();
 
   const {
     playDurationSec,

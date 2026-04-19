@@ -5,6 +5,7 @@ export {
 } from "./model/ChatInputContext";
 export {
   AuthSessionProvider,
+  RoomContentProvider,
   RoomSessionProvider,
   SitePresenceProvider,
 } from "./model/RoomSessionProvider";
@@ -12,11 +13,11 @@ export {
   useRoomSession,
   useRoomCreate,
   useRoomCollections,
-  useRoomPlaylist,
   useRoomGame,
   useSitePresence,
   useRoomRealtime,
 } from "./model/runtimeHooks";
+export { usePlaylistSource } from "@features/PlaylistSource";
 export { translateRoomErrorDetail } from "./model/roomErrorText";
 export {
   clampPlayDurationSec,
@@ -54,5 +55,5 @@ export type {
 export type {
   RoomCreateSourceMode,
 } from "./model/RoomCreateContext";
-export type { YoutubePlaylist } from "./model/RoomPlaylistContext";
+export type { YoutubePlaylist } from "@features/PlaylistSource";
 export type { CollectionEntry } from "./model/RoomCollectionsContext";

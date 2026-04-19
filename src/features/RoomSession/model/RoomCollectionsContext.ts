@@ -56,6 +56,6 @@ export const RoomCollectionsContext =
 export const useRoomCollections = (): RoomCollectionsContextValue => {
   const ctx = useContext(RoomCollectionsContext);
   if (!ctx)
-    throw new Error("useRoomCollections must be used within a RoomProvider");
+    throw new Error("useRoomCollections must be used within a RoomContentProvider");
   return ctx;
 };

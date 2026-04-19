@@ -6,10 +6,14 @@ import {
   type SetStateAction,
 } from "react";
 
-import { DEFAULT_PAGE_SIZE } from "./roomConstants";
-import type { Ack, ClientSocket, PlaylistItem } from "./types";
-import { normalizePlaylistItems } from "./roomUtils";
-import type { TerminalRoomAckHandler } from "./providers/RoomPlaylistSubContexts";
+import { DEFAULT_PAGE_SIZE } from "@domain/room/constants";
+import { normalizePlaylistItems } from "./playlistSourceUtils";
+import type { PlaylistItem } from "./types";
+import type {
+  PlaylistSourceAck,
+  PlaylistSourceSocket,
+  TerminalRoomAckHandler,
+} from "./PlaylistSourceSubContexts";
 
 type PlaylistPagePayload = {
   items: PlaylistItem[];
@@ -19,13 +23,13 @@ type PlaylistPagePayload = {
   ready: boolean;
 };
 
-type UseRoomProviderPlaylistPagingArgs = {
-  getSocket: () => ClientSocket | null;
+type UsePlaylistSourcePagingArgs = {
+  getSocket: () => PlaylistSourceSocket | null;
   onPagePayload?: (payload: PlaylistPagePayload) => void;
   handleTerminalRoomAckRef?: RefObject<TerminalRoomAckHandler>;
 };
 
-type UseRoomProviderPlaylistPagingResult = {
+type UsePlaylistSourcePagingResult = {
   playlistViewItems: PlaylistItem[];
   playlistHasMore: boolean;
   playlistLoadingMore: boolean;
@@ -46,11 +50,11 @@ type UseRoomProviderPlaylistPagingResult = {
   fetchCompletePlaylist: (roomId: string) => Promise<PlaylistItem[]>;
 };
 
-export const useRoomProviderPlaylistPaging = ({
+export const usePlaylistSourcePaging = ({
   getSocket,
   onPagePayload,
   handleTerminalRoomAckRef,
-}: UseRoomProviderPlaylistPagingArgs): UseRoomProviderPlaylistPagingResult => {
+}: UsePlaylistSourcePagingArgs): UsePlaylistSourcePagingResult => {
   const [playlistViewItems, setPlaylistViewItems] = useState<PlaylistItem[]>([]);
   const [playlistHasMore, setPlaylistHasMore] = useState(false);
   const [playlistLoadingMore, setPlaylistLoadingMore] = useState(false);
@@ -91,7 +95,7 @@ export const useRoomProviderPlaylistPaging = ({
       socket.emit(
         "getPlaylistPage",
         { roomId, page, pageSize },
-        (ack: Ack<PlaylistPagePayload>) => {
+        (ack: PlaylistSourceAck<PlaylistPagePayload>) => {
           if (ack?.ok) {
             setPlaylistViewItems((prev) => {
               const next = opts?.reset
@@ -130,7 +134,7 @@ export const useRoomProviderPlaylistPaging = ({
           socket.emit(
             "getPlaylistPage",
             { roomId, page, pageSize },
-            (ack: Ack<PlaylistPagePayload>) => {
+            (ack: PlaylistSourceAck<PlaylistPagePayload>) => {
               if (ack?.ok) {
                 aggregated.push(...ack.data.items);
                 if (

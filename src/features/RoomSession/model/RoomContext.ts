@@ -5,7 +5,7 @@ import type { ChatMessage, GameState, RoomState } from "./types";
 import type { RoomStatusOptions } from "./providers/RoomStatusContexts";
 
 export type { AuthUser } from "../../../shared/auth/AuthContext";
-export type { YoutubePlaylist } from "./RoomPlaylistContext";
+export type { YoutubePlaylist } from "@features/PlaylistSource";
 export type { RoomCreateSourceMode } from "./RoomCreateContext";
 export type { RoomKickedNotice } from "./RoomSessionContext";
 

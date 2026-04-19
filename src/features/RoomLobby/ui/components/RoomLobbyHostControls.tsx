@@ -19,7 +19,7 @@ import YouTubeIcon from "@mui/icons-material/YouTube";
 import { useEffect, useState } from "react";
 
 import type { GameState, PlaylistSuggestion } from "@features/RoomSession";
-import type { YoutubePlaylist } from "@features/RoomSession";
+import type { YoutubePlaylist } from "@features/PlaylistSource";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
