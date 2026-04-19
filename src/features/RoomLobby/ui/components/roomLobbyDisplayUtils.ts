@@ -30,7 +30,7 @@ export const formatLobbySettlementSummary = (
     typeof stats?.correctCount === "number";
 
   if (!hasCompleteStats || !stats) {
-    return `第 ${summary.roundNo} 局 · ${playerCount} 人 · ${questionCount} 題`;
+    return `第 ${summary.roundNo} 局 · ${playerCount} 人 · ${questionCount} 題 · 資料同步中`;
   }
 
   const score = Math.max(0, Math.round(stats.score ?? 0));

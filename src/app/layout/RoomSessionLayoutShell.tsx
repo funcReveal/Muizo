@@ -1,12 +1,14 @@
 import React from "react";
 
-import { RoomSessionProvider } from "@features/RoomSession";
+import { RoomSessionProvider, SitePresenceProvider } from "@features/RoomSession";
 import RoomAwareLayoutShell from "./RoomAwareLayoutShell";
 
 const RoomSessionLayoutShell: React.FC = () => (
-  <RoomSessionProvider>
-    <RoomAwareLayoutShell />
-  </RoomSessionProvider>
+  <SitePresenceProvider>
+    <RoomSessionProvider>
+      <RoomAwareLayoutShell />
+    </RoomSessionProvider>
+  </SitePresenceProvider>
 );
 
 export default RoomSessionLayoutShell;

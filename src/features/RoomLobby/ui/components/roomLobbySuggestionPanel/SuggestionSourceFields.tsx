@@ -4,7 +4,7 @@ import { MenuItem, TextField, Typography } from "@mui/material";
 import type { YoutubePlaylist } from "@features/RoomSession";
 import RoomLobbyLoadingState from "../RoomLobbyLoadingState";
 import type { CollectionOption } from "../roomLobbyPanelTypes";
-import { normalizeDisplayText } from "../roomLobbyPanelUtils";
+import { normalizeDisplayText } from "../roomLobbyDisplayUtils";
 import type { SuggestType } from "./types";
 
 interface SuggestionSourceFieldsProps {

@@ -120,8 +120,8 @@ describe("RoomLobbyHostControls", () => {
   it("switches between compact source pills and only shows one active source view", () => {
     render(<HostControlsHarness />);
 
-    expect(screen.getAllByText("推薦播放清單")[0]).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "推薦" })).toBeInTheDocument();
+    expect(screen.getAllByText("播放清單來源")[0]).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "推薦1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "連結" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "連結" }));
@@ -142,7 +142,7 @@ describe("RoomLobbyHostControls", () => {
       screen.getByPlaceholderText("貼上 YouTube URL"),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "套用到房間" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "載入播放清單" }),
+    ).not.toBeInTheDocument();
   });
 });

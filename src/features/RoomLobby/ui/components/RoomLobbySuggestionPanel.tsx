@@ -20,7 +20,7 @@ import type { YoutubePlaylist } from "@features/RoomSession";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
-import { normalizeDisplayText } from "./roomLobbyPanelUtils";
+import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
 import SuggestionStatusMessages from "./roomLobbySuggestionPanel/SuggestionStatusMessages";
 
 type SuggestType = "playlist" | "collection" | "youtube";

@@ -40,7 +40,7 @@ import type {
 } from "@features/RoomSession";
 import type { YoutubePlaylist } from "@features/RoomSession";
 import { formatDurationLabel } from "../lib/roomsHubViewModels";
-import { normalizeDisplayText } from "./roomLobbyPanelUtils";
+import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
 
 type SelectorTab = "suggestions" | "public" | "mine" | "youtube" | "link";
 type ToolDateMode = "all" | "7d" | "30d" | "earliest" | "latest";

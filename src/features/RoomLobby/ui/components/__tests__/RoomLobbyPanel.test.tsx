@@ -152,6 +152,8 @@ beforeEach(() => {
   }
 
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
 });
 
 describe("RoomLobbyPanel", () => {

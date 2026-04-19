@@ -24,7 +24,7 @@ import FloatingChatWindow from "@features/RoomChat";
 import GameRoomDanmuProviderBridge from "@features/GameRoom/ui/components/GameRoomDanmuProviderBridge";
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "@shared/analytics/constants";
 import useAutoHideScrollbar from "@shared/hooks/useAutoHideScrollbar";
-import { type LobbySettlementStats } from "./components/roomLobbyPanelUtils";
+import { type LobbySettlementStats } from "./components/roomLobbyDisplayUtils";
 import {
   getSettlementIdentityFromSnapshot,
   getSettlementIdentityFromSummary,

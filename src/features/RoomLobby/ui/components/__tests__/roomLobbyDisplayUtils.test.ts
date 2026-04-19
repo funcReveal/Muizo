@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { formatLobbySettlementSummary } from "../roomLobbyPanelUtils";
+import { formatLobbySettlementSummary } from "../roomLobbyDisplayUtils";
 
-describe("roomLobbyPanelUtils", () => {
+describe("roomLobbyDisplayUtils", () => {
   it("formats complete settlement stats with rank, score, and accuracy", () => {
     expect(
       formatLobbySettlementSummary(

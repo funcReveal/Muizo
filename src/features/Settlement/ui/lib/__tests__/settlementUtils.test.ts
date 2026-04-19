@@ -91,11 +91,11 @@ describe("liveSettlementUtils", () => {
     });
 
     expect(perfect.score).toBe(100);
-    expect(perfect.grade).toBe("S");
+    expect(perfect.grade).toBe("SS");
     expect(wrongFast.score).toBeGreaterThanOrEqual(18);
     expect(wrongFast.score).toBeLessThanOrEqual(37);
     expect(["E", "D", "C"]).toContain(wrongFast.grade);
-    expect(unansweredHard.score).toBe(5);
+    expect(unansweredHard.score).toBe(4);
     expect(unansweredHard.grade).toBe("E");
   });
 
@@ -216,7 +216,7 @@ describe("liveSettlementUtils", () => {
     });
   });
 
-  it("resolveSpeedComparisonInsight keeps fixed label and signed values", () => {
+  it("resolveSpeedComparisonInsight keeps median label and signed values", () => {
     const formatMs = (value: number) => `${(value / 1000).toFixed(2)}S`;
     const faster = resolveSpeedComparisonInsight(
       {
@@ -233,9 +233,9 @@ describe("liveSettlementUtils", () => {
       formatMs,
     );
 
-    expect(faster.label).toBe("你比大家快多少");
+    expect(faster.label).toBe("比中位快慢");
     expect(faster.value).toBe("+1.20S");
-    expect(slower.label).toBe("你比大家快多少");
+    expect(slower.label).toBe("比中位快慢");
     expect(slower.value).toBe("-0.80S");
   });
 });
