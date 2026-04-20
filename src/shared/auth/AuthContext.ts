@@ -35,7 +35,7 @@ export interface AuthContextValue {
   displayUsername: string;
   usernameInput: string;
   setUsernameInput: (value: string) => void;
-  handleSetUsername: () => void;
+  handleSetUsername: (fallbackName?: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

@@ -118,6 +118,23 @@ const buildSkeletonClassName = (shapeClassName: string) =>
 const skeletonLineClass =
   "rounded-full bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]";
 
+const generateGuestUsername = () => {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const values = new Uint8Array(6);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(values);
+  } else {
+    for (let index = 0; index < values.length; index += 1) {
+      values[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  const suffix = Array.from(
+    values,
+    (value) => alphabet[value % alphabet.length],
+  ).join("");
+  return `guest-${suffix}`.slice(0, USERNAME_MAX);
+};
+
 const renderYoutubeSkeletonCard = (idx: number, view: "grid" | "list") => {
   if (view === "grid") {
     return (
@@ -201,6 +218,7 @@ const RoomsHubPage: React.FC = () => {
   const { siteOnlineCount } = useSitePresence();
   const { rooms, currentRoom, isConnected } = useRoomSession();
   const displayedSiteOnlineCount = siteOnlineCount ?? (isConnected ? 1 : null);
+  const suggestedGuestUsername = useMemo(() => generateGuestUsername(), []);
   const {
     collections,
     collectionsLoading,
@@ -1221,63 +1239,145 @@ const RoomsHubPage: React.FC = () => {
             <h2 className="mt-2 text-2xl font-semibold text-[var(--mc-text)]">
               選擇進入方式，開始遊戲
             </h2>
-            <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
-              訪客可快速加入房間，Google 登入可保留收藏、歷史與跨裝置狀態。
-            </p>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              <article className="rounded-2xl border border-cyan-300/35 bg-cyan-500/5 p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/90">
-                  推薦登入
-                </p>
-                <h3 className="mt-2 text-lg font-semibold text-[var(--mc-text)]">
-                  Google 登入
-                </h3>
-                <ul className="mt-2 space-y-1 text-xs text-[var(--mc-text-muted)]">
-                  <li>同步收藏與題庫設定</li>
-                  <li>保留對戰歷史與回顧</li>
-                  <li>跨裝置延續狀態</li>
+            <div className="mt-5 grid items-stretch gap-4 lg:grid-cols-2">
+              <article className="relative flex min-h-[17.5rem] flex-col overflow-hidden rounded-2xl border border-cyan-300/35 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.86))] p-[18px] shadow-[0_12px_24px_-22px_rgba(2,6,23,0.9)]">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(34,211,238,0.5),transparent)]" />
+
+                <header className="space-y-3">
+                  <span className="inline-flex w-fit items-center rounded-full border border-cyan-300/35 bg-cyan-300/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-cyan-50">
+                    推薦登入
+                  </span>
+                  <h3 className="text-[1.35rem] font-semibold leading-tight text-[var(--mc-text)]">
+                    Google 登入
+                  </h3>
+                  <p className="text-[13px] leading-[1.55] text-[var(--mc-text-muted)]">
+                    你的進度與資料會穩定保存，避免重整後狀態遺失，也能跨裝置無縫延續。
+                  </p>
+                </header>
+
+                <ul className="mt-4 grid flex-1 gap-2">
+                  {[
+                    "同步 YouTube 播放清單，快速建立題庫",
+                    "保留個人收藏與編輯紀錄",
+                    "跨裝置延續登入狀態",
+                    "新功能優先支援登入用戶",
+                  ].map((item) => (
+                    <li
+                      key={item}
+                      className="flex items-center gap-2 text-sm leading-snug text-[#c9f9eb]"
+                    >
+                      <span className="h-2 w-2 shrink-0 rotate-45 rounded-[1px] border border-cyan-300/60 shadow-[0_0_6px_rgba(56,189,248,0.18)]" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
                 </ul>
+
                 <Button
                   fullWidth
-                  variant="contained"
-                  sx={{ mt: 3 }}
+                  variant="outlined"
+                  sx={{
+                    mt: 3,
+                    minHeight: 46,
+                    borderRadius: "16px",
+                    borderColor: "rgba(34, 211, 238, 0.44)",
+                    backgroundColor: "rgba(8, 90, 110, 0.48)",
+                    color: "#eafaf2",
+                    letterSpacing: "0.14em",
+                    "&:hover": {
+                      borderColor: "rgba(34, 211, 238, 0.62)",
+                      backgroundColor: "rgba(8, 90, 110, 0.62)",
+                      filter: "brightness(1.05)",
+                    },
+                  }}
                   onClick={loginWithGoogle}
                   disabled={authLoading}
                 >
-                  {authLoading ? "登入中..." : "使用 Google 登入"}
+                  {authLoading ? "登入中..." : "透過 Google 登入"}
                 </Button>
               </article>
 
-              <article className="rounded-2xl border border-amber-300/30 bg-amber-400/5 p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/90">
-                  先試玩
-                </p>
-                <h3 className="mt-2 text-lg font-semibold text-[var(--mc-text)]">
-                  訪客快速進入
-                </h3>
-                <p className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                  設定暱稱即可加入房間，隨時可升級為 Google 登入。
-                </p>
-                <div className="mt-3 space-y-3">
+              <article className="relative flex min-h-[17.5rem] flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-amber-300/35 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.86))] p-[18px] shadow-[0_12px_24px_-22px_rgba(2,6,23,0.9)]">
+                <header className="space-y-3">
+                  <span className="inline-flex w-fit items-center rounded-full border border-amber-300/35 bg-amber-400/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-amber-100">
+                    快速試玩
+                  </span>
+                  <h3 className="text-[1.35rem] font-semibold leading-tight text-[var(--mc-text)]">
+                    訪客快速進入
+                  </h3>
+                  <p className="text-[13px] leading-[1.55] text-[var(--mc-text-muted)]">
+                    不綁定帳號，輸入暱稱即可開局；留空會使用下方隨機名稱。
+                  </p>
+                </header>
+
+                <div className="space-y-3">
                   <TextField
-                    className="mb-2 "
                     fullWidth
                     size="small"
-                    label="訪客暱稱"
+                    label="暱稱"
+                    placeholder={suggestedGuestUsername}
                     value={usernameInput}
                     onChange={(e) =>
                       setUsernameInput(e.target.value.slice(0, USERNAME_MAX))
                     }
                     inputProps={{ maxLength: USERNAME_MAX }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: "16px",
+                        backgroundColor: "rgba(15, 23, 42, 0.78)",
+                        color: "var(--mc-text)",
+                        "& fieldset": {
+                          borderColor: "rgba(245, 158, 11, 0.28)",
+                        },
+                        "&:hover fieldset": {
+                          borderColor: "rgba(251, 191, 36, 0.52)",
+                        },
+                        "&.Mui-focused fieldset": {
+                          borderColor: "rgba(251, 191, 36, 0.72)",
+                          boxShadow: "0 0 0 2px rgba(245, 158, 11, 0.14)",
+                        },
+                      },
+                      "& .MuiInputLabel-root": {
+                        color: "var(--mc-text-muted)",
+                        letterSpacing: "0.14em",
+                      },
+                      "& .MuiInputBase-input::placeholder": {
+                        color: "rgba(252, 211, 77, 0.46)",
+                        opacity: 1,
+                      },
+                    }}
+                    slotProps={{
+                      input: { sx: { mb: "10px" } },
+                      inputLabel: { shrink: true },
+                    }}
                   />
                   <Button
                     fullWidth
                     variant="outlined"
-                    onClick={handleSetUsername}
-                    disabled={!usernameInput.trim()}
+                    sx={{
+                      minHeight: 46,
+                      borderRadius: "16px",
+                      borderColor: "rgba(251, 191, 36, 0.44)",
+                      backgroundColor: "rgba(245, 158, 11, 0.2)",
+                      color: "var(--mc-text)",
+                      letterSpacing: "0.18em",
+                      "&:hover": {
+                        borderColor: "rgba(251, 191, 36, 0.62)",
+                        backgroundColor: "rgba(245, 158, 11, 0.28)",
+                        filter: "brightness(1.05)",
+                      },
+                    }}
+                    onClick={() =>
+                      handleSetUsername(
+                        usernameInput.trim()
+                          ? undefined
+                          : suggestedGuestUsername,
+                      )
+                    }
                   >
-                    以訪客身份繼續
+                    {usernameInput.trim()
+                      ? "以訪客身份繼續"
+                      : `使用隨機暱稱開始`}
                   </Button>
                 </div>
               </article>

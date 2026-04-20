@@ -423,7 +423,7 @@ const InvitedPage: React.FC = () => {
                       </div>
                       <Button
                         variant="outlined"
-                        onClick={handleSetUsername}
+                        onClick={() => handleSetUsername()}
                         sx={{
                           borderColor: "rgba(245, 158, 11, 0.4)",
                           color: "var(--mc-text)",

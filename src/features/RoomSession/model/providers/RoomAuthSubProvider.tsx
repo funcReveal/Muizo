@@ -128,14 +128,13 @@ export const RoomAuthSubProvider: React.FC<{ children: ReactNode }> = ({
     setSessionClientIdLocked(false);
   }, [authClientId, localClientId]);
 
-  const handleSetUsername = useCallback(() => {
-    const trimmed = usernameInput.trim();
+  const handleSetUsername = useCallback((fallbackName?: string) => {
+    const trimmed = (usernameInput.trim() || fallbackName?.trim() || "").slice(
+      0,
+      USERNAME_MAX,
+    );
     if (!trimmed) {
       setStatusText("請先輸入名稱");
-      return;
-    }
-    if (trimmed.length > USERNAME_MAX) {
-      setStatusText(`名稱最多 ${USERNAME_MAX} 個字`);
       return;
     }
     persistUsername(trimmed);
