@@ -542,6 +542,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     handleFetchPlaylist,
     handleResetPlaylist,
     setPlaylistUrl,
+    setPlaylistProgress,
+    fetchPlaylistPage,
     handleRoomGoneAck,
   });
 

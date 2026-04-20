@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import {
   CHUNK_SIZE,
@@ -69,6 +69,15 @@ interface UseRoomProviderPlaylistActionsParams {
   }) => Promise<void>;
   handleResetPlaylist: () => void;
   setPlaylistUrl: (value: string) => void;
+  setPlaylistProgress: Dispatch<
+    SetStateAction<{ received: number; total: number; ready: boolean }>
+  >;
+  fetchPlaylistPage: (
+    roomId: string,
+    page: number,
+    pageSize?: number,
+    opts?: { reset?: boolean },
+  ) => void;
 }
 
 const uploadPlaylistChunks = async (
@@ -76,11 +85,21 @@ const uploadPlaylistChunks = async (
   roomId: string,
   uploadId: string,
   chunks: PlaylistItem[],
+  totalCount: number,
+  onProgress: (payload: {
+    receivedCount: number;
+    totalCount: number;
+    ready: boolean;
+  }) => void,
+  handleRoomGoneAck: (
+    roomId: string | null | undefined,
+    ack: Ack<unknown> | null | undefined,
+  ) => boolean,
 ) => {
   for (let i = 0; i < chunks.length; i += CHUNK_SIZE) {
     const chunk = chunks.slice(i, i + CHUNK_SIZE);
     const isLastChunk = i + CHUNK_SIZE >= chunks.length;
-    await new Promise<void>((resolve) => {
+    const chunkOk = await new Promise<boolean>((resolve) => {
       socket.emit(
         "uploadPlaylistChunk",
         {
@@ -89,10 +108,27 @@ const uploadPlaylistChunks = async (
           items: chunk,
           isLast: isLastChunk,
         },
-        () => resolve(),
+        (ack: Ack<{ receivedCount: number; totalCount: number }>) => {
+          if (handleRoomGoneAck(roomId, ack)) {
+            resolve(false);
+            return;
+          }
+          if (!ack?.ok) {
+            resolve(false);
+            return;
+          }
+          onProgress({
+            receivedCount: ack.data.receivedCount,
+            totalCount: ack.data.totalCount || totalCount,
+            ready: isLastChunk,
+          });
+          resolve(true);
+        },
       );
     });
+    if (!chunkOk) return false;
   }
+  return true;
 };
 
 export const useRoomProviderPlaylistActions = ({
@@ -115,6 +151,8 @@ export const useRoomProviderPlaylistActions = ({
   handleFetchPlaylist,
   handleResetPlaylist,
   setPlaylistUrl,
+  setPlaylistProgress,
+  fetchPlaylistPage,
 }: UseRoomProviderPlaylistActionsParams) => {
   const extractPlaylistIdFromUrl = (url: string) => {
     try {
@@ -193,6 +231,13 @@ export const useRoomProviderPlaylistActions = ({
       const firstChunk = uploadItems.slice(0, CHUNK_SIZE);
       const remaining = uploadItems.slice(CHUNK_SIZE);
       const isLast = remaining.length === 0;
+      const pageSize = DEFAULT_PAGE_SIZE;
+
+      setPlaylistProgress({
+        received: 0,
+        total: uploadItems.length,
+        ready: false,
+      });
 
       return await new Promise<boolean>((resolve) => {
         socket.emit(
@@ -207,7 +252,7 @@ export const useRoomProviderPlaylistActions = ({
               totalCount: uploadItems.length,
               items: firstChunk,
               isLast,
-              pageSize: DEFAULT_PAGE_SIZE,
+              pageSize,
             },
           },
           async (
@@ -226,13 +271,43 @@ export const useRoomProviderPlaylistActions = ({
               resolve(false);
               return;
             }
+            setPlaylistProgress({
+              received: ack.data.receivedCount,
+              total: ack.data.totalCount,
+              ready: ack.data.ready,
+            });
             applyPlaylistSource(items, sourceId, title ?? null);
             if (typeof playlistUrl === "string") {
               setPlaylistUrl(playlistUrl);
             }
             if (remaining.length > 0) {
-              await uploadPlaylistChunks(socket, currentRoom.id, uploadId, remaining);
+              const chunksOk = await uploadPlaylistChunks(
+                socket,
+                currentRoom.id,
+                uploadId,
+                remaining,
+                uploadItems.length,
+                ({ receivedCount, totalCount, ready }) => {
+                  setPlaylistProgress({
+                    received: receivedCount,
+                    total: totalCount,
+                    ready,
+                  });
+                },
+                handleRoomGoneAck,
+              );
+              if (!chunksOk) {
+                setStatusText("套用播放來源失敗：同步題庫內容未完成");
+                resolve(false);
+                return;
+              }
             }
+            setPlaylistProgress({
+              received: uploadItems.length,
+              total: uploadItems.length,
+              ready: true,
+            });
+            fetchPlaylistPage(currentRoom.id, 1, pageSize, { reset: true });
             setStatusText("已更新房間播放來源");
             resolve(true);
           },
@@ -245,7 +320,9 @@ export const useRoomProviderPlaylistActions = ({
       gameStateStatus,
       getSocket,
       handleRoomGoneAck,
+      fetchPlaylistPage,
       setPlaylistUrl,
+      setPlaylistProgress,
       setStatusText,
     ],
   );
