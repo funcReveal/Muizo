@@ -157,15 +157,6 @@ const useGameRoomPlayerSync = ({
   const previousServerOffsetRef = useRef(serverOffsetMs);
   const trackPreparedRef = useRef(false);
   const lastForegroundRecoveryAtMsRef = useRef(0);
-  const isLikelyMobileClientRef = useRef(
-    (() => {
-      if (typeof navigator === "undefined") return false;
-      return (
-        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-        navigator.maxTouchPoints > 1
-      );
-    })(),
-  );
 
   const isSyncDebugEnabled = useCallback(() => {
     if (typeof window === "undefined") return false;
@@ -404,6 +395,17 @@ const useGameRoomPlayerSync = ({
     return lastPlayerTimeSecRef.current;
   }, [getServerNowMs]);
 
+  const getRecentMeasuredEstimatedPositionSec = useCallback(
+    (nowMs = getServerNowMs()) => {
+      const measuredAt = lastPlayerTimeAtMsRef.current;
+      const measuredTime = lastPlayerTimeSecRef.current;
+      if (measuredTime === null) return null;
+      if (nowMs - measuredAt > 10_000) return null;
+      return Math.min(clipEndSec, measuredTime + (nowMs - measuredAt) / 1000);
+    },
+    [clipEndSec, getServerNowMs],
+  );
+
   const isLikelyContinuousPlayback = useCallback(
     (toleranceSec = RESUME_DRIFT_TOLERANCE_SEC) => {
       // NOTE: no state=1 guard here. When iOS pauses the iframe (state=2),
@@ -420,15 +422,17 @@ const useGameRoomPlayerSync = ({
       // Extrapolating at 1× speed gives the position the player "should" be at
       // now if it ran continuously, which matches desiredSec when drift is real-zero.
       // Window = 10s: beyond that the sync-point estimate is the better fallback.
-      const measuredAt = lastPlayerTimeAtMsRef.current;
-      const measuredTime = lastPlayerTimeSecRef.current;
       const estimatedPos =
-        measuredTime !== null && nowMs - measuredAt <= 10_000
-          ? Math.min(clipEndSec, measuredTime + (nowMs - measuredAt) / 1000)
-          : getEstimatedLocalPositionSec();
+        getRecentMeasuredEstimatedPositionSec(nowMs) ??
+        getEstimatedLocalPositionSec();
       return Math.abs(estimatedPos - desiredSec) <= toleranceSec;
     },
-    [clipEndSec, getDesiredPositionSec, getEstimatedLocalPositionSec, getServerNowMs],
+    [
+      getDesiredPositionSec,
+      getEstimatedLocalPositionSec,
+      getRecentMeasuredEstimatedPositionSec,
+      getServerNowMs,
+    ],
   );
 
   const getPlayerDebugPayload = useCallback(
@@ -1168,8 +1172,8 @@ const useGameRoomPlayerSync = ({
         holdReleaseDelayMs?: number;
       },
     ) => {
-      if (!playerReadyRef.current) return;
-      if (getServerNowMs() < startedAt || isEnded) return;
+      if (!playerReadyRef.current) return false;
+      if (getServerNowMs() < startedAt || isEnded) return false;
 
       const holdAudio =
         options?.holdAudio ?? initialAudioSyncPendingRef.current;
@@ -1186,14 +1190,13 @@ const useGameRoomPlayerSync = ({
         freshPlayerTime: getFreshPlayerTimeSec(),
         holdAudio,
       });
-
       if (shouldForceAlign) {
         startPlayback(undefined, true, {
           holdAudio,
           holdReleaseDelayMs,
           reason: reason === "media-seek" ? "media-seek" : "resume",
         });
-        return;
+        return true;
       }
 
       if (holdAudio) {
@@ -1210,6 +1213,7 @@ const useGameRoomPlayerSync = ({
         postCommand("unMute");
         applyVolume(gameVolume);
       }
+      return false;
     },
     [
       applyVolume,
@@ -1503,6 +1507,13 @@ const useGameRoomPlayerSync = ({
           !prestartWarmupActiveRef.current &&
           !isBufferingGraceActive()
         ) {
+          if (
+            typeof document !== "undefined" &&
+            document.visibilityState !== "visible"
+          ) {
+            resumeNeedsSyncRef.current = true;
+            return;
+          }
           // Use the pre-hide snapshot to decide immediately:
           // drift > 1.5s → seek to correct position (ONE buffer event).
           // drift ≤ 1.5s → just resume (ZERO buffer events; resync verifies).
@@ -1514,14 +1525,17 @@ const useGameRoomPlayerSync = ({
             msSinceMeasured !== null
               ? msSinceMeasured > RESUME_DRIFT_TOLERANCE_SEC * 1000
               : !isLikelyContinuousPlayback();
-          recoverPlaybackIfNeeded("pause-recovery", {
+          const didHardRecover = recoverPlaybackIfNeeded("pause-recovery", {
             requireAlignedPlayback,
             holdAudio: initialAudioSyncPendingRef.current,
             holdReleaseDelayMs: initialAudioSyncPendingRef.current ? 180 : undefined,
           });
-          // Verify drift after recovery — catches network-stall pauses where
-          // the player resumes from a position that's behind server time.
-          scheduleResumeResync();
+          // Verify drift only after a hard recovery. A soft resume is already
+          // continuing on the current timeline; a follow-up time probe there
+          // just reintroduces the foreground stutter we want to avoid.
+          if (didHardRecover) {
+            scheduleResumeResync();
+          }
         }
         if (state === 0) {
           const serverNow = getServerNowMs();
@@ -1719,7 +1733,11 @@ const useGameRoomPlayerSync = ({
     const revealKey = `${trackSessionKey}:${revealEndsAt}:reveal`;
     if (lastRevealStartKeyRef.current === revealKey) return;
     lastRevealStartKeyRef.current = revealKey;
-    const playerEnded = lastPlayerStateRef.current === 0;
+    const latestPlayerTimeSec = lastPlayerTimeSecRef.current;
+    const playerEnded =
+      lastPlayerStateRef.current === 0 ||
+      (typeof latestPlayerTimeSec === "number" &&
+        latestPlayerTimeSec >= clipEndSec - 0.12);
 
     if (playerEnded) {
       if (hasRecentBuffering()) {
@@ -1841,30 +1859,92 @@ const useGameRoomPlayerSync = ({
           : event?.type === "pageshow"
             ? "visibility-pageshow"
             : "visibility";
-      // If the player is already playing and on-track, do nothing.
-      // Sending postMessages to the iframe (unMute, setVolume, getCurrentTime)
-      // causes noticeable stutter even without a seek.
-      const isPlayingOnTrack =
+      const shouldProbeUnknownForegroundState =
+        !requiresAudioGesture &&
+        lastPlayerStateRef.current === null;
+      // Separate position health from player state. On desktop, the iframe can
+      // briefly report paused/buffering during foreground return even when the
+      // timeline is still aligned. Treating that as an immediate hard-recover
+      // causes the "iframe loading" pause the user hears.
+      const isPositionOnTrack =
         hasStartedPlaybackRef.current &&
-        lastPlayerStateRef.current === 1 &&
         isLikelyContinuousPlayback(RESUME_DRIFT_TOLERANCE_SEC);
+      const isPlayingOnTrack =
+        isPositionOnTrack && lastPlayerStateRef.current === 1;
+      const shouldDeferForegroundTouch =
+        isPositionOnTrack &&
+        !initialAudioSyncPendingRef.current &&
+        !requiresAudioGesture;
       debugSync("visibility-force-resume", {
         reason: pendingResumeSyncReasonRef.current,
         playerState: lastPlayerStateRef.current,
         initialAudioHoldPending: initialAudioSyncPendingRef.current,
+        shouldProbeUnknownForegroundState,
+        isPositionOnTrack,
         isPlayingOnTrack,
-        isLikelyMobileClient: isLikelyMobileClientRef.current,
       });
       if (isPlayingOnTrack && !initialAudioSyncPendingRef.current) {
         return;
       }
-      startSilentAudio();
-      recoverPlaybackIfNeeded("resume", {
-        requireAlignedPlayback: !isPlayingOnTrack,
+      if (shouldProbeUnknownForegroundState) {
+        const visibleSnapshotPlayerTimeSec = lastPlayerTimeSecRef.current;
+        const settleTimerId = window.setTimeout(() => {
+          if (!playerReadyRef.current) return;
+          if (document.visibilityState !== "visible") return;
+          if (lastPlayerStateRef.current === 1) {
+            return;
+          }
+          const latestPlayerTimeSec = lastPlayerTimeSecRef.current;
+          const progressedSinceVisible =
+            typeof visibleSnapshotPlayerTimeSec === "number" &&
+            typeof latestPlayerTimeSec === "number" &&
+            latestPlayerTimeSec - visibleSnapshotPlayerTimeSec >= 0.12;
+          if (progressedSinceVisible) {
+            return;
+          }
+          const nowMs = getServerNowMs();
+          const desiredSec = getDesiredPositionSec();
+          const estimatedPos =
+            getRecentMeasuredEstimatedPositionSec(nowMs) ??
+            getEstimatedLocalPositionSec();
+          const estimatedDrift = Math.abs(estimatedPos - desiredSec);
+          const requireAlignedPlayback =
+            estimatedDrift > RESUME_DRIFT_TOLERANCE_SEC;
+          if (!requireAlignedPlayback) {
+            return;
+          }
+          const didHardRecover = recoverPlaybackIfNeeded("resume", {
+            requireAlignedPlayback: true,
+            holdAudio: false,
+          });
+          if (didHardRecover) {
+            scheduleResumeResync();
+          }
+        }, 220);
+        resyncTimersRef.current.push(settleTimerId);
+        return;
+      }
+      if (shouldDeferForegroundTouch) {
+        const settleTimerId = window.setTimeout(() => {
+          if (!playerReadyRef.current) return;
+          if (document.visibilityState !== "visible") return;
+          if (lastPlayerStateRef.current === 1) return;
+          recoverPlaybackIfNeeded("resume", {
+            requireAlignedPlayback: false,
+            holdAudio: false,
+          });
+        }, 260);
+        resyncTimersRef.current.push(settleTimerId);
+        return;
+      }
+      const didHardRecover = recoverPlaybackIfNeeded("resume", {
+        requireAlignedPlayback: !isPositionOnTrack,
         holdAudio: initialAudioSyncPendingRef.current,
         holdReleaseDelayMs: initialAudioSyncPendingRef.current ? 180 : undefined,
       });
-      scheduleResumeResync();
+      if (didHardRecover) {
+        scheduleResumeResync();
+      }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleVisibility);
@@ -1876,12 +1956,15 @@ const useGameRoomPlayerSync = ({
     };
   }, [
     debugSync,
+    getDesiredPositionSec,
+    getEstimatedLocalPositionSec,
+    getRecentMeasuredEstimatedPositionSec,
     getServerNowMs,
     isLikelyContinuousPlayback,
+    requiresAudioGesture,
     recoverPlaybackIfNeeded,
     requestPlayerTime,
     scheduleResumeResync,
-    startSilentAudio,
     startedAt,
   ]);
 
