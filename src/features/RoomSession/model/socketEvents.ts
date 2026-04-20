@@ -190,7 +190,9 @@ export interface ClientToServerEvents {
       items: PlaylistItem[];
       isLast: boolean;
     },
-    callback?: (ack: Ack<{ receivedCount: number; totalCount: number }>) => void,
+    callback?: (
+      ack: Ack<{ receivedCount: number; totalCount: number; ready: boolean }>,
+    ) => void,
   ) => void;
   listSettlementHistorySummaries: (
     payload: { roomId: string; limit?: number; beforeEndedAt?: number | null },

@@ -108,7 +108,11 @@ const uploadPlaylistChunks = async (
           items: chunk,
           isLast: isLastChunk,
         },
-        (ack: Ack<{ receivedCount: number; totalCount: number }>) => {
+        (ack: Ack<{
+          receivedCount: number;
+          totalCount: number;
+          ready: boolean;
+        }>) => {
           if (handleRoomGoneAck(roomId, ack)) {
             resolve(false);
             return;
@@ -120,7 +124,7 @@ const uploadPlaylistChunks = async (
           onProgress({
             receivedCount: ack.data.receivedCount,
             totalCount: ack.data.totalCount || totalCount,
-            ready: isLastChunk,
+            ready: ack.data.ready,
           });
           resolve(true);
         },
