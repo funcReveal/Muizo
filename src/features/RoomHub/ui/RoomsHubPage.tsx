@@ -45,6 +45,7 @@ import LibrarySourcePanel from "./components/source/LibrarySourcePanel";
 import LibrarySourceToolbar from "./components/source/LibrarySourceToolbar";
 import CollectionsSourceContent from "./components/source/CollectionsSourceContent";
 import CollectionCard from "./components/source/CollectionCard";
+import CollectionDetailDrawer from "./components/source/CollectionDetailDrawer";
 import YoutubeSourceContent from "./components/source/YoutubeSourceContent";
 import YoutubePlaylistCard from "./components/source/YoutubePlaylistCard";
 import PlaylistLinkSourceContent from "./components/source/PlaylistLinkSourceContent";
@@ -292,6 +293,9 @@ const RoomsHubPage: React.FC = () => {
   });
   const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] =
     useState(false);
+  const [detailCollectionId, setDetailCollectionId] = useState<string | null>(
+    null,
+  );
   const {
     passwordDialog,
     setPasswordDialog,
@@ -717,6 +721,13 @@ const RoomsHubPage: React.FC = () => {
         : null,
     [collections, selectedCreateCollectionId],
   );
+  const detailCollection = useMemo(
+    () =>
+      detailCollectionId
+        ? (collections.find((item) => item.id === detailCollectionId) ?? null)
+        : null,
+    [collections, detailCollectionId],
+  );
   const selectedSharedCollection =
     selectedCreateCollectionId &&
     sharedCollectionMeta?.id === selectedCreateCollectionId
@@ -885,7 +896,6 @@ const RoomsHubPage: React.FC = () => {
     view: "grid" | "list",
   ) => {
     const collection = collectionValue as (typeof collections)[number];
-    const scope = createLibraryTab === "public" ? "public" : "owner";
 
     return (
       <CollectionCard
@@ -896,7 +906,7 @@ const RoomsHubPage: React.FC = () => {
         isFavoriteUpdating={collectionFavoriteUpdatingId === collection.id}
         formatDurationLabel={formatDurationLabel}
         onSelect={() => {
-          void handlePickCollectionSource(collection.id, scope);
+          setDetailCollectionId(collection.id);
         }}
         onToggleFavorite={
           createLibraryTab === "public"
@@ -952,6 +962,11 @@ const RoomsHubPage: React.FC = () => {
     if (authUser) return;
     hasRequestedYoutubePlaylistsRef.current = false;
   }, [authUser]);
+
+  useEffect(() => {
+    setDetailCollectionId(null);
+  }, [createLibraryTab, guideMode]);
+
   useEffect(() => {
     if (
       createLibraryView !== "grid" ||
@@ -992,6 +1007,7 @@ const RoomsHubPage: React.FC = () => {
     collectionId: string,
     scope: "public" | "owner",
   ) => {
+    setDetailCollectionId(null);
     updateAllowCollectionClipTiming(true);
     setRoomCreateSourceMode(
       scope === "public" ? "publicCollection" : "privateCollection",
@@ -1821,6 +1837,30 @@ const RoomsHubPage: React.FC = () => {
           </div>
         </section>
       )}
+      <CollectionDetailDrawer
+        open={Boolean(detailCollection)}
+        collection={detailCollection}
+        isPublicLibraryTab={createLibraryTab === "public"}
+        isApplying={collectionItemsLoading}
+        isFavoriteUpdating={
+          detailCollection
+            ? collectionFavoriteUpdatingId === detailCollection.id
+            : false
+        }
+        onClose={() => setDetailCollectionId(null)}
+        onUseCollection={(collectionId) => {
+          void handlePickCollectionSource(
+            collectionId,
+            createLibraryTab === "public" ? "public" : "owner",
+          );
+        }}
+        onToggleFavorite={
+          detailCollection && createLibraryTab === "public"
+            ? () => toggleCollectionFavorite(detailCollection.id)
+            : undefined
+        }
+        formatDurationLabel={formatDurationLabel}
+      />
       <PlaylistIssueSummaryDialog
         open={playlistIssueDialogOpen}
         onClose={() => setPlaylistIssueDialogOpen(false)}
