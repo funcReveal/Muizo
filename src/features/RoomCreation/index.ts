@@ -2,7 +2,9 @@ export {
   computeStableHash,
   emitRoomCreationAck,
   ROOM_CREATION_ACK_TIMEOUT_MS,
-} from "./model/roomCreationUtils";
+  runRoomCreationFlow,
+} from "./model/useRoomCreationFlow";
+export type { RunRoomCreationFlowParams } from "./model/useRoomCreationFlow";
 export type {
   AbortRoomCreationPayload,
   AbortRoomCreationResult,
