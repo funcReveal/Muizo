@@ -329,7 +329,7 @@ const normalizeQuestionRecap = (
 
 const CareerPage: React.FC = () => {
   const navigate = useNavigate();
-  const { clientId, authToken, refreshAuthToken, displayUsername } = useAuth();
+  const { clientId, authToken, refreshAuthToken } = useAuth();
   const { setStatusText } = useRoomSession();
 
   const [activeTab, setActiveTab] = useState<CareerTabKey>("overview");
@@ -1271,6 +1271,13 @@ const CareerPage: React.FC = () => {
       });
   }, [items]);
 
+  const playerName = useMemo(() => {
+    const firstNamed = items.find(
+      (item) => item.selfPlayer?.usernameSnapshot?.trim().length,
+    );
+    return firstNamed?.selfPlayer?.usernameSnapshot || "玩家";
+  }, [items]);
+
   const overviewHeroStats = useMemo<CareerOverviewHeroStats>(() => {
     const scored = items.filter((item) => Boolean(item.selfPlayer));
     const totalScore = scored.reduce(
@@ -1300,8 +1307,8 @@ const CareerPage: React.FC = () => {
     }, 0);
 
     return {
-      displayName: displayUsername || "玩家",
-      descriptor: "綜合表現 / 題庫名次 / 分享匯出",
+      displayName: playerName,
+      descriptor: "綜合表現 / 題庫戰績 / 分享匯出",
       totalMatches: items.length.toLocaleString("zh-TW"),
       totalScore: formatScore(totalScore),
       bestScore: formatScore(bestScore),
@@ -1309,7 +1316,7 @@ const CareerPage: React.FC = () => {
       playTime: formatDurationCompact(totalDurationMs),
       bestCombo: bestCombo > 0 ? `x${bestCombo}` : "-",
     };
-  }, [displayUsername, items]);
+  }, [items, playerName]);
 
   const overviewCompositeStats = useMemo<CareerCompositeStats>(() => {
     const scored = items.filter((item) => Boolean(item.selfPlayer));
@@ -1506,6 +1513,7 @@ const CareerPage: React.FC = () => {
           你的查詢頻率過高，已暫時限制歷史請求，請稍後再試。
         </div>
       )}
+
       {loadingList ? (
         <div className="flex items-center justify-center rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.86),rgba(8,7,5,0.96))] px-6 py-10 text-[var(--mc-text-muted)]">
           <div className="inline-flex items-center gap-3">
@@ -1539,6 +1547,7 @@ const CareerPage: React.FC = () => {
                 ? getHistoryGroupKeyFromSummary(group.items[0])
                 : null;
               if (!groupKey) return null;
+
               const collapsed =
                 historyDisplayMode === "expanded"
                   ? false
@@ -1607,6 +1616,7 @@ const CareerPage: React.FC = () => {
                         />
                       </>
                     )}
+
                     <button
                       type="button"
                       className={`group relative z-20 block w-full min-w-0 overflow-hidden rounded-[16px] border px-3 py-3 text-left transition duration-200 sm:rounded-[18px] sm:px-5 sm:py-3.5 ${
@@ -1747,6 +1757,7 @@ const CareerPage: React.FC = () => {
               );
             })}
           </div>
+
           {nextCursorToken && (
             <div className="flex justify-center pt-1">
               <button

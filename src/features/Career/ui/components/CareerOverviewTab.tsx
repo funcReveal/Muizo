@@ -96,20 +96,20 @@ const CareerOverviewTab: React.FC<CareerOverviewTabProps> = ({
                   {hero.descriptor}
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)]">
-                  先聚焦你的整體表現與近期狀態，再延伸到題庫排名與分享。
+                  先看整體表現與近期狀態，再延伸到題庫排名與分享。
                 </p>
               </div>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2.5">
               <div className="rounded-full border border-sky-300/32 bg-sky-300/10 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-sky-100">
-                綜合表現可視化
+                綜合表現
               </div>
               <div className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-emerald-100">
-                本週持續成長中
+                本週 delta
               </div>
               <div className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold tracking-[0.12em] text-amber-100">
-                題庫戰績支援 Δ 變動
+                題庫名次變動
               </div>
             </div>
           </div>
@@ -232,7 +232,7 @@ const CareerOverviewTab: React.FC<CareerOverviewTabProps> = ({
                 近 7 場趨勢
               </div>
               <div className="text-xs text-[var(--mc-text-muted)]">
-                越早看到趨勢，越有回訪動機
+                先看到變強，才會想看更多
               </div>
             </div>
 
@@ -275,7 +275,7 @@ const CareerOverviewTab: React.FC<CareerOverviewTabProps> = ({
                   本週進度
                 </h3>
                 <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
-                  用 delta 告訴玩家自己最近是不是更強了。
+                  用 delta 告訴玩家最近是不是更強了。
                 </p>
               </div>
             </div>
@@ -332,7 +332,7 @@ const CareerOverviewTab: React.FC<CareerOverviewTabProps> = ({
                   題庫戰績捷徑
                 </h3>
                 <p className="mt-2 text-sm text-[var(--mc-text-muted)]">
-                  先看你在哪些題庫進步或退步最多。
+                  先看哪幾個題庫最近變動最大。
                 </p>
               </div>
               <button
