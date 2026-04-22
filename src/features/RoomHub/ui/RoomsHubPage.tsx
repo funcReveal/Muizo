@@ -1920,21 +1920,21 @@ const RoomsHubPage: React.FC = () => {
         onUseCollection={(collectionId) => {
           void handlePickCollectionSource(
             collectionId,
-            createLibraryTab === "public" ? "public" : "owner",
+            detailCollection?.visibility === "public" ? "public" : "owner",
           );
         }}
         onStartCustomRoom={(collectionId) => {
           setRoomPlayMode("casual");
           void handlePickCollectionSource(
             collectionId,
-            createLibraryTab === "public" ? "public" : "owner",
+            detailCollection?.visibility === "public" ? "public" : "owner",
           );
         }}
         onStartLeaderboardChallenge={(collectionId) => {
           setRoomPlayMode("leaderboard");
           void handlePickCollectionSource(
             collectionId,
-            createLibraryTab === "public" ? "public" : "owner",
+            detailCollection?.visibility === "public" ? "public" : "owner",
           );
         }}
         onToggleFavorite={

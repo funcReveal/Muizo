@@ -348,7 +348,7 @@ const RoomSetupPanel = ({
           </button>
 
           <div
-            className={`relative overflow-hidden rounded-2xl border px-3 py-3 transition ${
+            className={`relative rounded-2xl border px-3 py-3 transition ${
               isLeaderboardRoom && isLeaderboardChallengeAvailable
                 ? "border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 : "border-white/8 bg-white/5 text-[var(--mc-text-muted)] hover:border-amber-300/28 hover:bg-white/[0.07]"

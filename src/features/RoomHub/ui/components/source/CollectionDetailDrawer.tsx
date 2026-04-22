@@ -321,7 +321,6 @@ const CollectionPreviewListRow = ({
 const CollectionDetailDrawer = ({
   open,
   collection,
-  isPublicLibraryTab,
   isApplying = false,
   isFavoriteUpdating = false,
   onClose,
@@ -412,6 +411,7 @@ const CollectionDetailDrawer = ({
 
   const handleStartLeaderboardChallenge = () => {
     if (!collection) return;
+    if (!isPublic) return;
     void (onStartLeaderboardChallenge ?? onUseCollection)(collection.id);
   };
 
@@ -724,166 +724,204 @@ const CollectionDetailDrawer = ({
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
-                  {leaderboardModes.map((mode) => {
-                    const selected = selectedLeaderboardMode === mode.key;
-                    return (
-                      <button
-                        key={mode.key}
-                        type="button"
-                        onClick={() => onLeaderboardModeChange(mode.key)}
-                        className={`h-9 rounded-lg text-sm font-semibold transition ${
-                          selected
-                            ? "bg-amber-300/16 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.18)]"
-                            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
-                        }`}
-                      >
-                        {mode.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {activeLeaderboardVariants.map((variant) => {
-                    const selected = selectedLeaderboardVariant === variant.key;
-                    return (
-                      <button
-                        key={variant.key}
-                        type="button"
-                        onClick={() => onLeaderboardVariantChange(variant.key)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                          selected
-                            ? "border-cyan-100/24 bg-cyan-300/12 text-cyan-50"
-                            : "border-white/8 bg-slate-950/20 text-slate-400 hover:border-white/14 hover:text-slate-100"
-                        }`}
-                      >
-                        {variant.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {activeLeaderboardData.summary.map((item, index) => (
-                    <div
-                      key={item.label}
-                      className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
-                    >
-                      <p className="text-[11px] text-slate-400">{item.label}</p>
-                      <p
-                        className={`mt-1 text-base font-semibold ${
-                          index === 0 ? "text-amber-50" : "text-slate-50"
-                        }`}
-                      >
-                        {item.value}
-                      </p>
+                {isPublic ? (
+                  <>
+                    <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
+                      {leaderboardModes.map((mode) => {
+                        const selected = selectedLeaderboardMode === mode.key;
+                        return (
+                          <button
+                            key={mode.key}
+                            type="button"
+                            onClick={() => onLeaderboardModeChange(mode.key)}
+                            className={`h-9 rounded-lg text-sm font-semibold transition ${
+                              selected
+                                ? "bg-amber-300/16 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.18)]"
+                                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-4 space-y-2.5">
-                  {activeLeaderboardData.players.map((player) => (
-                    <div
-                      key={`${activeLeaderboardVariant.key}-${player.rank}`}
-                      className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/34 px-3 py-3"
-                    >
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-sm font-bold text-slate-100">
-                        {player.rank}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-100">
-                          {player.name}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-slate-400">
-                          {player.meta}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-semibold text-slate-50">
-                          {player.score}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500">pts</p>
-                      </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activeLeaderboardVariants.map((variant) => {
+                        const selected =
+                          selectedLeaderboardVariant === variant.key;
+                        return (
+                          <button
+                            key={variant.key}
+                            type="button"
+                            onClick={() =>
+                              onLeaderboardVariantChange(variant.key)
+                            }
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                              selected
+                                ? "border-cyan-100/24 bg-cyan-300/12 text-cyan-50"
+                                : "border-white/8 bg-slate-950/20 text-slate-400 hover:border-white/14 hover:text-slate-100"
+                            }`}
+                          >
+                            {variant.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-auto pt-5">
-                  <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
-                    <div className="flex items-start gap-3">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">
-                        {activeLeaderboardData.currentUser.rank}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-50">
-                          {activeLeaderboardModeLabel} ·{" "}
-                          {activeLeaderboardVariant.label}
-                        </p>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <div>
-                            <p className="text-[11px] text-slate-400">最高分</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.score}
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {activeLeaderboardData.summary.map((item, index) => (
+                        <div
+                          key={item.label}
+                          className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
+                        >
+                          <p className="text-[11px] text-slate-400">
+                            {item.label}
+                          </p>
+                          <p
+                            className={`mt-1 text-base font-semibold ${
+                              index === 0 ? "text-amber-50" : "text-slate-50"
+                            }`}
+                          >
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 space-y-2.5">
+                      {activeLeaderboardData.players.map((player) => (
+                        <div
+                          key={`${activeLeaderboardVariant.key}-${player.rank}`}
+                          className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/34 px-3 py-3"
+                        >
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-sm font-bold text-slate-100">
+                            {player.rank}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-100">
+                              {player.name}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-400">
+                              {player.meta}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">命中率</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.accuracy}
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold text-slate-50">
+                              {player.score}
                             </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">挑戰</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.attempts}
+                            <p className="mt-1 text-[11px] text-slate-500">
+                              pts
                             </p>
                           </div>
                         </div>
-                        <p className="mt-3 text-xs leading-5 text-slate-400">
-                          {activeLeaderboardData.currentUser.hint}
-                        </p>
+                      ))}
+                    </div>
+
+                    <div className="mt-auto pt-5">
+                      <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">
+                            {activeLeaderboardData.currentUser.rank}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-50">
+                              {activeLeaderboardModeLabel} ·{" "}
+                              {activeLeaderboardVariant.label}
+                            </p>
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  最高分
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.score}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  命中率
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.accuracy}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  挑戰
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.attempts}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-400">
+                              {activeLeaderboardData.currentUser.hint}
+                            </p>
+                        </div>
+                        </div>
                       </div>
+                      <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
+                        目前為前端假資料，後續接上 API 後會替換為真實排行榜。
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-0 flex-1 items-center justify-center py-10">
+                    <div className="max-w-sm rounded-2xl border border-white/10 bg-slate-950/42 p-5 text-center">
+                      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-100/18 bg-amber-300/10 text-amber-100">
+                        <LockOutlined sx={{ fontSize: 22 }} />
+                      </span>
+                      <p className="mt-4 text-base font-semibold text-slate-50">
+                        收藏庫目前非公開
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        排行榜與排行挑戰僅支援公開收藏庫。將收藏庫設為公開後，這裡會顯示排行榜資料。
+                      </p>
                     </div>
                   </div>
-                  <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
-                    目前為前端假資料，後續接上 API 後會替換為真實排行榜。
-                  </p>
-                </div>
+                )}
               </div>
             </aside>
           </div>
         ) : null}
 
-        {isPublicLibraryTab && collection ? (
+        {collection ? (
           <footer className="grid shrink-0 gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
-                  挑戰模式
+                  {isPublic ? "挑戰模式" : "房間模式"}
                 </p>
                 <p className="mt-1 truncate text-sm font-semibold text-slate-100">
-                  {activeLeaderboardModeLabel} ·{" "}
-                  {activeLeaderboardVariant.label}
+                  {isPublic
+                    ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
+                    : "私人收藏庫僅可建立休閒房"}
                 </p>
               </div>
-              <Button
-                variant="text"
-                size="small"
-                startIcon={
-                  isFavorited ? <StarRounded /> : <StarBorderRounded />
-                }
-                disabled={isFavoriteUpdating || !onToggleFavorite}
-                onClick={() => {
-                  void onToggleFavorite?.();
-                }}
-                className="!shrink-0"
-              >
-                {isFavorited ? "取消收藏" : "收藏"}
-              </Button>
+              {isPublic ? (
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={
+                    isFavorited ? <StarRounded /> : <StarBorderRounded />
+                  }
+                  disabled={isFavoriteUpdating || !onToggleFavorite}
+                  onClick={() => {
+                    void onToggleFavorite?.();
+                  }}
+                  className="!shrink-0"
+                >
+                  {isFavorited ? "取消收藏" : "收藏"}
+                </Button>
+              ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+            <div
+              className={`grid gap-2 sm:flex sm:items-center sm:justify-end ${
+                isPublic ? "grid-cols-2" : "grid-cols-1"
+              }`}
+            >
               <Button
                 variant="outlined"
                 startIcon={<MeetingRoomRounded />}
@@ -891,16 +929,18 @@ const CollectionDetailDrawer = ({
                 onClick={handleStartCustomRoom}
                 className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
               >
-                {isApplying ? "載入中..." : "自訂房"}
+                {isApplying ? "載入中..." : isPublic ? "自訂房" : "建立休閒房"}
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<PlayArrowRounded />}
-                disabled={isApplying}
-                onClick={handleStartLeaderboardChallenge}
-              >
-                {isApplying ? "載入中..." : "進行排行挑戰"}
-              </Button>
+              {isPublic ? (
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowRounded />}
+                  disabled={isApplying}
+                  onClick={handleStartLeaderboardChallenge}
+                >
+                  {isApplying ? "載入中..." : "進行排行挑戰"}
+                </Button>
+              ) : null}
             </div>
           </footer>
         ) : null}
