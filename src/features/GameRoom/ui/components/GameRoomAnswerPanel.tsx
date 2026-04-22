@@ -61,6 +61,8 @@ interface GameRoomAnswerPanelProps {
   isRecoveringConnection?: boolean;
   /** Human-readable text describing the current recovery stage. */
   recoveryStatusText?: string | null;
+  isLeaderboardRoom?: boolean;
+  leaderboardLockShakeKey?: number;
 }
 
 type InlineStatusSegmentTone =
@@ -365,6 +367,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   liveUnansweredCount,
   isRecoveringConnection = false,
   recoveryStatusText = null,
+  isLeaderboardRoom = false,
+  leaderboardLockShakeKey = 0,
 }) => {
   const getLocalNowMs = React.useCallback(
     () => Date.now() + serverOffsetMs,
@@ -385,6 +389,15 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   });
   const [urgentChipPingActive, setUrgentChipPingActive] = React.useState(false);
   const progressBarFillRef = React.useRef<HTMLDivElement>(null);
+  const shakeSelectedRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!leaderboardLockShakeKey) return;
+    const el = shakeSelectedRef.current;
+    if (!el) return;
+    el.classList.remove("game-room-choice-shake");
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add("game-room-choice-shake");
+  }, [leaderboardLockShakeKey]);
   const shouldHideDesktopRevealCard = !isMobileView;
   const shouldShowInlinePhaseStatus = !isInitialCountdown;
   const desktopStatusLabel = isReveal
@@ -553,9 +566,10 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   const handleChoiceClick = React.useCallback(
     (choiceIndex: number) => {
       if (isReveal || isEnded || !canAnswerNow || isRecoveringConnection) return;
+      if (isLeaderboardRoom && selectedChoice !== null) return;
       onSubmitChoice(choiceIndex);
     },
-    [canAnswerNow, isEnded, isRecoveringConnection, isReveal, onSubmitChoice],
+    [canAnswerNow, isEnded, isLeaderboardRoom, isRecoveringConnection, isReveal, onSubmitChoice, selectedChoice],
   );
 
   return (
@@ -721,6 +735,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                   const isSelected = selectedChoice === choice.index;
                   const isCorrect = choice.index === correctChoiceIndex;
                   const isLocked = isReveal || isEnded;
+                  const isLeaderboardAnswerLocked = isLeaderboardRoom && selectedChoice !== null && !isReveal;
                   const choiceDisplayTitle = normalizeRoomDisplayText(
                     choice.title?.trim() ||
                     playlist[choice.index]?.answerText?.trim() ||
@@ -754,13 +769,18 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                   return (
                     <div
                       key={`${choice.index}`}
+                      ref={isSelected ? (node) => { shakeSelectedRef.current = node; } : undefined}
                       className={`game-room-choice-shell ${hasRevealPicks ? "game-room-choice-shell--with-avatars" : ""
                         }`}
+                      onAnimationEnd={isSelected ? (e) => { (e.currentTarget as HTMLDivElement).classList.remove("game-room-choice-shake"); } : undefined}
                     >
                       {hasRevealPicks && (
                         <div className="game-room-choice-avatar-anchor">
                           <RevealChoiceAvatarRow picks={revealPicks} />
                         </div>
+                      )}
+                      {isLeaderboardAnswerLocked && !isSelected && (
+                        <div className="game-room-choice-leaderboard-lock-overlay" aria-hidden="true" />
                       )}
                       <Button
                         fullWidth
@@ -802,7 +822,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                           } ${comboLiveTierClass
                             ? comboLiveTierClass
                             : ""
-                          } ${isLocked || waitingToStart || shouldShowGestureOverlay
+                          } ${isLocked || waitingToStart || shouldShowGestureOverlay || (isLeaderboardAnswerLocked && !isSelected)
                             ? "pointer-events-none"
                             : ""
                           } ${isMobileView && hasChoiceStatusTag

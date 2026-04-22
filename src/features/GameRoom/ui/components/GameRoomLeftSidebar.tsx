@@ -1,5 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "motion/react";
 import { Badge, Chip } from "@mui/material";
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
@@ -60,6 +61,7 @@ interface GameRoomLeftSidebarProps {
   scoreboardBorderLineStyle?: ScoreboardBorderLineStyleId;
   scoreboardBorderTheme?: ScoreboardBorderThemeId;
   scoreboardBorderParticleCount?: number;
+  isLeaderboardRoom?: boolean;
 }
 
 const RANK_SWAP_DURATION_MS = 960;
@@ -252,6 +254,7 @@ interface GameRoomScorePlayerRowProps {
    */
   burstDelayMs: number;
   onFloatingBurstsChange?: (clientId: string, bursts: FloatingScoreBurst[]) => void;
+  isLeaderboardRoom?: boolean;
 }
 
 const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
@@ -281,6 +284,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   enableFloatingScoreBursts,
   burstDelayMs,
   onFloatingBurstsChange,
+  isLeaderboardRoom = false,
 }: GameRoomScorePlayerRowProps) {
   const [floatingBursts, setFloatingBursts] = React.useState<FloatingScoreBurst[]>([]);
   const burstSequenceRef = React.useRef(0);
@@ -641,9 +645,29 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
                 ? animatedDisplayScore
                 : player.score
               ).toLocaleString()}
-              {player.combo > 0 && (
-                <span className={`ml-1 ${comboDisplayClass}`}>x{player.combo}</span>
-              )}
+              <AnimatePresence mode="popLayout">
+                {player.combo > 0 && (
+                  <motion.span
+                    key={player.combo}
+                    className="ml-1"
+                    initial={{
+                      scale: 1.5 + Math.min(player.combo - 1, 9) * 0.05,
+                      opacity: 0,
+                      y: -7,
+                    }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.55, opacity: 0, y: 4, transition: { duration: 0.09, ease: "easeIn" } }}
+                    transition={{ type: "spring", stiffness: 480, damping: 22, mass: 0.85 }}
+                    style={{ display: "inline-block", transformOrigin: "50% 60%" }}
+                  >
+                    <span
+                      className={`game-room-combo-breathe game-room-combo-breathe-tier-${resolveComboTier(player.combo)} ${comboDisplayClass}`}
+                    >
+                      x{player.combo}
+                    </span>
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </span>
           </div>
         </div>
@@ -688,6 +712,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreboardBorderLineStyle = DEFAULT_SCOREBOARD_BORDER_LINE_STYLE_ID,
   scoreboardBorderTheme = DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   scoreboardBorderParticleCount = DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
+  isLeaderboardRoom = false,
 }) => {
   const enableDesktopFloatingScoreBursts = !mobileOverlayMode;
   const effectiveScoreboardBorderMotion = React.useMemo<ScoreboardBorderAnimationId>(() => {
@@ -1537,6 +1562,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                     desktopFlipBurstDelayMs,
                   )}
                   onFloatingBurstsChange={handleFloatingBurstsChange}
+                  isLeaderboardRoom={isLeaderboardRoom}
                 />
               </div>
             );
