@@ -59,6 +59,15 @@ import {
 import { usePublicCollectionsSearchUi } from "./hooks/usePublicCollectionsSearchUi";
 import { useSharedCollectionEntry } from "./hooks/useSharedCollectionEntry";
 import {
+  DEFAULT_LEADERBOARD_MODE,
+  DEFAULT_LEADERBOARD_VARIANT,
+  DEFAULT_ROOM_PLAY_MODE,
+  leaderboardVariants,
+  type LeaderboardModeKey,
+  type LeaderboardVariantKey,
+  type RoomPlayMode,
+} from "../model/leaderboardChallengeOptions";
+import {
   buildCreateSettingsCards,
   buildSelectedCreateSourceSummary,
   formatDurationLabel,
@@ -296,6 +305,13 @@ const RoomsHubPage: React.FC = () => {
   const [detailCollectionId, setDetailCollectionId] = useState<string | null>(
     null,
   );
+  const [roomPlayMode, setRoomPlayMode] = useState<RoomPlayMode>(
+    DEFAULT_ROOM_PLAY_MODE,
+  );
+  const [selectedLeaderboardMode, setSelectedLeaderboardMode] =
+    useState<LeaderboardModeKey>(DEFAULT_LEADERBOARD_MODE);
+  const [selectedLeaderboardVariant, setSelectedLeaderboardVariant] =
+    useState<LeaderboardVariantKey>(DEFAULT_LEADERBOARD_VARIANT);
   const {
     passwordDialog,
     setPasswordDialog,
@@ -788,6 +804,26 @@ const RoomsHubPage: React.FC = () => {
     playlistItems.length < 10
       ? "目前題數偏少，雖然可以建立房間，但建議至少準備 10 題，遊戲體驗會更完整。"
       : null;
+  const handleRoomPlayModeChange = (nextMode: RoomPlayMode) => {
+    setRoomPlayMode(nextMode);
+  };
+  const handleLeaderboardModeChange = (nextMode: LeaderboardModeKey) => {
+    const nextVariant = leaderboardVariants[nextMode][0];
+    setSelectedLeaderboardMode(nextMode);
+    setSelectedLeaderboardVariant(nextVariant.key);
+  };
+  const handleLeaderboardVariantChange = (
+    nextVariant: LeaderboardVariantKey,
+  ) => {
+    setSelectedLeaderboardVariant(nextVariant);
+  };
+  const handleLeaderboardSelectionChange = (
+    nextMode: LeaderboardModeKey,
+    nextVariant: LeaderboardVariantKey,
+  ) => {
+    setSelectedLeaderboardMode(nextMode);
+    setSelectedLeaderboardVariant(nextVariant);
+  };
   const createSettingsCards = useMemo(
     () =>
       buildCreateSettingsCards({
@@ -1020,6 +1056,7 @@ const RoomsHubPage: React.FC = () => {
   };
   const handleBackToCreateLibrary = () => {
     setCreateLeftTab("library");
+    setRoomPlayMode(DEFAULT_ROOM_PLAY_MODE);
     setSelectedCreateCollectionId(null);
     setSelectedCreateYoutubeId(null);
     setSharedCollectionMeta(null);
@@ -1452,6 +1489,11 @@ const RoomsHubPage: React.FC = () => {
                           roomVisibilityInput={roomVisibilityInput}
                           parsedMaxPlayers={parsedMaxPlayers}
                           questionCount={questionCount}
+                          roomPlayMode={roomPlayMode}
+                          selectedLeaderboardMode={selectedLeaderboardMode}
+                          selectedLeaderboardVariant={
+                            selectedLeaderboardVariant
+                          }
                           selectedCreateSourceSummary={
                             selectedCreateSourceSummary
                           }
@@ -1508,6 +1550,15 @@ const RoomsHubPage: React.FC = () => {
                             questionMin={questionMin}
                             questionMaxLimit={questionMaxLimit}
                             updateQuestionCount={updateQuestionCount}
+                            roomPlayMode={roomPlayMode}
+                            setRoomPlayMode={handleRoomPlayModeChange}
+                            selectedLeaderboardMode={selectedLeaderboardMode}
+                            selectedLeaderboardVariant={
+                              selectedLeaderboardVariant
+                            }
+                            onLeaderboardSelectionChange={
+                              handleLeaderboardSelectionChange
+                            }
                             playDurationSec={playDurationSec}
                             revealDurationSec={revealDurationSec}
                             startOffsetSec={startOffsetSec}
@@ -1548,6 +1599,11 @@ const RoomsHubPage: React.FC = () => {
                               roomVisibilityInput={roomVisibilityInput}
                               parsedMaxPlayers={parsedMaxPlayers}
                               questionCount={questionCount}
+                              roomPlayMode={roomPlayMode}
+                              selectedLeaderboardMode={selectedLeaderboardMode}
+                              selectedLeaderboardVariant={
+                                selectedLeaderboardVariant
+                              }
                               selectedCreateSourceSummary={
                                 selectedCreateSourceSummary
                               }
@@ -1854,12 +1910,30 @@ const RoomsHubPage: React.FC = () => {
             createLibraryTab === "public" ? "public" : "owner",
           );
         }}
+        onStartCustomRoom={(collectionId) => {
+          setRoomPlayMode("casual");
+          void handlePickCollectionSource(
+            collectionId,
+            createLibraryTab === "public" ? "public" : "owner",
+          );
+        }}
+        onStartLeaderboardChallenge={(collectionId) => {
+          setRoomPlayMode("leaderboard");
+          void handlePickCollectionSource(
+            collectionId,
+            createLibraryTab === "public" ? "public" : "owner",
+          );
+        }}
         onToggleFavorite={
           detailCollection && createLibraryTab === "public"
             ? () => toggleCollectionFavorite(detailCollection.id)
             : undefined
         }
         formatDurationLabel={formatDurationLabel}
+        selectedLeaderboardMode={selectedLeaderboardMode}
+        selectedLeaderboardVariant={selectedLeaderboardVariant}
+        onLeaderboardModeChange={handleLeaderboardModeChange}
+        onLeaderboardVariantChange={handleLeaderboardVariantChange}
       />
       <PlaylistIssueSummaryDialog
         open={playlistIssueDialogOpen}

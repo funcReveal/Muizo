@@ -11,6 +11,7 @@ import {
   CloseRounded,
   EmojiEventsRounded,
   LockOutlined,
+  MeetingRoomRounded,
   PlayArrowRounded,
   PublicOutlined,
   QuizRounded,
@@ -29,6 +30,14 @@ import {
 import { useAuth } from "@shared/auth/AuthContext";
 import { ensureFreshAuthToken } from "@shared/auth/token";
 import { useTransientScrollbar } from "@shared/hooks/useTransientScrollbar";
+import {
+  getLeaderboardModeLabel,
+  getLeaderboardVariant,
+  leaderboardModes,
+  leaderboardVariants,
+  type LeaderboardModeKey,
+  type LeaderboardVariantKey,
+} from "../../../model/leaderboardChallengeOptions";
 
 type CollectionDetail = {
   id: string;
@@ -57,57 +66,156 @@ type CollectionDetailDrawerProps = {
   isFavoriteUpdating?: boolean;
   onClose: () => void;
   onUseCollection: (collectionId: string) => void | Promise<void>;
+  onStartCustomRoom?: (collectionId: string) => void | Promise<void>;
+  onStartLeaderboardChallenge?: (collectionId: string) => void | Promise<void>;
   onToggleFavorite?: () => void | Promise<void | boolean>;
   formatDurationLabel: (value: number) => string | null;
+  selectedLeaderboardMode: LeaderboardModeKey;
+  selectedLeaderboardVariant: LeaderboardVariantKey;
+  onLeaderboardModeChange: (value: LeaderboardModeKey) => void;
+  onLeaderboardVariantChange: (value: LeaderboardVariantKey) => void;
 };
 
-const leaderboardPreview = [
+const leaderboardPreviewByVariant: Record<
+  LeaderboardVariantKey,
   {
-    rank: 1,
-    name: "Mika",
-    score: "98,420",
-    accuracy: "97%",
-    rounds: "42 局",
-    tone: "text-amber-200",
-    badgeClassName: "bg-amber-300/16 border-amber-200/28",
+    summary: Array<{ label: string; value: string }>;
+    players: Array<{
+      rank: number;
+      name: string;
+      score: string;
+      meta: string;
+    }>;
+    currentUser: {
+      rank: string;
+      score: string;
+      accuracy: string;
+      attempts: string;
+      hint: string;
+    };
+  }
+> = {
+  "30q": {
+    summary: [
+      { label: "最高分", value: "98,420" },
+      { label: "平均命中", value: "91%" },
+      { label: "挑戰局數", value: "162" },
+    ],
+    players: [
+      {
+        rank: 1,
+        name: "Mika",
+        score: "98,420",
+        meta: "29/30 · 命中 97% · combo 18",
+      },
+      {
+        rank: 2,
+        name: "Rin",
+        score: "91,880",
+        meta: "28/30 · 命中 94% · combo 16",
+      },
+      {
+        rank: 3,
+        name: "Yuki",
+        score: "87,120",
+        meta: "27/30 · 命中 91% · combo 14",
+      },
+      {
+        rank: 4,
+        name: "Nana",
+        score: "79,540",
+        meta: "26/30 · 命中 88% · combo 13",
+      },
+    ],
+    currentUser: {
+      rank: "12",
+      score: "68,120",
+      accuracy: "84%",
+      attempts: "8 局",
+      hint: "你目前落後第 10 名 2,860 pts。",
+    },
   },
-  {
-    rank: 2,
-    name: "Rin",
-    score: "91,880",
-    accuracy: "94%",
-    rounds: "36 局",
-    tone: "text-slate-100",
-    badgeClassName: "bg-slate-200/12 border-slate-100/20",
+  "50q": {
+    summary: [
+      { label: "最高分", value: "151,200" },
+      { label: "平均命中", value: "89%" },
+      { label: "挑戰局數", value: "94" },
+    ],
+    players: [
+      {
+        rank: 1,
+        name: "Aki",
+        score: "151,200",
+        meta: "47/50 · 命中 94% · combo 26",
+      },
+      {
+        rank: 2,
+        name: "Mika",
+        score: "146,880",
+        meta: "46/50 · 命中 92% · combo 24",
+      },
+      {
+        rank: 3,
+        name: "Sora",
+        score: "139,540",
+        meta: "44/50 · 命中 88% · combo 21",
+      },
+      {
+        rank: 4,
+        name: "Rin",
+        score: "133,020",
+        meta: "43/50 · 命中 86% · combo 19",
+      },
+    ],
+    currentUser: {
+      rank: "#--",
+      score: "--",
+      accuracy: "--",
+      attempts: "0 局",
+      hint: "完成一次 50 題排行榜挑戰後，這裡會顯示你的紀錄。",
+    },
   },
-  {
-    rank: 3,
-    name: "Yuki",
-    score: "87,120",
-    accuracy: "91%",
-    rounds: "31 局",
-    tone: "text-orange-200",
-    badgeClassName: "bg-orange-300/14 border-orange-200/24",
+  "15m": {
+    summary: [
+      { label: "最高分", value: "132,800" },
+      { label: "最高題數", value: "78" },
+      { label: "挑戰局數", value: "96" },
+    ],
+    players: [
+      {
+        rank: 1,
+        name: "Nana",
+        score: "132,800",
+        meta: "78 題 · 命中 91% · combo 24",
+      },
+      {
+        rank: 2,
+        name: "Kai",
+        score: "128,460",
+        meta: "74 題 · 命中 90% · combo 22",
+      },
+      {
+        rank: 3,
+        name: "Mika",
+        score: "124,900",
+        meta: "72 題 · 命中 89% · combo 21",
+      },
+      {
+        rank: 4,
+        name: "Yuki",
+        score: "119,320",
+        meta: "70 題 · 命中 87% · combo 18",
+      },
+    ],
+    currentUser: {
+      rank: "18",
+      score: "92,440",
+      accuracy: "81%",
+      attempts: "5 局",
+      hint: "15 分鐘內完成 61 題，距離前 15 名還差 4,200 pts。",
+    },
   },
-  {
-    rank: 4,
-    name: "Nana",
-    score: "79,540",
-    accuracy: "88%",
-    rounds: "28 局",
-    tone: "text-cyan-100",
-    badgeClassName: "bg-cyan-300/10 border-cyan-100/16",
-  },
-  {
-    rank: 5,
-    name: "Kai",
-    score: "74,310",
-    accuracy: "86%",
-    rounds: "25 局",
-    tone: "text-cyan-100",
-    badgeClassName: "bg-cyan-300/10 border-cyan-100/16",
-  },
-];
+};
 
 const COLLECTION_PREVIEW_PAGE_SIZE = 12;
 const COLLECTION_PREVIEW_ROW_HEIGHT = 73;
@@ -218,8 +326,14 @@ const CollectionDetailDrawer = ({
   isFavoriteUpdating = false,
   onClose,
   onUseCollection,
+  onStartCustomRoom,
+  onStartLeaderboardChallenge,
   onToggleFavorite,
   formatDurationLabel,
+  selectedLeaderboardMode,
+  selectedLeaderboardVariant,
+  onLeaderboardModeChange,
+  onLeaderboardVariantChange,
 }: CollectionDetailDrawerProps) => {
   const { authToken, refreshAuthToken } = useAuth();
   const isCompact = useMediaQuery("(max-width:767px)");
@@ -241,6 +355,17 @@ const CollectionDetailDrawer = ({
       : "");
   const isPublic = (collection?.visibility ?? "private") === "public";
   const isFavorited = Boolean(collection?.is_favorited);
+  const activeLeaderboardVariants =
+    leaderboardVariants[selectedLeaderboardMode];
+  const activeLeaderboardVariant = getLeaderboardVariant(
+    selectedLeaderboardMode,
+    selectedLeaderboardVariant,
+  );
+  const activeLeaderboardData =
+    leaderboardPreviewByVariant[activeLeaderboardVariant.key];
+  const activeLeaderboardModeLabel = getLeaderboardModeLabel(
+    selectedLeaderboardMode,
+  );
   const stats: Array<{
     key: string;
     label: string;
@@ -280,9 +405,14 @@ const CollectionDetailDrawer = ({
     },
   ];
 
-  const handleUseCollection = () => {
+  const handleStartCustomRoom = () => {
     if (!collection) return;
-    void onUseCollection(collection.id);
+    void (onStartCustomRoom ?? onUseCollection)(collection.id);
+  };
+
+  const handleStartLeaderboardChallenge = () => {
+    if (!collection) return;
+    void (onStartLeaderboardChallenge ?? onUseCollection)(collection.id);
   };
 
   const fetchPreviewPage = useCallback(
@@ -415,6 +545,19 @@ const CollectionDetailDrawer = ({
     };
   }, [collection?.id, fetchPreviewPage, open]);
 
+  useEffect(() => {
+    const variants = leaderboardVariants[selectedLeaderboardMode];
+    if (
+      !variants.some((variant) => variant.key === selectedLeaderboardVariant)
+    ) {
+      onLeaderboardVariantChange(variants[0].key);
+    }
+  }, [
+    onLeaderboardVariantChange,
+    selectedLeaderboardMode,
+    selectedLeaderboardVariant,
+  ]);
+
   return (
     <Drawer
       anchor={isCompact ? "bottom" : "right"}
@@ -519,17 +662,14 @@ const CollectionDetailDrawer = ({
                 </div>
 
                 <div className="px-4 py-3">
-                  <p className="text-xs font-semibold tracking-[0.16em] text-cyan-100/60">
-                    DESCRIPTION
-                  </p>
                   <p
-                    className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
+                    className={`whitespace-pre-wrap text-sm leading-6 ${
                       collection.description
                         ? "text-slate-300"
                         : "text-slate-500"
                     }`}
                   >
-                    {collection.description || "這個題庫尚未提供描述。"}
+                    {collection.description || "題庫未提供說明。"}
                   </p>
                 </div>
               </section>
@@ -584,44 +724,79 @@ const CollectionDetailDrawer = ({
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2">
-                    <p className="text-[11px] text-slate-400">最高分</p>
-                    <p className="mt-1 text-base font-semibold text-amber-50">
-                      98,420
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2">
-                    <p className="text-[11px] text-slate-400">平均命中</p>
-                    <p className="mt-1 text-base font-semibold text-slate-50">
-                      91%
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2">
-                    <p className="text-[11px] text-slate-400">挑戰局數</p>
-                    <p className="mt-1 text-base font-semibold text-slate-50">
-                      162
-                    </p>
-                  </div>
+                <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
+                  {leaderboardModes.map((mode) => {
+                    const selected = selectedLeaderboardMode === mode.key;
+                    return (
+                      <button
+                        key={mode.key}
+                        type="button"
+                        onClick={() => onLeaderboardModeChange(mode.key)}
+                        className={`h-9 rounded-lg text-sm font-semibold transition ${
+                          selected
+                            ? "bg-amber-300/16 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.18)]"
+                            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeLeaderboardVariants.map((variant) => {
+                    const selected = selectedLeaderboardVariant === variant.key;
+                    return (
+                      <button
+                        key={variant.key}
+                        type="button"
+                        onClick={() => onLeaderboardVariantChange(variant.key)}
+                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          selected
+                            ? "border-cyan-100/24 bg-cyan-300/12 text-cyan-50"
+                            : "border-white/8 bg-slate-950/20 text-slate-400 hover:border-white/14 hover:text-slate-100"
+                        }`}
+                      >
+                        {variant.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {activeLeaderboardData.summary.map((item, index) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
+                    >
+                      <p className="text-[11px] text-slate-400">{item.label}</p>
+                      <p
+                        className={`mt-1 text-base font-semibold ${
+                          index === 0 ? "text-amber-50" : "text-slate-50"
+                        }`}
+                      >
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-4 space-y-2.5">
-                  {leaderboardPreview.map((player) => (
+                  {activeLeaderboardData.players.map((player) => (
                     <div
-                      key={player.rank}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${player.badgeClassName}`}
+                      key={`${activeLeaderboardVariant.key}-${player.rank}`}
+                      className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/34 px-3 py-3"
                     >
-                      <span
-                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-slate-950/34 text-sm font-bold ${player.tone}`}
-                      >
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-sm font-bold text-slate-100">
                         {player.rank}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-100">
                           {player.name}
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          命中 {player.accuracy} · {player.rounds}
+                        <p className="mt-1 truncate text-xs text-slate-400">
+                          {player.meta}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -635,43 +810,41 @@ const CollectionDetailDrawer = ({
                 </div>
 
                 <div className="mt-auto pt-5">
-                  <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold tracking-[0.16em] text-cyan-100/70">
-                          YOUR STATS
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-50">
-                          你的數據
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-cyan-100/14 bg-cyan-300/10 px-2.5 py-1 text-xs font-medium text-cyan-100">
-                        #--
+                  <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">
+                        {activeLeaderboardData.currentUser.rank}
                       </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-50">
+                          {activeLeaderboardModeLabel} ·{" "}
+                          {activeLeaderboardVariant.label}
+                        </p>
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <div>
+                            <p className="text-[11px] text-slate-400">最高分</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-100">
+                              {activeLeaderboardData.currentUser.score}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-400">命中率</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-100">
+                              {activeLeaderboardData.currentUser.accuracy}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-400">挑戰</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-100">
+                              {activeLeaderboardData.currentUser.attempts}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-400">
+                          {activeLeaderboardData.currentUser.hint}
+                        </p>
+                      </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div>
-                        <p className="text-[11px] text-slate-400">最高分</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-100">
-                          --
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] text-slate-400">命中率</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-100">
-                          --
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] text-slate-400">挑戰</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-100">
-                          --
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-400">
-                      後續會顯示你在這份題庫的排名、最高分與近期挑戰紀錄。
-                    </p>
                   </div>
                   <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
                     目前為前端假資料，後續接上 API 後會替換為真實排行榜。
@@ -683,25 +856,52 @@ const CollectionDetailDrawer = ({
         ) : null}
 
         {isPublicLibraryTab && collection ? (
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6">
-            <Button
-              variant="text"
-              startIcon={isFavorited ? <StarRounded /> : <StarBorderRounded />}
-              disabled={isFavoriteUpdating || !onToggleFavorite}
-              onClick={() => {
-                void onToggleFavorite?.();
-              }}
-            >
-              {isFavorited ? "取消收藏" : "加入收藏"}
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<PlayArrowRounded />}
-              disabled={isApplying}
-              onClick={handleUseCollection}
-            >
-              {isApplying ? "載入中..." : "使用此題庫"}
-            </Button>
+          <footer className="grid shrink-0 gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
+                  挑戰模式
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                  {activeLeaderboardModeLabel} ·{" "}
+                  {activeLeaderboardVariant.label}
+                </p>
+              </div>
+              <Button
+                variant="text"
+                size="small"
+                startIcon={
+                  isFavorited ? <StarRounded /> : <StarBorderRounded />
+                }
+                disabled={isFavoriteUpdating || !onToggleFavorite}
+                onClick={() => {
+                  void onToggleFavorite?.();
+                }}
+                className="!shrink-0"
+              >
+                {isFavorited ? "取消收藏" : "收藏"}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+              <Button
+                variant="outlined"
+                startIcon={<MeetingRoomRounded />}
+                disabled={isApplying}
+                onClick={handleStartCustomRoom}
+                className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
+              >
+                {isApplying ? "載入中..." : "自訂房"}
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<PlayArrowRounded />}
+                disabled={isApplying}
+                onClick={handleStartLeaderboardChallenge}
+              >
+                {isApplying ? "載入中..." : "進行排行挑戰"}
+              </Button>
+            </div>
           </footer>
         ) : null}
       </div>
