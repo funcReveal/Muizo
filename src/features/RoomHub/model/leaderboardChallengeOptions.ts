@@ -28,18 +28,20 @@ export const leaderboardVariants: Record<
   Array<{
     key: LeaderboardVariantKey;
     label: string;
+    profileKey: string;
     questionCount?: number;
     timeLimitSec?: number;
   }>
 > = {
   classic: [
-    { key: "30q", label: "30 題", questionCount: 30 },
-    { key: "50q", label: "50 題", questionCount: 50 },
+    { key: "30q", label: "30 題", profileKey: "classic_30", questionCount: 30 },
+    { key: "50q", label: "50 題", profileKey: "classic_50", questionCount: 50 },
   ],
   time_attack: [
     {
       key: "15m",
       label: "15 分鐘",
+      profileKey: "time_attack_15m",
       timeLimitSec: 15 * 60,
     },
   ],
@@ -57,3 +59,8 @@ export const getLeaderboardVariant = (
 ) =>
   leaderboardVariants[mode].find((item) => item.key === variant) ??
   leaderboardVariants[mode][0];
+
+export const getLeaderboardProfileKey = (
+  mode: LeaderboardModeKey,
+  variant: LeaderboardVariantKey,
+) => getLeaderboardVariant(mode, variant).profileKey;

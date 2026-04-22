@@ -62,6 +62,7 @@ import {
   DEFAULT_LEADERBOARD_MODE,
   DEFAULT_LEADERBOARD_VARIANT,
   DEFAULT_ROOM_PLAY_MODE,
+  getLeaderboardProfileKey,
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
@@ -824,6 +825,15 @@ const RoomsHubPage: React.FC = () => {
     setSelectedLeaderboardMode(nextMode);
     setSelectedLeaderboardVariant(nextVariant);
   };
+  const createRoomOptions =
+    roomPlayMode === "leaderboard"
+      ? {
+          leaderboardProfileKey: getLeaderboardProfileKey(
+            selectedLeaderboardMode,
+            selectedLeaderboardVariant,
+          ),
+        }
+      : undefined;
   const createSettingsCards = useMemo(
     () =>
       buildCreateSettingsCards({
@@ -1507,7 +1517,7 @@ const RoomsHubPage: React.FC = () => {
                           canCreateRoom={canCreateRoom}
                           isCreatingRoom={isCreatingRoom}
                           onCreateRoom={() => {
-                            void handleCreateRoom();
+                            void handleCreateRoom(createRoomOptions);
                           }}
                         />
                       ) : undefined
@@ -1590,7 +1600,7 @@ const RoomsHubPage: React.FC = () => {
                             canCreateRoom={canCreateRoom}
                             isCreatingRoom={isCreatingRoom}
                             onCreateRoom={() => {
-                              void handleCreateRoom();
+                              void handleCreateRoom(createRoomOptions);
                             }}
                           />
                           <div className="mt-4 lg:hidden">
@@ -1619,7 +1629,7 @@ const RoomsHubPage: React.FC = () => {
                               canCreateRoom={canCreateRoom}
                               isCreatingRoom={isCreatingRoom}
                               onCreateRoom={() => {
-                                void handleCreateRoom();
+                                void handleCreateRoom(createRoomOptions);
                               }}
                             />
                           </div>
