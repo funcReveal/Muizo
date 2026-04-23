@@ -270,6 +270,11 @@ export interface ServerToClientEvents {
     roomId: string;
     settlementHistory: RoomSettlementSnapshot[];
   }) => void;
+  settlementRankChange: (payload: {
+    roomId: string;
+    roundKey: string;
+    rankChangeByClientId: Record<string, number | null>;
+  }) => void;
 }
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

@@ -18,6 +18,13 @@ import type { SettlementQuestionRecap } from "@features/Settlement/ui/components
 import HistoryReplayModal from "@features/Settlement/ui/components/HistoryReplayModal";
 import HistoryReplayCompactView from "@features/Settlement/ui/components/HistoryReplayCompactView";
 import { HistoryReplaySkeleton } from "@features/Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
+import LeaderboardSettlementShowcase from "@features/Settlement/ui/components/LeaderboardSettlementShowcase";
+import {
+  apiFavoriteCollection,
+  apiFetchCollectionFavoriteStatus,
+  apiUnfavoriteCollection,
+} from "@features/CollectionContent/model/collectionContentApi";
+import { API_URL } from "@domain/room/constants";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
 import ConfirmDialog from "@shared/ui/ConfirmDialog";
 import FloatingChatWindow from "@features/RoomChat";
@@ -33,6 +40,9 @@ import {
   type SettlementIdentity,
 } from "./lib/roomLobbySettlementOrchestration";
 import type {
+  PlaylistItem,
+  QuestionScoreBreakdown,
+  RoomParticipant,
   RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
@@ -514,15 +524,409 @@ const appendDismissedSettlementRoundKey = (
   return [...current, roundKey];
 };
 
+const MOCK_LEADERBOARD_QUESTION_COUNT = 30;
+const MOCK_LEADERBOARD_PLAYER_COUNT = 10;
+const MOCK_PLAYER_NAMES = [
+  "Kenshi",
+  "Hyouka",
+  "Iris.Out",
+  "MikuFan",
+  "Tomori",
+  "RinOS",
+  "Yuki_39",
+  "AoKey",
+  "Kanon",
+  "NekoBeat",
+] as const;
+
+const seededUnit = (seed: number) => {
+  const raw = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return raw - Math.floor(raw);
+};
+
+const buildMockScoreBreakdown = (
+  answeredAtMs: number,
+  comboBeforeGain: number,
+): QuestionScoreBreakdown => {
+  const basePoints = 1800;
+  const speedBonusPoints = Math.max(180, Math.round((3200 - answeredAtMs) * 0.34));
+  const decisionBonusPoints = 240;
+  const difficultyBonusPoints = 160;
+  const comboBonusPoints = comboBeforeGain * 120;
+  return {
+    basePoints,
+    speedBonusPoints,
+    decisionBonusPoints,
+    difficultyBonusPoints,
+    comboBonusPoints,
+    totalGainPoints:
+      basePoints +
+      speedBonusPoints +
+      decisionBonusPoints +
+      difficultyBonusPoints +
+      comboBonusPoints,
+  };
+};
+
+const buildMockPlaylistItems = (
+  sourceItems: PlaylistItem[],
+  count: number,
+): PlaylistItem[] => {
+  const baseItems =
+    sourceItems.length > 0
+      ? sourceItems
+      : [
+          {
+            title: "夜行",
+            answerText: "夜行",
+            uploader: "YOASOBI",
+            duration: "3:22",
+            thumbnail: null,
+          },
+          {
+            title: "青のすみか",
+            answerText: "青のすみか",
+            uploader: "キタニタツヤ",
+            duration: "3:16",
+            thumbnail: null,
+          },
+          {
+            title: "怪物",
+            answerText: "怪物",
+            uploader: "YOASOBI",
+            duration: "3:27",
+            thumbnail: null,
+          },
+        ];
+
+  return Array.from({ length: count }, (_, index) => {
+    const source = baseItems[index % baseItems.length];
+    const answerTitle =
+      source.answerText?.trim() || source.title?.trim() || `測試曲目 ${index + 1}`;
+    return {
+      ...source,
+      title: source.title?.trim() || answerTitle,
+      answerText: answerTitle,
+      uploader: source.uploader?.trim() || "Muizo Test",
+      duration: source.duration ?? "3:30",
+      sourceId: source.sourceId ?? `mock-track-${index + 1}`,
+      videoId: source.videoId ?? `mock-video-${index + 1}`,
+      url: source.url ?? `https://example.com/mock-track-${index + 1}`,
+    };
+  });
+};
+
+const buildMockLeaderboardSettlement = ({
+  room,
+  participants,
+  meClientId,
+  playlistItems,
+}: {
+  room: RoomSettlementSnapshot["room"];
+  participants: RoomParticipant[];
+  meClientId?: string | null;
+  playlistItems: PlaylistItem[];
+}) => {
+  const endedAt = Date.now();
+  const startedAt = endedAt - 12 * 60 * 1000;
+  const roundKey = `${room.id}:mock-leaderboard:${endedAt}`;
+  const mockPlaylistItems = buildMockPlaylistItems(
+    playlistItems,
+    MOCK_LEADERBOARD_QUESTION_COUNT,
+  );
+  const meParticipant =
+    participants.find((item) => item.clientId === meClientId) ?? participants[0] ?? null;
+  const otherParticipants = participants.filter(
+    (item) => item.clientId !== meParticipant?.clientId,
+  );
+  const skillByIndex = [0.96, 0.9, 0.84, 0.76, 0.72, 0.68, 0.64, 0.6, 0.56, 0.52];
+  const mockParticipantsSeed = Array.from(
+    { length: MOCK_LEADERBOARD_PLAYER_COUNT },
+    (_, index) => {
+      const fallbackName = MOCK_PLAYER_NAMES[index % MOCK_PLAYER_NAMES.length];
+      const source =
+        index === 3 && meParticipant
+          ? meParticipant
+          : otherParticipants.shift() ?? null;
+      return {
+        clientId: source?.clientId ?? `mock-client-${index + 1}`,
+        username:
+          source?.username?.trim() ||
+          (index === 3 && meParticipant?.username?.trim()) ||
+          fallbackName,
+        avatarUrl: source?.avatar_url ?? source?.avatarUrl ?? null,
+        joinedAt: source?.joinedAt ?? startedAt - (index + 1) * 30_000,
+        isMe: Boolean(
+          meParticipant &&
+            (source?.clientId ?? `mock-client-${index + 1}`) === meParticipant.clientId,
+        ),
+        skill: skillByIndex[index] ?? Math.max(0.35, 0.52 - index * 0.04),
+      };
+    },
+  );
+
+  const statMap = new Map(
+    mockParticipantsSeed.map((item) => [
+      item.clientId,
+      {
+        score: 0,
+        combo: 0,
+        maxCombo: 0,
+        correctCount: 0,
+        fastestCorrectMs: Number.POSITIVE_INFINITY,
+        answerTimes: [] as number[],
+      },
+    ]),
+  );
+
+  const recaps: SettlementQuestionRecap[] = mockPlaylistItems.map((item, index) => {
+    const correctChoiceIndex = index % 4;
+    const answerLabel = item.answerText?.trim() || item.title?.trim() || `測試曲目 ${index + 1}`;
+    const choices = [
+      answerLabel,
+      `${answerLabel} Remix`,
+      `${answerLabel} Live`,
+      `${answerLabel} Ver.`,
+    ].map((title, choiceIndex) => ({
+      index: choiceIndex,
+      title,
+      isCorrect: choiceIndex === correctChoiceIndex,
+      isSelectedByMe: false,
+    }));
+
+    const answersByClientId: NonNullable<SettlementQuestionRecap["answersByClientId"]> = {};
+    const correctTimings: number[] = [];
+    let answeredCount = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let unansweredCount = 0;
+
+    mockParticipantsSeed.forEach((participant, participantIndex) => {
+      const entry = statMap.get(participant.clientId);
+      if (!entry) return;
+
+      const resultRoll = seededUnit((index + 1) * 97 + (participantIndex + 1) * 29);
+      const speedRoll = seededUnit((index + 1) * 53 + (participantIndex + 1) * 71);
+      const choiceRoll = seededUnit((index + 1) * 43 + (participantIndex + 1) * 11);
+      const unansweredThreshold = 0.03 + participantIndex * 0.02;
+      const correctThreshold = Math.max(
+        0.24,
+        participant.skill - (index % 6) * 0.035,
+      );
+
+      let result: SettlementQuestionRecap["myResult"] = "wrong";
+      if (resultRoll < unansweredThreshold) {
+        result = "unanswered";
+      } else if (resultRoll < correctThreshold) {
+        result = "correct";
+      }
+
+      const answeredAtMs =
+        result === "unanswered"
+          ? null
+          : Math.round(
+              1020 +
+                speedRoll * 1850 +
+                participantIndex * 92 +
+                (index % 4) * 58,
+            );
+
+      let choiceIndex: number | null = null;
+      let scoreBreakdown: QuestionScoreBreakdown | null = null;
+
+      if (result === "correct") {
+        choiceIndex = correctChoiceIndex;
+        entry.correctCount += 1;
+        entry.combo += 1;
+        entry.maxCombo = Math.max(entry.maxCombo, entry.combo);
+        if (typeof answeredAtMs === "number") {
+          entry.answerTimes.push(answeredAtMs);
+          entry.fastestCorrectMs = Math.min(entry.fastestCorrectMs, answeredAtMs);
+          correctTimings.push(answeredAtMs);
+          scoreBreakdown = buildMockScoreBreakdown(answeredAtMs, entry.combo - 1);
+        }
+      } else if (result === "wrong") {
+        const offset = 1 + Math.floor(choiceRoll * 3);
+        choiceIndex = (correctChoiceIndex + offset) % 4;
+        entry.combo = 0;
+      } else {
+        entry.combo = 0;
+      }
+
+      if (result !== "unanswered") {
+        answeredCount += 1;
+      }
+      if (result === "correct") {
+        correctCount += 1;
+      } else if (result === "wrong") {
+        wrongCount += 1;
+      } else {
+        unansweredCount += 1;
+      }
+
+      if (scoreBreakdown) {
+        entry.score += scoreBreakdown.totalGainPoints;
+      }
+
+      answersByClientId[participant.clientId] = {
+        choiceIndex,
+        result,
+        answeredAtMs,
+        scoreBreakdown,
+      };
+    });
+
+    const myAnswer = meParticipant
+      ? answersByClientId[meParticipant.clientId] ?? null
+      : null;
+    const myAnsweredAtMs =
+      typeof myAnswer?.answeredAtMs === "number" ? myAnswer.answeredAtMs : null;
+    const sortedCorrectTimings = [...correctTimings].sort((a, b) => a - b);
+    const medianCorrectMs =
+      sortedCorrectTimings.length > 0
+        ? sortedCorrectTimings[Math.floor(sortedCorrectTimings.length / 2)] ?? null
+        : null;
+
+    return {
+      key: `${roundKey}:question:${index + 1}`,
+      order: index + 1,
+      trackIndex: index,
+      title: answerLabel,
+      uploader: item.uploader?.trim() || "Muizo Test",
+      duration: item.duration ?? "3:30",
+      thumbnail: item.thumbnail ?? null,
+      sourceId: item.sourceId ?? null,
+      channelId: item.channelId ?? null,
+      provider: item.provider,
+      videoId: item.videoId,
+      url: item.url,
+      myResult: myAnswer?.result ?? "unanswered",
+      myChoiceIndex: myAnswer?.choiceIndex ?? null,
+      correctChoiceIndex,
+      choices: choices.map((choice) => ({
+        ...choice,
+        isSelectedByMe: myAnswer?.choiceIndex === choice.index,
+      })),
+      participantCount: mockParticipantsSeed.length,
+      answeredCount,
+      correctCount,
+      wrongCount,
+      unansweredCount,
+      fastestCorrectRank:
+        myAnswer?.result === "correct" && typeof myAnsweredAtMs === "number"
+          ? sortedCorrectTimings.findIndex((value) => value === myAnsweredAtMs) + 1
+          : null,
+      fastestCorrectMs:
+        sortedCorrectTimings.length > 0 ? sortedCorrectTimings[0] ?? null : null,
+      medianCorrectMs,
+      answersByClientId,
+    };
+  });
+
+  const snapshotParticipants: RoomParticipant[] = mockParticipantsSeed.map((item) => {
+    const entry = statMap.get(item.clientId);
+    const avgCorrectMs =
+      entry && entry.answerTimes.length > 0
+        ? Math.round(
+            entry.answerTimes.reduce((sum, value) => sum + value, 0) /
+              entry.answerTimes.length,
+          )
+        : null;
+    return {
+      clientId: item.clientId,
+      username: item.username,
+      avatar_url: item.avatarUrl,
+      avatarUrl: item.avatarUrl,
+      joinedAt: item.joinedAt,
+      isOnline: true,
+      lastSeen: endedAt,
+      score: entry?.score ?? 0,
+      combo: 0,
+      maxCombo: entry?.maxCombo ?? 0,
+      correctCount: entry?.correctCount ?? 0,
+      fastestCorrectMs:
+        entry && Number.isFinite(entry.fastestCorrectMs)
+          ? entry.fastestCorrectMs
+          : null,
+      avgCorrectMs,
+    };
+  });
+
+  const playlistTitle =
+    room.playlist.title?.trim() || room.playlistTitle?.trim() || "測試收藏庫";
+  const coverItem = mockPlaylistItems.find((item) => item.thumbnail) ?? mockPlaylistItems[0];
+  const snapshot: RoomSettlementSnapshot = {
+    roundKey,
+    roundNo: Math.max(1, Math.floor(endedAt / 1000)),
+    startedAt,
+    endedAt,
+    room: {
+      ...room,
+      playerCount: snapshotParticipants.length,
+      playlistCount: mockPlaylistItems.length,
+      playlistId: room.playlist.id ?? room.playlistId ?? "mock-leaderboard-playlist",
+      playlistTitle,
+      playlistCoverTitle: coverItem?.title ?? room.playlistCoverTitle ?? null,
+      playlistCoverThumbnailUrl:
+        coverItem?.thumbnail ?? room.playlistCoverThumbnailUrl ?? null,
+      playlistCoverSourceId: coverItem?.sourceId ?? room.playlistCoverSourceId ?? null,
+      playlistSourceType:
+        room.playlist.sourceType ?? room.playlistSourceType ?? "public_collection",
+      gameSettings: {
+        ...room.gameSettings,
+        questionCount: MOCK_LEADERBOARD_QUESTION_COUNT,
+        playDurationSec: room.gameSettings?.playDurationSec ?? 30,
+        revealDurationSec: room.gameSettings?.revealDurationSec ?? 5,
+        startOffsetSec: room.gameSettings?.startOffsetSec ?? 0,
+        allowCollectionClipTiming:
+          room.gameSettings?.allowCollectionClipTiming ?? true,
+        leaderboardProfileKey:
+          room.gameSettings?.leaderboardProfileKey ?? "mock-leaderboard",
+        leaderboardRuleVersion: room.gameSettings?.leaderboardRuleVersion ?? 1,
+        leaderboardModeKey: room.gameSettings?.leaderboardModeKey ?? "standard",
+        leaderboardVariantKey: "30q",
+        leaderboardTargetQuestionCount: MOCK_LEADERBOARD_QUESTION_COUNT,
+        leaderboardTimeLimitSec: null,
+        leaderboardRankingMetric:
+          room.gameSettings?.leaderboardRankingMetric ?? "score",
+      },
+      playlist: {
+        ...room.playlist,
+        id: room.playlist.id ?? room.playlistId ?? "mock-leaderboard-playlist",
+        title: playlistTitle,
+        sourceType:
+          room.playlist.sourceType ?? room.playlistSourceType ?? "public_collection",
+        items: mockPlaylistItems,
+        totalCount: mockPlaylistItems.length,
+        receivedCount: mockPlaylistItems.length,
+        ready: true,
+        pageSize: Math.max(room.playlist.pageSize ?? 0, mockPlaylistItems.length),
+      },
+    },
+    participants: snapshotParticipants,
+    messages: [],
+    playlistItems: mockPlaylistItems,
+    trackOrder: mockPlaylistItems.map((_, index) => index),
+    playedQuestionCount: mockPlaylistItems.length,
+    questionRecaps: recaps as RoomSettlementQuestionRecap[],
+  };
+
+  return {
+    snapshot,
+    recaps,
+  };
+};
+
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { username, authUser, loginWithGoogle, clientId } = useAuth();
+  const { username, authUser, authToken, refreshAuthToken, loginWithGoogle, clientId } = useAuth();
   const {
     currentRoom,
     participants,
     settlementHistory,
+    rankChangeByRoundKey,
     isConnected,
     routeRoomResolved,
     sessionProgress,
@@ -1350,6 +1754,44 @@ const RoomLobbyPage: React.FC = () => {
       roomScopedSettlementReplayByRoundKey,
     ]);
 
+  const [settlementFavorited, setSettlementFavorited] = useState<boolean | undefined>(undefined);
+
+  const settlementCollectionId = activeSettlementSnapshot?.room.playlist.id ?? null;
+  useEffect(() => {
+    if (!settlementCollectionId || !authToken) {
+      setSettlementFavorited(undefined);
+      return;
+    }
+    let cancelled = false;
+    apiFetchCollectionFavoriteStatus(API_URL, authToken, settlementCollectionId)
+      .then((result) => {
+        if (!cancelled && typeof result.data?.is_favorited === "boolean") {
+          setSettlementFavorited(result.data.is_favorited);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [settlementCollectionId, authToken]);
+
+  const handleToggleSettlementFavorite = useCallback(async () => {
+    const collectionId = activeSettlementSnapshot?.room.playlist.id;
+    if (!collectionId) return;
+    const token = authToken ?? await refreshAuthToken();
+    if (!token) return;
+    const current = settlementFavorited ?? false;
+    setSettlementFavorited(!current);
+    try {
+      const result = current
+        ? await apiUnfavoriteCollection(API_URL, token, collectionId)
+        : await apiFavoriteCollection(API_URL, token, collectionId);
+      if (typeof result.data?.is_favorited === "boolean") {
+        setSettlementFavorited(result.data.is_favorited);
+      }
+    } catch {
+      setSettlementFavorited(current);
+    }
+  }, [activeSettlementSnapshot, authToken, refreshAuthToken, settlementFavorited]);
+
   const activeSettlementQuestionRecaps = useMemo(() => {
     if (!activeSettlementSnapshot) return undefined;
     const snapshotRecaps = (
@@ -1625,6 +2067,9 @@ const RoomLobbyPage: React.FC = () => {
     historyDrawerLoading && historyDrawerSummaries.length === 0;
   const isSettlementView = roomViewMode === "settlement";
   const isGameRoomView = roomViewMode === "game";
+  const isLeaderboardSettlementView = Boolean(
+    activeSettlementSnapshot?.room.gameSettings?.leaderboardProfileKey,
+  );
   const isSettlementReviewLoading = Boolean(
     resolvedActiveSettlementRoundKey &&
     loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
@@ -2007,6 +2452,59 @@ const RoomLobbyPage: React.FC = () => {
     latestSettlementSnapshot,
     mergedSettlementSummaries,
     openSettlementReviewByRoundKey,
+  ]);
+
+  const handleOpenMockLeaderboardSettlement = useCallback(() => {
+    if (!currentRoom?.id) return;
+
+    const { snapshot, recaps } = buildMockLeaderboardSettlement({
+      room: currentRoom,
+      participants,
+      meClientId: clientId,
+      playlistItems,
+    });
+
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
+    setSettlementReplayByRoundKey((prev) =>
+      pruneSettlementReplayByRoundKey(
+        {
+          ...prev,
+          [snapshot.roundKey]: snapshot,
+        },
+        {
+          roomId: currentRoom.id,
+          pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
+        },
+      ),
+    );
+    setSettlementHistorySummaries((prev) => {
+      const next = new Map(prev.map((item) => [item.roundKey, item] as const));
+      next.set(snapshot.roundKey, buildSettlementSummaryFromSnapshot(snapshot));
+      return limitSettlementSummaries(Array.from(next.values()));
+    });
+    setSettlementRecapsByRoundKey((prev) =>
+      pruneSettlementRecapsByRoundKey(
+        {
+          ...prev,
+          [snapshot.roundKey]: cloneSettlementRecaps(recaps),
+        },
+        {
+          roomId: currentRoom.id,
+          pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
+        },
+      ),
+    );
+    setIsGameView(false);
+    setActiveSettlementRoundKey(snapshot.roundKey);
+    setRoomViewMode("settlement");
+  }, [
+    activeSettlementRoundKey,
+    clientId,
+    currentRoom,
+    participants,
+    playlistItems,
+    setIsGameView,
   ]);
 
   const loginConfirmText = useMemo(() => {
@@ -2731,25 +3229,48 @@ const RoomLobbyPage: React.FC = () => {
       <>
         <div className="flex w-full min-w-0 justify-center">
           <Suspense fallback={<RoomPageLoader />}>
-            <LiveSettlementShowcase
-              room={activeSettlementSnapshot.room}
-              participants={activeSettlementSnapshot.participants}
-              participantAvatarFallbacks={participants}
-              messages={activeSettlementSnapshot.messages}
-              playlistItems={activeSettlementSnapshot.playlistItems ?? []}
-              trackOrder={activeSettlementSnapshot.trackOrder}
-              playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
-              startedAt={activeSettlementSnapshot.startedAt}
-              endedAt={activeSettlementSnapshot.endedAt}
-              meClientId={clientId}
-              questionRecaps={activeSettlementQuestionRecaps}
-              upcomingGameStartAt={
-                gameState?.status === "playing" ? gameState.startedAt : null
-              }
-              selfAvatarUrl={authUser?.avatar_url ?? null}
-              onBackToLobby={handleBackFromSettlement}
-              onRequestExit={leaveRoomAndNavigate}
-            />
+            {isLeaderboardSettlementView ? (
+              <LeaderboardSettlementShowcase
+                room={activeSettlementSnapshot.room}
+                participants={activeSettlementSnapshot.participants}
+                playlistItems={activeSettlementSnapshot.playlistItems ?? []}
+                playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
+                meClientId={clientId}
+                matchId={activeSettlementSnapshot.matchId}
+                questionRecaps={activeSettlementQuestionRecaps}
+                rankChangeByClientId={
+                  rankChangeByRoundKey[activeSettlementSnapshot.roundKey] ?? undefined
+                }
+                isFavorited={settlementFavorited}
+                onToggleFavorite={
+                  activeSettlementSnapshot.room.playlist.id && authToken
+                    ? handleToggleSettlementFavorite
+                    : undefined
+                }
+                onBackToLobby={handleBackFromSettlement}
+              />
+            ) : (
+              <LiveSettlementShowcase
+                room={activeSettlementSnapshot.room}
+                participants={activeSettlementSnapshot.participants}
+                participantAvatarFallbacks={participants}
+                messages={activeSettlementSnapshot.messages}
+                playlistItems={activeSettlementSnapshot.playlistItems ?? []}
+                trackOrder={activeSettlementSnapshot.trackOrder}
+                playedQuestionCount={activeSettlementSnapshot.playedQuestionCount}
+                startedAt={activeSettlementSnapshot.startedAt}
+                endedAt={activeSettlementSnapshot.endedAt}
+                meClientId={clientId}
+                matchId={activeSettlementSnapshot.matchId}
+                questionRecaps={activeSettlementQuestionRecaps}
+                upcomingGameStartAt={
+                  gameState?.status === "playing" ? gameState.startedAt : null
+                }
+                selfAvatarUrl={authUser?.avatar_url ?? null}
+                onBackToLobby={handleBackFromSettlement}
+                onRequestExit={leaveRoomAndNavigate}
+              />
+            )}
           </Suspense>
         </div>
         {settlementStartBroadcastOverlay}
@@ -2802,6 +3323,7 @@ const RoomLobbyPage: React.FC = () => {
             onOpenLastSettlement={handleOpenLastSettlement}
             onOpenHistoryDrawer={openHistoryDrawer}
             onOpenSettlementByRoundKey={handleOpenSettlementByRoundKey}
+            onOpenTestSettlement={handleOpenMockLeaderboardSettlement}
             onOpenGame={handleOpenGame}
             onKickPlayer={handleKickPlayer}
             onTransferHost={handleTransferHost}
