@@ -8,10 +8,11 @@ import {
 } from "react";
 import {
   BarChartRounded,
+  CelebrationRounded,
+  ChevronLeftRounded,
   CloseRounded,
   EmojiEventsRounded,
   LockOutlined,
-  MeetingRoomRounded,
   PlayArrowRounded,
   PublicOutlined,
   QuizRounded,
@@ -19,10 +20,16 @@ import {
   StarRounded,
   // TimelineRounded,
 } from "@mui/icons-material";
-import { Button, Drawer, IconButton, useMediaQuery } from "@mui/material";
+import {
+  Button,
+  Drawer,
+  IconButton,
+  useMediaQuery,
+} from "@mui/material";
 import { List, type RowComponentProps } from "react-window";
 
 import { API_URL } from "@domain/room/constants";
+import type { RoomCreateSourceMode } from "@domain/room/types";
 import {
   apiFetchCollectionItemPreview,
   type CollectionItemPreviewRecord,
@@ -37,7 +44,10 @@ import {
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
+  type RoomPlayMode,
 } from "../../../model/leaderboardChallengeOptions";
+import RoomSetupPanel from "../setup/RoomSetupPanel";
+import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 
 type CollectionDetail = {
   id: string;
@@ -58,6 +68,8 @@ type CollectionDetail = {
   has_ai_edited?: boolean | null;
 };
 
+type CollectionDrawerView = "detail" | "leaderboardSetup" | "casualSetup";
+
 type CollectionDetailDrawerProps = {
   open: boolean;
   collection: CollectionDetail | null;
@@ -68,10 +80,51 @@ type CollectionDetailDrawerProps = {
   onUseCollection: (collectionId: string) => void | Promise<void>;
   onStartCustomRoom?: (collectionId: string) => void | Promise<void>;
   onStartLeaderboardChallenge?: (collectionId: string) => void | Promise<void>;
+  onConfirmCustomRoom?: (collectionId: string) => void | Promise<void>;
+  onConfirmLeaderboardChallenge?: (collectionId: string) => void | Promise<void>;
   onToggleFavorite?: () => void | Promise<void | boolean>;
   formatDurationLabel: (value: number) => string | null;
+  roomNameInput: string;
+  setRoomNameInput: (value: string) => void;
+  roomVisibilityInput: "public" | "private";
+  setRoomVisibilityInput: (value: "public" | "private") => void;
+  roomPasswordInput: string;
+  setRoomPasswordInput: (value: string) => void;
+  isPinProtectionEnabled: boolean;
+  setIsPinProtectionEnabled: (value: boolean) => void;
+  pinValidationAttempted?: boolean;
+  setRoomMaxPlayersInput: (value: string) => void;
+  parsedMaxPlayers: number | null;
+  questionCount: number;
+  questionMin: number;
+  questionMaxLimit: number;
+  updateQuestionCount: (value: number) => void;
+  roomPlayMode: RoomPlayMode;
+  setRoomPlayMode: (value: RoomPlayMode) => void;
+  playDurationSec: number;
+  revealDurationSec: number;
+  startOffsetSec: number;
+  allowCollectionClipTiming: boolean;
+  updatePlayDurationSec: (value: number) => number;
+  updateRevealDurationSec: (value: number) => number;
+  updateStartOffsetSec: (value: number) => number;
+  updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  supportsCollectionClipTiming: boolean;
+  selectedCreateSourceSummary: SourceSummary;
+  isSourceSummaryLoading: boolean;
+  createSettingsCards: CreateSettingsCard[];
+  createRequirementsHintText: string | null;
+  createRecommendationHintText: string | null;
+  canCreateRoom: boolean;
+  isCreatingRoom: boolean;
+  isCustomRoomStartPending?: boolean;
+  isLeaderboardStartPending?: boolean;
   selectedLeaderboardMode: LeaderboardModeKey;
   selectedLeaderboardVariant: LeaderboardVariantKey;
+  onLeaderboardSelectionChange: (
+    mode: LeaderboardModeKey,
+    variant: LeaderboardVariantKey,
+  ) => void;
   onLeaderboardModeChange: (value: LeaderboardModeKey) => void;
   onLeaderboardVariantChange: (value: LeaderboardVariantKey) => void;
 };
@@ -327,10 +380,48 @@ const CollectionDetailDrawer = ({
   onUseCollection,
   onStartCustomRoom,
   onStartLeaderboardChallenge,
+  onConfirmCustomRoom,
+  onConfirmLeaderboardChallenge,
   onToggleFavorite,
   formatDurationLabel,
+  roomNameInput,
+  setRoomNameInput,
+  roomVisibilityInput,
+  setRoomVisibilityInput,
+  roomPasswordInput,
+  setRoomPasswordInput,
+  isPinProtectionEnabled,
+  setIsPinProtectionEnabled,
+  pinValidationAttempted = false,
+  setRoomMaxPlayersInput,
+  parsedMaxPlayers,
+  questionCount,
+  questionMin,
+  questionMaxLimit,
+  updateQuestionCount,
+  roomPlayMode,
+  setRoomPlayMode,
+  playDurationSec,
+  revealDurationSec,
+  startOffsetSec,
+  allowCollectionClipTiming,
+  updatePlayDurationSec,
+  updateRevealDurationSec,
+  updateStartOffsetSec,
+  updateAllowCollectionClipTiming,
+  supportsCollectionClipTiming,
+  selectedCreateSourceSummary,
+  isSourceSummaryLoading,
+  createSettingsCards,
+  createRequirementsHintText,
+  createRecommendationHintText,
+  canCreateRoom,
+  isCreatingRoom,
+  isCustomRoomStartPending = false,
+  isLeaderboardStartPending = false,
   selectedLeaderboardMode,
   selectedLeaderboardVariant,
+  onLeaderboardSelectionChange,
   onLeaderboardModeChange,
   onLeaderboardVariantChange,
 }: CollectionDetailDrawerProps) => {
@@ -354,6 +445,19 @@ const CollectionDetailDrawer = ({
       : "");
   const isPublic = (collection?.visibility ?? "private") === "public";
   const isFavorited = Boolean(collection?.is_favorited);
+  const [drawerView, setDrawerView] =
+    useState<CollectionDrawerView>("detail");
+  const isLeaderboardSetupView = drawerView === "leaderboardSetup" && isPublic;
+  const isCasualSetupView = drawerView === "casualSetup";
+  const isSetupView = isLeaderboardSetupView || isCasualSetupView;
+  const isSetupLeaderboardMode =
+    isSetupView && isPublic && roomPlayMode === "leaderboard";
+  const setupRoomCreateSourceMode: RoomCreateSourceMode = isPublic
+    ? "publicCollection"
+    : "privateCollection";
+  const setupSupportsCollectionClipTiming = isSetupView
+    ? true
+    : supportsCollectionClipTiming;
   const activeLeaderboardVariants =
     leaderboardVariants[selectedLeaderboardMode];
   const activeLeaderboardVariant = getLeaderboardVariant(
@@ -365,6 +469,23 @@ const CollectionDetailDrawer = ({
   const activeLeaderboardModeLabel = getLeaderboardModeLabel(
     selectedLeaderboardMode,
   );
+  const isPreparingLeaderboardChallenge =
+    isLeaderboardStartPending || isApplying || isCreatingRoom;
+  const isPreparingCustomRoom =
+    isCustomRoomStartPending || isApplying || isCreatingRoom;
+  const isPreparingSetup = isSetupLeaderboardMode
+    ? isPreparingLeaderboardChallenge
+    : isPreparingCustomRoom;
+  const leaderboardStartLabel = isCreatingRoom
+    ? "建立房間中..."
+    : isApplying || isLeaderboardStartPending
+      ? "載入題庫中..."
+      : "開始挑戰";
+  const customRoomStartLabel = isCreatingRoom
+    ? "建立房間中..."
+    : isApplying || isCustomRoomStartPending
+      ? "載入題庫中..."
+      : "建立休閒房";
   const stats: Array<{
     key: string;
     label: string;
@@ -403,16 +524,46 @@ const CollectionDetailDrawer = ({
       ),
     },
   ];
+  const setupSourceSummary: SourceSummary = collection
+    ? {
+        label: isPublic ? "公開收藏庫" : "私人收藏庫",
+        title: collection.title,
+        detail:
+          typeof collection.item_count === "number"
+            ? `${Math.max(0, collection.item_count)} 題`
+            : "題數未提供",
+        thumbnail: previewThumbnail,
+      }
+    : selectedCreateSourceSummary;
 
   const handleStartCustomRoom = () => {
     if (!collection) return;
-    void (onStartCustomRoom ?? onUseCollection)(collection.id);
+    setRoomPlayMode("casual");
+    setDrawerView("casualSetup");
   };
 
   const handleStartLeaderboardChallenge = () => {
     if (!collection) return;
     if (!isPublic) return;
-    void (onStartLeaderboardChallenge ?? onUseCollection)(collection.id);
+    setRoomPlayMode("leaderboard");
+    setDrawerView("leaderboardSetup");
+  };
+
+  const handleConfirmLeaderboardChallenge = () => {
+    if (!collection) return;
+    if (!isPublic) return;
+    void (
+      onConfirmLeaderboardChallenge ??
+      onStartLeaderboardChallenge ??
+      onUseCollection
+    )(collection.id);
+  };
+
+  const handleConfirmCustomRoom = () => {
+    if (!collection) return;
+    void (onConfirmCustomRoom ?? onStartCustomRoom ?? onUseCollection)(
+      collection.id,
+    );
   };
 
   const fetchPreviewPage = useCallback(
@@ -546,6 +697,10 @@ const CollectionDetailDrawer = ({
   }, [collection?.id, fetchPreviewPage, open]);
 
   useEffect(() => {
+    setDrawerView("detail");
+  }, [collection?.id, open]);
+
+  useEffect(() => {
     const variants = leaderboardVariants[selectedLeaderboardMode];
     if (
       !variants.some((variant) => variant.key === selectedLeaderboardVariant)
@@ -583,10 +738,25 @@ const CollectionDetailDrawer = ({
     >
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-cyan-300/12 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            {isSetupView ? (
+              <IconButton
+                aria-label="返回題庫詳情"
+                onClick={() => setDrawerView("detail")}
+                className="!text-slate-100 hover:!bg-white/8"
+              >
+                <ChevronLeftRounded />
+              </IconButton>
+            ) : null}
+            <div className="min-w-0">
             <h2 className="mt-1 truncate text-lg font-semibold text-slate-50 sm:text-xl">
-              {collection?.title ?? "收藏庫"}
+              {isSetupLeaderboardMode
+                ? "排行挑戰設定"
+                : isSetupView
+                  ? "休閒房設定"
+                  : collection?.title ?? "收藏庫"}
             </h2>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden text-xs font-medium text-slate-400 sm:inline">
@@ -602,7 +772,92 @@ const CollectionDetailDrawer = ({
           </div>
         </header>
 
-        {collection ? (
+        {collection ? isSetupView ? (
+          <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[240px_minmax(0,1fr)] md:grid-rows-none">
+            <aside className="border-b border-cyan-300/12 bg-slate-950/30 px-4 py-3 md:border-b-0 md:border-r md:px-5 md:py-5">
+              <div className="flex min-w-0 items-center gap-3 md:block">
+                <div className="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-900/80 md:h-auto md:w-full md:aspect-[16/9]">
+                  {previewThumbnail ? (
+                    <img
+                      src={previewThumbnail}
+                      alt={collection.cover_title ?? collection.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
+                      無封面
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 md:mt-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/40 px-2 py-0.5 text-[11px] font-medium text-slate-300">
+                    {isPublic ? (
+                      <PublicOutlined sx={{ fontSize: 13 }} />
+                    ) : (
+                      <LockOutlined sx={{ fontSize: 13 }} />
+                    )}
+                    {isPublic ? "公開收藏庫" : "私人收藏庫"}
+                  </span>
+                  <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-slate-50">
+                    {collection.title}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {typeof collection.item_count === "number"
+                      ? `${Math.max(0, collection.item_count)} 題`
+                      : "題數未提供"}
+                  </p>
+                </div>
+              </div>
+            </aside>
+
+            <main className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <RoomSetupPanel
+                roomNameInput={roomNameInput}
+                setRoomNameInput={setRoomNameInput}
+                roomVisibilityInput={roomVisibilityInput}
+                setRoomVisibilityInput={setRoomVisibilityInput}
+                roomPasswordInput={roomPasswordInput}
+                setRoomPasswordInput={setRoomPasswordInput}
+                isPinProtectionEnabled={isPinProtectionEnabled}
+                setIsPinProtectionEnabled={setIsPinProtectionEnabled}
+                pinValidationAttempted={pinValidationAttempted}
+                setRoomMaxPlayersInput={setRoomMaxPlayersInput}
+                parsedMaxPlayers={parsedMaxPlayers}
+                questionCount={questionCount}
+                questionMin={questionMin}
+                questionMaxLimit={questionMaxLimit}
+                updateQuestionCount={updateQuestionCount}
+                roomPlayMode={roomPlayMode}
+                setRoomPlayMode={setRoomPlayMode}
+                roomCreateSourceMode={setupRoomCreateSourceMode}
+                selectedLeaderboardMode={selectedLeaderboardMode}
+                selectedLeaderboardVariant={selectedLeaderboardVariant}
+                onLeaderboardSelectionChange={onLeaderboardSelectionChange}
+                playDurationSec={playDurationSec}
+                revealDurationSec={revealDurationSec}
+                startOffsetSec={startOffsetSec}
+                allowCollectionClipTiming={allowCollectionClipTiming}
+                updatePlayDurationSec={updatePlayDurationSec}
+                updateRevealDurationSec={updateRevealDurationSec}
+                updateStartOffsetSec={updateStartOffsetSec}
+                updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+                supportsCollectionClipTiming={setupSupportsCollectionClipTiming}
+                selectedCreateSourceSummary={setupSourceSummary}
+                isSourceSummaryLoading={isSourceSummaryLoading}
+                createSettingsCards={createSettingsCards}
+                createRequirementsHintText={createRequirementsHintText}
+                createRecommendationHintText={createRecommendationHintText}
+                canCreateRoom={canCreateRoom}
+                isCreatingRoom={isCreatingRoom}
+                onCreateRoom={
+                  isSetupLeaderboardMode
+                    ? handleConfirmLeaderboardChallenge
+                    : handleConfirmCustomRoom
+                }
+              />
+            </main>
+          </div>
+        ) : (
           <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden md:grid-cols-[minmax(360px,0.8fr)_minmax(460px,1.2fr)] md:grid-rows-none">
             <main className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               <section className="overflow-hidden rounded-[20px] border border-cyan-300/14 bg-slate-950/44 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
@@ -888,60 +1143,108 @@ const CollectionDetailDrawer = ({
 
         {collection ? (
           <footer className="grid shrink-0 gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
-                  {isPublic ? "挑戰模式" : "房間模式"}
-                </p>
-                <p className="mt-1 truncate text-sm font-semibold text-slate-100">
-                  {isPublic
-                    ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
-                    : "私人收藏庫僅可建立休閒房"}
-                </p>
-              </div>
-              {isPublic ? (
-                <Button
-                  variant="text"
-                  size="small"
-                  startIcon={
-                    isFavorited ? <StarRounded /> : <StarBorderRounded />
-                  }
-                  disabled={isFavoriteUpdating || !onToggleFavorite}
-                  onClick={() => {
-                    void onToggleFavorite?.();
-                  }}
-                  className="!shrink-0"
-                >
-                  {isFavorited ? "取消收藏" : "收藏"}
-                </Button>
-              ) : null}
-            </div>
+            {isSetupView ? (
+              <>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-cyan-100/55">
+                    {isSetupLeaderboardMode ? "確認挑戰" : "確認房間"}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                    {isSetupLeaderboardMode
+                      ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
+                      : "休閒派對"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+                  <Button
+                    variant="outlined"
+                    startIcon={<ChevronLeftRounded />}
+                    disabled={isPreparingSetup}
+                    onClick={() => setDrawerView("detail")}
+                    className="!border-white/14 !text-slate-100 hover:!border-white/24 hover:!bg-white/8"
+                  >
+                    返回
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<PlayArrowRounded />}
+                    disabled={isPreparingSetup}
+                    onClick={
+                      isSetupLeaderboardMode
+                        ? handleConfirmLeaderboardChallenge
+                        : handleConfirmCustomRoom
+                    }
+                  >
+                    {isSetupLeaderboardMode
+                      ? leaderboardStartLabel
+                      : customRoomStartLabel}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
+                      {isPublic ? "挑戰模式" : "房間模式"}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                      {isPublic
+                        ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
+                        : "私人收藏庫僅可建立休閒房"}
+                    </p>
+                  </div>
+                  {isPublic ? (
+                    <Button
+                      variant="text"
+                      size="small"
+                      startIcon={
+                        isFavorited ? <StarRounded /> : <StarBorderRounded />
+                      }
+                      disabled={isFavoriteUpdating || !onToggleFavorite}
+                      onClick={() => {
+                        void onToggleFavorite?.();
+                      }}
+                      className="!shrink-0"
+                    >
+                      {isFavorited ? "取消收藏" : "收藏"}
+                    </Button>
+                  ) : null}
+                </div>
 
-            <div
-              className={`grid gap-2 sm:flex sm:items-center sm:justify-end ${
-                isPublic ? "grid-cols-2" : "grid-cols-1"
-              }`}
-            >
-              <Button
-                variant="outlined"
-                startIcon={<MeetingRoomRounded />}
-                disabled={isApplying}
-                onClick={handleStartCustomRoom}
-                className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
-              >
-                {isApplying ? "載入中..." : isPublic ? "自訂房" : "建立休閒房"}
-              </Button>
-              {isPublic ? (
-                <Button
-                  variant="contained"
-                  startIcon={<PlayArrowRounded />}
-                  disabled={isApplying}
-                  onClick={handleStartLeaderboardChallenge}
+                <div
+                  className={`grid gap-2 sm:flex sm:items-center sm:justify-end ${
+                    isPublic ? "grid-cols-2" : "grid-cols-1"
+                  }`}
                 >
-                  {isApplying ? "載入中..." : "進行排行挑戰"}
-                </Button>
-              ) : null}
-            </div>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CelebrationRounded />}
+                    disabled={isApplying}
+                    onClick={handleStartCustomRoom}
+                    className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
+                  >
+                    {isApplying
+                      ? "載入中..."
+                      : isPublic
+                        ? "休閒派對"
+                        : "建立休閒房"}
+                  </Button>
+                  {isPublic ? (
+                    <Button
+                      variant="contained"
+                      startIcon={<PlayArrowRounded />}
+                      disabled={isPreparingLeaderboardChallenge}
+                      onClick={handleStartLeaderboardChallenge}
+                    >
+                      {isPreparingLeaderboardChallenge
+                        ? leaderboardStartLabel
+                        : "進行排行挑戰"}
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            )}
           </footer>
         ) : null}
       </div>

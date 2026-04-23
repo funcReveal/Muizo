@@ -4,7 +4,6 @@ import { useContext } from "react";
 import { Button, TextField, useMediaQuery } from "@mui/material";
 import {
   AddCircleOutlineRounded,
-  ChevronLeftRounded,
   MeetingRoomRounded,
 } from "@mui/icons-material";
 
@@ -38,14 +37,13 @@ import {
 import {
   PlaylistPreviewRow,
 } from "./components/source/PlaylistPreviewRows";
-import RoomSetupPanel from "./components/setup/RoomSetupPanel";
-import RoomSetupSidebarSummary from "./components/setup/RoomSetupSidebarSummary";
 import JoinRoomPanel from "./components/join/JoinRoomPanel";
 import LibrarySourcePanel from "./components/source/LibrarySourcePanel";
 import LibrarySourceToolbar from "./components/source/LibrarySourceToolbar";
 import CollectionsSourceContent from "./components/source/CollectionsSourceContent";
 import CollectionCard from "./components/source/CollectionCard";
 import CollectionDetailDrawer from "./components/source/CollectionDetailDrawer";
+import SourceSetupDrawer from "./components/source/SourceSetupDrawer";
 import YoutubeSourceContent from "./components/source/YoutubeSourceContent";
 import YoutubePlaylistCard from "./components/source/YoutubePlaylistCard";
 import PlaylistLinkSourceContent from "./components/source/PlaylistLinkSourceContent";
@@ -63,6 +61,7 @@ import {
   DEFAULT_LEADERBOARD_VARIANT,
   DEFAULT_ROOM_PLAY_MODE,
   getLeaderboardProfileKey,
+  getLeaderboardVariant,
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
@@ -77,6 +76,7 @@ import {
   getRoomPlaylistLabel,
   getRoomStatusLabel,
   roomRequiresPin,
+  type SourceSummary,
 } from "./roomsHubViewModels";
 
 const isRoomCurrentlyPlaying = (room: RoomSummary) => {
@@ -306,13 +306,26 @@ const RoomsHubPage: React.FC = () => {
   const [detailCollectionId, setDetailCollectionId] = useState<string | null>(
     null,
   );
+  const [sourceSetupDrawer, setSourceSetupDrawer] = useState<{
+    kind: "youtube" | "link";
+    summary: NonNullable<SourceSummary>;
+  } | null>(null);
   const [roomPlayMode, setRoomPlayMode] = useState<RoomPlayMode>(
     DEFAULT_ROOM_PLAY_MODE,
   );
+  const [isPinProtectionEnabled, setIsPinProtectionEnabled] = useState(false);
+  const [pinValidationAttempted, setPinValidationAttempted] = useState(false);
   const [selectedLeaderboardMode, setSelectedLeaderboardMode] =
     useState<LeaderboardModeKey>(DEFAULT_LEADERBOARD_MODE);
   const [selectedLeaderboardVariant, setSelectedLeaderboardVariant] =
     useState<LeaderboardVariantKey>(DEFAULT_LEADERBOARD_VARIANT);
+  const [pendingLeaderboardStart, setPendingLeaderboardStart] = useState<{
+    collectionId: string;
+    profileKey: string;
+  } | null>(null);
+  const [pendingCustomRoomStart, setPendingCustomRoomStart] = useState<{
+    collectionId: string;
+  } | null>(null);
   const {
     passwordDialog,
     setPasswordDialog,
@@ -697,6 +710,20 @@ const RoomsHubPage: React.FC = () => {
     () => getPlaylistIssueTotal(linkPlaylistIssueSummary),
     [linkPlaylistIssueSummary],
   );
+  const handlePickLinkSourceForDrawer = () => {
+    handlePickLinkSource();
+    setCreateLeftTab("library");
+    setRoomPlayMode("casual");
+    setSourceSetupDrawer({
+      kind: "link",
+      summary: {
+        label: "清單連結",
+        title: linkPlaylistTitle || "播放清單",
+        detail: `${linkPlaylistCount} 首曲目`,
+        thumbnail: linkPlaylistPreviewItems[0]?.thumbnail || "",
+      },
+    });
+  };
   const { publicLibrarySearchActive, togglePublicLibrarySearch } =
     usePublicCollectionsSearchUi({
       createLibraryTab,
@@ -714,6 +741,8 @@ const RoomsHubPage: React.FC = () => {
     (!Number.isInteger(parsedMaxPlayers) ||
       parsedMaxPlayers < PLAYER_MIN ||
       parsedMaxPlayers > PLAYER_MAX);
+  const pinInvalid =
+    isPinProtectionEnabled && !/^\d{4}$/.test(roomPasswordInput.trim());
   const canCreateRoom =
     Boolean(roomNameInput.trim()) &&
     playlistItems.length >= questionMin &&
@@ -794,29 +823,45 @@ const RoomsHubPage: React.FC = () => {
     ? "請先輸入房間名稱。"
     : playlistItems.length === 0
       ? "請先準備題庫內容，才能建立房間。"
-      : playlistItems.length < questionMin
-        ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
-        : maxPlayersInvalid
-          ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
-          : null;
+    : playlistItems.length < questionMin
+      ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
+    : maxPlayersInvalid
+      ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
+      : null;
   const createRecommendationHintText =
     !createRequirementsHintText &&
     playlistItems.length >= questionMin &&
     playlistItems.length < 10
       ? "目前題數偏少，雖然可以建立房間，但建議至少準備 10 題，遊戲體驗會更完整。"
       : null;
+  const syncMaxPlayersForLeaderboardVariant = (
+    mode: LeaderboardModeKey,
+    variant: LeaderboardVariantKey,
+  ) => {
+    if (getLeaderboardVariant(mode, variant).timeLimitSec) {
+      setRoomMaxPlayersInput("1");
+    }
+  };
   const handleRoomPlayModeChange = (nextMode: RoomPlayMode) => {
     setRoomPlayMode(nextMode);
+    if (nextMode === "leaderboard") {
+      syncMaxPlayersForLeaderboardVariant(
+        selectedLeaderboardMode,
+        selectedLeaderboardVariant,
+      );
+    }
   };
   const handleLeaderboardModeChange = (nextMode: LeaderboardModeKey) => {
     const nextVariant = leaderboardVariants[nextMode][0];
     setSelectedLeaderboardMode(nextMode);
     setSelectedLeaderboardVariant(nextVariant.key);
+    syncMaxPlayersForLeaderboardVariant(nextMode, nextVariant.key);
   };
   const handleLeaderboardVariantChange = (
     nextVariant: LeaderboardVariantKey,
   ) => {
     setSelectedLeaderboardVariant(nextVariant);
+    syncMaxPlayersForLeaderboardVariant(selectedLeaderboardMode, nextVariant);
   };
   const handleLeaderboardSelectionChange = (
     nextMode: LeaderboardModeKey,
@@ -824,18 +869,94 @@ const RoomsHubPage: React.FC = () => {
   ) => {
     setSelectedLeaderboardMode(nextMode);
     setSelectedLeaderboardVariant(nextVariant);
+    syncMaxPlayersForLeaderboardVariant(nextMode, nextVariant);
   };
-  const canUseLeaderboardChallenge =
-    roomCreateSourceMode === "publicCollection";
-  const createRoomOptions =
-    roomPlayMode === "leaderboard" && canUseLeaderboardChallenge
-      ? {
-          leaderboardProfileKey: getLeaderboardProfileKey(
-            selectedLeaderboardMode,
-            selectedLeaderboardVariant,
-          ),
-        }
-      : undefined;
+  const isTimeAttackLeaderboardSelected =
+    roomPlayMode === "leaderboard" &&
+    Boolean(
+      getLeaderboardVariant(selectedLeaderboardMode, selectedLeaderboardVariant)
+        .timeLimitSec,
+    );
+  useEffect(() => {
+    if (!pinInvalid) {
+      setPinValidationAttempted(false);
+    }
+  }, [pinInvalid]);
+  const canSubmitRoomCreate = () => {
+    if (pinInvalid) {
+      setPinValidationAttempted(true);
+      return false;
+    }
+    return true;
+  };
+  const handleCreateCasualRoomFromDrawer = () => {
+    if (!canSubmitRoomCreate()) return;
+    setRoomPlayMode("casual");
+    void handleCreateRoom();
+  };
+  useEffect(() => {
+    if (!isTimeAttackLeaderboardSelected) return;
+    if (roomMaxPlayersInput === "1") return;
+    setRoomMaxPlayersInput("1");
+  }, [
+    isTimeAttackLeaderboardSelected,
+    roomMaxPlayersInput,
+    setRoomMaxPlayersInput,
+  ]);
+  useEffect(() => {
+    if (!pendingLeaderboardStart) return;
+    if (collectionItemsLoading) return;
+    if (collectionItemsError) {
+      setPendingLeaderboardStart(null);
+      return;
+    }
+    if (selectedCreateCollectionId !== pendingLeaderboardStart.collectionId) {
+      return;
+    }
+    if (roomCreateSourceMode !== "publicCollection") return;
+    if (playlistItems.length === 0) return;
+
+    const profileKey = pendingLeaderboardStart.profileKey;
+    setPendingLeaderboardStart(null);
+    void handleCreateRoom({ leaderboardProfileKey: profileKey });
+  }, [
+    collectionItemsError,
+    collectionItemsLoading,
+    handleCreateRoom,
+    pendingLeaderboardStart,
+    playlistItems.length,
+    roomCreateSourceMode,
+    selectedCreateCollectionId,
+  ]);
+  useEffect(() => {
+    if (!pendingCustomRoomStart) return;
+    if (collectionItemsLoading) return;
+    if (collectionItemsError) {
+      setPendingCustomRoomStart(null);
+      return;
+    }
+    if (selectedCreateCollectionId !== pendingCustomRoomStart.collectionId) {
+      return;
+    }
+    if (
+      roomCreateSourceMode !== "publicCollection" &&
+      roomCreateSourceMode !== "privateCollection"
+    ) {
+      return;
+    }
+    if (playlistItems.length === 0) return;
+
+    setPendingCustomRoomStart(null);
+    void handleCreateRoom();
+  }, [
+    collectionItemsError,
+    collectionItemsLoading,
+    handleCreateRoom,
+    pendingCustomRoomStart,
+    playlistItems.length,
+    roomCreateSourceMode,
+    selectedCreateCollectionId,
+  ]);
   const createSettingsCards = useMemo(
     () =>
       buildCreateSettingsCards({
@@ -1013,6 +1134,7 @@ const RoomsHubPage: React.FC = () => {
 
   useEffect(() => {
     setDetailCollectionId(null);
+    setSourceSetupDrawer(null);
   }, [createLibraryTab, guideMode]);
 
   useEffect(() => {
@@ -1044,18 +1166,32 @@ const RoomsHubPage: React.FC = () => {
     if (playlist && playlist.itemCount < YOUTUBE_PLAYLIST_MIN_ITEM_COUNT) {
       return;
     }
+    if (playlist) {
+      setSourceSetupDrawer({
+        kind: "youtube",
+        summary: {
+          label: "YouTube 播放清單",
+          title: playlist.title,
+          detail: `${playlist.itemCount} 首曲目`,
+          thumbnail: playlist.thumbnail ?? "",
+        },
+      });
+    }
+    setRoomPlayMode("casual");
     setRoomCreateSourceMode("youtube");
     setSelectedCreateYoutubeId(playlistId);
     setSelectedCreateCollectionId(null);
     setSharedCollectionMeta(null);
-    setCreateLeftTab("settings");
     await importYoutubePlaylist(playlistId);
   };
   const handlePickCollectionSource = async (
     collectionId: string,
     scope: "public" | "owner",
+    options?: { keepDetailDrawerOpen?: boolean },
   ) => {
-    setDetailCollectionId(null);
+    if (!options?.keepDetailDrawerOpen) {
+      setDetailCollectionId(null);
+    }
     updateAllowCollectionClipTiming(true);
     setRoomCreateSourceMode(
       scope === "public" ? "publicCollection" : "privateCollection",
@@ -1063,7 +1199,9 @@ const RoomsHubPage: React.FC = () => {
     setSelectedCreateCollectionId(collectionId);
     setSelectedCreateYoutubeId(null);
     setSharedCollectionMeta(null);
-    setCreateLeftTab("settings");
+    if (!options?.keepDetailDrawerOpen) {
+      setCreateLeftTab("settings");
+    }
     await loadCollectionItems(collectionId, { force: true });
   };
   const handleBackToCreateLibrary = () => {
@@ -1488,157 +1626,15 @@ const RoomsHubPage: React.FC = () => {
               {guideMode === "create" ? (
                 <div className="flex min-h-0 flex-1 flex-col lg:rounded-2xl lg:border lg:border-[var(--mc-border)] lg:p-4">
                   <LibrarySourcePanel
-                    createLeftTab={createLeftTab}
+                    createLeftTab="library"
                     createLibraryTab={createLibraryTab}
                     canUseGoogleLibraries={canUseGoogleLibraries}
                     setCreateLibraryTab={setCreateLibraryTab}
                     handleBackToCreateLibrary={handleBackToCreateLibrary}
                     onLockedSourceClick={loginWithGoogle}
-                    sidebarContent={
-                      createLeftTab === "settings" ? (
-                        <RoomSetupSidebarSummary
-                          roomNameInput={roomNameInput}
-                          roomVisibilityInput={roomVisibilityInput}
-                          parsedMaxPlayers={parsedMaxPlayers}
-                          questionCount={questionCount}
-                          roomPlayMode={roomPlayMode}
-                          selectedLeaderboardMode={selectedLeaderboardMode}
-                          selectedLeaderboardVariant={
-                            selectedLeaderboardVariant
-                          }
-                          selectedCreateSourceSummary={
-                            selectedCreateSourceSummary
-                          }
-                          isSourceSummaryLoading={isCreateSourceSummaryLoading}
-                          createRequirementsHintText={
-                            createRequirementsHintText
-                          }
-                          createRecommendationHintText={
-                            createRecommendationHintText
-                          }
-                          canCreateRoom={canCreateRoom}
-                          isCreatingRoom={isCreatingRoom}
-                          onCreateRoom={() => {
-                            void handleCreateRoom(createRoomOptions);
-                          }}
-                        />
-                      ) : undefined
-                    }
                   >
-                    {createLeftTab === "settings" ? (
-                      <div className="mb-3 flex items-center gap-1 lg:hidden">
-                        <button
-                          type="button"
-                          onClick={handleBackToCreateLibrary}
-                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center text-cyan-100 transition hover:text-cyan-200"
-                          aria-label="返回題庫來源"
-                        >
-                          <ChevronLeftRounded sx={{ fontSize: 24 }} />
-                        </button>
-                        <p className="text-base font-semibold tracking-[0.18em] text-[var(--mc-text)]">
-                          房間設定
-                        </p>
-                      </div>
-                    ) : null}
-                    <div
-                      className={`flex min-h-0 flex-1 flex-col bg-[var(--mc-surface)]/10 lg:rounded-none lg:border-l lg:border-[var(--mc-border)]/45 lg:pl-5 ${
-                        createLeftTab === "settings"
-                          ? "overflow-y-auto pr-1"
-                          : ""
-                      }`}
-                    >
-                      {createLeftTab === "settings" ? (
-                        <>
-                          <RoomSetupPanel
-                            roomNameInput={roomNameInput}
-                            setRoomNameInput={setRoomNameInput}
-                            roomVisibilityInput={roomVisibilityInput}
-                            setRoomVisibilityInput={setRoomVisibilityInput}
-                            roomPasswordInput={roomPasswordInput}
-                            setRoomPasswordInput={setRoomPasswordInput}
-                            setRoomMaxPlayersInput={setRoomMaxPlayersInput}
-                            parsedMaxPlayers={parsedMaxPlayers}
-                            questionCount={questionCount}
-                            questionMin={questionMin}
-                            questionMaxLimit={questionMaxLimit}
-                            updateQuestionCount={updateQuestionCount}
-                            roomPlayMode={roomPlayMode}
-                            setRoomPlayMode={handleRoomPlayModeChange}
-                            roomCreateSourceMode={roomCreateSourceMode}
-                            selectedLeaderboardMode={selectedLeaderboardMode}
-                            selectedLeaderboardVariant={
-                              selectedLeaderboardVariant
-                            }
-                            onLeaderboardSelectionChange={
-                              handleLeaderboardSelectionChange
-                            }
-                            playDurationSec={playDurationSec}
-                            revealDurationSec={revealDurationSec}
-                            startOffsetSec={startOffsetSec}
-                            allowCollectionClipTiming={
-                              allowCollectionClipTiming
-                            }
-                            updatePlayDurationSec={updatePlayDurationSec}
-                            updateRevealDurationSec={updateRevealDurationSec}
-                            updateStartOffsetSec={updateStartOffsetSec}
-                            updateAllowCollectionClipTiming={
-                              updateAllowCollectionClipTiming
-                            }
-                            supportsCollectionClipTiming={
-                              supportsCollectionClipTiming
-                            }
-                            selectedCreateSourceSummary={
-                              selectedCreateSourceSummary
-                            }
-                            isSourceSummaryLoading={
-                              isCreateSourceSummaryLoading
-                            }
-                            createSettingsCards={createSettingsCards}
-                            createRequirementsHintText={
-                              createRequirementsHintText
-                            }
-                            createRecommendationHintText={
-                              createRecommendationHintText
-                            }
-                            canCreateRoom={canCreateRoom}
-                            isCreatingRoom={isCreatingRoom}
-                            onCreateRoom={() => {
-                              void handleCreateRoom(createRoomOptions);
-                            }}
-                          />
-                          <div className="mt-4 lg:hidden">
-                            <RoomSetupSidebarSummary
-                              roomNameInput={roomNameInput}
-                              roomVisibilityInput={roomVisibilityInput}
-                              parsedMaxPlayers={parsedMaxPlayers}
-                              questionCount={questionCount}
-                              roomPlayMode={roomPlayMode}
-                              selectedLeaderboardMode={selectedLeaderboardMode}
-                              selectedLeaderboardVariant={
-                                selectedLeaderboardVariant
-                              }
-                              selectedCreateSourceSummary={
-                                selectedCreateSourceSummary
-                              }
-                              isSourceSummaryLoading={
-                                isCreateSourceSummaryLoading
-                              }
-                              createRequirementsHintText={
-                                createRequirementsHintText
-                              }
-                              createRecommendationHintText={
-                                createRecommendationHintText
-                              }
-                              canCreateRoom={canCreateRoom}
-                              isCreatingRoom={isCreatingRoom}
-                              onCreateRoom={() => {
-                                void handleCreateRoom(createRoomOptions);
-                              }}
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="flex min-h-0 flex-1 flex-col bg-[var(--mc-surface)]/10 lg:rounded-none lg:border-l lg:border-[var(--mc-border)]/45 lg:pl-5">
+                      <div className="flex min-h-0 flex-1 flex-col">
                           {createLibraryTab !== "link" && (
                             <LibrarySourceToolbar
                               createLibraryTab={createLibraryTab}
@@ -1723,7 +1719,7 @@ const RoomsHubPage: React.FC = () => {
                               linkPlaylistTitle={linkPlaylistTitle}
                               linkPlaylistCount={linkPlaylistCount}
                               playlistItemsLength={playlistItems.length}
-                              handlePickLinkSource={handlePickLinkSource}
+                              handlePickLinkSource={handlePickLinkSourceForDrawer}
                               linkPlaylistPreviewItems={
                                 linkPlaylistPreviewItems
                               }
@@ -1809,7 +1805,6 @@ const RoomsHubPage: React.FC = () => {
                             </div>
                           )}
                         </div>
-                      )}
                     </div>
                   </LibrarySourcePanel>
                 </div>
@@ -1930,6 +1925,16 @@ const RoomsHubPage: React.FC = () => {
             detailCollection?.visibility === "public" ? "public" : "owner",
           );
         }}
+        onConfirmCustomRoom={(collectionId) => {
+          if (!canSubmitRoomCreate()) return;
+          setPendingCustomRoomStart({ collectionId });
+          setRoomPlayMode("casual");
+          void handlePickCollectionSource(
+            collectionId,
+            detailCollection?.visibility === "public" ? "public" : "owner",
+            { keepDetailDrawerOpen: true },
+          );
+        }}
         onStartLeaderboardChallenge={(collectionId) => {
           setRoomPlayMode("leaderboard");
           void handlePickCollectionSource(
@@ -1937,16 +1942,107 @@ const RoomsHubPage: React.FC = () => {
             detailCollection?.visibility === "public" ? "public" : "owner",
           );
         }}
+        onConfirmLeaderboardChallenge={(collectionId) => {
+          if (detailCollection?.visibility !== "public") return;
+          if (!canSubmitRoomCreate()) return;
+          const profileKey = getLeaderboardProfileKey(
+            selectedLeaderboardMode,
+            selectedLeaderboardVariant,
+          );
+          setPendingLeaderboardStart({ collectionId, profileKey });
+          setRoomPlayMode("leaderboard");
+          void handlePickCollectionSource(collectionId, "public", {
+            keepDetailDrawerOpen: true,
+          });
+        }}
         onToggleFavorite={
           detailCollection && createLibraryTab === "public"
             ? () => toggleCollectionFavorite(detailCollection.id)
             : undefined
         }
         formatDurationLabel={formatDurationLabel}
+        roomNameInput={roomNameInput}
+        setRoomNameInput={setRoomNameInput}
+        roomVisibilityInput={roomVisibilityInput}
+        setRoomVisibilityInput={setRoomVisibilityInput}
+        roomPasswordInput={roomPasswordInput}
+        setRoomPasswordInput={setRoomPasswordInput}
+        isPinProtectionEnabled={isPinProtectionEnabled}
+        setIsPinProtectionEnabled={setIsPinProtectionEnabled}
+        pinValidationAttempted={pinValidationAttempted}
+        setRoomMaxPlayersInput={setRoomMaxPlayersInput}
+        parsedMaxPlayers={parsedMaxPlayers}
+        questionCount={questionCount}
+        questionMin={questionMin}
+        questionMaxLimit={questionMaxLimit}
+        updateQuestionCount={updateQuestionCount}
+        roomPlayMode={roomPlayMode}
+        setRoomPlayMode={handleRoomPlayModeChange}
+        playDurationSec={playDurationSec}
+        revealDurationSec={revealDurationSec}
+        startOffsetSec={startOffsetSec}
+        allowCollectionClipTiming={allowCollectionClipTiming}
+        updatePlayDurationSec={updatePlayDurationSec}
+        updateRevealDurationSec={updateRevealDurationSec}
+        updateStartOffsetSec={updateStartOffsetSec}
+        updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+        supportsCollectionClipTiming={supportsCollectionClipTiming}
+        selectedCreateSourceSummary={selectedCreateSourceSummary}
+        isSourceSummaryLoading={isCreateSourceSummaryLoading}
+        createSettingsCards={createSettingsCards}
+        createRequirementsHintText={createRequirementsHintText}
+        createRecommendationHintText={createRecommendationHintText}
+        canCreateRoom={canCreateRoom}
+        isCreatingRoom={isCreatingRoom}
+        isCustomRoomStartPending={Boolean(pendingCustomRoomStart)}
+        isLeaderboardStartPending={Boolean(pendingLeaderboardStart)}
         selectedLeaderboardMode={selectedLeaderboardMode}
         selectedLeaderboardVariant={selectedLeaderboardVariant}
+        onLeaderboardSelectionChange={handleLeaderboardSelectionChange}
         onLeaderboardModeChange={handleLeaderboardModeChange}
         onLeaderboardVariantChange={handleLeaderboardVariantChange}
+      />
+      <SourceSetupDrawer
+        open={Boolean(sourceSetupDrawer)}
+        kind={sourceSetupDrawer?.kind ?? null}
+        sourceSummary={sourceSetupDrawer?.summary ?? selectedCreateSourceSummary}
+        onClose={() => setSourceSetupDrawer(null)}
+        roomNameInput={roomNameInput}
+        setRoomNameInput={setRoomNameInput}
+        roomVisibilityInput={roomVisibilityInput}
+        setRoomVisibilityInput={setRoomVisibilityInput}
+        roomPasswordInput={roomPasswordInput}
+        setRoomPasswordInput={setRoomPasswordInput}
+        isPinProtectionEnabled={isPinProtectionEnabled}
+        setIsPinProtectionEnabled={setIsPinProtectionEnabled}
+        pinValidationAttempted={pinValidationAttempted}
+        setRoomMaxPlayersInput={setRoomMaxPlayersInput}
+        parsedMaxPlayers={parsedMaxPlayers}
+        questionCount={questionCount}
+        questionMin={questionMin}
+        questionMaxLimit={questionMaxLimit}
+        updateQuestionCount={updateQuestionCount}
+        setRoomPlayMode={handleRoomPlayModeChange}
+        playDurationSec={playDurationSec}
+        revealDurationSec={revealDurationSec}
+        startOffsetSec={startOffsetSec}
+        allowCollectionClipTiming={allowCollectionClipTiming}
+        updatePlayDurationSec={updatePlayDurationSec}
+        updateRevealDurationSec={updateRevealDurationSec}
+        updateStartOffsetSec={updateStartOffsetSec}
+        updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+        createSettingsCards={createSettingsCards}
+        createRequirementsHintText={createRequirementsHintText}
+        createRecommendationHintText={createRecommendationHintText}
+        canCreateRoom={canCreateRoom}
+        isCreatingRoom={isCreatingRoom}
+        isSourceLoading={playlistLoading}
+        selectedLeaderboardMode={selectedLeaderboardMode}
+        selectedLeaderboardVariant={selectedLeaderboardVariant}
+        onLeaderboardSelectionChange={handleLeaderboardSelectionChange}
+        onCreateRoom={() => {
+          handleCreateCasualRoomFromDrawer();
+        }}
       />
       <PlaylistIssueSummaryDialog
         open={playlistIssueDialogOpen}
