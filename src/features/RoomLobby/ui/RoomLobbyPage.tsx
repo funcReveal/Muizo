@@ -19,6 +19,7 @@ import HistoryReplayModal from "@features/Settlement/ui/components/HistoryReplay
 import HistoryReplayCompactView from "@features/Settlement/ui/components/HistoryReplayCompactView";
 import { HistoryReplaySkeleton } from "@features/Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
 import LeaderboardSettlementShowcase from "@features/Settlement/ui/components/LeaderboardSettlementShowcase";
+import { useLeaderboardSettlement } from "@features/Settlement/model/useLeaderboardSettlement";
 import {
   apiFavoriteCollection,
   apiFetchCollectionFavoriteStatus,
@@ -40,9 +41,6 @@ import {
   type SettlementIdentity,
 } from "./lib/roomLobbySettlementOrchestration";
 import type {
-  PlaylistItem,
-  QuestionScoreBreakdown,
-  RoomParticipant,
   RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
@@ -524,6 +522,7 @@ const appendDismissedSettlementRoundKey = (
   return [...current, roundKey];
 };
 
+/*
 const MOCK_LEADERBOARD_QUESTION_COUNT = 30;
 const MOCK_LEADERBOARD_PLAYER_COUNT = 10;
 const MOCK_PLAYER_NAMES = [
@@ -916,6 +915,7 @@ const buildMockLeaderboardSettlement = ({
     recaps,
   };
 };
+*/
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
@@ -927,6 +927,7 @@ const RoomLobbyPage: React.FC = () => {
     participants,
     settlementHistory,
     rankChangeByRoundKey,
+    leaderboardSettlementReadyByRoundKey,
     isConnected,
     routeRoomResolved,
     sessionProgress,
@@ -1756,6 +1757,28 @@ const RoomLobbyPage: React.FC = () => {
 
   const [settlementFavorited, setSettlementFavorited] = useState<boolean | undefined>(undefined);
 
+  const isLeaderboardSettlementView = Boolean(
+    activeSettlementSnapshot?.room.gameSettings?.leaderboardProfileKey,
+  );
+  const activeLeaderboardSettlementReady =
+    activeSettlementSnapshot?.roundKey &&
+    currentRoom?.id &&
+    leaderboardSettlementReadyByRoundKey[activeSettlementSnapshot.roundKey]?.roomId ===
+      currentRoom.id
+      ? leaderboardSettlementReadyByRoundKey[activeSettlementSnapshot.roundKey]
+      : null;
+  const leaderboardSettlement = useLeaderboardSettlement({
+    matchId: activeLeaderboardSettlementReady?.matchId ?? null,
+    roomId: currentRoom?.id ?? null,
+    roundKey: activeSettlementSnapshot?.roundKey ?? null,
+    clientId,
+    enabled:
+      Boolean(currentRoom?.id) &&
+      Boolean(activeSettlementSnapshot?.roundKey) &&
+      isLeaderboardSettlementView &&
+      Boolean(activeLeaderboardSettlementReady?.matchId),
+  });
+
   const settlementCollectionId = activeSettlementSnapshot?.room.playlist.id ?? null;
   useEffect(() => {
     if (!settlementCollectionId || !authToken) {
@@ -2067,9 +2090,6 @@ const RoomLobbyPage: React.FC = () => {
     historyDrawerLoading && historyDrawerSummaries.length === 0;
   const isSettlementView = roomViewMode === "settlement";
   const isGameRoomView = roomViewMode === "game";
-  const isLeaderboardSettlementView = Boolean(
-    activeSettlementSnapshot?.room.gameSettings?.leaderboardProfileKey,
-  );
   const isSettlementReviewLoading = Boolean(
     resolvedActiveSettlementRoundKey &&
     loadingSettlementRoundKey === resolvedActiveSettlementRoundKey &&
@@ -2452,59 +2472,6 @@ const RoomLobbyPage: React.FC = () => {
     latestSettlementSnapshot,
     mergedSettlementSummaries,
     openSettlementReviewByRoundKey,
-  ]);
-
-  const handleOpenMockLeaderboardSettlement = useCallback(() => {
-    if (!currentRoom?.id) return;
-
-    const { snapshot, recaps } = buildMockLeaderboardSettlement({
-      room: currentRoom,
-      participants,
-      meClientId: clientId,
-      playlistItems,
-    });
-
-    dismissedSettlementIdentityRef.current = null;
-    dismissedSettlementRoundKeysRef.current = [];
-    setSettlementReplayByRoundKey((prev) =>
-      pruneSettlementReplayByRoundKey(
-        {
-          ...prev,
-          [snapshot.roundKey]: snapshot,
-        },
-        {
-          roomId: currentRoom.id,
-          pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
-        },
-      ),
-    );
-    setSettlementHistorySummaries((prev) => {
-      const next = new Map(prev.map((item) => [item.roundKey, item] as const));
-      next.set(snapshot.roundKey, buildSettlementSummaryFromSnapshot(snapshot));
-      return limitSettlementSummaries(Array.from(next.values()));
-    });
-    setSettlementRecapsByRoundKey((prev) =>
-      pruneSettlementRecapsByRoundKey(
-        {
-          ...prev,
-          [snapshot.roundKey]: cloneSettlementRecaps(recaps),
-        },
-        {
-          roomId: currentRoom.id,
-          pinnedRoundKeys: [snapshot.roundKey, activeSettlementRoundKey],
-        },
-      ),
-    );
-    setIsGameView(false);
-    setActiveSettlementRoundKey(snapshot.roundKey);
-    setRoomViewMode("settlement");
-  }, [
-    activeSettlementRoundKey,
-    clientId,
-    currentRoom,
-    participants,
-    playlistItems,
-    setIsGameView,
   ]);
 
   const loginConfirmText = useMemo(() => {
@@ -3241,6 +3208,10 @@ const RoomLobbyPage: React.FC = () => {
                 rankChangeByClientId={
                   rankChangeByRoundKey[activeSettlementSnapshot.roundKey] ?? undefined
                 }
+                leaderboardSettlement={leaderboardSettlement.data}
+                leaderboardSettlementLoading={leaderboardSettlement.isLoading}
+                leaderboardSettlementError={leaderboardSettlement.error}
+                onRefreshLeaderboardSettlement={leaderboardSettlement.refresh}
                 isFavorited={settlementFavorited}
                 onToggleFavorite={
                   activeSettlementSnapshot.room.playlist.id && authToken
@@ -3323,7 +3294,6 @@ const RoomLobbyPage: React.FC = () => {
             onOpenLastSettlement={handleOpenLastSettlement}
             onOpenHistoryDrawer={openHistoryDrawer}
             onOpenSettlementByRoundKey={handleOpenSettlementByRoundKey}
-            onOpenTestSettlement={handleOpenMockLeaderboardSettlement}
             onOpenGame={handleOpenGame}
             onKickPlayer={handleKickPlayer}
             onTransferHost={handleTransferHost}

@@ -79,6 +79,9 @@ interface SocketLifecycleSetters {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setSettlementHistory: Dispatch<SetStateAction<RoomSettlementSnapshot[]>>;
   mergeRankChange: (roundKey: string, changes: Record<string, number | null>) => void;
+  mergeLeaderboardSettlementReady: (
+    payload: import("./types").LeaderboardSettlementReadyPayload,
+  ) => void;
   setPlaylistSuggestions: Dispatch<SetStateAction<PlaylistSuggestion[]>>;
   setPlaylistProgress: Dispatch<SetStateAction<PlaylistProgressState>>;
   setGameState: Dispatch<SetStateAction<GameState | null>>;
@@ -210,6 +213,7 @@ export const useRoomProviderSocketLifecycle = ({
     setMessages,
     setSettlementHistory,
     mergeRankChange,
+    mergeLeaderboardSettlementReady,
     setPlaylistSuggestions,
     setPlaylistProgress,
     setGameState,
@@ -937,6 +941,10 @@ export const useRoomProviderSocketLifecycle = ({
           if (roomId !== currentRoomIdRef.current) return;
           mergeRankChange(roundKey, rankChangeByClientId);
         },
+        onLeaderboardSettlementReady: (payload) => {
+          if (payload.roomId !== currentRoomIdRef.current) return;
+          mergeLeaderboardSettlementReady(payload);
+        },
       });
 
       socketRef.current = s;
@@ -970,6 +978,7 @@ export const useRoomProviderSocketLifecycle = ({
     setMessages,
     setSettlementHistory,
     mergeRankChange,
+    mergeLeaderboardSettlementReady,
     setPlaylistProgress,
     setGameState,
     setIsGameView,

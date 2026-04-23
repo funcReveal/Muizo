@@ -1,9 +1,8 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
@@ -15,13 +14,13 @@ import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRou
 import { List, type RowComponentProps } from "react-window";
 
 import type {
+  LeaderboardSettlementResponse,
   PlaylistItem,
   QuestionScoreBreakdown,
   RoomParticipant,
   RoomState,
 } from "@features/RoomSession";
 import type { SettlementQuestionRecap, SettlementQuestionResult } from "../../model/types";
-import { useRankedChallengeSettlementData } from "../../model/useRankedChallengeSettlementData";
 import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 
 type LeaderboardSettlementShowcaseProps = {
@@ -33,6 +32,10 @@ type LeaderboardSettlementShowcaseProps = {
   matchId?: string | null;
   questionRecaps?: SettlementQuestionRecap[];
   rankChangeByClientId?: Record<string, number | null>;
+  leaderboardSettlement?: LeaderboardSettlementResponse | null;
+  leaderboardSettlementLoading?: boolean;
+  leaderboardSettlementError?: string | null;
+  onRefreshLeaderboardSettlement?: () => void | Promise<void>;
   isFavorited?: boolean;
   onToggleFavorite?: () => void | Promise<void>;
   onRetry?: () => void;
@@ -83,6 +86,8 @@ type LeaderboardListRowProps = {
   rows: LeaderboardMetricRow[];
   playedQuestionCount: number;
 };
+
+type QuestionFilterType = "correct" | "wrong" | "unanswered" | null;
 
 const scoreFormatter = new Intl.NumberFormat("zh-TW");
 
@@ -202,18 +207,18 @@ const SummaryMetric = memo(function SummaryMetric({
   note: string;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[74px_minmax(0,1fr)] items-center gap-4 px-1 py-2">
-      <div className="inline-flex h-16 w-16 items-center justify-center text-amber-100">
+    <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-3 px-1 py-1.5">
+      <div className="inline-flex h-11 w-11 items-center justify-center text-amber-100">
         {icon}
       </div>
       <div className="min-w-0">
         <div className="text-[11px] tracking-[0.18em] text-[var(--mc-text-muted)]">
           {label}
         </div>
-        <div className="mt-1 text-[2.45rem] font-black leading-none text-amber-50">
+        <div className="mt-0.5 text-[1.85rem] font-black leading-none text-amber-50">
           {value}
         </div>
-        <div className="mt-2 text-base text-[var(--mc-text-muted)]">{note}</div>
+        <div className="mt-1.5 text-sm text-[var(--mc-text-muted)]">{note}</div>
       </div>
     </div>
   );
@@ -226,7 +231,7 @@ const RankChangeBadge = memo(function RankChangeBadge({
 }) {
   if (value === null || value === undefined) {
     return (
-      <span className="inline-flex min-w-[88px] items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+      <span className="inline-flex min-w-[72px] items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-0.5 text-xs text-[var(--mc-text-muted)]">
         --
       </span>
     );
@@ -234,8 +239,8 @@ const RankChangeBadge = memo(function RankChangeBadge({
 
   if (value > 0) {
     return (
-      <span className="inline-flex min-w-[88px] items-center justify-center gap-1 rounded-full border border-emerald-400/22 bg-emerald-500/10 px-3 py-1 text-sm font-semibold text-emerald-400">
-        <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
+      <span className="inline-flex min-w-[72px] items-center justify-center gap-1 rounded-full border border-emerald-400/22 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+        <TrendingUpRoundedIcon sx={{ fontSize: 14 }} />
         {value}
       </span>
     );
@@ -243,15 +248,15 @@ const RankChangeBadge = memo(function RankChangeBadge({
 
   if (value < 0) {
     return (
-      <span className="inline-flex min-w-[88px] items-center justify-center gap-1 rounded-full border border-rose-400/22 bg-rose-500/10 px-3 py-1 text-sm font-semibold text-rose-400">
-        <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
+      <span className="inline-flex min-w-[72px] items-center justify-center gap-1 rounded-full border border-rose-400/22 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-400">
+        <TrendingDownRoundedIcon sx={{ fontSize: 14 }} />
         {Math.abs(value)}
       </span>
     );
   }
 
   return (
-    <span className="inline-flex min-w-[88px] items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-[var(--mc-text-muted)]">
+    <span className="inline-flex min-w-[72px] items-center justify-center rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-0.5 text-xs text-[var(--mc-text-muted)]">
       --
     </span>
   );
@@ -266,9 +271,9 @@ const QuestionListRow = memo(function QuestionListRow({
   if (!item) return null;
 
   return (
-    <div style={style} className="box-border px-0 pb-3">
-      <div className="grid h-[102px] grid-cols-[88px_minmax(0,1fr)_132px] items-center gap-4 rounded-[24px] border border-white/6 bg-white/[0.02] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-        <div className="h-[72px] w-[72px] overflow-hidden rounded-2xl border border-white/8 bg-[linear-gradient(145deg,rgba(59,130,246,0.2),rgba(147,51,234,0.14))]">
+    <div style={style} className="box-border px-0 pb-2.5">
+      <div className="grid h-[88px] grid-cols-[72px_minmax(0,1fr)_112px] items-center gap-3 rounded-[20px] border border-white/6 bg-white/[0.02] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+        <div className="h-[60px] w-[60px] overflow-hidden rounded-xl border border-white/8 bg-[linear-gradient(145deg,rgba(59,130,246,0.2),rgba(147,51,234,0.14))]">
           {item.thumbnail ? (
             <img
               src={item.thumbnail}
@@ -278,25 +283,25 @@ const QuestionListRow = memo(function QuestionListRow({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-amber-100/80">
-              <BarChartRoundedIcon />
+              <BarChartRoundedIcon sx={{ fontSize: 20 }} />
             </div>
           )}
         </div>
         <div className="min-w-0">
-          <div className="truncate text-[1.2rem] font-semibold text-[var(--mc-text)]">
+          <div className="truncate text-base font-semibold text-[var(--mc-text)]">
             {item.title}
           </div>
-          <div className="mt-1 truncate text-lg text-[var(--mc-text-muted)]">
+          <div className="mt-0.5 truncate text-sm text-[var(--mc-text-muted)]">
             {item.artist}
           </div>
         </div>
         <div className="text-right">
           <span
-            className={`inline-flex min-w-[92px] items-center justify-center rounded-2xl border px-3 py-2 text-sm font-bold tracking-[0.08em] ${badgeToneClass[item.badgeTone]}`}
+            className={`inline-flex min-w-[80px] items-center justify-center rounded-xl border px-2.5 py-1.5 text-xs font-bold tracking-[0.08em] ${badgeToneClass[item.badgeTone]}`}
           >
             {item.badgeLabel}
           </span>
-          <div className="mt-2 text-[1.5rem] font-semibold text-[var(--mc-text-muted)]">
+          <div className="mt-1.5 text-sm font-semibold text-[var(--mc-text-muted)]">
             {item.answerTimeLabel}
           </div>
         </div>
@@ -315,42 +320,42 @@ const LeaderboardDesktopRow = memo(function LeaderboardDesktopRow({
   if (!row) return null;
 
   return (
-    <div style={style} className="box-border pb-2">
+    <div style={style} className="box-border pb-1.5">
       <div
-        className={`grid grid-cols-[64px_minmax(220px,1.65fr)_132px_132px_132px_128px_132px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm ${
+        className={`grid grid-cols-[52px_minmax(180px,1.65fr)_112px_112px_112px_108px_112px] items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
           row.isMe
             ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
             : "border-white/6 bg-white/[0.02]"
         }`}
       >
-        <div className="text-lg font-black text-amber-100">{row.rank}</div>
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="text-base font-black text-amber-100">{row.rank}</div>
+        <div className="flex min-w-0 items-center gap-2">
           <PlayerAvatar
             username={row.username}
             clientId={row.clientId}
             avatarUrl={row.avatarUrl}
-            size={38}
+            size={32}
             rank={row.rank}
             combo={row.combo}
             isMe={row.isMe}
             hideRankMark
             loading="lazy"
           />
-          <div className="truncate text-base font-semibold text-[var(--mc-text)]">
+          <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
             {row.username}
             {row.isMe ? "（你）" : ""}
           </div>
         </div>
-        <div className="text-center text-[var(--mc-text-muted)]">
+        <div className="text-center text-xs text-[var(--mc-text-muted)]">
           {row.correctCount} / {playedQuestionCount}
         </div>
-        <div className="text-center font-semibold text-violet-300">
+        <div className="text-center text-xs font-semibold text-violet-300">
           x{row.combo}
         </div>
-        <div className="text-center text-[var(--mc-text-muted)]">
+        <div className="text-center text-xs text-[var(--mc-text-muted)]">
           {formatSeconds(row.avgCorrectMs)}
         </div>
-        <div className="text-center text-xl font-black text-amber-100">
+        <div className="text-center text-base font-black text-amber-100">
           {formatScore(row.score)}
         </div>
         <div className="flex min-w-0 items-center justify-center">
@@ -371,22 +376,22 @@ const LeaderboardMobileRow = memo(function LeaderboardMobileRow({
   if (!row) return null;
 
   return (
-    <div style={style} className="box-border pb-3">
+    <div style={style} className="box-border pb-2">
       <div
-        className={`rounded-[24px] border px-4 py-4 ${
+        className={`rounded-[18px] border px-3 py-3 ${
           row.isMe
             ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
             : "border-white/6 bg-white/[0.02]"
         }`}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="text-xl font-black text-amber-100">#{row.rank}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="text-base font-black text-amber-100">#{row.rank}</div>
             <PlayerAvatar
               username={row.username}
               clientId={row.clientId}
               avatarUrl={row.avatarUrl}
-              size={36}
+              size={30}
               rank={row.rank}
               combo={row.combo}
               isMe={row.isMe}
@@ -394,28 +399,50 @@ const LeaderboardMobileRow = memo(function LeaderboardMobileRow({
               loading="lazy"
             />
             <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-[var(--mc-text)]">
+              <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
                 {row.username}
                 {row.isMe ? "（你）" : ""}
               </div>
-              <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                答對 {row.correctCount} / {playedQuestionCount}
+              <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
+                答對 / 題數 {row.correctCount} / {playedQuestionCount}
               </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xl font-black text-amber-100">
+            <div className="text-base font-black text-amber-100">
               {formatScore(row.score)}
             </div>
-            <div className="mt-1 text-xs text-violet-300">
+            <div className="mt-0.5 text-xs text-violet-300">
               Combo x{row.combo}
             </div>
           </div>
         </div>
-        <div className="mt-3 text-xs text-[var(--mc-text-muted)]">
+        <div className="mt-2 text-xs text-[var(--mc-text-muted)]">
           平均答題 {formatSeconds(row.avgCorrectMs)}
         </div>
       </div>
+    </div>
+  );
+});
+
+const LeaderboardSkeleton = memo(function LeaderboardSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="animate-pulse rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-7 rounded bg-white/10" />
+            <div className="h-7 w-7 rounded-full bg-white/10" />
+            <div className="h-3.5 flex-1 rounded bg-white/10" />
+            <div className="h-3.5 w-14 rounded bg-white/10" />
+            <div className="h-3.5 w-14 rounded bg-white/10" />
+            <div className="h-4 w-16 rounded bg-white/10" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 });
@@ -431,15 +458,19 @@ const LeaderboardSettlementShowcase: React.FC<
   matchId = null,
   questionRecaps = [],
   rankChangeByClientId,
+  leaderboardSettlement = null,
+  leaderboardSettlementLoading = false,
+  leaderboardSettlementError = null,
+  onRefreshLeaderboardSettlement,
   isFavorited,
   onToggleFavorite,
   onRetry,
   onBackToLobby,
 }) => {
   const isDesktopLayout = useMediaQuery("(min-width: 1280px)");
-  const listRowHeight = isDesktopLayout ? 114 : 118;
+  const listRowHeight = 100;
   const { ref: questionListRef, width: questionListWidth } = useElementWidth();
-  const [showWrongOnly, setShowWrongOnly] = useState(false);
+  const [questionFilter, setQuestionFilter] = useState<QuestionFilterType>(null);
 
   const challengeVariantLabel = useMemo(
     () => formatVariantLabel(room, playedQuestionCount),
@@ -450,24 +481,20 @@ const LeaderboardSettlementShowcase: React.FC<
     () => sortParticipants(participants),
     [participants],
   );
-  const rankedSettlement = useRankedChallengeSettlementData({
-    room,
-    participants,
-    playedQuestionCount,
-    meClientId,
-    matchId,
-  });
+  const backendCurrentRun = leaderboardSettlement?.currentRun ?? null;
+  const personalBestComparison =
+    leaderboardSettlement?.personalBestComparison ?? null;
+  const backendTopEntries = leaderboardSettlement?.leaderboardTop ?? [];
+  const backendAroundMeEntries =
+    leaderboardSettlement?.leaderboardAroundMe ?? [];
+  const localMyIndex = sortedParticipants.findIndex(
+    (participant) => participant.clientId === meClientId,
+  );
+  const localMe =
+    localMyIndex >= 0 ? sortedParticipants[localMyIndex] : sortedParticipants[0] ?? null;
 
   const meSummary = useMemo<PersonalSummary>(() => {
-    const myIndex = sortedParticipants.findIndex(
-      (participant) => participant.clientId === meClientId,
-    );
-    const me =
-      myIndex >= 0
-        ? sortedParticipants[myIndex]
-        : sortedParticipants[0] ?? null;
-
-    if (!me) {
+    if (!localMe && !backendCurrentRun) {
       return {
         me: null,
         myRank: 0,
@@ -481,41 +508,47 @@ const LeaderboardSettlementShowcase: React.FC<
     }
 
     const total = sortedParticipants.length;
-    const rank = myIndex + 1;
-    const previous = myIndex > 0 ? sortedParticipants[myIndex - 1] : null;
-
-    const rankedSummary = rankedSettlement.myRankedSummary;
-    const rankedRun = rankedSettlement.currentRun;
+    const rank = localMyIndex >= 0 ? localMyIndex + 1 : 1;
+    const previous = localMyIndex > 0 ? sortedParticipants[localMyIndex - 1] : null;
+    const fallbackQuestionCount = Math.max(playedQuestionCount, 1);
+    const localAccuracy =
+      localMe && fallbackQuestionCount > 0
+        ? (((localMe.correctCount ?? 0) / fallbackQuestionCount) * 100)
+        : 0;
 
     return {
-      me,
-      myRank: rankedSummary?.currentRank ?? rank,
+      me: localMe,
+      myRank: backendCurrentRun?.rank ?? rank,
       rankPercentile:
-        rankedSummary?.surpassedPercent ??
+        backendCurrentRun?.percentile ??
         (total <= 1 ? 100 : Math.round(((total - rank) / (total - 1)) * 100)),
-      scoreGapToPrev: previous ? previous.score - me.score : null,
-      myRankChange: rankChangeByClientId
-        ? (rankChangeByClientId[me.clientId] ?? null)
-        : null,
+      scoreGapToPrev:
+        backendCurrentRun?.gapToPrevious ?? (previous && localMe ? previous.score - localMe.score : null),
+      myRankChange:
+        backendCurrentRun?.rankChange ??
+        (localMe && rankChangeByClientId
+          ? (rankChangeByClientId[localMe.clientId] ?? null)
+          : null),
       accuracy:
-        playedQuestionCount > 0
-          ? (((rankedRun?.correctCount ?? me.correctCount) ?? 0) /
-              playedQuestionCount) *
-            100
-          : 0,
-      combo: rankedRun?.maxCombo ?? Math.max(me.maxCombo ?? 0, me.combo ?? 0),
+        backendCurrentRun && backendCurrentRun.questionCount > 0
+          ? (backendCurrentRun.correctCount / backendCurrentRun.questionCount) * 100
+          : localAccuracy,
+      combo:
+        backendCurrentRun?.maxCombo ??
+        Math.max(localMe?.maxCombo ?? 0, localMe?.combo ?? 0),
       avgCorrectMs:
-        rankedRun?.avgCorrectMs ??
-        (typeof me.avgCorrectMs === "number" && Number.isFinite(me.avgCorrectMs)
-          ? me.avgCorrectMs
+        backendCurrentRun?.avgCorrectMs ??
+        (typeof localMe?.avgCorrectMs === "number" &&
+        Number.isFinite(localMe.avgCorrectMs)
+          ? localMe.avgCorrectMs
           : null),
     };
   }, [
-    meClientId,
+    backendCurrentRun,
+    localMe,
+    localMyIndex,
     playedQuestionCount,
     rankChangeByClientId,
-    rankedSettlement.currentRun,
-    rankedSettlement.myRankedSummary,
     sortedParticipants,
   ]);
 
@@ -556,36 +589,54 @@ const LeaderboardSettlementShowcase: React.FC<
     };
   }, [meSummary, playedQuestionCount, sortedParticipants]);
 
-  const leaderboardRows = useMemo<LeaderboardMetricRow[]>(
-    () =>
-      sortedParticipants.map((participant, index) => ({
-        clientId: participant.clientId,
-        rank: index + 1,
-        username: participant.username,
-        avatarUrl: participant.avatar_url ?? participant.avatarUrl ?? null,
-        score: participant.score,
-        correctCount: participant.correctCount ?? 0,
-        combo: Math.max(participant.maxCombo ?? 0, participant.combo ?? 0),
-        avgCorrectMs:
-          typeof participant.avgCorrectMs === "number" &&
-          Number.isFinite(participant.avgCorrectMs)
-            ? participant.avgCorrectMs
-            : null,
-        isMe: Boolean(meClientId && participant.clientId === meClientId),
-        rankChange: rankChangeByClientId
-          ? (rankChangeByClientId[participant.clientId] ?? null)
-          : null,
-      })),
-    [meClientId, rankChangeByClientId, sortedParticipants],
-  );
   const effectiveLeaderboardRows = useMemo<LeaderboardMetricRow[]>(() => {
-    const rankedEntries =
-      rankedSettlement.leaderboardPagedEntries.length > 0
-        ? rankedSettlement.leaderboardPagedEntries
-        : rankedSettlement.leaderboardTopEntries;
-    if (rankedEntries.length === 0) return leaderboardRows;
-    return rankedEntries.map((entry) => ({
-      clientId: entry.userId ?? `ranked-${entry.rank}-${entry.displayName}`,
+    if (backendTopEntries.length > 0) {
+      return backendTopEntries.map((entry) => ({
+        clientId: entry.userId ?? `ranked-${entry.rank}-${entry.displayName}`,
+        rank: entry.rank,
+        username: entry.displayName,
+        avatarUrl: entry.avatarUrl ?? null,
+        score: entry.score,
+        correctCount: entry.correctCount,
+        combo: entry.maxCombo,
+        avgCorrectMs: entry.avgCorrectMs,
+        isMe: Boolean(entry.isMe),
+        rankChange:
+          entry.isMe && backendCurrentRun
+            ? backendCurrentRun.rankChange
+            : null,
+      }));
+    }
+
+    return sortedParticipants.map((participant, index) => ({
+      clientId: participant.clientId,
+      rank: index + 1,
+      username: participant.username,
+      avatarUrl: participant.avatarUrl ?? participant.avatar_url ?? null,
+      score: participant.score,
+      correctCount: participant.correctCount ?? 0,
+      combo: Math.max(participant.maxCombo ?? 0, participant.combo ?? 0),
+      avgCorrectMs:
+        typeof participant.avgCorrectMs === "number" &&
+        Number.isFinite(participant.avgCorrectMs)
+          ? participant.avgCorrectMs
+          : null,
+      isMe: participant.clientId === meClientId,
+      rankChange:
+        rankChangeByClientId?.[participant.clientId] ?? null,
+    }));
+  }, [
+    backendCurrentRun,
+    backendTopEntries,
+    meClientId,
+    rankChangeByClientId,
+    sortedParticipants,
+  ]);
+
+  const aroundMeRows = useMemo<LeaderboardMetricRow[]>(() => {
+    if (backendAroundMeEntries.length === 0) return [];
+    return backendAroundMeEntries.map((entry) => ({
+      clientId: entry.userId ?? `around-${entry.rank}-${entry.displayName}`,
       rank: entry.rank,
       username: entry.displayName,
       avatarUrl: entry.avatarUrl ?? null,
@@ -594,29 +645,32 @@ const LeaderboardSettlementShowcase: React.FC<
       combo: entry.maxCombo,
       avgCorrectMs: entry.avgCorrectMs,
       isMe: Boolean(entry.isMe),
-      rankChange: null,
+      rankChange:
+        entry.isMe && backendCurrentRun ? backendCurrentRun.rankChange : null,
     }));
-  }, [
-    leaderboardRows,
-    rankedSettlement.leaderboardPagedEntries,
-    rankedSettlement.leaderboardTopEntries,
-  ]);
+  }, [backendAroundMeEntries, backendCurrentRun]);
+
+  const shouldShowAroundMe = useMemo(() => {
+    if (aroundMeRows.length === 0) return false;
+    const hasMeInTop = effectiveLeaderboardRows.some((row) => row.isMe);
+    return !hasMeInTop || (backendCurrentRun?.rank ?? 0) > effectiveLeaderboardRows.length;
+  }, [aroundMeRows.length, backendCurrentRun?.rank, effectiveLeaderboardRows]);
+
+  const coverThumbnail =
+    leaderboardSettlement?.collection?.coverThumbnailUrl ??
+    questionRecaps.find((item) => item.thumbnail)?.thumbnail ??
+    playlistItems.find((item) => item.thumbnail)?.thumbnail ??
+    null;
 
   const playlistSummary = useMemo(() => {
-    const firstThumbnail =
-      questionRecaps.find((item) => item.thumbnail)?.thumbnail ??
-      playlistItems.find((item) => item.thumbnail)?.thumbnail ??
-      null;
-
     return {
-      title: room.playlist.title?.trim() || room.name || "排行榜題庫",
-      thumbnail: firstThumbnail,
+      title: room.playlist.title?.trim() || room.name || "排行榜歌單",
       count:
         room.gameSettings?.leaderboardTargetQuestionCount ??
         room.gameSettings?.questionCount ??
         playedQuestionCount,
     };
-  }, [playedQuestionCount, playlistItems, questionRecaps, room]);
+  }, [playedQuestionCount, room]);
 
   const questionRows = useMemo<LeaderboardQuestionRow[]>(() => {
     if (questionRecaps.length === 0) {
@@ -626,7 +680,7 @@ const LeaderboardSettlementShowcase: React.FC<
         artist: item.uploader?.trim() || "未知歌手",
         thumbnail: item.thumbnail ?? null,
         result: "unanswered",
-        badgeLabel: "待結算",
+        badgeLabel: "未作答",
         badgeTone: "neutral" as const,
         answerTimeLabel: "--",
         scoreGain: null,
@@ -666,7 +720,7 @@ const LeaderboardSettlementShowcase: React.FC<
           artist: recap.uploader,
           thumbnail: recap.thumbnail ?? null,
           result,
-          badgeLabel: "正確",
+          badgeLabel: "答對",
           badgeTone: "success" as const,
           answerTimeLabel: formatAnswerTime(answerTime),
           scoreGain,
@@ -680,7 +734,7 @@ const LeaderboardSettlementShowcase: React.FC<
           artist: recap.uploader,
           thumbnail: recap.thumbnail ?? null,
           result,
-          badgeLabel: "錯誤",
+          badgeLabel: "答錯",
           badgeTone: "danger" as const,
           answerTimeLabel: formatAnswerTime(answerTime),
           scoreGain,
@@ -717,171 +771,212 @@ const LeaderboardSettlementShowcase: React.FC<
 
   const filteredQuestionRows = useMemo(
     () =>
-      showWrongOnly
-        ? questionRows.filter((item) => item.result === "wrong")
+      questionFilter !== null
+        ? questionRows.filter((item) => item.result === questionFilter)
         : questionRows,
-    [questionRows, showWrongOnly],
+    [questionRows, questionFilter],
   );
 
   const rankingSummaryLabel = useMemo(() => {
+    if (backendCurrentRun?.rank && backendCurrentRun.rank > 1) {
+      if (backendCurrentRun.gapToPrevious !== null) {
+        return `距離前一名還差 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
+      }
+      return `目前全球排名第 ${backendCurrentRun.rank} 名`;
+    }
+    if (backendCurrentRun?.rank === 1) {
+      return "目前位居榜首";
+    }
+    if (effectiveLeaderboardRows.length === 0) {
+      return leaderboardSettlementLoading
+        ? "正在載入全球排行榜..."
+        : "顯示本場即時結算";
+    }
     if (meSummary.myRank > 1 && meSummary.scoreGapToPrev !== null) {
-      return `距離第 ${meSummary.myRank - 1} 名還差 ${formatScore(meSummary.scoreGapToPrev)} 分`;
+      return `距離前一名還差 ${formatScore(meSummary.scoreGapToPrev)} 分`;
     }
     if (meSummary.myRank === 1) {
       return "目前位居榜首";
     }
-    return `排行榜顯示前 ${Math.min(10, effectiveLeaderboardRows.length || 10)} 名`;
+    return `顯示前 ${Math.min(10, effectiveLeaderboardRows.length || 10)} 名`;
   }, [
+    backendCurrentRun?.gapToPrevious,
+    backendCurrentRun?.rank,
     effectiveLeaderboardRows.length,
+    leaderboardSettlementLoading,
     meSummary.myRank,
     meSummary.scoreGapToPrev,
   ]);
+
   const leaderboardDesktopHeight = Math.min(
-    420,
-    Math.max(80, effectiveLeaderboardRows.length * 80),
+    340,
+    Math.max(60, effectiveLeaderboardRows.length * 60),
   );
   const leaderboardMobileHeight = Math.min(
-    520,
-    Math.max(128, effectiveLeaderboardRows.length * 128),
+    400,
+    Math.max(96, effectiveLeaderboardRows.length * 96),
   );
   const handleLeaderboardRowsRendered = useCallback(
-    ({ stopIndex }: { startIndex: number; stopIndex: number }) => {
-      if (
-        !rankedSettlement.hasMore ||
-        rankedSettlement.loadingMore ||
-        stopIndex < effectiveLeaderboardRows.length - 4
-      ) {
-        return;
-      }
-      rankedSettlement.loadMoreLeaderboardEntries();
-    },
-    [effectiveLeaderboardRows.length, rankedSettlement],
+    (_payload: { startIndex: number; stopIndex: number }) => {},
+    [],
   );
 
   const scoreSummaryLabel = useMemo(() => {
-    if (!meSummary.me) return "尚未取得本場分數";
-    if (meSummary.scoreGapToPrev === null) return "已位居榜首";
+    if (backendCurrentRun?.rank === 1) return "已經位居榜首";
+    if (backendCurrentRun != null && backendCurrentRun.gapToPrevious !== null) {
+      return `距離前一名 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
+    }
+    if (backendCurrentRun != null && backendCurrentRun.gapToFirst !== null) {
+      return `距離第一名 ${formatScore(backendCurrentRun.gapToFirst)} 分`;
+    }
+    if (!meSummary.me) return "顯示本場分數";
+    if (meSummary.scoreGapToPrev === null) return "顯示本場分數";
     return `距離前一名 ${formatScore(meSummary.scoreGapToPrev)} 分`;
-  }, [meSummary]);
+  }, [backendCurrentRun, meSummary]);
 
   const questionListHeight = useMemo(() => {
     const target = filteredQuestionRows.length * listRowHeight;
-    if (filteredQuestionRows.length <= 0) return 260;
+    if (filteredQuestionRows.length <= 0) return 220;
     return Math.max(
-      Math.min(target, isDesktopLayout ? 742 : 560),
+      Math.min(target, isDesktopLayout ? 620 : 480),
       Math.min(filteredQuestionRows.length, 4) * listRowHeight,
     );
   }, [filteredQuestionRows.length, isDesktopLayout, listRowHeight]);
 
+  const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
+  const prevBestScore = personalBestComparison?.previousBestScore ?? null;
+  const scoreDelta =
+    prevBestScore !== null ? currentScore - prevBestScore : null;
+
+  const filterLabels: Record<Exclude<QuestionFilterType, null>, string> = {
+    correct: "答對",
+    wrong: "答錯",
+    unanswered: "未作答",
+  };
+  const filterEmptyMessages: Record<Exclude<QuestionFilterType, null>, string> = {
+    correct: "沒有答對的題目",
+    wrong: "沒有答錯的題目",
+    unanswered: "沒有未作答的題目",
+  };
+
   return (
-    <div className="mx-auto w-full max-w-[1820px] min-w-0 px-3 pb-8 pt-3 sm:px-4 xl:px-6">
-      <section className="relative overflow-hidden rounded-[30px] border border-amber-300/14 bg-[radial-gradient(circle_at_8%_0%,rgba(245,158,11,0.16),transparent_24%),radial-gradient(circle_at_100%_20%,rgba(8,145,178,0.08),transparent_28%),linear-gradient(180deg,rgba(7,8,10,0.98),rgba(8,10,14,0.98))] px-5 py-5 text-[var(--mc-text)] shadow-[0_38px_100px_-68px_rgba(245,158,11,0.56)] sm:px-6 sm:py-6">
+    <div className="mx-auto w-full max-w-[1820px] min-w-0 px-3 pb-6 pt-2 sm:px-4 xl:px-5">
+      <section className="relative overflow-hidden rounded-[28px] border border-amber-300/14 bg-[radial-gradient(circle_at_8%_0%,rgba(245,158,11,0.16),transparent_24%),radial-gradient(circle_at_100%_20%,rgba(8,145,178,0.08),transparent_28%),linear-gradient(180deg,rgba(7,8,10,0.98),rgba(8,10,14,0.98))] px-4 py-4 text-[var(--mc-text)] shadow-[0_38px_100px_-68px_rgba(245,158,11,0.56)] sm:px-5 sm:py-5">
         <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(245,158,11,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.02)_1px,transparent_1px)] [background-size:22px_22px]" />
         <div className="relative">
-          <div className="flex flex-col gap-4 border-b border-amber-300/14 pb-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-3 border-b border-amber-300/14 pb-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <div className="flex items-start gap-4">
-                <div className="inline-flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(120,53,15,0.1))] text-amber-100">
-                  <BarChartRoundedIcon sx={{ fontSize: 34 }} />
+              <div className="flex items-start gap-3">
+                <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(120,53,15,0.1))] text-amber-100">
+                  <BarChartRoundedIcon sx={{ fontSize: 26 }} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="mt-1 text-[1.95rem] font-black tracking-[0.07em] text-amber-50 sm:text-[2.45rem]">
+                  <h1 className="mt-1 text-[1.5rem] font-black tracking-[0.07em] text-amber-50 sm:text-[1.9rem]">
                     排行挑戰（{challengeVariantLabel}）
                   </h1>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 lg:justify-end">
+            <div className="flex flex-wrap gap-2 lg:justify-end">
               <button
                 type="button"
                 onClick={onRetry}
                 disabled={!onRetry}
-                className="inline-flex min-w-[176px] items-center justify-center gap-2 rounded-2xl border border-amber-300/45 bg-amber-500/10 px-5 py-3 text-base font-semibold text-amber-50 transition hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:border-amber-300/15 disabled:bg-white/[0.02] disabled:text-amber-100/35"
+                className="inline-flex min-w-[130px] items-center justify-center gap-2 rounded-xl border border-amber-300/45 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/18 disabled:cursor-not-allowed disabled:border-amber-300/15 disabled:bg-white/[0.02] disabled:text-amber-100/35"
               >
-                <RefreshRoundedIcon fontSize="small" />
+                <RefreshRoundedIcon sx={{ fontSize: 16 }} />
                 再挑戰一次
               </button>
               <button
                 type="button"
                 onClick={onBackToLobby}
-                className="inline-flex min-w-[176px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-3 text-base font-semibold text-[var(--mc-text)] transition hover:border-white/20 hover:bg-white/[0.04]"
+                className="inline-flex min-w-[130px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm font-semibold text-[var(--mc-text)] transition hover:border-white/20 hover:bg-white/[0.04]"
               >
-                <HomeRoundedIcon fontSize="small" />
+                <HomeRoundedIcon sx={{ fontSize: 16 }} />
                 返回大廳
               </button>
             </div>
           </div>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(460px,0.7fr)]">
-            <div className="min-w-0 space-y-5">
-              <article className="rounded-[28px] border border-amber-300/16 bg-[radial-gradient(circle_at_12%_8%,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(28,20,10,0.78),rgba(8,10,14,0.92))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="grid gap-5 lg:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-                  <div className="border-b border-amber-300/14 pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
-                    <div className="text-center text-2xl font-semibold text-amber-50/92">
-                      本場排名
+          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(420px,0.7fr)]">
+            <div className="min-w-0 space-y-4">
+              <article className="rounded-[24px] border border-amber-300/16 bg-[radial-gradient(circle_at_12%_8%,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(28,20,10,0.78),rgba(8,10,14,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="grid gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
+                  <div className="border-b border-amber-300/14 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+                    <div className="text-center text-lg font-semibold text-amber-50/92">
+                      全球名次
                     </div>
-                    <div className="mt-5 flex items-center justify-center gap-6">
-                      <AutoAwesomeRoundedIcon className="hidden text-amber-300/65 sm:block" sx={{ fontSize: 42 }} />
-                      <div className="text-[5rem] font-black leading-none text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.3)] sm:text-[6.2rem]">
+                    <div className="mt-4 flex items-center justify-center gap-5">
+                      <AutoAwesomeRoundedIcon className="hidden text-amber-300/65 sm:block" sx={{ fontSize: 30 }} />
+                      <div className="text-[4rem] font-black leading-none text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.3)] sm:text-[5rem]">
                         #{meSummary.myRank || "--"}
                       </div>
-                      <AutoAwesomeRoundedIcon className="hidden rotate-180 text-amber-300/65 sm:block" sx={{ fontSize: 42 }} />
+                      <AutoAwesomeRoundedIcon className="hidden rotate-180 text-amber-300/65 sm:block" sx={{ fontSize: 30 }} />
                     </div>
-                    <div className="mt-4 flex justify-center">
-                      <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-4 py-2 text-[1.05rem] font-bold text-amber-100">
-                        超越 {meSummary.rankPercentile}% 玩家
+                    <div className="mt-3 flex justify-center">
+                      <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-3 py-1.5 text-sm font-bold text-amber-100">
+                        勝過 {meSummary.rankPercentile}% 的玩家
                       </span>
                     </div>
                   </div>
 
                   <div className="min-w-0">
-                    <div className="text-center text-2xl font-semibold text-amber-50/92">
-                      本場分數
+                    <div className="text-center text-lg font-semibold text-amber-50/92">
+                      本場得分
                     </div>
-                    <div className="mt-4 text-center text-[3.7rem] font-black leading-none tracking-tight text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.28)] sm:text-[4.9rem]">
-                      {formatScore(meSummary.me?.score ?? 0)}
+                    <div className="mt-3 text-center text-[3rem] font-black leading-none tracking-tight text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.28)] sm:text-[4rem]">
+                      {formatScore(currentScore)}
                     </div>
-                    <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-3 text-base text-[var(--mc-text-muted)]">
-                      <span>共 {participants.length} 位玩家參與</span>
+                    {scoreDelta !== null && scoreDelta !== 0 && (
+                      <div className="mt-1.5 flex items-center justify-center gap-1">
+                        {scoreDelta > 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-base font-semibold text-emerald-400">
+                            <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
+                            {formatScore(scoreDelta)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-base font-semibold text-rose-400">
+                            <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
+                            {formatScore(Math.abs(scoreDelta))}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm text-[var(--mc-text-muted)]">
                       {meSummary.myRankChange !== null && (
                         <>
-                          <span className="hidden h-5 w-px bg-white/10 sm:block" />
                           {meSummary.myRankChange > 0 ? (
                             <span className="inline-flex items-center gap-1 font-semibold text-emerald-400">
-                              <TrendingUpRoundedIcon sx={{ fontSize: 18 }} />
-                              排名上升 {meSummary.myRankChange}
+                              <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
+                              升了 {meSummary.myRankChange}
                             </span>
                           ) : meSummary.myRankChange < 0 ? (
                             <span className="inline-flex items-center gap-1 font-semibold text-rose-400">
-                              <TrendingDownRoundedIcon sx={{ fontSize: 18 }} />
-                              排名下降 {Math.abs(meSummary.myRankChange)}
+                              <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
+                              降了 {Math.abs(meSummary.myRankChange)}
                             </span>
                           ) : (
-                            <span className="text-[var(--mc-text-muted)]">排名不變</span>
+                            <span className="text-[var(--mc-text-muted)]">持平</span>
                           )}
+                          <span className="hidden h-4 w-px bg-white/10 sm:block" />
                         </>
                       )}
-                      <span className="hidden h-5 w-px bg-white/10 sm:block" />
                       <span>{scoreSummaryLabel}</span>
-                      {rankedSettlement.myRankedSummary?.previousBestBeforeRun && (
+                      {backendCurrentRun?.isPersonalBest && (
                         <>
-                          <span className="hidden h-5 w-px bg-white/10 sm:block" />
-                          <span>
-                            前次最佳{" "}
-                            {formatScore(
-                              rankedSettlement.myRankedSummary
-                                .previousBestBeforeRun.score,
-                            )}{" "}
-                            分
+                          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                          <span className="font-semibold text-emerald-400">
+                            新個人最佳
                           </span>
                         </>
                       )}
-                      {rankedSettlement.myRankedSummary?.isNewBest && (
+                      {personalBestComparison &&
+                        !personalBestComparison.hasPreviousBest && (
                         <>
-                          <span className="hidden h-5 w-px bg-white/10 sm:block" />
-                          <span className="font-semibold text-emerald-400">
-                            新個人最佳
+                          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                          <span className="font-semibold text-sky-300">
+                            首次紀錄
                           </span>
                         </>
                       )}
@@ -889,9 +984,9 @@ const LeaderboardSettlementShowcase: React.FC<
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
                   <SummaryMetric
-                    icon={<TrackChangesRoundedIcon sx={{ fontSize: 40 }} />}
+                    icon={<TrackChangesRoundedIcon sx={{ fontSize: 28 }} />}
                     label="答對率"
                     value={formatPercent(meSummary.accuracy)}
                     note={
@@ -901,7 +996,7 @@ const LeaderboardSettlementShowcase: React.FC<
                     }
                   />
                   <SummaryMetric
-                    icon={<WorkspacePremiumRoundedIcon sx={{ fontSize: 42 }} />}
+                    icon={<WorkspacePremiumRoundedIcon sx={{ fontSize: 30 }} />}
                     label="最大 Combo"
                     value={`x${meSummary.combo}`}
                     note={
@@ -911,7 +1006,7 @@ const LeaderboardSettlementShowcase: React.FC<
                     }
                   />
                   <SummaryMetric
-                    icon={<BoltRoundedIcon sx={{ fontSize: 40 }} />}
+                    icon={<BoltRoundedIcon sx={{ fontSize: 28 }} />}
                     label="平均答題"
                     value={formatSeconds(meSummary.avgCorrectMs)}
                     note={
@@ -923,17 +1018,17 @@ const LeaderboardSettlementShowcase: React.FC<
                 </div>
               </article>
 
-              <article className="rounded-[28px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300/12 pb-4">
-                  <h2 className="text-[2rem] font-black tracking-[0.06em] text-amber-100">
+              <article className="rounded-[24px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300/12 pb-3">
+                  <h2 className="text-[1.5rem] font-black tracking-[0.06em] text-amber-100">
                     排行榜
                   </h2>
-                  <div className="rounded-full border border-amber-300/18 bg-amber-500/8 px-4 py-2 text-sm font-semibold text-amber-100/88">
+                  <div className="rounded-full border border-amber-300/18 bg-amber-500/8 px-3 py-1.5 text-xs font-semibold text-amber-100/88">
                     {rankingSummaryLabel}
                   </div>
                 </div>
 
-                <div className="mt-4 hidden grid-cols-[64px_minmax(220px,1.65fr)_132px_132px_132px_128px_132px] gap-3 px-4 text-sm font-semibold text-amber-100/78 xl:grid">
+                <div className="mt-3 hidden grid-cols-[52px_minmax(180px,1.65fr)_112px_112px_112px_108px_112px] gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid">
                   <div>名次</div>
                   <div>玩家</div>
                   <div className="text-center">答對 / 題數</div>
@@ -943,110 +1038,99 @@ const LeaderboardSettlementShowcase: React.FC<
                   <div className="text-center">排名變化</div>
                 </div>
 
-                <div className="mt-3 hidden xl:block">
-                  <List
-                    rowComponent={LeaderboardDesktopRow}
-                    rowCount={effectiveLeaderboardRows.length}
-                    rowHeight={80}
-                    rowProps={{
-                      rows: effectiveLeaderboardRows,
-                      playedQuestionCount,
-                    }}
-                    overscanCount={5}
-                    defaultHeight={leaderboardDesktopHeight}
-                    onRowsRendered={handleLeaderboardRowsRendered}
-                    style={{ height: leaderboardDesktopHeight, width: "100%" }}
-                  />
-                </div>
+                {leaderboardSettlementLoading && effectiveLeaderboardRows.length === 0 ? (
+                  <>
+                    <div className="mt-2 hidden xl:block">
+                      <LeaderboardSkeleton count={6} />
+                    </div>
+                    <div className="mt-2 xl:hidden">
+                      <LeaderboardSkeleton count={4} />
+                    </div>
+                  </>
+                ) : effectiveLeaderboardRows.length > 0 ? (
+                  <>
+                    <div className="mt-2 hidden xl:block">
+                      <List
+                        rowComponent={LeaderboardDesktopRow}
+                        rowCount={effectiveLeaderboardRows.length}
+                        rowHeight={60}
+                        rowProps={{
+                          rows: effectiveLeaderboardRows,
+                          playedQuestionCount,
+                        }}
+                        overscanCount={5}
+                        defaultHeight={leaderboardDesktopHeight}
+                        onRowsRendered={handleLeaderboardRowsRendered}
+                        style={{ height: leaderboardDesktopHeight, width: "100%" }}
+                      />
+                    </div>
 
-                <div className="mt-3 xl:hidden">
-                  <List
-                    rowComponent={LeaderboardMobileRow}
-                    rowCount={effectiveLeaderboardRows.length}
-                    rowHeight={128}
-                    rowProps={{
-                      rows: effectiveLeaderboardRows,
-                      playedQuestionCount,
-                    }}
-                    overscanCount={5}
-                    defaultHeight={leaderboardMobileHeight}
-                    onRowsRendered={handleLeaderboardRowsRendered}
-                    style={{ height: leaderboardMobileHeight, width: "100%" }}
-                  />
-                </div>
-                {rankedSettlement.loadingMore && (
-                  <div className="mt-2 rounded-full border border-amber-300/14 bg-amber-500/8 px-3 py-2 text-center text-xs font-semibold text-amber-100/82">
-                    載入更多排行榜資料...
+                    <div className="mt-2 xl:hidden">
+                      <List
+                        rowComponent={LeaderboardMobileRow}
+                        rowCount={effectiveLeaderboardRows.length}
+                        rowHeight={96}
+                        rowProps={{
+                          rows: effectiveLeaderboardRows,
+                          playedQuestionCount,
+                        }}
+                        overscanCount={5}
+                        defaultHeight={leaderboardMobileHeight}
+                        onRowsRendered={handleLeaderboardRowsRendered}
+                        style={{ height: leaderboardMobileHeight, width: "100%" }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-3 rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--mc-text-muted)]">
+                    {leaderboardSettlementError
+                      ? "全球排行榜載入失敗，先顯示本場即時結果。"
+                      : "目前僅顯示本場即時結果。"}
                   </div>
                 )}
-
-                <div className="hidden">
-                  {effectiveLeaderboardRows.slice(0, 10).map((row) => (
-                    <div
-                      key={row.clientId}
-                      className={`grid grid-cols-[64px_minmax(220px,1.65fr)_132px_132px_132px_128px_132px] items-center gap-3 rounded-2xl border px-4 py-3 text-sm ${
-                        row.isMe
-                          ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
-                          : "border-white/6 bg-white/[0.02]"
-                      }`}
+                {leaderboardSettlementError && onRefreshLeaderboardSettlement && (
+                  <div className="mt-2.5 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={onRefreshLeaderboardSettlement}
+                      className="inline-flex items-center gap-2 rounded-full border border-amber-300/18 bg-amber-500/8 px-3 py-1.5 text-xs font-semibold text-amber-100/88 transition hover:bg-amber-500/14"
                     >
-                      <div className="text-lg font-black text-amber-100">{row.rank}</div>
-                      <div className="flex min-w-0 items-center gap-3">
-                        <PlayerAvatar
-                          username={row.username}
-                          clientId={row.clientId}
-                          avatarUrl={row.avatarUrl}
-                          size={38}
-                          rank={row.rank}
-                          combo={row.combo}
-                          isMe={row.isMe}
-                          hideRankMark
-                          loading="lazy"
-                        />
-                        <div className="truncate text-base font-semibold text-[var(--mc-text)]">
-                          {row.username}
-                          {row.isMe ? "（你）" : ""}
-                        </div>
-                      </div>
-                      <div className="text-center text-[var(--mc-text-muted)]">
-                        {row.correctCount} / {playedQuestionCount}
-                      </div>
-                      <div className="text-center font-semibold text-violet-300">
-                        x{row.combo}
-                      </div>
-                      <div className="text-center text-[var(--mc-text-muted)]">
-                        {formatSeconds(row.avgCorrectMs)}
-                      </div>
-                      <div className="text-center text-xl font-black text-amber-100">
-                        {formatScore(row.score)}
-                      </div>
-                      <div className="flex min-w-0 items-center justify-center">
-                        <RankChangeBadge value={row.rankChange} />
-                      </div>
+                      <RefreshRoundedIcon sx={{ fontSize: 14 }} />
+                      重新載入全球排行榜
+                    </button>
+                  </div>
+                )}
+              </article>
+
+              {shouldShowAroundMe && (
+                <article className="rounded-[24px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-4">
+                  <div className="flex items-center justify-between gap-2 border-b border-amber-300/12 pb-3">
+                    <h2 className="text-lg font-black tracking-[0.04em] text-amber-100">
+                      你的附近名次
+                    </h2>
+                    <div className="text-xs text-[var(--mc-text-muted)]">
+                      顯示你的前後名次區間
                     </div>
-                  ))}
-                </div>
-
-                <div className="hidden">
-                  {effectiveLeaderboardRows.slice(0, 10).map((row) => (
-                    <div
-                      key={row.clientId}
-                      className={`rounded-[24px] border px-4 py-4 ${
-                        row.isMe
-                          ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
-                          : "border-white/6 bg-white/[0.02]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="text-xl font-black text-amber-100">
-                            #{row.rank}
-                          </div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {aroundMeRows.map((row) => (
+                      <div
+                        key={row.clientId}
+                        className={`grid grid-cols-[44px_minmax(0,1fr)_80px] items-center gap-2 rounded-xl border px-3 py-2 text-xs ${
+                          row.isMe
+                            ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
+                            : "border-white/6 bg-white/[0.02]"
+                        }`}
+                      >
+                        <div className="text-base font-black text-amber-100">
+                          #{row.rank}
+                        </div>
+                        <div className="flex min-w-0 items-center gap-2">
                           <PlayerAvatar
                             username={row.username}
                             clientId={row.clientId}
                             avatarUrl={row.avatarUrl}
-                            size={36}
+                            size={28}
                             rank={row.rank}
                             combo={row.combo}
                             isMe={row.isMe}
@@ -1054,54 +1138,44 @@ const LeaderboardSettlementShowcase: React.FC<
                             loading="lazy"
                           />
                           <div className="min-w-0">
-                            <div className="truncate text-base font-semibold text-[var(--mc-text)]">
+                            <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
                               {row.username}
-                              {row.isMe ? "（你）" : ""}
                             </div>
-                            <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                              答對 {row.correctCount} / {playedQuestionCount}
+                            <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
+                              {row.correctCount} / {playedQuestionCount}
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xl font-black text-amber-100">
-                            {formatScore(row.score)}
-                          </div>
-                          <div className="mt-1 text-xs text-violet-300">
-                            Combo x{row.combo}
-                          </div>
+                        <div className="text-right text-base font-black text-amber-100">
+                          {formatScore(row.score)}
                         </div>
                       </div>
-                      <div className="mt-3 text-xs text-[var(--mc-text-muted)]">
-                        平均答題 {formatSeconds(row.avgCorrectMs)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </article>
+                    ))}
+                  </div>
+                </article>
+              )}
             </div>
 
             <aside className="min-w-0">
-              <article className="rounded-[28px] bg-transparent p-0 shadow-none">
-                <div className="overflow-hidden rounded-[24px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
-                  <div className="h-[196px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
-                    {playlistSummary.thumbnail ? (
+              <article className="rounded-[24px] bg-transparent p-0 shadow-none">
+                <div className="overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
+                  <div className="relative h-[140px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
+                    {coverThumbnail ? (
                       <img
-                        src={playlistSummary.thumbnail}
+                        src={coverThumbnail}
                         alt={playlistSummary.title}
                         className="h-full w-full object-cover"
                         loading="lazy"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-amber-100/80">
-                        <BarChartRoundedIcon sx={{ fontSize: 34 }} />
+                        <BarChartRoundedIcon sx={{ fontSize: 30 }} />
                       </div>
                     )}
-                  </div>
-                  <div className="p-4 sm:p-5">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-3">
                       <div className="min-w-0">
-                        <div className="truncate text-[1.7rem] font-black tracking-[0.04em] text-amber-100">
+                        <div className="truncate text-[1.1rem] font-black tracking-[0.04em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
                           {playlistSummary.title}
                         </div>
                       </div>
@@ -1109,61 +1183,73 @@ const LeaderboardSettlementShowcase: React.FC<
                         type="button"
                         onClick={onToggleFavorite}
                         disabled={!onToggleFavorite}
-                        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
                           isFavorited
                             ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
-                            : "border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/16"
+                            : "border-white/30 bg-black/40 text-white hover:bg-black/60"
                         }`}
-                        aria-label={isFavorited ? "移出我的收藏" : "加入我的收藏"}
+                        aria-label={isFavorited ? "取消收藏" : "加入收藏"}
                         aria-pressed={isFavorited ?? false}
                       >
-                        {isFavorited ? <StarRoundedIcon /> : <StarBorderRoundedIcon />}
+                        {isFavorited ? <StarRoundedIcon sx={{ fontSize: 18 }} /> : <StarBorderRoundedIcon sx={{ fontSize: 18 }} />}
                       </button>
                     </div>
+                  </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3 overflow-x-auto rounded-[22px] bg-white/[0.02] px-4 py-4">
-                      <div className="flex shrink-0 items-center gap-2 text-sm">
-                        <span className="rounded-full border border-emerald-300/35 bg-emerald-500/14 px-3 py-1 text-emerald-100">
-                          正確 {answerOverview.correct}
-                        </span>
-                        <span className="rounded-full border border-rose-300/35 bg-rose-500/14 px-3 py-1 text-rose-100">
-                          錯誤 {answerOverview.wrong}
-                        </span>
-                        <span className="rounded-full border border-slate-500/45 bg-slate-700/40 px-3 py-1 text-slate-100">
-                          未作答 {answerOverview.unanswered}
-                        </span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs text-[var(--mc-text-muted)]">
-                          共 {questionRows.length} 題
-                        </div>
+                  <div className="p-3 sm:p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] bg-white/[0.02] px-3 py-3">
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs">
                         <button
                           type="button"
-                          onClick={() => setShowWrongOnly((prev) => !prev)}
-                          className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
-                            showWrongOnly
-                              ? "border-amber-300/55 bg-amber-500/18 text-amber-100"
-                              : "border-white/10 bg-white/[0.03] text-[var(--mc-text-muted)] hover:border-white/20 hover:text-[var(--mc-text)]"
+                          onClick={() => setQuestionFilter(
+                            questionFilter === "correct" ? null : "correct",
+                          )}
+                          className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                            questionFilter === "correct"
+                              ? "border-emerald-300/55 bg-emerald-500/18 text-emerald-100"
+                              : "border-emerald-300/30 bg-emerald-500/10 text-emerald-100/70 hover:bg-emerald-500/14"
                           }`}
-                          aria-pressed={showWrongOnly}
+                          aria-pressed={questionFilter === "correct"}
                         >
-                          <span
-                            className={`inline-flex h-4 w-4 items-center justify-center rounded border ${
-                              showWrongOnly
-                                ? "border-amber-200 bg-amber-300/20 text-amber-100"
-                                : "border-white/20 bg-transparent text-transparent"
-                            }`}
-                          >
-                            <CheckRoundedIcon sx={{ fontSize: 14 }} />
-                          </span>
-                          僅顯示答錯題目
+                          答對 {answerOverview.correct}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuestionFilter(
+                            questionFilter === "wrong" ? null : "wrong",
+                          )}
+                          className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                            questionFilter === "wrong"
+                              ? "border-rose-300/55 bg-rose-500/18 text-rose-100"
+                              : "border-rose-300/30 bg-rose-500/10 text-rose-100/70 hover:bg-rose-500/14"
+                          }`}
+                          aria-pressed={questionFilter === "wrong"}
+                        >
+                          答錯 {answerOverview.wrong}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuestionFilter(
+                            questionFilter === "unanswered" ? null : "unanswered",
+                          )}
+                          className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                            questionFilter === "unanswered"
+                              ? "border-slate-500/55 bg-slate-700/50 text-slate-100"
+                              : "border-slate-500/35 bg-slate-700/25 text-slate-100/70 hover:bg-slate-700/35"
+                          }`}
+                          aria-pressed={questionFilter === "unanswered"}
+                        >
+                          未作答 {answerOverview.unanswered}
+                        </button>
+                      </div>
+                      <div className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-xs text-[var(--mc-text-muted)]">
+                        共 {questionRows.length} 題
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div ref={questionListRef} className="mt-4 min-h-0">
+                <div ref={questionListRef} className="mt-3 min-h-0">
                   {filteredQuestionRows.length > 0 && questionListWidth > 0 ? (
                     <List
                       rowComponent={QuestionListRow}
@@ -1175,8 +1261,10 @@ const LeaderboardSettlementShowcase: React.FC<
                       style={{ height: questionListHeight, width: "100%" }}
                     />
                   ) : (
-                    <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center text-base text-[var(--mc-text-muted)]">
-                      {showWrongOnly ? "這一局沒有答錯題目。" : "目前找不到這次題目結果資料。"}
+                    <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--mc-text-muted)]">
+                      {questionFilter !== null
+                        ? filterEmptyMessages[questionFilter]
+                        : "目前沒有任何題目資訊"}
                     </div>
                   )}
                 </div>

@@ -29,6 +29,7 @@ import type {
   SubmitAnswerAckData,
 } from "./gameTypes";
 import type {
+  LeaderboardSettlementReadyPayload,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
 } from "./settlementTypes";
@@ -275,6 +276,9 @@ export interface ServerToClientEvents {
     roundKey: string;
     rankChangeByClientId: Record<string, number | null>;
   }) => void;
+  leaderboardSettlementReady: (
+    payload: LeaderboardSettlementReadyPayload,
+  ) => void;
 }
 
 export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;

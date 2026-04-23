@@ -5,7 +5,11 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { ChatMessage, RoomSettlementSnapshot } from "./types";
+import type {
+  ChatMessage,
+  LeaderboardSettlementReadyPayload,
+  RoomSettlementSnapshot,
+} from "./types";
 import { capRoomMessages, capSettlementHistory } from "./roomProviderUtils";
 
 export const useRoomSessionListsState = () => {
@@ -16,6 +20,8 @@ export const useRoomSessionListsState = () => {
   const [rankChangeByRoundKey, setRankChangeByRoundKey] = useState<
     Record<string, Record<string, number | null>>
   >({});
+  const [leaderboardSettlementReadyByRoundKey, setLeaderboardSettlementReadyByRoundKey] =
+    useState<Record<string, LeaderboardSettlementReadyPayload>>({});
 
   const setMessagesWithCap = useCallback<
     Dispatch<SetStateAction<ChatMessage[]>>
@@ -55,13 +61,25 @@ export const useRoomSessionListsState = () => {
     [],
   );
 
+  const mergeLeaderboardSettlementReady = useCallback(
+    (payload: LeaderboardSettlementReadyPayload) => {
+      setLeaderboardSettlementReadyByRoundKey((prev) => ({
+        ...prev,
+        [payload.roundKey]: payload,
+      }));
+    },
+    [],
+  );
+
   return {
     messages,
     setMessagesWithCap,
     settlementHistory,
     setSettlementHistoryWithCap,
     rankChangeByRoundKey,
+    leaderboardSettlementReadyByRoundKey,
     mergeRankChange,
+    mergeLeaderboardSettlementReady,
   };
 };
 

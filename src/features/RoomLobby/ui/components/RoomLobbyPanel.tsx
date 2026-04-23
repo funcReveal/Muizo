@@ -18,7 +18,6 @@ import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
 import SportsEsportsRoundedIcon from "@mui/icons-material/SportsEsportsRounded";
-import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import PlaylistPlayRoundedIcon from "@mui/icons-material/PlaylistPlayRounded";
@@ -146,7 +145,6 @@ interface RoomLobbyPanelProps {
   onOpenLastSettlement?: () => void;
   onOpenHistoryDrawer?: () => void;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
-  onOpenTestSettlement?: () => void;
   onOpenGame?: () => void;
   onKickPlayer: (clientId: string, durationMs?: number | null) => void;
   onTransferHost: (clientId: string) => void;
@@ -219,7 +217,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onStartGame,
   onUpdateRoomSettings,
   onOpenHistoryDrawer,
-  onOpenTestSettlement,
   onOpenGame,
   onKickPlayer,
   onTransferHost,
@@ -1143,35 +1140,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           },
         ]
         : []),
-      ...(onOpenTestSettlement
-        ? [
-          {
-            key: "test-settlement",
-            label: "測試結算",
-            compactLabel: "測試",
-            icon: <ScienceRoundedIcon fontSize="small" />,
-            onClick: () => onOpenTestSettlement(),
-            disabled: false,
-            tone: "normal" as const,
-            title: "使用假資料直接開啟結算頁",
-          },
-        ]
-        : []),
-      ...(onOpenTestSettlement
-        ? [
-          {
-            key: "test-settlement",
-            label: "測試結算",
-            ariaLabel: "開啟測試結算畫面",
-            icon: <ScienceRoundedIcon fontSize="small" />,
-            onClick: () => onOpenTestSettlement(),
-            disabled: false,
-            tone: "normal" as const,
-            title: "使用假資料直接開啟結算頁",
-            variant: "outlined" as const,
-          },
-        ]
-        : []),
       {
         key: "leave",
         label: "離開",
@@ -1188,7 +1156,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       requestLeaveRoom,
       settingsActionDisabledReason,
       isHost,
-      onOpenTestSettlement,
     ],
   );
   const mobileBottomActionButtons = useMemo(
@@ -1688,24 +1655,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       <span className="room-lobby-sr-only">對戰資訊</span>
                       <span className="room-lobby-toolbar-floating-label" aria-hidden="true">
                         對戰資訊
-                      </span>
-                    </Button>
-                  )}
-                  {onOpenTestSettlement && (
-                    <Button
-                      variant="outlined"
-                      color="inherit"
-                      size="small"
-                      aria-label="開啟測試結算畫面"
-                      className="room-lobby-toolbar-history-btn room-lobby-toolbar-icon-btn"
-                      onClick={() => onOpenTestSettlement()}
-                    >
-                      <span className="room-lobby-toolbar-icon-btn__icon" aria-hidden="true">
-                        <ScienceRoundedIcon fontSize="small" />
-                      </span>
-                      <span className="room-lobby-sr-only">測試結算</span>
-                      <span className="room-lobby-toolbar-floating-label" aria-hidden="true">
-                        測試結算
                       </span>
                     </Button>
                   )}
