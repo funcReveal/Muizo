@@ -36,18 +36,13 @@ import type { SettlementQuestionRecap } from "@features/Settlement/ui/components
 import HistoryArchiveHeader from "@features/Settlement/ui/components/roomHistoryPage/HistoryArchiveHeader";
 import HistoryReplayDialog from "@features/Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
 import CareerTabs, { type CareerTabKey } from "./components/CareerTabs";
-import CareerOverviewTab, {
-  type CareerCollectionRankShortcutItem,
-  type CareerCompositeStats,
-  type CareerHighlightItem,
-  type CareerOverviewHeroStats,
-  type CareerWeeklyStats,
-} from "./components/CareerOverviewTab";
-import CareerCollectionRanksTab, {
-  type CareerCollectionRankRow,
-} from "./components/CareerCollectionRanksTab";
+import CareerOverviewTab from "./components/CareerOverviewTab";
+import CareerCollectionRanksTab from "./components/CareerCollectionRanksTab";
 import CareerHistoryTab from "./components/CareerHistoryTab";
 import CareerShareTab from "./components/CareerShareTab";
+import useCareerOverviewData from "../model/useCareerOverviewData";
+import useCareerCollectionRanksData from "../model/useCareerCollectionRanksData";
+import useCareerShareData from "../model/useCareerShareData";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -142,15 +137,6 @@ const formatDuration = (durationMs: number | null) => {
   return `${seconds}秒`;
 };
 
-const formatDurationCompact = (durationMs: number) => {
-  if (!Number.isFinite(durationMs) || durationMs <= 0) return "-";
-  const totalSeconds = Math.floor(durationMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  if (hours > 0) return `${hours}.${Math.floor((minutes / 60) * 10)}h`;
-  return `${minutes}m`;
-};
-
 const formatMonthDayTime = (timestamp: number) => {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return "-";
   return new Date(timestamp).toLocaleString("zh-TW", {
@@ -161,37 +147,9 @@ const formatMonthDayTime = (timestamp: number) => {
   });
 };
 
-const formatShortDate = (timestamp: number) => {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return "-";
-  return new Date(timestamp).toLocaleDateString("zh-TW", {
-    month: "numeric",
-    day: "numeric",
-  });
-};
-
 const formatScore = (score: number | null | undefined) => {
   if (typeof score !== "number" || !Number.isFinite(score)) return "-";
   return Math.max(0, Math.floor(score)).toLocaleString("zh-TW");
-};
-
-const formatPercent = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) return "-";
-  return `${Math.round(value * 100)}%`;
-};
-
-const formatSignedInt = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) return "—";
-  if (value > 0) return `+${Math.round(value)}`;
-  if (value < 0) return `${Math.round(value)}`;
-  return "±0";
-};
-
-const formatSignedPercent = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) return "—";
-  const rounded = Math.round(value * 100);
-  if (rounded > 0) return `+${rounded}%`;
-  if (rounded < 0) return `${rounded}%`;
-  return "±0%";
 };
 
 const formatRankFraction = (
@@ -333,6 +291,10 @@ const CareerPage: React.FC = () => {
   const { setStatusText } = useRoomSession();
 
   const [activeTab, setActiveTab] = useState<CareerTabKey>("overview");
+
+  const overviewQuery = useCareerOverviewData();
+  const collectionRanksQuery = useCareerCollectionRanksData();
+  const shareQuery = useCareerShareData();
 
   const [items, setItems] = useState<RoomSettlementHistorySummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -497,11 +459,14 @@ const CareerPage: React.FC = () => {
     () => items.find((item) => item.matchId === selectedMatchId) ?? null,
     [items, selectedMatchId],
   );
+
   const selectedReplay = selectedMatchId
     ? replayByMatchId[selectedMatchId]
     : null;
+
   const isLoadingSelectedReplay =
     Boolean(selectedMatchId) && loadingReplayMatchId === selectedMatchId;
+
   const normalizedSelectedQuestionRecaps = useMemo(() => {
     if (!selectedReplay?.questionRecaps) return undefined;
     return selectedReplay.questionRecaps.map(normalizeQuestionRecap);
@@ -596,6 +561,7 @@ const CareerPage: React.FC = () => {
         blockedUntil: 0,
         requestTimestamps: [],
       };
+
       try {
         const raw = window.sessionStorage.getItem(historyGuardKey);
         if (raw) {
@@ -625,6 +591,7 @@ const CareerPage: React.FC = () => {
       }
 
       nextGuard.requestTimestamps.push(now);
+
       if (nextGuard.requestTimestamps.length > HISTORY_GUARD_MAX_REQUESTS) {
         nextGuard.blockedUntil = now + HISTORY_GUARD_BLOCK_MS;
         nextGuard.requestTimestamps = [];
@@ -644,6 +611,7 @@ const CareerPage: React.FC = () => {
 
       nextGuard.blockedUntil = 0;
       setHistoryRequestBlockedUntil(0);
+
       try {
         window.sessionStorage.setItem(
           historyGuardKey,
@@ -652,6 +620,7 @@ const CareerPage: React.FC = () => {
       } catch {
         // ignore persist errors
       }
+
       return true;
     },
     [guardBlockedMessage, historyGuardKey, setStatusText],
@@ -755,6 +724,7 @@ const CareerPage: React.FC = () => {
     const timeoutId = window.setTimeout(() => {
       setHistoryRequestBlockedUntil((prev) => (prev <= Date.now() ? 0 : prev));
     }, remainingMs + 50);
+
     return () => {
       window.clearTimeout(timeoutId);
     };
@@ -838,6 +808,7 @@ const CareerPage: React.FC = () => {
 
     handleScroll();
     scrollHost.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => {
       scrollHost.removeEventListener("scroll", handleScroll);
     };
@@ -903,6 +874,7 @@ const CareerPage: React.FC = () => {
       setSelectedMatchId(matchId);
       inFlightReplayMatchIdsRef.current.add(matchId);
       setLoadingReplayMatchId(matchId);
+
       try {
         const snapshot = await fetchReplay(matchId);
         setReplayByMatchId((prev) => ({ ...prev, [matchId]: snapshot }));
@@ -1013,9 +985,11 @@ const CareerPage: React.FC = () => {
         items: RoomSettlementHistorySummary[];
       }
     >();
+
     for (const item of items) {
       const key = getHistoryGroupKeyFromSummary(item);
       const existing = groups.get(key);
+
       if (existing) {
         existing.items.push(item);
       } else {
@@ -1026,6 +1000,7 @@ const CareerPage: React.FC = () => {
         });
       }
     }
+
     return Array.from(groups.values())
       .map((group) => ({
         ...group,
@@ -1122,12 +1097,14 @@ const CareerPage: React.FC = () => {
           }
         >
           <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/40 opacity-70 transition group-hover:opacity-100" />
+
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 pr-1 sm:pr-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="min-w-0 truncate text-base font-semibold tracking-tight text-[var(--mc-text)] sm:text-lg">
                   {playlistTitle}
                 </div>
+
                 <span
                   className={`inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold sm:text-[13px] ${
                     isYouTubeSource
@@ -1144,6 +1121,7 @@ const CareerPage: React.FC = () => {
                   ) : null}
                   <span>{sourceLabel}</span>
                 </span>
+
                 {playlistItemCount !== null && playlistItemCount > 0 && (
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-slate-200/82 sm:text-[13px]">
                     <QueueMusic sx={{ fontSize: 15 }} />
@@ -1195,315 +1173,6 @@ const CareerPage: React.FC = () => {
       );
     },
     [getSelfRankForSummary, openReplayDetail],
-  );
-
-  const collectionRankRows = useMemo<CareerCollectionRankRow[]>(() => {
-    const byCollection = new Map<
-      string,
-      {
-        id: string;
-        title: string;
-        ranks: number[];
-        bestScore: number;
-        playCount: number;
-        latestEndedAt: number;
-      }
-    >();
-
-    for (const item of items) {
-      const title = getHistorySummaryPlaylistDisplayTitle(item);
-      const rank = readSelfRankFromSummary(item);
-      if (!title || rank === null) continue;
-
-      const existing = byCollection.get(title);
-      const latestEndedAt = item.endedAt ?? 0;
-      const score = item.selfPlayer?.finalScore ?? 0;
-
-      if (existing) {
-        existing.ranks.push(rank);
-        existing.bestScore = Math.max(existing.bestScore, score);
-        existing.playCount += 1;
-        existing.latestEndedAt = Math.max(
-          existing.latestEndedAt,
-          latestEndedAt,
-        );
-      } else {
-        byCollection.set(title, {
-          id: title,
-          title,
-          ranks: [rank],
-          bestScore: score,
-          playCount: 1,
-          latestEndedAt,
-        });
-      }
-    }
-
-    return Array.from(byCollection.values())
-      .map((entry) => {
-        const bestRank = Math.min(...entry.ranks);
-        const currentRank = entry.ranks[0] ?? null;
-        const previousRank = entry.ranks[1] ?? null;
-        const delta =
-          currentRank !== null && previousRank !== null
-            ? previousRank - currentRank
-            : 0;
-
-        return {
-          id: entry.id,
-          title: entry.title,
-          bestRank: bestRank > 0 ? String(bestRank) : "-",
-          currentRank: currentRank !== null ? String(currentRank) : "-",
-          delta,
-          bestScore: formatScore(entry.bestScore),
-          playCount: String(entry.playCount),
-          lastPlayedLabel: formatMonthDayTime(entry.latestEndedAt),
-        };
-      })
-      .sort((a, b) => {
-        const rankA = Number.parseInt(a.currentRank, 10);
-        const rankB = Number.parseInt(b.currentRank, 10);
-        const safeA = Number.isFinite(rankA) ? rankA : 9999;
-        const safeB = Number.isFinite(rankB) ? rankB : 9999;
-        if (safeA !== safeB) return safeA - safeB;
-        if (a.delta !== b.delta) return b.delta - a.delta;
-        return 0;
-      });
-  }, [items]);
-
-  const playerName = useMemo(() => {
-    const firstNamed = items.find(
-      (item) => item.selfPlayer?.usernameSnapshot?.trim().length,
-    );
-    return firstNamed?.selfPlayer?.usernameSnapshot || "玩家";
-  }, [items]);
-
-  const overviewHeroStats = useMemo<CareerOverviewHeroStats>(() => {
-    const scored = items.filter((item) => Boolean(item.selfPlayer));
-    const totalScore = scored.reduce(
-      (sum, item) => sum + (item.selfPlayer?.finalScore ?? 0),
-      0,
-    );
-    const bestScore = scored.reduce(
-      (max, item) => Math.max(max, item.selfPlayer?.finalScore ?? 0),
-      0,
-    );
-    const bestCombo = scored.reduce(
-      (max, item) => Math.max(max, item.selfPlayer?.maxCombo ?? 0),
-      0,
-    );
-
-    let bestRank = Number.POSITIVE_INFINITY;
-    for (const item of items) {
-      const rank = readSelfRankFromSummary(item);
-      if (rank !== null && rank > 0) {
-        bestRank = Math.min(bestRank, rank);
-      }
-    }
-
-    const totalDurationMs = items.reduce((sum, item) => {
-      const duration = getMatchDurationMs(item.startedAt, item.endedAt);
-      return sum + (duration ?? 0);
-    }, 0);
-
-    return {
-      displayName: playerName,
-      descriptor: "綜合表現 / 題庫戰績 / 分享匯出",
-      totalMatches: items.length.toLocaleString("zh-TW"),
-      totalScore: formatScore(totalScore),
-      bestScore: formatScore(bestScore),
-      bestRank: bestRank !== Number.POSITIVE_INFINITY ? String(bestRank) : "-",
-      playTime: formatDurationCompact(totalDurationMs),
-      bestCombo: bestCombo > 0 ? `x${bestCombo}` : "-",
-    };
-  }, [items, playerName]);
-
-  const overviewCompositeStats = useMemo<CareerCompositeStats>(() => {
-    const scored = items.filter((item) => Boolean(item.selfPlayer));
-    const rankValues = items
-      .map((item) => readSelfRankFromSummary(item))
-      .filter((rank): rank is number => rank !== null && rank > 0);
-
-    const averageRank =
-      rankValues.length > 0
-        ? (
-            rankValues.reduce((sum, rank) => sum + rank, 0) / rankValues.length
-          ).toFixed(1)
-        : "-";
-
-    const scoreValues = scored.map((item) => item.selfPlayer?.finalScore ?? 0);
-    const averageScore =
-      scoreValues.length > 0
-        ? formatScore(
-            scoreValues.reduce((sum, score) => sum + score, 0) /
-              scoreValues.length,
-          )
-        : "-";
-
-    const top3Rate =
-      rankValues.length > 0
-        ? formatPercent(
-            rankValues.filter((rank) => rank <= 3).length / rankValues.length,
-          )
-        : "-";
-
-    const firstPlaceCount = rankValues.filter((rank) => rank === 1).length;
-
-    const totalCorrect = scored.reduce(
-      (sum, item) => sum + (item.selfPlayer?.correctCount ?? 0),
-      0,
-    );
-    const totalQuestions = scored.reduce(
-      (sum, item) => sum + Math.max(0, item.questionCount),
-      0,
-    );
-
-    const averageAccuracy =
-      totalQuestions > 0 ? formatPercent(totalCorrect / totalQuestions) : "-";
-
-    const trendSource = scored.slice(0, 7).slice().reverse();
-
-    const trendLabels =
-      trendSource.length > 0
-        ? trendSource.map((item) => formatShortDate(item.endedAt))
-        : ["-"];
-
-    const trendValues =
-      trendSource.length > 0
-        ? trendSource.map((item) => item.selfPlayer?.finalScore ?? 0)
-        : [0];
-
-    return {
-      averageRank,
-      averageScore,
-      top3Rate,
-      firstPlaceCount: firstPlaceCount.toLocaleString("zh-TW"),
-      averageAccuracy,
-      trendLabels,
-      trendValues,
-    };
-  }, [items]);
-
-  const overviewWeeklyStats = useMemo<CareerWeeklyStats>(() => {
-    const scored = items.filter((item) => Boolean(item.selfPlayer));
-    const current = scored.slice(0, 7);
-    const previous = scored.slice(7, 14);
-
-    const currentMatches = current.length;
-    const previousMatches = previous.length;
-
-    const currentScore = current.reduce(
-      (sum, item) => sum + (item.selfPlayer?.finalScore ?? 0),
-      0,
-    );
-    const previousScore = previous.reduce(
-      (sum, item) => sum + (item.selfPlayer?.finalScore ?? 0),
-      0,
-    );
-
-    const currentCorrect = current.reduce(
-      (sum, item) => sum + (item.selfPlayer?.correctCount ?? 0),
-      0,
-    );
-    const previousCorrect = previous.reduce(
-      (sum, item) => sum + (item.selfPlayer?.correctCount ?? 0),
-      0,
-    );
-
-    const currentQuestions = current.reduce(
-      (sum, item) => sum + Math.max(0, item.questionCount),
-      0,
-    );
-    const previousQuestions = previous.reduce(
-      (sum, item) => sum + Math.max(0, item.questionCount),
-      0,
-    );
-
-    const currentAccuracy =
-      currentQuestions > 0 ? currentCorrect / currentQuestions : null;
-    const previousAccuracy =
-      previousQuestions > 0 ? previousCorrect / previousQuestions : null;
-
-    return {
-      matches: currentMatches.toLocaleString("zh-TW"),
-      matchesDelta: formatSignedInt(currentMatches - previousMatches),
-      score: formatScore(currentScore),
-      scoreDelta: formatSignedInt(currentScore - previousScore),
-      accuracy: formatPercent(currentAccuracy),
-      accuracyDelta:
-        currentAccuracy !== null && previousAccuracy !== null
-          ? formatSignedPercent(currentAccuracy - previousAccuracy)
-          : "—",
-    };
-  }, [items]);
-
-  const overviewHighlights = useMemo<CareerHighlightItem[]>(() => {
-    return [
-      {
-        label: "近期最高分",
-        value: recentTopScoreEntry
-          ? formatScore(recentTopScoreEntry.selfPlayer?.finalScore ?? 0)
-          : "-",
-        subtitle: recentTopScoreEntry
-          ? getHistorySummaryPlaylistDisplayTitle(recentTopScoreEntry)
-          : "尚無資料",
-        accentClass:
-          "border border-fuchsia-300/30 bg-[linear-gradient(180deg,rgba(147,51,234,0.18),rgba(55,16,74,0.78))]",
-      },
-      {
-        label: "近期最佳名次",
-        value: recentBestRankEntry
-          ? formatRankFraction(
-              recentBestRankEntry.rank,
-              recentBestRankEntry.item.playerCount,
-            )
-          : "-",
-        subtitle: recentBestRankEntry
-          ? getHistorySummaryPlaylistDisplayTitle(recentBestRankEntry.item)
-          : "尚無資料",
-        accentClass:
-          "border border-sky-300/28 bg-[linear-gradient(180deg,rgba(37,99,235,0.18),rgba(18,35,76,0.78))]",
-      },
-      {
-        label: "近期最佳 Combo",
-        value: recentBestComboEntry
-          ? `x${recentBestComboEntry.selfPlayer?.maxCombo ?? 0}`
-          : "-",
-        subtitle: recentBestComboEntry
-          ? getHistorySummaryPlaylistDisplayTitle(recentBestComboEntry)
-          : "尚無資料",
-        accentClass:
-          "border border-cyan-300/28 bg-[linear-gradient(180deg,rgba(6,182,212,0.18),rgba(13,52,63,0.78))]",
-      },
-      {
-        label: "近期最佳答對率",
-        value: recentBestAccuracyEntry
-          ? formatPercent(recentBestAccuracyEntry.rate)
-          : "-",
-        subtitle: recentBestAccuracyEntry
-          ? getHistorySummaryPlaylistDisplayTitle(recentBestAccuracyEntry.item)
-          : "尚無資料",
-        accentClass:
-          "border border-amber-300/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.18),rgba(69,41,11,0.78))]",
-      },
-    ];
-  }, [
-    recentBestAccuracyEntry,
-    recentBestComboEntry,
-    recentBestRankEntry,
-    recentTopScoreEntry,
-  ]);
-
-  const overviewCollectionShortcuts = useMemo<
-    CareerCollectionRankShortcutItem[]
-  >(
-    () =>
-      collectionRankRows.slice(0, 3).map((row) => ({
-        title: row.title,
-        currentRank: row.currentRank,
-        delta: row.delta,
-      })),
-    [collectionRankRows],
   );
 
   const listView = (
@@ -1654,6 +1323,7 @@ const CareerPage: React.FC = () => {
                       }}
                     >
                       <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-amber-300/45 opacity-85 transition group-hover:opacity-100" />
+
                       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
                         <div className="min-w-0 pr-1 sm:pr-2">
                           <div className="min-w-0">
@@ -1848,18 +1518,26 @@ const CareerPage: React.FC = () => {
 
       {activeTab === "overview" && (
         <CareerOverviewTab
-          hero={overviewHeroStats}
-          composite={overviewCompositeStats}
-          weekly={overviewWeeklyStats}
-          highlights={overviewHighlights}
-          collectionShortcuts={overviewCollectionShortcuts}
+          hero={overviewQuery.data.hero}
+          composite={overviewQuery.data.composite}
+          weekly={overviewQuery.data.weekly}
+          highlights={overviewQuery.data.highlights}
+          collectionShortcuts={overviewQuery.data.collectionShortcuts}
           onOpenCollectionRanks={() => setActiveTab("collectionRanks")}
           onOpenShare={() => setActiveTab("share")}
         />
       )}
 
       {activeTab === "collectionRanks" && (
-        <CareerCollectionRanksTab items={collectionRankRows} />
+        <CareerCollectionRanksTab
+          items={collectionRanksQuery.items}
+          sortKey={collectionRanksQuery.sortKey}
+          sortOrder={collectionRanksQuery.sortOrder}
+          setSortKey={collectionRanksQuery.setSortKey}
+          setSortOrder={collectionRanksQuery.setSortOrder}
+          isLoading={collectionRanksQuery.isLoading}
+          error={collectionRanksQuery.error}
+        />
       )}
 
       {activeTab === "history" && (
@@ -1871,7 +1549,17 @@ const CareerPage: React.FC = () => {
         />
       )}
 
-      {activeTab === "share" && <CareerShareTab />}
+      {activeTab === "share" && (
+        <CareerShareTab
+          activeTemplate={shareQuery.activeTemplate}
+          setActiveTemplate={shareQuery.setActiveTemplate}
+          templates={shareQuery.templates}
+          preview={shareQuery.preview}
+          caption={shareQuery.caption}
+          isLoading={shareQuery.isLoading}
+          error={shareQuery.error}
+        />
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useContext } from "react";
 import { Button, TextField, useMediaQuery } from "@mui/material";
@@ -29,11 +29,13 @@ import {
 import { apiFetchRoomById } from "@domain/room/api";
 import {
   API_URL,
+  DEFAULT_PLAYBACK_EXTENSION_MODE,
   PLAYER_MAX,
   PLAYER_MIN,
   USERNAME_MAX,
   YOUTUBE_PLAYLIST_MIN_ITEM_COUNT,
 } from "@domain/room/constants";
+import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
   PlaylistPreviewRow,
 } from "./components/source/PlaylistPreviewRows";
@@ -61,7 +63,6 @@ import {
   DEFAULT_LEADERBOARD_VARIANT,
   DEFAULT_ROOM_PLAY_MODE,
   getLeaderboardProfileKey,
-  getLeaderboardVariant,
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
@@ -315,6 +316,8 @@ const RoomsHubPage: React.FC = () => {
   );
   const [isPinProtectionEnabled, setIsPinProtectionEnabled] = useState(false);
   const [pinValidationAttempted, setPinValidationAttempted] = useState(false);
+  const [playbackExtensionMode, setPlaybackExtensionMode] =
+    useState<PlaybackExtensionMode>(DEFAULT_PLAYBACK_EXTENSION_MODE);
   const [selectedLeaderboardMode, setSelectedLeaderboardMode] =
     useState<LeaderboardModeKey>(DEFAULT_LEADERBOARD_MODE);
   const [selectedLeaderboardVariant, setSelectedLeaderboardVariant] =
@@ -714,6 +717,7 @@ const RoomsHubPage: React.FC = () => {
     handlePickLinkSource();
     setCreateLeftTab("library");
     setRoomPlayMode("casual");
+    updateAllowCollectionClipTiming(false);
     setSourceSetupDrawer({
       kind: "link",
       summary: {
@@ -834,34 +838,18 @@ const RoomsHubPage: React.FC = () => {
     playlistItems.length < 10
       ? "目前題數偏少，雖然可以建立房間，但建議至少準備 10 題，遊戲體驗會更完整。"
       : null;
-  const syncMaxPlayersForLeaderboardVariant = (
-    mode: LeaderboardModeKey,
-    variant: LeaderboardVariantKey,
-  ) => {
-    if (getLeaderboardVariant(mode, variant).timeLimitSec) {
-      setRoomMaxPlayersInput("1");
-    }
-  };
   const handleRoomPlayModeChange = (nextMode: RoomPlayMode) => {
     setRoomPlayMode(nextMode);
-    if (nextMode === "leaderboard") {
-      syncMaxPlayersForLeaderboardVariant(
-        selectedLeaderboardMode,
-        selectedLeaderboardVariant,
-      );
-    }
   };
   const handleLeaderboardModeChange = (nextMode: LeaderboardModeKey) => {
     const nextVariant = leaderboardVariants[nextMode][0];
     setSelectedLeaderboardMode(nextMode);
     setSelectedLeaderboardVariant(nextVariant.key);
-    syncMaxPlayersForLeaderboardVariant(nextMode, nextVariant.key);
   };
   const handleLeaderboardVariantChange = (
     nextVariant: LeaderboardVariantKey,
   ) => {
     setSelectedLeaderboardVariant(nextVariant);
-    syncMaxPlayersForLeaderboardVariant(selectedLeaderboardMode, nextVariant);
   };
   const handleLeaderboardSelectionChange = (
     nextMode: LeaderboardModeKey,
@@ -869,19 +857,19 @@ const RoomsHubPage: React.FC = () => {
   ) => {
     setSelectedLeaderboardMode(nextMode);
     setSelectedLeaderboardVariant(nextVariant);
-    syncMaxPlayersForLeaderboardVariant(nextMode, nextVariant);
   };
-  const isTimeAttackLeaderboardSelected =
-    roomPlayMode === "leaderboard" &&
-    Boolean(
-      getLeaderboardVariant(selectedLeaderboardMode, selectedLeaderboardVariant)
-        .timeLimitSec,
-    );
   useEffect(() => {
     if (!pinInvalid) {
       setPinValidationAttempted(false);
     }
   }, [pinInvalid]);
+  const buildCreateRoomOptions = useCallback(
+    (leaderboardProfileKey?: string | null) => ({
+      ...(leaderboardProfileKey ? { leaderboardProfileKey } : {}),
+      playbackExtensionMode,
+    }),
+    [playbackExtensionMode],
+  );
   const canSubmitRoomCreate = () => {
     if (pinInvalid) {
       setPinValidationAttempted(true);
@@ -892,17 +880,8 @@ const RoomsHubPage: React.FC = () => {
   const handleCreateCasualRoomFromDrawer = () => {
     if (!canSubmitRoomCreate()) return;
     setRoomPlayMode("casual");
-    void handleCreateRoom();
+    void handleCreateRoom(buildCreateRoomOptions());
   };
-  useEffect(() => {
-    if (!isTimeAttackLeaderboardSelected) return;
-    if (roomMaxPlayersInput === "1") return;
-    setRoomMaxPlayersInput("1");
-  }, [
-    isTimeAttackLeaderboardSelected,
-    roomMaxPlayersInput,
-    setRoomMaxPlayersInput,
-  ]);
   useEffect(() => {
     if (!pendingLeaderboardStart) return;
     if (collectionItemsLoading) return;
@@ -918,10 +897,11 @@ const RoomsHubPage: React.FC = () => {
 
     const profileKey = pendingLeaderboardStart.profileKey;
     setPendingLeaderboardStart(null);
-    void handleCreateRoom({ leaderboardProfileKey: profileKey });
+    void handleCreateRoom(buildCreateRoomOptions(profileKey));
   }, [
     collectionItemsError,
     collectionItemsLoading,
+    buildCreateRoomOptions,
     handleCreateRoom,
     pendingLeaderboardStart,
     playlistItems.length,
@@ -947,10 +927,11 @@ const RoomsHubPage: React.FC = () => {
     if (playlistItems.length === 0) return;
 
     setPendingCustomRoomStart(null);
-    void handleCreateRoom();
+    void handleCreateRoom(buildCreateRoomOptions());
   }, [
     collectionItemsError,
     collectionItemsLoading,
+    buildCreateRoomOptions,
     handleCreateRoom,
     pendingCustomRoomStart,
     playlistItems.length,
@@ -1006,15 +987,6 @@ const RoomsHubPage: React.FC = () => {
   const supportsCollectionClipTiming =
     roomCreateSourceMode === "publicCollection" ||
     roomCreateSourceMode === "privateCollection";
-  useEffect(() => {
-    if (!supportsCollectionClipTiming && allowCollectionClipTiming) {
-      updateAllowCollectionClipTiming(false);
-    }
-  }, [
-    allowCollectionClipTiming,
-    supportsCollectionClipTiming,
-    updateAllowCollectionClipTiming,
-  ]);
   const isCreateSourceSummaryLoading =
     createLeftTab === "settings" &&
     !selectedCreateSourceSummary &&
@@ -1178,6 +1150,7 @@ const RoomsHubPage: React.FC = () => {
       });
     }
     setRoomPlayMode("casual");
+    updateAllowCollectionClipTiming(false);
     setRoomCreateSourceMode("youtube");
     setSelectedCreateYoutubeId(playlistId);
     setSelectedCreateCollectionId(null);
@@ -1986,6 +1959,8 @@ const RoomsHubPage: React.FC = () => {
         updateRevealDurationSec={updateRevealDurationSec}
         updateStartOffsetSec={updateStartOffsetSec}
         updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+        playbackExtensionMode={playbackExtensionMode}
+        setPlaybackExtensionMode={setPlaybackExtensionMode}
         supportsCollectionClipTiming={supportsCollectionClipTiming}
         selectedCreateSourceSummary={selectedCreateSourceSummary}
         isSourceSummaryLoading={isCreateSourceSummaryLoading}
@@ -2031,6 +2006,8 @@ const RoomsHubPage: React.FC = () => {
         updateRevealDurationSec={updateRevealDurationSec}
         updateStartOffsetSec={updateStartOffsetSec}
         updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+        playbackExtensionMode={playbackExtensionMode}
+        setPlaybackExtensionMode={setPlaybackExtensionMode}
         createSettingsCards={createSettingsCards}
         createRequirementsHintText={createRequirementsHintText}
         createRecommendationHintText={createRecommendationHintText}

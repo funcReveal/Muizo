@@ -30,6 +30,7 @@ import { List, type RowComponentProps } from "react-window";
 
 import { API_URL } from "@domain/room/constants";
 import type { RoomCreateSourceMode } from "@domain/room/types";
+import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
   apiFetchCollectionItemPreview,
   type CollectionItemPreviewRecord,
@@ -109,6 +110,8 @@ type CollectionDetailDrawerProps = {
   updateRevealDurationSec: (value: number) => number;
   updateStartOffsetSec: (value: number) => number;
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  playbackExtensionMode: PlaybackExtensionMode;
+  setPlaybackExtensionMode: (value: PlaybackExtensionMode) => void;
   supportsCollectionClipTiming: boolean;
   selectedCreateSourceSummary: SourceSummary;
   isSourceSummaryLoading: boolean;
@@ -409,6 +412,8 @@ const CollectionDetailDrawer = ({
   updateRevealDurationSec,
   updateStartOffsetSec,
   updateAllowCollectionClipTiming,
+  playbackExtensionMode,
+  setPlaybackExtensionMode,
   supportsCollectionClipTiming,
   selectedCreateSourceSummary,
   isSourceSummaryLoading,
@@ -841,6 +846,8 @@ const CollectionDetailDrawer = ({
                 updateRevealDurationSec={updateRevealDurationSec}
                 updateStartOffsetSec={updateStartOffsetSec}
                 updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+                playbackExtensionMode={playbackExtensionMode}
+                setPlaybackExtensionMode={setPlaybackExtensionMode}
                 supportsCollectionClipTiming={setupSupportsCollectionClipTiming}
                 selectedCreateSourceSummary={setupSourceSummary}
                 isSourceSummaryLoading={isSourceSummaryLoading}
@@ -858,10 +865,10 @@ const CollectionDetailDrawer = ({
             </main>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden md:grid-cols-[minmax(360px,0.8fr)_minmax(460px,1.2fr)] md:grid-rows-none">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:grid md:grid-cols-[minmax(360px,0.8fr)_minmax(460px,1.2fr)] md:grid-rows-none md:gap-0">
             <main className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               <section className="overflow-hidden rounded-[20px] border border-cyan-300/14 bg-slate-950/44 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="relative aspect-[16/5] min-h-28 overflow-hidden bg-slate-900/80 sm:min-h-32">
+                <div className="relative aspect-[16/5] min-h-24 overflow-hidden bg-slate-900/80 sm:min-h-32">
                   {previewThumbnail ? (
                     <img
                       src={previewThumbnail}
@@ -966,22 +973,22 @@ const CollectionDetailDrawer = ({
               </section>
             </main>
 
-            <aside className="min-h-0 border-t border-cyan-300/12 bg-slate-950/36 p-4 md:border-l md:border-t-0 md:p-5">
-              <div className="flex h-full min-h-0 flex-col rounded-2xl border border-amber-200/12 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.2))] p-4">
+            <aside className="min-h-0 shrink-0 border-t border-cyan-300/12 bg-slate-950/36 p-3 md:border-l md:border-t-0 md:p-5">
+              <div className="flex h-full min-h-0 flex-col rounded-2xl border border-amber-200/12 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.2))] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="mt-1 text-lg font-semibold text-slate-50">
+                    <h3 className="mt-1 text-base font-semibold text-slate-50 sm:text-lg">
                       全球排行榜
                     </h3>
                   </div>
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-200/16 bg-amber-300/10 text-amber-100">
+                  <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-amber-200/16 bg-amber-300/10 text-amber-100">
                     <EmojiEventsRounded />
                   </div>
                 </div>
 
                 {isPublic ? (
                   <>
-                    <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
+                    <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
                       {leaderboardModes.map((mode) => {
                         const selected = selectedLeaderboardMode === mode.key;
                         return (
@@ -1001,7 +1008,7 @@ const CollectionDetailDrawer = ({
                       })}
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       {activeLeaderboardVariants.map((variant) => {
                         const selected =
                           selectedLeaderboardVariant === variant.key;
@@ -1024,7 +1031,7 @@ const CollectionDetailDrawer = ({
                       })}
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="mt-3 grid grid-cols-3 gap-2">
                       {activeLeaderboardData.summary.map((item, index) => (
                         <div
                           key={item.label}
@@ -1044,7 +1051,7 @@ const CollectionDetailDrawer = ({
                       ))}
                     </div>
 
-                    <div className="mt-4 space-y-2.5">
+                    <div className="mt-3 space-y-2.5">
                       {activeLeaderboardData.players.map((player) => (
                         <div
                           key={`${activeLeaderboardVariant.key}-${player.rank}`}
@@ -1073,7 +1080,7 @@ const CollectionDetailDrawer = ({
                       ))}
                     </div>
 
-                    <div className="mt-auto pt-5">
+                    <div className="mt-3 pt-3">
                       <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
                         <div className="flex items-start gap-3">
                           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">

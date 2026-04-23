@@ -1,5 +1,7 @@
 import { createContext, useContext } from "react";
 
+import type { PlaybackExtensionMode } from "./types";
+
 export type RoomCreateSourceMode =
   | "link"
   | "youtube"
@@ -8,6 +10,7 @@ export type RoomCreateSourceMode =
 
 export type CreateRoomOptions = {
   leaderboardProfileKey?: string | null;
+  playbackExtensionMode?: PlaybackExtensionMode;
 };
 
 export interface RoomCreateContextValue {

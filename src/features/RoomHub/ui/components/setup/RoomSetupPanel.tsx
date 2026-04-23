@@ -32,10 +32,9 @@ import {
   START_OFFSET_MAX,
   START_OFFSET_MIN,
 } from "@domain/room/constants";
-import type { RoomCreateSourceMode } from "@domain/room/types";
+import type { PlaybackExtensionMode, RoomCreateSourceMode } from "@domain/room/types";
 import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 import {
-  getLeaderboardVariant,
   getLeaderboardModeDescription,
   leaderboardModes,
   leaderboardVariants,
@@ -76,6 +75,8 @@ type RoomSetupPanelProps = {
   updateRevealDurationSec: (value: number) => number;
   updateStartOffsetSec: (value: number) => number;
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  playbackExtensionMode: PlaybackExtensionMode;
+  setPlaybackExtensionMode: (value: PlaybackExtensionMode) => void;
   supportsCollectionClipTiming: boolean;
   selectedCreateSourceSummary: SourceSummary;
   isSourceSummaryLoading: boolean;
@@ -118,6 +119,8 @@ const RoomSetupPanel = ({
   updateRevealDurationSec,
   updateStartOffsetSec,
   updateAllowCollectionClipTiming,
+  playbackExtensionMode,
+  setPlaybackExtensionMode,
   supportsCollectionClipTiming,
   pinValidationAttempted = false,
   showLeaderboardMode = true,
@@ -147,24 +150,13 @@ const RoomSetupPanel = ({
     ) ?? leaderboardChallengeOptions[0];
   const activeLeaderboardModeDescription =
     getLeaderboardModeDescription(selectedLeaderboardMode);
-  const activeLeaderboardVariant = getLeaderboardVariant(
-    selectedLeaderboardMode,
-    selectedLeaderboardVariant,
-  );
   const isLeaderboardChallengeAvailable =
     roomCreateSourceMode === "publicCollection";
   const isLeaderboardRoom =
     roomPlayMode === "leaderboard" && isLeaderboardChallengeAvailable;
-  const isTimeAttackLeaderboard =
-    isLeaderboardRoom && Boolean(activeLeaderboardVariant.timeLimitSec);
-  const isMaxPlayersLocked = isTimeAttackLeaderboard;
-  const effectiveMaxPlayers = isMaxPlayersLocked
-    ? 1
-    : (parsedMaxPlayers ?? PLAYER_MIN);
-  const canDecreaseMaxPlayers =
-    !isMaxPlayersLocked && effectiveMaxPlayers > PLAYER_MIN;
-  const canIncreaseMaxPlayers =
-    !isMaxPlayersLocked && effectiveMaxPlayers < PLAYER_MAX;
+  const effectiveMaxPlayers = parsedMaxPlayers ?? PLAYER_MIN;
+  const canDecreaseMaxPlayers = effectiveMaxPlayers > PLAYER_MIN;
+  const canIncreaseMaxPlayers = effectiveMaxPlayers < PLAYER_MAX;
   const isLeaderboardSettingsLocked = isLeaderboardRoom;
   const isQuestionCountLocked = isLeaderboardSettingsLocked;
   const hasPinLengthError =
@@ -232,24 +224,15 @@ const RoomSetupPanel = ({
     </div>
   ) : null;
 
-  const maxPlayersLockedOverlay = isMaxPlayersLocked ? (
-    <div
-      aria-hidden="true"
-      className="pointer-events-auto absolute inset-0 z-20 flex cursor-not-allowed items-center justify-center rounded-2xl border border-amber-200/18 bg-slate-950/62 px-4 backdrop-blur-[2px]"
-    >
-      <div className="inline-flex items-center gap-3 rounded-2xl border border-amber-200/24 bg-amber-300/12 px-4 py-3 text-amber-50 shadow-[0_18px_34px_-28px_rgba(251,191,36,0.72)]">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-100/24 bg-amber-200/14">
-          <LockOutlined sx={{ fontSize: 18 }} />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold">限時挑戰固定 1 人</span>
-          <span className="mt-0.5 block text-xs text-amber-100/72">
-            此模式以個人成績登錄排行榜
-          </span>
-        </span>
-      </div>
-    </div>
-  ) : null;
+  const playbackExtensionOptions: Array<{
+    key: PlaybackExtensionMode;
+    label: string;
+    hint: string;
+  }> = [
+    { key: "manual_vote", label: "投票延長", hint: "玩家投票決定是否延長播放" },
+    { key: "auto_once", label: "自動延長一次", hint: "時間到時自動延長一次" },
+    { key: "disabled", label: "不開放延長", hint: "歌曲結束後直接進入結算" },
+  ];
 
   return (
     <div className="space-y-4">
@@ -599,14 +582,10 @@ const RoomSetupPanel = ({
                 人數限制
               </p>
               <span className="text-[11px] text-[var(--mc-text-muted)]">
-                {isMaxPlayersLocked ? "固定 1 人" : `${PLAYER_MIN}-${PLAYER_MAX} 人`}
+                {PLAYER_MIN}-{PLAYER_MAX} 人
               </span>
             </div>
-            <div
-              className={`mt-5 flex items-center justify-between gap-3 ${
-                isMaxPlayersLocked ? "opacity-60" : ""
-              }`}
-            >
+            <div className="mt-5 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() =>
@@ -653,12 +632,9 @@ const RoomSetupPanel = ({
                   <button
                     key={count}
                     type="button"
-                    disabled={isMaxPlayersLocked}
                     onClick={() => setRoomMaxPlayersInput(String(count))}
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      isMaxPlayersLocked
-                        ? "cursor-not-allowed border-white/8 bg-white/5 text-[var(--mc-text-muted)]/50"
-                        : effectiveMaxPlayers === count
+                      effectiveMaxPlayers === count
                         ? "border-cyan-300/60 bg-cyan-500/12 text-cyan-50"
                         : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/35 text-[var(--mc-text-muted)] hover:border-cyan-300/35 hover:text-[var(--mc-text)]"
                     }`}
@@ -667,7 +643,6 @@ const RoomSetupPanel = ({
                   </button>
                 ))}
             </div>
-            {maxPlayersLockedOverlay}
           </div>
 
           <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
@@ -837,9 +812,13 @@ const RoomSetupPanel = ({
                 <>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
-                      <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+                      {allowCollectionClipTiming ? (
+                        <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+                      ) : (
+                        <TimerRounded sx={{ fontSize: 18, color: "#7dd3fc" }} />
+                      )}
                       <p className="text-sm font-semibold text-[var(--mc-text)]">
-                        收藏庫片段
+                        {allowCollectionClipTiming ? "收藏庫片段" : "手動節奏"}
                       </p>
                     </div>
                   </div>
@@ -938,7 +917,7 @@ const RoomSetupPanel = ({
                             Array.isArray(value) ? value[0] : value,
                           )
                         }
-                        valueLabelDisplay="on"
+                        valueLabelDisplay="auto"
                       />
                     </div>
                   </div>
@@ -997,7 +976,7 @@ const RoomSetupPanel = ({
                             Array.isArray(value) ? value[0] : value,
                           )
                         }
-                        valueLabelDisplay="on"
+                        valueLabelDisplay="auto"
                       />
                     </div>
                   </div>
@@ -1038,6 +1017,46 @@ const RoomSetupPanel = ({
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div
+          className={`mt-4 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 p-4 ${
+            isLeaderboardSettingsLocked
+              ? "pointer-events-none opacity-55 saturate-75"
+              : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+            <p className="text-sm font-semibold text-[var(--mc-text)]">
+              投票設定
+            </p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {playbackExtensionOptions.map((option) => {
+              const selected = playbackExtensionMode === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  disabled={isLeaderboardSettingsLocked}
+                  onClick={() => setPlaybackExtensionMode(option.key)}
+                  className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                    selected
+                      ? "border-amber-300/45 bg-amber-300/12 text-amber-50"
+                      : "border-white/8 bg-white/5 text-slate-300 hover:border-amber-300/28 hover:bg-white/[0.07]"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">
+                    {option.label}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4 text-slate-400">
+                    {option.hint}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
         {leaderboardLockedOverlay}

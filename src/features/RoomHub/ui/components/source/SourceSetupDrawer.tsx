@@ -8,6 +8,7 @@ import {
 import { Button, Drawer, IconButton, useMediaQuery } from "@mui/material";
 
 import type { RoomCreateSourceMode } from "@domain/room/types";
+import type { PlaybackExtensionMode } from "@domain/room/types";
 import RoomSetupPanel from "../setup/RoomSetupPanel";
 import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 import type {
@@ -47,6 +48,8 @@ type SourceSetupDrawerProps = {
   updateRevealDurationSec: (value: number) => number;
   updateStartOffsetSec: (value: number) => number;
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  playbackExtensionMode: PlaybackExtensionMode;
+  setPlaybackExtensionMode: (value: PlaybackExtensionMode) => void;
   createSettingsCards: CreateSettingsCard[];
   createRequirementsHintText: string | null;
   createRecommendationHintText: string | null;
@@ -96,6 +99,8 @@ const SourceSetupDrawer = ({
   updateRevealDurationSec,
   updateStartOffsetSec,
   updateAllowCollectionClipTiming,
+  playbackExtensionMode,
+  setPlaybackExtensionMode,
   createSettingsCards,
   createRequirementsHintText,
   createRecommendationHintText,
@@ -229,6 +234,8 @@ const SourceSetupDrawer = ({
               updateRevealDurationSec={updateRevealDurationSec}
               updateStartOffsetSec={updateStartOffsetSec}
               updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+              playbackExtensionMode={playbackExtensionMode}
+              setPlaybackExtensionMode={setPlaybackExtensionMode}
               supportsCollectionClipTiming={false}
               selectedCreateSourceSummary={sourceSummary}
               isSourceSummaryLoading={isSourceLoading}
