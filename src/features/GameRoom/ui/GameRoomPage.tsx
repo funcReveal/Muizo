@@ -351,6 +351,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     scoreboardBorderTheme,
     scoreboardBorderParticleCount,
   } = useSettingsModel();
+  const isLeaderboardRoom = Boolean(room.gameSettings?.leaderboardProfileKey);
   const requiresAudioGesture = useMemo(() => {
     if (typeof window === "undefined") return false;
     return isMobileDevice();
@@ -976,11 +977,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     );
   }, [gameState.clipEndSec, gameState.clipSource, gameState.clipStartSec]);
 
+  const [leaderboardLockShakeKey, setLeaderboardLockShakeKey] = useState(0);
+  const handleSubmitChoice = useCallback(
+    (choiceIndex: number) => {
+      if (isLeaderboardRoom && selectedChoice !== null && selectedChoice !== choiceIndex) {
+        setLeaderboardLockShakeKey((k) => k + 1);
+        return;
+      }
+      submitChoiceWithFeedback(choiceIndex);
+    },
+    [isLeaderboardRoom, selectedChoice, submitChoiceWithFeedback],
+  );
+
   useGameRoomChoiceHotkeys({
     enabled: canAnswerNow,
     choices: gameState.choices,
     keyBindings,
-    onSubmitChoice: submitChoiceWithFeedback,
+    onSubmitChoice: handleSubmitChoice,
   });
 
   const effectivePlayerVideoId =
@@ -1574,6 +1587,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 scoreboardBorderParticleCount={
                   mobileScoreboardBorderParticleCount
                 }
+                isLeaderboardRoom={isLeaderboardRoom}
               />
             </div>
           )}
@@ -1635,7 +1649,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               waitingToStart={waitingToStart}
               shouldShowGestureOverlay={shouldShowGestureOverlay}
               canAnswerNow={canAnswerNow}
-              onSubmitChoice={submitChoiceWithFeedback}
+              onSubmitChoice={handleSubmitChoice}
               keyBindings={keyBindings}
               myHasChangedAnswer={myHasChangedAnswer}
               myFeedback={myFeedback}
@@ -1668,6 +1682,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               liveUnansweredCount={displayUnansweredCount}
               isRecoveringConnection={isRecoveringConnection}
               recoveryStatusText={recoveryStatusText}
+              isLeaderboardRoom={isLeaderboardRoom}
+              leaderboardLockShakeKey={leaderboardLockShakeKey}
             />
             {isMobileGameViewport && (
               <div
@@ -1851,6 +1867,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     scoreboardBorderParticleCount={
                       mobileScoreboardBorderParticleCount
                     }
+                    isLeaderboardRoom={isLeaderboardRoom}
                   />
                 </div>
               </Drawer>
