@@ -1,15 +1,16 @@
 import { useState } from "react";
 
-import { Slider, TextField } from "@mui/material";
+import { Slider, TextField, Tooltip } from "@mui/material";
 import {
   AccessTimeRounded,
   AddRounded,
+  CelebrationRounded,
+  EditNoteRounded,
   EmojiEventsRounded,
   GroupsRounded,
   KeyboardArrowDownRounded,
   LockRounded,
   LockOutlined,
-  MeetingRoomRounded,
   PinOutlined,
   PlayCircleOutlineRounded,
   PublicOutlined,
@@ -18,7 +19,6 @@ import {
   ScheduleRounded,
   TimerRounded,
   TuneRounded,
-  VideogameAssetRounded,
 } from "@mui/icons-material";
 
 import {
@@ -32,6 +32,7 @@ import {
   START_OFFSET_MAX,
   START_OFFSET_MIN,
 } from "@domain/room/constants";
+import type { PlaybackExtensionMode, RoomCreateSourceMode } from "@domain/room/types";
 import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 import {
   getLeaderboardModeDescription,
@@ -49,6 +50,8 @@ type RoomSetupPanelProps = {
   setRoomVisibilityInput: (value: "public" | "private") => void;
   roomPasswordInput: string;
   setRoomPasswordInput: (value: string) => void;
+  isPinProtectionEnabled: boolean;
+  setIsPinProtectionEnabled: (value: boolean) => void;
   setRoomMaxPlayersInput: (value: string) => void;
   parsedMaxPlayers: number | null;
   questionCount: number;
@@ -57,6 +60,7 @@ type RoomSetupPanelProps = {
   updateQuestionCount: (value: number) => void;
   roomPlayMode: RoomPlayMode;
   setRoomPlayMode: (value: RoomPlayMode) => void;
+  roomCreateSourceMode: RoomCreateSourceMode;
   selectedLeaderboardMode: LeaderboardModeKey;
   selectedLeaderboardVariant: LeaderboardVariantKey;
   onLeaderboardSelectionChange: (
@@ -71,6 +75,8 @@ type RoomSetupPanelProps = {
   updateRevealDurationSec: (value: number) => number;
   updateStartOffsetSec: (value: number) => number;
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  playbackExtensionMode: PlaybackExtensionMode;
+  setPlaybackExtensionMode: (value: PlaybackExtensionMode) => void;
   supportsCollectionClipTiming: boolean;
   selectedCreateSourceSummary: SourceSummary;
   isSourceSummaryLoading: boolean;
@@ -80,6 +86,8 @@ type RoomSetupPanelProps = {
   canCreateRoom: boolean;
   isCreatingRoom: boolean;
   onCreateRoom: () => void;
+  pinValidationAttempted?: boolean;
+  showLeaderboardMode?: boolean;
 };
 
 const RoomSetupPanel = ({
@@ -89,6 +97,8 @@ const RoomSetupPanel = ({
   setRoomVisibilityInput,
   roomPasswordInput,
   setRoomPasswordInput,
+  isPinProtectionEnabled,
+  setIsPinProtectionEnabled,
   setRoomMaxPlayersInput,
   parsedMaxPlayers,
   questionCount,
@@ -97,6 +107,7 @@ const RoomSetupPanel = ({
   updateQuestionCount,
   roomPlayMode,
   setRoomPlayMode,
+  roomCreateSourceMode,
   selectedLeaderboardMode,
   selectedLeaderboardVariant,
   onLeaderboardSelectionChange,
@@ -108,19 +119,17 @@ const RoomSetupPanel = ({
   updateRevealDurationSec,
   updateStartOffsetSec,
   updateAllowCollectionClipTiming,
+  playbackExtensionMode,
+  setPlaybackExtensionMode,
   supportsCollectionClipTiming,
+  pinValidationAttempted = false,
+  showLeaderboardMode = true,
 }: RoomSetupPanelProps) => {
   const isPrivateRoom = roomVisibilityInput === "private";
-  const [isPinProtectionEnabled, setIsPinProtectionEnabled] = useState(
-    () => roomPasswordInput.length > 0,
-  );
   const [isLeaderboardSpecMenuOpen, setIsLeaderboardSpecMenuOpen] =
     useState(false);
   const isPinProtectionOpen =
     isPinProtectionEnabled || roomPasswordInput.length > 0;
-  const effectiveMaxPlayers = parsedMaxPlayers ?? PLAYER_MIN;
-  const canDecreaseMaxPlayers = effectiveMaxPlayers > PLAYER_MIN;
-  const canIncreaseMaxPlayers = effectiveMaxPlayers < PLAYER_MAX;
   const canDecreaseQuestionCount = questionCount > questionMin;
   const canIncreaseQuestionCount = questionCount < questionMaxLimit;
   const leaderboardChallengeGroups = leaderboardModes.map((mode) => ({
@@ -141,13 +150,61 @@ const RoomSetupPanel = ({
     ) ?? leaderboardChallengeOptions[0];
   const activeLeaderboardModeDescription =
     getLeaderboardModeDescription(selectedLeaderboardMode);
-  const isLeaderboardRoom = roomPlayMode === "leaderboard";
+  const isLeaderboardChallengeAvailable =
+    roomCreateSourceMode === "publicCollection";
+  const isLeaderboardRoom =
+    roomPlayMode === "leaderboard" && isLeaderboardChallengeAvailable;
+  const effectiveMaxPlayers = parsedMaxPlayers ?? PLAYER_MIN;
+  const canDecreaseMaxPlayers = effectiveMaxPlayers > PLAYER_MIN;
+  const canIncreaseMaxPlayers = effectiveMaxPlayers < PLAYER_MAX;
   const isLeaderboardSettingsLocked = isLeaderboardRoom;
   const isQuestionCountLocked = isLeaderboardSettingsLocked;
   const hasPinLengthError =
+    pinValidationAttempted &&
     isPinProtectionOpen &&
-    roomPasswordInput.length > 0 &&
-    roomPasswordInput.length < 4;
+    roomPasswordInput.length !== 4;
+  const pinTooltipOpen = hasPinLengthError;
+  const playDurationMarks = [
+    { value: PLAY_DURATION_MIN, label: `${PLAY_DURATION_MIN}s` },
+    { value: 30, label: "30s" },
+    { value: 60, label: "60s" },
+    { value: PLAY_DURATION_MAX, label: `${PLAY_DURATION_MAX}s` },
+  ];
+  const startOffsetMarks = [
+    { value: START_OFFSET_MIN, label: "0s" },
+    { value: 60, label: "1m" },
+    { value: 180, label: "3m" },
+    { value: 300, label: "5m" },
+    { value: START_OFFSET_MAX, label: "10m" },
+  ];
+  const controlSliderSx = {
+    height: 8,
+    py: 1.5,
+    "& .MuiSlider-rail": {
+      height: 10,
+      borderRadius: 999,
+      backgroundColor: "rgba(148,163,184,0.22)",
+      opacity: 1,
+    },
+    "& .MuiSlider-track": {
+      height: 10,
+      borderRadius: 999,
+      background:
+        "linear-gradient(90deg, rgba(34,211,238,0.88), rgba(52,211,153,0.82))",
+      border: "none",
+    },
+    "& .MuiSlider-thumb": {
+      width: 28,
+      height: 28,
+      border: "2px solid rgba(226,232,240,0.95)",
+      backgroundColor: "#0f172a",
+      boxShadow: "0 10px 24px -14px rgba(34,211,238,0.9)",
+      "&:hover, &.Mui-focusVisible": {
+        boxShadow: "0 0 0 8px rgba(34,211,238,0.12)",
+      },
+    },
+  };
+
   const leaderboardLockedOverlay = isLeaderboardSettingsLocked ? (
     <div
       aria-hidden="true"
@@ -167,151 +224,180 @@ const RoomSetupPanel = ({
     </div>
   ) : null;
 
+  const playbackExtensionOptions: Array<{
+    key: PlaybackExtensionMode;
+    label: string;
+    hint: string;
+  }> = [
+    { key: "manual_vote", label: "投票延長", hint: "玩家投票決定是否延長播放" },
+    { key: "auto_once", label: "自動延長一次", hint: "時間到時自動延長一次" },
+    { key: "disabled", label: "不開放延長", hint: "歌曲結束後直接進入結算" },
+  ];
+
   return (
     <div className="space-y-4">
       <section className="px-1 py-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <MeetingRoomRounded sx={{ fontSize: 18, color: "#7dd3fc" }} />
-            <p className="text-sm font-semibold text-[var(--mc-text)]">
-              房間資訊
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isPrivateRoom}
-            onClick={() =>
-              setRoomVisibilityInput(isPrivateRoom ? "public" : "private")
-            }
-            className="inline-flex items-center gap-1.5 px-1 py-1 transition"
-          >
-            {isPrivateRoom ? (
-              <LockRounded sx={{ fontSize: 16, color: "#fbbf24" }} />
-            ) : (
-              <PublicOutlined sx={{ fontSize: 16, color: "#7dd3fc" }} />
-            )}
-            <span
-              className={`text-xs font-semibold ${
-                isPrivateRoom ? "text-amber-100" : "text-cyan-100"
-              }`}
+        <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center text-cyan-100">
+                <EditNoteRounded sx={{ fontSize: 21 }} />
+              </span>
+              <p className="text-sm font-semibold text-[var(--mc-text)]">
+                房間資訊
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isPrivateRoom}
+              onClick={() =>
+                setRoomVisibilityInput(isPrivateRoom ? "public" : "private")
+              }
+              className="inline-flex items-center gap-2 px-1 py-1 transition"
             >
-              {isPrivateRoom ? "私人" : "公開"}
-            </span>
-            <span
-              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                isPrivateRoom
-                  ? "border-amber-300/45 bg-amber-300/18"
-                  : "border-cyan-300/35 bg-cyan-400/18"
-              }`}
-            >
+              {isPrivateRoom ? (
+                <LockRounded sx={{ fontSize: 16, color: "#fbbf24" }} />
+              ) : (
+                <PublicOutlined sx={{ fontSize: 16, color: "#7dd3fc" }} />
+              )}
               <span
-                className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
-                  isPrivateRoom
-                    ? "left-[1.3rem] bg-amber-200"
-                    : "left-1 bg-cyan-200"
+                className={`text-xs font-semibold ${
+                  isPrivateRoom ? "text-amber-100" : "text-cyan-100"
                 }`}
-              />
-            </span>
-          </button>
-        </div>
-
-        <div className="mt-2 space-y-2">
-          <TextField
-            size="small"
-            variant="standard"
-            fullWidth
-            label="房間名稱"
-            value={roomNameInput}
-            onChange={(event) => setRoomNameInput(event.target.value)}
-          />
-
-          <div className="px-1 py-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                <PinOutlined sx={{ fontSize: 18, color: "#fbbf24" }} />
-                <p className="text-sm font-semibold text-[var(--mc-text)]">
-                  密碼保護
-                </p>
-                {isPinProtectionOpen ? (
-                  <div className="w-[108px] max-w-full sm:w-[132px]">
-                    <TextField
-                      variant="standard"
-                      size="small"
-                      fullWidth
-                      placeholder="4 位數 PIN"
-                      autoComplete="off"
-                      value={roomPasswordInput}
-                      error={hasPinLengthError}
-                      onChange={(event) =>
-                        setRoomPasswordInput(
-                          event.target.value.replace(/\D/g, "").slice(0, 4),
-                        )
-                      }
-                      slotProps={{
-                        htmlInput: {
-                          "aria-label": "PIN",
-                          inputMode: "numeric",
-                          lang: "en",
-                          autoCorrect: "off",
-                          pattern: "\\d{4}",
-                          maxLength: 4,
-                          style: { imeMode: "disabled" },
-                        },
-                      }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isPinProtectionOpen}
-                onClick={() => {
-                  if (isPinProtectionOpen) {
-                    setRoomPasswordInput("");
-                    setIsPinProtectionEnabled(false);
-                    return;
-                  }
-                  setIsPinProtectionEnabled(true);
-                }}
-                className="ml-auto inline-flex shrink-0 items-center gap-1.5 px-1 py-1 transition"
+              >
+                {isPrivateRoom ? "私人" : "公開"}
+              </span>
+              <span
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+                  isPrivateRoom
+                    ? "border-amber-300/45 bg-amber-300/18"
+                    : "border-cyan-300/35 bg-cyan-400/18"
+                }`}
               >
                 <span
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                    isPinProtectionOpen
-                      ? "border-emerald-300/40 bg-emerald-300/18"
-                      : "border-white/10 bg-white/5"
+                  className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                    isPrivateRoom
+                      ? "left-[1.3rem] bg-amber-200"
+                      : "left-1 bg-cyan-200"
                   }`}
+                />
+              </span>
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.62fr)]">
+            <TextField
+              size="small"
+              variant="standard"
+              fullWidth
+              label="房間名稱"
+              value={roomNameInput}
+              onChange={(event) => setRoomNameInput(event.target.value)}
+            />
+
+            <div className="rounded-xl border border-white/8 bg-slate-950/18 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <PinOutlined sx={{ fontSize: 17, color: "#fbbf24" }} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--mc-text)]">
+                      密碼保護
+                    </p>
+                  </div>
+                  <div
+                    className={`ml-1 w-[108px] max-w-full transition sm:w-[132px] ${
+                      isPinProtectionOpen
+                        ? "opacity-100"
+                        : "pointer-events-none opacity-0"
+                    }`}
+                  >
+                    <Tooltip
+                      title="請輸入 4 位數 PIN"
+                      open={pinTooltipOpen}
+                      placement="top"
+                      arrow
+                    >
+                      <span className="block">
+                        <TextField
+                          variant="standard"
+                          size="small"
+                          fullWidth
+                          disabled={!isPinProtectionOpen}
+                          placeholder="4 位數 PIN"
+                          autoComplete="off"
+                          value={roomPasswordInput}
+                          error={hasPinLengthError}
+                          onChange={(event) =>
+                            setRoomPasswordInput(
+                              event.target.value.replace(/\D/g, "").slice(0, 4),
+                            )
+                          }
+                          slotProps={{
+                            htmlInput: {
+                              "aria-label": "PIN",
+                              inputMode: "numeric",
+                              lang: "en",
+                              autoCorrect: "off",
+                              pattern: "\\d{4}",
+                              maxLength: 4,
+                              style: { imeMode: "disabled" },
+                            },
+                          }}
+                        />
+                      </span>
+                    </Tooltip>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPinProtectionOpen}
+                  onClick={() => {
+                    if (isPinProtectionOpen) {
+                      setRoomPasswordInput("");
+                      setIsPinProtectionEnabled(false);
+                      return;
+                    }
+                    setIsPinProtectionEnabled(true);
+                  }}
+                  className="inline-flex shrink-0 items-center px-0.5 py-1 transition"
                 >
                   <span
-                    className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
                       isPinProtectionOpen
-                        ? "left-[1.3rem] bg-emerald-200"
-                        : "left-1 bg-slate-200"
+                        ? "border-emerald-300/40 bg-emerald-300/18"
+                        : "border-white/10 bg-white/5"
                     }`}
-                  />
-                </span>
-              </button>
+                  >
+                    <span
+                      className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                        isPinProtectionOpen
+                          ? "left-[1.3rem] bg-emerald-200"
+                          : "left-1 bg-slate-200"
+                      }`}
+                    />
+                  </span>
+                </button>
+              </div>
             </div>
-            {isPinProtectionOpen && hasPinLengthError ? (
-              <p className="mt-1 text-right text-[11px] text-[#f87171]">
-                PIN 必須為 4 位數
-              </p>
-            ) : null}
           </div>
         </div>
       </section>
 
       <section className="px-1 py-2">
         <div className="flex items-center gap-2">
-          <VideogameAssetRounded sx={{ fontSize: 18, color: "#34d399" }} />
+          <CelebrationRounded sx={{ fontSize: 18, color: "#34d399" }} />
           <p className="text-sm font-semibold text-[var(--mc-text)]">
             房間模式
           </p>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div
+          className={`mt-3 grid gap-2 ${
+            showLeaderboardMode ? "sm:grid-cols-2" : ""
+          }`}
+        >
           <button
             type="button"
             onClick={() => setRoomPlayMode("casual")}
@@ -329,7 +415,7 @@ const RoomSetupPanel = ({
                     : "border-white/10 bg-slate-950/35 text-slate-300"
                 }`}
               >
-                <MeetingRoomRounded sx={{ fontSize: 18 }} />
+                <CelebrationRounded sx={{ fontSize: 18 }} />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold">休閒派對</span>
@@ -340,9 +426,10 @@ const RoomSetupPanel = ({
             </div>
           </button>
 
-          <div
-            className={`rounded-2xl border px-3 py-3 transition ${
-              isLeaderboardRoom
+          {showLeaderboardMode ? (
+            <div
+            className={`relative rounded-2xl border px-3 py-3 transition ${
+              isLeaderboardRoom && isLeaderboardChallengeAvailable
                 ? "border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 : "border-white/8 bg-white/5 text-[var(--mc-text-muted)] hover:border-amber-300/28 hover:bg-white/[0.07]"
             }`}
@@ -350,12 +437,16 @@ const RoomSetupPanel = ({
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => setRoomPlayMode("leaderboard")}
-                className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                disabled={!isLeaderboardChallengeAvailable}
+                onClick={() => {
+                  if (!isLeaderboardChallengeAvailable) return;
+                  setRoomPlayMode("leaderboard");
+                }}
+                className="flex min-w-0 flex-1 items-start gap-3 text-left disabled:cursor-not-allowed"
               >
                 <span
                   className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-                    isLeaderboardRoom
+                    isLeaderboardRoom && isLeaderboardChallengeAvailable
                       ? "border-amber-200/24 bg-amber-300/14 text-amber-100"
                       : "border-white/10 bg-slate-950/35 text-slate-300"
                   }`}
@@ -372,7 +463,7 @@ const RoomSetupPanel = ({
                 </span>
               </button>
 
-              {isLeaderboardRoom ? (
+              {isLeaderboardChallengeAvailable ? (
                 <div
                   className="relative shrink-0"
                   onBlur={(event) => {
@@ -392,7 +483,11 @@ const RoomSetupPanel = ({
                     onClick={() =>
                       setIsLeaderboardSpecMenuOpen((current) => !current)
                     }
-                    className="inline-flex h-10 w-[124px] items-center justify-between gap-2.5 rounded-xl border border-amber-100/22 bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(2,6,23,0.44))] px-3 text-left text-sm font-semibold text-amber-50 outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-amber-100/36 hover:bg-slate-950/44 focus:border-amber-100/50 focus:ring-2 focus:ring-amber-200/10"
+                    className={`inline-flex h-10 w-[124px] items-center justify-between gap-2.5 rounded-xl border px-3 text-left text-sm font-semibold outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-amber-100/36 hover:bg-slate-950/44 focus:border-amber-100/50 focus:ring-2 focus:ring-amber-200/10 ${
+                      isLeaderboardRoom
+                        ? "border-amber-100/22 bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(2,6,23,0.44))] text-amber-50"
+                        : "border-white/10 bg-slate-950/30 text-amber-100/86"
+                    }`}
                   >
                     <span className="min-w-0 truncate">
                       {activeLeaderboardOption.label}
@@ -432,6 +527,7 @@ const RoomSetupPanel = ({
                                       event.preventDefault()
                                     }
                                     onClick={() => {
+                                      setRoomPlayMode("leaderboard");
                                       onLeaderboardSelectionChange(
                                         option.modeKey,
                                         option.variantKey,
@@ -464,13 +560,22 @@ const RoomSetupPanel = ({
                 </div>
               ) : null}
             </div>
-          </div>
+            {!isLeaderboardChallengeAvailable ? (
+              <div className="absolute inset-0 z-10 flex items-center justify-end rounded-2xl bg-slate-950/66 px-3 backdrop-blur-[2px]">
+                <div className="inline-flex max-w-[13rem] items-center gap-2 rounded-xl border border-amber-100/18 bg-slate-950/84 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
+                  <LockOutlined sx={{ fontSize: 16 }} />
+                  <span className="leading-5">僅公開收藏庫可用</span>
+                </div>
+              </div>
+            ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
 
       <section className="px-1 py-2">
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="select-none px-1 py-2">
+          <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
             <div className="flex items-center justify-between gap-3">
               <p className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--mc-text)]">
                 <GroupsRounded sx={{ fontSize: 18, color: "#7dd3fc" }} />
@@ -660,6 +765,38 @@ const RoomSetupPanel = ({
               遊戲節奏
             </p>
           </div>
+          {supportsCollectionClipTiming ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allowCollectionClipTiming}
+              disabled={isLeaderboardSettingsLocked}
+              onClick={() =>
+                updateAllowCollectionClipTiming(!allowCollectionClipTiming)
+              }
+              className="inline-flex items-center gap-2 px-1 py-1.5 transition disabled:cursor-not-allowed"
+            >
+              <TuneRounded sx={{ fontSize: 16, color: "#34d399" }} />
+              <span className="hidden text-xs font-semibold text-emerald-100 sm:inline">
+                使用收藏庫片段
+              </span>
+              <span
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+                  allowCollectionClipTiming
+                    ? "border-emerald-300/40 bg-emerald-300/18"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <span
+                  className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                    allowCollectionClipTiming
+                      ? "left-[1.3rem] bg-emerald-200"
+                      : "left-1 bg-slate-200"
+                  }`}
+                />
+              </span>
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -670,86 +807,60 @@ const RoomSetupPanel = ({
           }`}
         >
           <div>
-            <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 p-4">
+            <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 p-3">
               {supportsCollectionClipTiming ? (
                 <>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
-                      <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+                      {allowCollectionClipTiming ? (
+                        <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+                      ) : (
+                        <TimerRounded sx={{ fontSize: 18, color: "#7dd3fc" }} />
+                      )}
                       <p className="text-sm font-semibold text-[var(--mc-text)]">
-                        沿用收藏庫片段時間
+                        {allowCollectionClipTiming ? "收藏庫片段" : "手動節奏"}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={allowCollectionClipTiming}
-                      disabled={isLeaderboardSettingsLocked}
-                      onClick={() =>
-                        updateAllowCollectionClipTiming(!allowCollectionClipTiming)
-                      }
-                      className="inline-flex items-center gap-2 px-1 py-1.5 transition disabled:cursor-not-allowed"
-                    >
-                      <span
-                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                          allowCollectionClipTiming
-                            ? "border-emerald-300/40 bg-emerald-300/18"
-                            : "border-white/10 bg-white/5"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
-                            allowCollectionClipTiming
-                              ? "left-[1.3rem] bg-emerald-200"
-                              : "left-1 bg-slate-200"
-                          }`}
-                        />
-                      </span>
-                    </button>
                   </div>
-                  <p className="mt-3 text-xs text-[var(--mc-text-muted)]">
-                    建立房間時使用目前題庫裡設定好的播放起始與作答秒數。
+                  <p className="mt-2 text-xs text-[var(--mc-text-muted)]">
+                    {allowCollectionClipTiming
+                      ? "建立房間時使用目前題庫裡設定好的播放起始與作答秒數。"
+                      : "已改為手動設定作答時間與起始秒數。"}
                   </p>
                 </>
               ) : null}
 
               {allowCollectionClipTiming ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
                     disabled={isLeaderboardSettingsLocked}
                     onClick={() => updateAllowCollectionClipTiming(false)}
-                    className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
+                    className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
                   >
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                      作答時間
+                    <p className="text-sm font-semibold text-emerald-100">
+                      作答時間 · 依題庫設定
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-emerald-100">
-                      依題庫設定
-                    </p>
-                    <p className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                      點擊後改為手動設定
+                    <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+                      點擊改為手動設定
                     </p>
                   </button>
                   <button
                     type="button"
                     disabled={isLeaderboardSettingsLocked}
                     onClick={() => updateAllowCollectionClipTiming(false)}
-                    className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
+                    className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
                   >
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]">
-                      起始秒數
+                    <p className="text-sm font-semibold text-emerald-100">
+                      起始秒數 · 依題庫設定
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-emerald-100">
-                      依題庫設定
-                    </p>
-                    <p className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
-                      點擊後改為手動設定
+                    <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]">
+                      點擊改為手動設定
                     </p>
                   </button>
                 </div>
               ) : (
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="mt-3 grid gap-3">
                   <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
                     <div className="flex items-center gap-2">
                       <PlayCircleOutlineRounded
@@ -759,19 +870,48 @@ const RoomSetupPanel = ({
                         作答時間
                       </p>
                     </div>
-                    <p className="mt-3 text-xs text-[var(--mc-text-muted)]">
+                    <p className="mt-2 text-xs text-[var(--mc-text-muted)]">
                       每題開始播放後，玩家可以作答的秒數。
                     </p>
-                    <div className="mt-3 text-xl font-semibold text-[var(--mc-text)]">
-                      {playDurationSec}s
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        disabled={isLeaderboardSettingsLocked}
+                        onClick={() =>
+                          updatePlayDurationSec(
+                            Math.max(PLAY_DURATION_MIN, playDurationSec - 1),
+                          )
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-cyan-300/35 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <RemoveRounded sx={{ fontSize: 16 }} />
+                      </button>
+                      <div className="text-xl font-semibold text-[var(--mc-text)]">
+                        {playDurationSec}s
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isLeaderboardSettingsLocked}
+                        onClick={() =>
+                          updatePlayDurationSec(
+                            Math.min(PLAY_DURATION_MAX, playDurationSec + 1),
+                          )
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-cyan-300/35 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <AddRounded sx={{ fontSize: 16 }} />
+                      </button>
                     </div>
-                    <div className="mt-3 px-1">
+                    <div className="mt-2 px-2 pb-3">
                       <Slider
                         value={playDurationSec}
                         min={PLAY_DURATION_MIN}
                         max={PLAY_DURATION_MAX}
                         step={1}
+                        shiftStep={5}
+                        marks={playDurationMarks}
                         disabled={isLeaderboardSettingsLocked}
+                        sx={controlSliderSx}
                         onChange={(_event, value) =>
                           updatePlayDurationSec(
                             Array.isArray(value) ? value[0] : value,
@@ -789,19 +929,48 @@ const RoomSetupPanel = ({
                         起始秒數
                       </p>
                     </div>
-                    <p className="mt-3 text-xs text-[var(--mc-text-muted)]">
+                    <p className="mt-2 text-xs text-[var(--mc-text-muted)]">
                       從歌曲的第幾秒開始播放，讓玩家從指定片段開始作答。
                     </p>
-                    <div className="mt-3 text-xl font-semibold text-[var(--mc-text)]">
-                      {startOffsetSec}s
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        disabled={isLeaderboardSettingsLocked}
+                        onClick={() =>
+                          updateStartOffsetSec(
+                            Math.max(START_OFFSET_MIN, startOffsetSec - 5),
+                          )
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-cyan-300/35 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <RemoveRounded sx={{ fontSize: 16 }} />
+                      </button>
+                      <div className="text-xl font-semibold text-[var(--mc-text)]">
+                        {startOffsetSec}s
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isLeaderboardSettingsLocked}
+                        onClick={() =>
+                          updateStartOffsetSec(
+                            Math.min(START_OFFSET_MAX, startOffsetSec + 5),
+                          )
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition hover:border-cyan-300/35 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <AddRounded sx={{ fontSize: 16 }} />
+                      </button>
                     </div>
-                    <div className="mt-3 px-1">
+                    <div className="mt-2 px-2 pb-3">
                       <Slider
                         value={startOffsetSec}
                         min={START_OFFSET_MIN}
                         max={START_OFFSET_MAX}
                         step={1}
+                        shiftStep={5}
+                        marks={startOffsetMarks}
                         disabled={isLeaderboardSettingsLocked}
+                        sx={controlSliderSx}
                         onChange={(_event, value) =>
                           updateStartOffsetSec(
                             Array.isArray(value) ? value[0] : value,
@@ -836,7 +1005,9 @@ const RoomSetupPanel = ({
                   min={REVEAL_DURATION_MIN}
                   max={REVEAL_DURATION_MAX}
                   step={1}
+                  shiftStep={1}
                   disabled={isLeaderboardSettingsLocked}
+                  sx={controlSliderSx}
                   onChange={(_event, value) =>
                     updateRevealDurationSec(
                       Array.isArray(value) ? value[0] : value,
@@ -846,6 +1017,46 @@ const RoomSetupPanel = ({
                 />
               </div>
             </div>
+          </div>
+        </div>
+
+        <div
+          className={`mt-4 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 p-4 ${
+            isLeaderboardSettingsLocked
+              ? "pointer-events-none opacity-55 saturate-75"
+              : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
+            <p className="text-sm font-semibold text-[var(--mc-text)]">
+              投票設定
+            </p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {playbackExtensionOptions.map((option) => {
+              const selected = playbackExtensionMode === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  disabled={isLeaderboardSettingsLocked}
+                  onClick={() => setPlaybackExtensionMode(option.key)}
+                  className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                    selected
+                      ? "border-amber-300/45 bg-amber-300/12 text-amber-50"
+                      : "border-white/8 bg-white/5 text-slate-300 hover:border-amber-300/28 hover:bg-white/[0.07]"
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">
+                    {option.label}
+                  </span>
+                  <span className="mt-1 block text-[11px] leading-4 text-slate-400">
+                    {option.hint}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
         {leaderboardLockedOverlay}

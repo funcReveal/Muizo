@@ -8,7 +8,13 @@
   YouTube,
 } from "@mui/icons-material";
 import { CircularProgress } from "@mui/material";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "@shared/auth/AuthContext";
@@ -29,6 +35,15 @@ import {
 import type { SettlementQuestionRecap } from "@features/Settlement/ui/components/GameSettlementPanel";
 import HistoryArchiveHeader from "@features/Settlement/ui/components/roomHistoryPage/HistoryArchiveHeader";
 import HistoryReplayDialog from "@features/Settlement/ui/components/roomHistoryPage/HistoryReplayDialog";
+import CareerTabs, { type CareerTabKey } from "./components/CareerTabs";
+import CareerOverviewTab from "./components/CareerOverviewTab";
+import CareerCollectionRanksTab from "./components/CareerCollectionRanksTab";
+import CareerHistoryTab from "./components/CareerHistoryTab";
+import CareerShareTab from "./components/CareerShareTab";
+import useCareerOverviewData from "../model/useCareerOverviewData";
+import useCareerCollectionRanksData from "../model/useCareerCollectionRanksData";
+import useCareerShareData from "../model/useCareerShareData";
+
 const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== "undefined" ? window.location.origin : "");
@@ -137,14 +152,20 @@ const formatScore = (score: number | null | undefined) => {
   return Math.max(0, Math.floor(score)).toLocaleString("zh-TW");
 };
 
-
-const formatRankFraction = (rank: number | null, playerCount: number | null | undefined) => {
+const formatRankFraction = (
+  rank: number | null,
+  playerCount: number | null | undefined,
+) => {
   const safeCount =
-    typeof playerCount === "number" && Number.isFinite(playerCount) && playerCount > 0
+    typeof playerCount === "number" &&
+    Number.isFinite(playerCount) &&
+    playerCount > 0
       ? Math.floor(playerCount)
       : null;
   if (typeof rank === "number" && Number.isFinite(rank) && rank > 0) {
-    return safeCount ? `${Math.floor(rank)}/${safeCount}` : String(Math.floor(rank));
+    return safeCount
+      ? `${Math.floor(rank)}/${safeCount}`
+      : String(Math.floor(rank));
   }
   return safeCount ? `-/${safeCount}` : "-";
 };
@@ -154,7 +175,8 @@ const isBetterRankResult = (
   currentBest: { rank: number; playerCount: number; endedAt: number } | null,
 ) => {
   if (!currentBest) return true;
-  if (candidate.rank !== currentBest.rank) return candidate.rank < currentBest.rank;
+  if (candidate.rank !== currentBest.rank)
+    return candidate.rank < currentBest.rank;
   if (candidate.playerCount !== currentBest.playerCount) {
     return candidate.playerCount > currentBest.playerCount;
   }
@@ -203,12 +225,15 @@ const readSelfRankFromSummary = (summary: RoomSettlementHistorySummary) => {
 
   const participants = source.participants;
   if (Array.isArray(participants)) {
-    const meName = summary.selfPlayer?.usernameSnapshot?.trim().toLowerCase() ?? "";
+    const meName =
+      summary.selfPlayer?.usernameSnapshot?.trim().toLowerCase() ?? "";
     for (const participant of participants) {
       if (!participant || typeof participant !== "object") continue;
       const row = participant as Record<string, unknown>;
       const candidateName =
-        typeof row.username === "string" ? row.username.trim().toLowerCase() : "";
+        typeof row.username === "string"
+          ? row.username.trim().toLowerCase()
+          : "";
       const isMeFlag = row.isMe === true || row.self === true;
       if (isMeFlag || (meName && candidateName && candidateName === meName)) {
         for (const key of rankKeys) {
@@ -235,10 +260,12 @@ const normalizeQuestionRecap = (
     choices: recap.choices.map((choice) => ({
       index: choice.index,
       title: choice.title,
-      isCorrect: Boolean(choice.isCorrect ?? choice.index === recap.correctChoiceIndex),
+      isCorrect: Boolean(
+        choice.isCorrect ?? choice.index === recap.correctChoiceIndex,
+      ),
       isSelectedByMe: Boolean(
         choice.isSelectedByMe ??
-          (safeMyChoiceIndex !== null && choice.index === safeMyChoiceIndex),
+        (safeMyChoiceIndex !== null && choice.index === safeMyChoiceIndex),
       ),
     })),
     answersByClientId: recap.answersByClientId
@@ -248,7 +275,8 @@ const normalizeQuestionRecap = (
             {
               choiceIndex: answer.choiceIndex ?? null,
               result: answer.result ?? "unanswered",
-              answeredAtMs: answer.answeredAtMs ?? answer.firstAnsweredAtMs ?? null,
+              answeredAtMs:
+                answer.answeredAtMs ?? answer.firstAnsweredAtMs ?? null,
               scoreBreakdown: answer.scoreBreakdown ?? null,
             },
           ]),
@@ -257,10 +285,16 @@ const normalizeQuestionRecap = (
   };
 };
 
-const RoomHistoryPage: React.FC = () => {
+const CareerPage: React.FC = () => {
   const navigate = useNavigate();
   const { clientId, authToken, refreshAuthToken } = useAuth();
   const { setStatusText } = useRoomSession();
+
+  const [activeTab, setActiveTab] = useState<CareerTabKey>("overview");
+
+  const overviewQuery = useCareerOverviewData();
+  const collectionRanksQuery = useCareerCollectionRanksData();
+  const shareQuery = useCareerShareData();
 
   const [items, setItems] = useState<RoomSettlementHistorySummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -270,9 +304,9 @@ const RoomHistoryPage: React.FC = () => {
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
-  const [loadingReplayMatchId, setLoadingReplayMatchId] = useState<string | null>(
-    null,
-  );
+  const [loadingReplayMatchId, setLoadingReplayMatchId] = useState<
+    string | null
+  >(null);
   const [replayByMatchId, setReplayByMatchId] = useState<
     Record<string, RoomSettlementSnapshot>
   >({});
@@ -296,9 +330,8 @@ const RoomHistoryPage: React.FC = () => {
     () => buildHistoryGuardKey(clientId),
     [clientId],
   );
-  const [historyRequestBlockedUntil, setHistoryRequestBlockedUntil] = useState(
-    0,
-  );
+  const [historyRequestBlockedUntil, setHistoryRequestBlockedUntil] =
+    useState(0);
 
   const setGroupContainerRef = useCallback(
     (groupKey: string, node: HTMLDivElement | null) => {
@@ -317,7 +350,9 @@ const RoomHistoryPage: React.FC = () => {
       const style = window.getComputedStyle(current);
       const overflowY = style.overflowY;
       const isScrollable =
-        (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+        (overflowY === "auto" ||
+          overflowY === "scroll" ||
+          overflowY === "overlay") &&
         current.scrollHeight > current.clientHeight + 1;
       if (isScrollable) return current;
       current = current.parentElement;
@@ -424,9 +459,14 @@ const RoomHistoryPage: React.FC = () => {
     () => items.find((item) => item.matchId === selectedMatchId) ?? null,
     [items, selectedMatchId],
   );
-  const selectedReplay = selectedMatchId ? replayByMatchId[selectedMatchId] : null;
+
+  const selectedReplay = selectedMatchId
+    ? replayByMatchId[selectedMatchId]
+    : null;
+
   const isLoadingSelectedReplay =
     Boolean(selectedMatchId) && loadingReplayMatchId === selectedMatchId;
+
   const normalizedSelectedQuestionRecaps = useMemo(() => {
     if (!selectedReplay?.questionRecaps) return undefined;
     return selectedReplay.questionRecaps.map(normalizeQuestionRecap);
@@ -442,7 +482,9 @@ const RoomHistoryPage: React.FC = () => {
       const sorted = replay.participants
         .slice()
         .sort((a, b) => b.score - a.score);
-      const index = sorted.findIndex((participant) => participant.clientId === clientId);
+      const index = sorted.findIndex(
+        (participant) => participant.clientId === clientId,
+      );
       return index >= 0 ? index + 1 : null;
     },
     [clientId, replayByMatchId],
@@ -463,9 +505,12 @@ const RoomHistoryPage: React.FC = () => {
       if (!Number.isFinite(parsed.savedAt)) return null;
       if (Date.now() - parsed.savedAt > HISTORY_LIST_CACHE_TTL_MS) return null;
       return {
-        items: parsed.items.sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo),
+        items: parsed.items.sort(
+          (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+        ),
         nextCursorToken:
-          typeof parsed.nextCursorToken === "string" && parsed.nextCursorToken.trim().length > 0
+          typeof parsed.nextCursorToken === "string" &&
+          parsed.nextCursorToken.trim().length > 0
             ? parsed.nextCursorToken
             : null,
       };
@@ -486,7 +531,10 @@ const RoomHistoryPage: React.FC = () => {
           items: nextItems,
           nextCursorToken: nextPageCursorToken,
         };
-        window.sessionStorage.setItem(historyListCacheKey, JSON.stringify(payload));
+        window.sessionStorage.setItem(
+          historyListCacheKey,
+          JSON.stringify(payload),
+        );
       } catch {
         // ignore cache errors
       }
@@ -513,6 +561,7 @@ const RoomHistoryPage: React.FC = () => {
         blockedUntil: 0,
         requestTimestamps: [],
       };
+
       try {
         const raw = window.sessionStorage.getItem(historyGuardKey);
         if (raw) {
@@ -521,8 +570,8 @@ const RoomHistoryPage: React.FC = () => {
             blockedUntil: Number(parsed.blockedUntil ?? 0),
             requestTimestamps: Array.isArray(parsed.requestTimestamps)
               ? parsed.requestTimestamps
-                .map((value) => Number(value))
-                .filter((value) => Number.isFinite(value))
+                  .map((value) => Number(value))
+                  .filter((value) => Number.isFinite(value))
               : [],
           };
         }
@@ -542,6 +591,7 @@ const RoomHistoryPage: React.FC = () => {
       }
 
       nextGuard.requestTimestamps.push(now);
+
       if (nextGuard.requestTimestamps.length > HISTORY_GUARD_MAX_REQUESTS) {
         nextGuard.blockedUntil = now + HISTORY_GUARD_BLOCK_MS;
         nextGuard.requestTimestamps = [];
@@ -549,7 +599,10 @@ const RoomHistoryPage: React.FC = () => {
         const message = guardBlockedMessage(nextGuard.blockedUntil, source);
         setStatusText(message);
         try {
-          window.sessionStorage.setItem(historyGuardKey, JSON.stringify(nextGuard));
+          window.sessionStorage.setItem(
+            historyGuardKey,
+            JSON.stringify(nextGuard),
+          );
         } catch {
           // ignore persist errors
         }
@@ -558,51 +611,64 @@ const RoomHistoryPage: React.FC = () => {
 
       nextGuard.blockedUntil = 0;
       setHistoryRequestBlockedUntil(0);
+
       try {
-        window.sessionStorage.setItem(historyGuardKey, JSON.stringify(nextGuard));
+        window.sessionStorage.setItem(
+          historyGuardKey,
+          JSON.stringify(nextGuard),
+        );
       } catch {
         // ignore persist errors
       }
+
       return true;
     },
     [guardBlockedMessage, historyGuardKey, setStatusText],
   );
 
-  const fetchHistoryList = useCallback(async (beforeCursor?: string | null) => {
-    if (!API_URL) {
-      throw new Error("找不到 API_URL 設定");
-    }
+  const fetchHistoryList = useCallback(
+    async (beforeCursor?: string | null) => {
+      if (!API_URL) {
+        throw new Error("找不到 API_URL 設定");
+      }
 
-    const token = await getBearerToken();
-    const params = new URLSearchParams();
-    if (clientId) params.set("clientId", clientId);
-    params.set("limit", String(HISTORY_PAGE_LIMIT));
-    if (beforeCursor) params.set("beforeCursor", beforeCursor);
+      const token = await getBearerToken();
+      const params = new URLSearchParams();
+      if (clientId) params.set("clientId", clientId);
+      params.set("limit", String(HISTORY_PAGE_LIMIT));
+      if (beforeCursor) params.set("beforeCursor", beforeCursor);
 
-    const res = await fetch(`${API_URL}/api/history/matches?${params.toString()}`, {
-      method: "GET",
-      headers: buildHistoryHeaders(token),
-    });
+      const res = await fetch(
+        `${API_URL}/api/history/matches?${params.toString()}`,
+        {
+          method: "GET",
+          headers: buildHistoryHeaders(token),
+        },
+      );
 
-    const payload = (await res.json().catch(() => null)) as
-      | HistoryListResponse
-      | null;
+      const payload = (await res
+        .json()
+        .catch(() => null)) as HistoryListResponse | null;
 
-    if (!res.ok || !payload?.ok || !payload.data) {
-      throw new Error(payload?.error ?? "讀取歷史列表失敗");
-    }
+      if (!res.ok || !payload?.ok || !payload.data) {
+        throw new Error(payload?.error ?? "讀取歷史列表失敗");
+      }
 
-    return {
-      items: Array.isArray(payload.data.items)
-        ? payload.data.items.sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo)
-        : [],
-      nextCursorToken:
-        typeof payload.data.nextCursorToken === "string" &&
-        payload.data.nextCursorToken.trim().length > 0
-          ? payload.data.nextCursorToken
-          : null,
-    };
-  }, [clientId, getBearerToken]);
+      return {
+        items: Array.isArray(payload.data.items)
+          ? payload.data.items.sort(
+              (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+            )
+          : [],
+        nextCursorToken:
+          typeof payload.data.nextCursorToken === "string" &&
+          payload.data.nextCursorToken.trim().length > 0
+            ? payload.data.nextCursorToken
+            : null,
+      };
+    },
+    [clientId, getBearerToken],
+  );
 
   const fetchReplay = useCallback(
     async (matchId: string) => {
@@ -614,17 +680,18 @@ const RoomHistoryPage: React.FC = () => {
       const params = new URLSearchParams();
       if (clientId) params.set("clientId", clientId);
 
-      const url = `${API_URL}/api/history/matches/${encodeURIComponent(matchId)}${params.size ? `?${params.toString()}` : ""
-        }`;
+      const url = `${API_URL}/api/history/matches/${encodeURIComponent(matchId)}${
+        params.size ? `?${params.toString()}` : ""
+      }`;
 
       const res = await fetch(url, {
         method: "GET",
         headers: buildHistoryHeaders(token),
       });
 
-      const payload = (await res.json().catch(() => null)) as
-        | HistoryDetailResponse
-        | null;
+      const payload = (await res
+        .json()
+        .catch(() => null)) as HistoryDetailResponse | null;
 
       if (!res.ok || !payload?.ok || !payload.data?.snapshot) {
         throw new Error(payload?.error ?? "讀取對戰回顧失敗");
@@ -651,11 +718,13 @@ const RoomHistoryPage: React.FC = () => {
   }, [historyGuardKey]);
 
   useEffect(() => {
-    if (historyRequestBlockedUntil <= 0 || typeof window === "undefined") return;
+    if (historyRequestBlockedUntil <= 0 || typeof window === "undefined")
+      return;
     const remainingMs = Math.max(0, historyRequestBlockedUntil - Date.now());
     const timeoutId = window.setTimeout(() => {
       setHistoryRequestBlockedUntil((prev) => (prev <= Date.now() ? 0 : prev));
     }, remainingMs + 50);
+
     return () => {
       window.clearTimeout(timeoutId);
     };
@@ -739,6 +808,7 @@ const RoomHistoryPage: React.FC = () => {
 
     handleScroll();
     scrollHost.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => {
       scrollHost.removeEventListener("scroll", handleScroll);
     };
@@ -804,6 +874,7 @@ const RoomHistoryPage: React.FC = () => {
       setSelectedMatchId(matchId);
       inFlightReplayMatchIdsRef.current.add(matchId);
       setLoadingReplayMatchId(matchId);
+
       try {
         const snapshot = await fetchReplay(matchId);
         setReplayByMatchId((prev) => ({ ...prev, [matchId]: snapshot }));
@@ -823,10 +894,12 @@ const RoomHistoryPage: React.FC = () => {
     () => items.slice(0, HISTORY_PAGE_LIMIT),
     [items],
   );
+
   const recentScoredItems = useMemo(
     () => recentItems.filter((item) => Boolean(item.selfPlayer)),
     [recentItems],
   );
+
   const recentTopScoreEntry = useMemo(() => {
     let best: RoomSettlementHistorySummary | null = null;
     for (const item of recentScoredItems) {
@@ -842,6 +915,7 @@ const RoomHistoryPage: React.FC = () => {
     }
     return best;
   }, [recentScoredItems]);
+
   const recentBestComboEntry = useMemo(() => {
     let best: RoomSettlementHistorySummary | null = null;
     for (const item of recentScoredItems) {
@@ -857,20 +931,28 @@ const RoomHistoryPage: React.FC = () => {
     }
     return best;
   }, [recentScoredItems]);
+
   const recentBestAccuracyEntry = useMemo(() => {
-    let best: { item: RoomSettlementHistorySummary; rate: number } | null = null;
+    let best: { item: RoomSettlementHistorySummary; rate: number } | null =
+      null;
     for (const item of recentScoredItems) {
       const correctCount = item.selfPlayer?.correctCount ?? 0;
       const totalCount = item.questionCount > 0 ? item.questionCount : 1;
       const rate = correctCount / totalCount;
-      if (!best || rate > best.rate || (rate === best.rate && item.endedAt > best.item.endedAt)) {
+      if (
+        !best ||
+        rate > best.rate ||
+        (rate === best.rate && item.endedAt > best.item.endedAt)
+      ) {
         best = { item, rate };
       }
     }
     return best;
   }, [recentScoredItems]);
+
   const recentBestRankEntry = useMemo(() => {
-    let best: { item: RoomSettlementHistorySummary; rank: number } | null = null;
+    let best: { item: RoomSettlementHistorySummary; rank: number } | null =
+      null;
     for (const item of recentItems) {
       const rank = readSelfRankFromSummary(item);
       if (rank === null) continue;
@@ -893,6 +975,7 @@ const RoomHistoryPage: React.FC = () => {
     }
     return best;
   }, [recentItems]);
+
   const groupedHistoryItems = useMemo(() => {
     const groups = new Map<
       string,
@@ -902,9 +985,11 @@ const RoomHistoryPage: React.FC = () => {
         items: RoomSettlementHistorySummary[];
       }
     >();
+
     for (const item of items) {
       const key = getHistoryGroupKeyFromSummary(item);
       const existing = groups.get(key);
+
       if (existing) {
         existing.items.push(item);
       } else {
@@ -915,10 +1000,13 @@ const RoomHistoryPage: React.FC = () => {
         });
       }
     }
+
     return Array.from(groups.values())
       .map((group) => ({
         ...group,
-        items: group.items.sort((a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo),
+        items: group.items.sort(
+          (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+        ),
       }))
       .sort(
         (a, b) =>
@@ -926,12 +1014,15 @@ const RoomHistoryPage: React.FC = () => {
           (b.items[0]?.roundNo ?? 0) - (a.items[0]?.roundNo ?? 0),
       );
   }, [items]);
+
   const selectedRelatedSummaries = useMemo(() => {
     if (!selectedSummary) return [];
     const targetGroupKey = getHistoryGroupKeyFromSummary(selectedSummary);
     const matchedGroup = groupedHistoryItems.find((group) => {
       const groupSeed = group.items[0];
-      return groupSeed && getHistoryGroupKeyFromSummary(groupSeed) === targetGroupKey;
+      return (
+        groupSeed && getHistoryGroupKeyFromSummary(groupSeed) === targetGroupKey
+      );
     });
     return matchedGroup?.items ?? [selectedSummary];
   }, [groupedHistoryItems, selectedSummary]);
@@ -990,6 +1081,7 @@ const RoomHistoryPage: React.FC = () => {
       const playlistItemCount = getHistorySummaryPlaylistItemCount(item);
       const isCollectionSource = isCollectionHistorySummary(item);
       const isYouTubeSource = isYouTubeHistorySummary(item);
+
       return (
         <button
           key={item.matchId}
@@ -998,17 +1090,21 @@ const RoomHistoryPage: React.FC = () => {
           onClick={() => void openReplayDetail(item)}
           style={
             options?.animationDelayMs
-              ? { transitionDelay: `${Math.min(options.animationDelayMs, 220)}ms` }
+              ? {
+                  transitionDelay: `${Math.min(options.animationDelayMs, 220)}ms`,
+                }
               : undefined
           }
         >
           <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-sky-300/40 opacity-70 transition group-hover:opacity-100" />
+
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0 pr-1 sm:pr-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="min-w-0 truncate text-base font-semibold tracking-tight text-[var(--mc-text)] sm:text-lg">
                   {playlistTitle}
                 </div>
+
                 <span
                   className={`inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold sm:text-[13px] ${
                     isYouTubeSource
@@ -1025,6 +1121,7 @@ const RoomHistoryPage: React.FC = () => {
                   ) : null}
                   <span>{sourceLabel}</span>
                 </span>
+
                 {playlistItemCount !== null && playlistItemCount > 0 && (
                   <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-slate-200/82 sm:text-[13px]">
                     <QueueMusic sx={{ fontSize: 15 }} />
@@ -1036,15 +1133,21 @@ const RoomHistoryPage: React.FC = () => {
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-[var(--mc-text)] sm:text-[15px]">
                 <span>第 {item.roundNo} 場</span>
                 <span className="text-[var(--mc-text-muted)]/45">•</span>
-                <span className={selfRank !== null ? "text-amber-100" : undefined}>
+                <span
+                  className={selfRank !== null ? "text-amber-100" : undefined}
+                >
                   名次 {formatRankFraction(selfRank, item.playerCount)}
                 </span>
                 <span className="text-[var(--mc-text-muted)]/45">•</span>
-                <span className="text-emerald-100">分數 {formatScore(finalScore)}</span>
+                <span className="text-emerald-100">
+                  分數 {formatScore(finalScore)}
+                </span>
               </div>
 
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--mc-text-muted)] sm:gap-x-4 sm:text-sm">
-                <span>答對 {correctCount}/{item.questionCount}</span>
+                <span>
+                  答對 {correctCount}/{item.questionCount}
+                </span>
                 <span>Combo x{maxCombo}</span>
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <AccessTime sx={{ fontSize: 16 }} />
@@ -1079,10 +1182,15 @@ const RoomHistoryPage: React.FC = () => {
           你的查詢頻率過高，已暫時限制歷史請求，請稍後再試。
         </div>
       )}
+
       {loadingList ? (
         <div className="flex items-center justify-center rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.86),rgba(8,7,5,0.96))] px-6 py-10 text-[var(--mc-text-muted)]">
           <div className="inline-flex items-center gap-3">
-            <CircularProgress size={18} thickness={5} sx={{ color: "#f59e0b" }} />
+            <CircularProgress
+              size={18}
+              thickness={5}
+              sx={{ color: "#f59e0b" }}
+            />
             載入對戰歷史中...
           </div>
         </div>
@@ -1096,7 +1204,8 @@ const RoomHistoryPage: React.FC = () => {
             尚無對戰紀錄
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)]">
-            完成一場遊戲後，系統會將結算摘要與回顧資料存到歷史頁。之後可以回來查看分數、答對數與 Combo 表現。
+            完成一場遊戲後，系統會將結算摘要與回顧資料存到歷史頁。之後可以回來查看分數、答對數與
+            Combo 表現。
           </p>
         </div>
       ) : (
@@ -1107,14 +1216,18 @@ const RoomHistoryPage: React.FC = () => {
                 ? getHistoryGroupKeyFromSummary(group.items[0])
                 : null;
               if (!groupKey) return null;
+
               const collapsed =
                 historyDisplayMode === "expanded"
                   ? false
                   : (collapsedRoomGroups[groupKey] ?? true);
+
               const groupBestScore = group.items.reduce(
-                (max, entry) => Math.max(max, entry.selfPlayer?.finalScore ?? 0),
+                (max, entry) =>
+                  Math.max(max, entry.selfPlayer?.finalScore ?? 0),
                 0,
               );
+
               const groupBestRank = group.items.reduce<{
                 rank: number;
                 playerCount: number;
@@ -1129,18 +1242,28 @@ const RoomHistoryPage: React.FC = () => {
                 };
                 return isBetterRankResult(next, best) ? next : best;
               }, null);
+
               const latestItem = group.items[0] ?? null;
-              const latestPlayedAt = latestItem?.endedAt ?? latestItem?.startedAt ?? 0;
+              const latestPlayedAt =
+                latestItem?.endedAt ?? latestItem?.startedAt ?? 0;
               const groupTotalQuestionCount = group.items.reduce(
                 (sum, entry) => sum + Math.max(0, entry.questionCount),
                 0,
               );
+
               const groupSummaryItems = [
                 `最近遊玩 ${formatMonthDayTime(latestPlayedAt)}`,
                 `共 ${group.items.length} 場`,
-                ...(groupBestScore > 0 ? [`最佳分數 ${formatScore(groupBestScore)}`] : []),
-                `最佳名次 ${formatRankFraction(groupBestRank?.rank ?? null, groupBestRank?.playerCount)}`,
-                ...(groupTotalQuestionCount > 0 ? [`累計題數 ${groupTotalQuestionCount} 題`] : []),
+                ...(groupBestScore > 0
+                  ? [`最佳分數 ${formatScore(groupBestScore)}`]
+                  : []),
+                `最佳名次 ${formatRankFraction(
+                  groupBestRank?.rank ?? null,
+                  groupBestRank?.playerCount,
+                )}`,
+                ...(groupTotalQuestionCount > 0
+                  ? [`累計題數 ${groupTotalQuestionCount} 題`]
+                  : []),
               ];
 
               return (
@@ -1162,6 +1285,7 @@ const RoomHistoryPage: React.FC = () => {
                         />
                       </>
                     )}
+
                     <button
                       type="button"
                       className={`group relative z-20 block w-full min-w-0 overflow-hidden rounded-[16px] border px-3 py-3 text-left transition duration-200 sm:rounded-[18px] sm:px-5 sm:py-3.5 ${
@@ -1182,7 +1306,9 @@ const RoomHistoryPage: React.FC = () => {
                             const next: Record<string, boolean> = {};
                             for (const candidate of groupedHistoryItems) {
                               const candidateKey = candidate.items[0]
-                                ? getHistoryGroupKeyFromSummary(candidate.items[0])
+                                ? getHistoryGroupKeyFromSummary(
+                                    candidate.items[0],
+                                  )
                                 : null;
                               if (!candidateKey) continue;
                               next[candidateKey] = candidateKey !== groupKey;
@@ -1197,6 +1323,7 @@ const RoomHistoryPage: React.FC = () => {
                       }}
                     >
                       <div className="pointer-events-none absolute inset-y-0 left-0 w-1.5 bg-amber-300/45 opacity-85 transition group-hover:opacity-100" />
+
                       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
                         <div className="min-w-0 pr-1 sm:pr-2">
                           <div className="min-w-0">
@@ -1239,7 +1366,9 @@ const RoomHistoryPage: React.FC = () => {
                                 <ChevronRightRounded
                                   sx={{
                                     fontSize: 14,
-                                    transform: collapsed ? "rotate(90deg)" : "rotate(270deg)",
+                                    transform: collapsed
+                                      ? "rotate(90deg)"
+                                      : "rotate(270deg)",
                                     transition: "transform 180ms ease",
                                   }}
                                 />
@@ -1252,10 +1381,11 @@ const RoomHistoryPage: React.FC = () => {
                   </div>
 
                   <div
-                    className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${collapsed
-                      ? "mt-0 grid-rows-[0fr] opacity-0"
-                      : "mt-1 grid-rows-[1fr] opacity-100"
-                      }`}
+                    className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${
+                      collapsed
+                        ? "mt-0 grid-rows-[0fr] opacity-0"
+                        : "mt-1 grid-rows-[1fr] opacity-100"
+                    }`}
                   >
                     <div
                       className={
@@ -1268,10 +1398,11 @@ const RoomHistoryPage: React.FC = () => {
                         {group.items.map((item, itemIndex) => (
                           <div
                             key={item.matchId}
-                            className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${collapsed
-                              ? "translate-y-2 opacity-0"
-                              : "translate-y-0 opacity-100"
-                              }`}
+                            className={`relative transition-all duration-300 ease-out motion-reduce:transition-none ${
+                              collapsed
+                                ? "translate-y-2 opacity-0"
+                                : "translate-y-0 opacity-100"
+                            }`}
                             style={{
                               transitionDelay: collapsed
                                 ? "0ms"
@@ -1279,11 +1410,13 @@ const RoomHistoryPage: React.FC = () => {
                             }}
                           >
                             <span
-                              className={`pointer-events-none absolute -left-3 top-1/2 h-px w-3 -translate-y-1/2 bg-amber-300/48 transition-opacity duration-300 ${collapsed ? "opacity-0" : "opacity-100"
-                                }`}
+                              className={`pointer-events-none absolute -left-3 top-1/2 h-px w-3 -translate-y-1/2 bg-amber-300/48 transition-opacity duration-300 ${
+                                collapsed ? "opacity-0" : "opacity-100"
+                              }`}
                             />
                             {renderMatchRecordCard(item, {
-                              animationDelayMs: groupIndex * 40 + itemIndex * 28,
+                              animationDelayMs:
+                                groupIndex * 40 + itemIndex * 28,
                             })}
                           </div>
                         ))}
@@ -1294,6 +1427,7 @@ const RoomHistoryPage: React.FC = () => {
               );
             })}
           </div>
+
           {nextCursorToken && (
             <div className="flex justify-center pt-1">
               <button
@@ -1311,58 +1445,123 @@ const RoomHistoryPage: React.FC = () => {
     </section>
   );
 
+  const historyHeader = (
+    <HistoryArchiveHeader
+      loadingList={loadingList}
+      historyDisplayMode={historyDisplayMode}
+      onHistoryDisplayModeChange={setHistoryDisplayMode}
+      recentTopScoreEntry={recentTopScoreEntry}
+      recentBestRankEntry={recentBestRankEntry}
+      recentBestComboEntry={recentBestComboEntry}
+      recentBestAccuracyEntry={recentBestAccuracyEntry}
+      onOpenReplay={(summary) => {
+        void openReplayDetail(summary);
+      }}
+      onBackToRooms={() => navigate("/rooms", { replace: true })}
+      formatRankFraction={formatRankFraction}
+    />
+  );
+
+  const historyDialog = (
+    <HistoryReplayDialog
+      open={Boolean(selectedMatchId)}
+      onClose={() => setSelectedMatchId(null)}
+      selectedSummary={selectedSummary}
+      relatedSummaries={selectedRelatedSummaries}
+      selectedReplay={selectedReplay}
+      isLoadingSelectedReplay={isLoadingSelectedReplay}
+      onSelectSummary={(summary) => {
+        void openReplayDetail(summary);
+      }}
+      meClientId={clientId}
+      questionRecaps={normalizedSelectedQuestionRecaps}
+      formatDateTime={formatDateTime}
+      getMatchDurationMs={getMatchDurationMs}
+      formatDuration={formatDuration}
+    />
+  );
+
+  const historyBackToTopButton = showBackToTop ? (
+    <button
+      type="button"
+      aria-label="回到頂部"
+      onClick={handleBackToTop}
+      className="fixed bottom-5 right-5 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-300/30 bg-[linear-gradient(180deg,rgba(10,26,42,0.92),rgba(6,14,24,0.96))] text-sky-100 shadow-[0_18px_34px_-22px_rgba(14,165,233,0.55)] transition hover:-translate-y-0.5 hover:border-sky-300/50 hover:bg-sky-300/14"
+    >
+      <KeyboardArrowUpRounded sx={{ fontSize: 26 }} />
+    </button>
+  ) : null;
+
   return (
-    <div ref={pageRootRef} className="mx-auto w-full max-w-[1180px] min-w-0 px-1 sm:px-0">
-      <HistoryArchiveHeader
-        loadingList={loadingList}
-        historyDisplayMode={historyDisplayMode}
-        onHistoryDisplayModeChange={setHistoryDisplayMode}
-        recentTopScoreEntry={recentTopScoreEntry}
-        recentBestRankEntry={recentBestRankEntry}
-        recentBestComboEntry={recentBestComboEntry}
-        recentBestAccuracyEntry={recentBestAccuracyEntry}
-        onOpenReplay={(summary) => {
-          void openReplayDetail(summary);
-        }}
-        onBackToRooms={() => navigate("/rooms", { replace: true })}
-        formatRankFraction={formatRankFraction}
-      />
-      {listView}
-      <HistoryReplayDialog
-        open={Boolean(selectedMatchId)}
-        onClose={() => setSelectedMatchId(null)}
-        selectedSummary={selectedSummary}
-        relatedSummaries={selectedRelatedSummaries}
-        selectedReplay={selectedReplay}
-        isLoadingSelectedReplay={isLoadingSelectedReplay}
-        onSelectSummary={(summary) => {
-          void openReplayDetail(summary);
-        }}
-        meClientId={clientId}
-        questionRecaps={normalizedSelectedQuestionRecaps}
-        formatDateTime={formatDateTime}
-        getMatchDurationMs={getMatchDurationMs}
-        formatDuration={formatDuration}
-      />
-      {showBackToTop && (
-        <button
-          type="button"
-          aria-label="回到頂部"
-          onClick={handleBackToTop}
-          className="fixed bottom-5 right-5 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-300/30 bg-[linear-gradient(180deg,rgba(10,26,42,0.92),rgba(6,14,24,0.96))] text-sky-100 shadow-[0_18px_34px_-22px_rgba(14,165,233,0.55)] transition hover:-translate-y-0.5 hover:border-sky-300/50 hover:bg-sky-300/14"
-        >
-          <KeyboardArrowUpRounded sx={{ fontSize: 26 }} />
-        </button>
+    <div
+      ref={pageRootRef}
+      className="mx-auto w-full max-w-[1180px] min-w-0 px-1 sm:px-0"
+    >
+      <section className="rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.96),rgba(8,7,5,0.98))] p-4 shadow-[0_18px_38px_-28px_rgba(0,0,0,0.72)] sm:rounded-[28px] sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="font-semibold tracking-tight text-[var(--mc-text)] sm:text-2xl">
+              戰績總覽
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--mc-text-muted)]">
+              這一版先聚焦在綜合表現、題庫戰績、完整對戰歷史與分享能力。成就與稱號系統延到下一版處理。
+            </p>
+          </div>
+
+          <div className="inline-flex items-center rounded-full border border-sky-300/28 bg-sky-300/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-sky-100">
+            CAREER V1
+          </div>
+        </div>
+
+        <CareerTabs activeTab={activeTab} onChange={setActiveTab} />
+      </section>
+
+      {activeTab === "overview" && (
+        <CareerOverviewTab
+          hero={overviewQuery.data.hero}
+          composite={overviewQuery.data.composite}
+          weekly={overviewQuery.data.weekly}
+          highlights={overviewQuery.data.highlights}
+          collectionShortcuts={overviewQuery.data.collectionShortcuts}
+          onOpenCollectionRanks={() => setActiveTab("collectionRanks")}
+          onOpenShare={() => setActiveTab("share")}
+        />
+      )}
+
+      {activeTab === "collectionRanks" && (
+        <CareerCollectionRanksTab
+          items={collectionRanksQuery.items}
+          sortKey={collectionRanksQuery.sortKey}
+          sortOrder={collectionRanksQuery.sortOrder}
+          setSortKey={collectionRanksQuery.setSortKey}
+          setSortOrder={collectionRanksQuery.setSortOrder}
+          isLoading={collectionRanksQuery.isLoading}
+          error={collectionRanksQuery.error}
+        />
+      )}
+
+      {activeTab === "history" && (
+        <CareerHistoryTab
+          header={historyHeader}
+          content={listView}
+          dialog={historyDialog}
+          floatingAction={historyBackToTopButton}
+        />
+      )}
+
+      {activeTab === "share" && (
+        <CareerShareTab
+          activeTemplate={shareQuery.activeTemplate}
+          setActiveTemplate={shareQuery.setActiveTemplate}
+          templates={shareQuery.templates}
+          preview={shareQuery.preview}
+          caption={shareQuery.caption}
+          isLoading={shareQuery.isLoading}
+          error={shareQuery.error}
+        />
       )}
     </div>
   );
 };
 
-export default RoomHistoryPage;
-
-
-
-
-
-
-
+export default CareerPage;

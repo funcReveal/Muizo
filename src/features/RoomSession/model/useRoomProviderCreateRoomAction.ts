@@ -296,6 +296,8 @@ export const useRoomProviderCreateRoomAction = ({
       options.leaderboardProfileKey.trim().length > 0
         ? options.leaderboardProfileKey.trim()
         : null;
+    const playbackExtensionMode =
+      options?.playbackExtensionMode ?? DEFAULT_PLAYBACK_EXTENSION_MODE;
 
     trackEvent("room_create_click", {
       source_mode: roomCreateSourceMode,
@@ -328,7 +330,7 @@ export const useRoomProviderCreateRoomAction = ({
         startOffsetSec: nextStartOffsetSec,
         allowCollectionClipTiming: nextAllowCollectionClipTiming,
         allowParticipantInvite: false,
-        playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
+        playbackExtensionMode,
         leaderboardProfileKey,
       },
       playlist: {
@@ -375,7 +377,7 @@ export const useRoomProviderCreateRoomAction = ({
       revealDurationSec: nextRevealDurationSec,
       startOffsetSec: nextStartOffsetSec,
       allowCollectionClipTiming: nextAllowCollectionClipTiming,
-      playbackExtensionMode: DEFAULT_PLAYBACK_EXTENSION_MODE,
+      playbackExtensionMode,
     });
 
     syncServerOffset(finalizedState.serverNow);

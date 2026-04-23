@@ -8,10 +8,11 @@ import {
 } from "react";
 import {
   BarChartRounded,
+  CelebrationRounded,
+  ChevronLeftRounded,
   CloseRounded,
   EmojiEventsRounded,
   LockOutlined,
-  MeetingRoomRounded,
   PlayArrowRounded,
   PublicOutlined,
   QuizRounded,
@@ -19,10 +20,17 @@ import {
   StarRounded,
   // TimelineRounded,
 } from "@mui/icons-material";
-import { Button, Drawer, IconButton, useMediaQuery } from "@mui/material";
+import {
+  Button,
+  Drawer,
+  IconButton,
+  useMediaQuery,
+} from "@mui/material";
 import { List, type RowComponentProps } from "react-window";
 
 import { API_URL } from "@domain/room/constants";
+import type { RoomCreateSourceMode } from "@domain/room/types";
+import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
   apiFetchCollectionItemPreview,
   type CollectionItemPreviewRecord,
@@ -37,7 +45,10 @@ import {
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
+  type RoomPlayMode,
 } from "../../../model/leaderboardChallengeOptions";
+import RoomSetupPanel from "../setup/RoomSetupPanel";
+import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
 
 type CollectionDetail = {
   id: string;
@@ -58,6 +69,8 @@ type CollectionDetail = {
   has_ai_edited?: boolean | null;
 };
 
+type CollectionDrawerView = "detail" | "leaderboardSetup" | "casualSetup";
+
 type CollectionDetailDrawerProps = {
   open: boolean;
   collection: CollectionDetail | null;
@@ -68,10 +81,53 @@ type CollectionDetailDrawerProps = {
   onUseCollection: (collectionId: string) => void | Promise<void>;
   onStartCustomRoom?: (collectionId: string) => void | Promise<void>;
   onStartLeaderboardChallenge?: (collectionId: string) => void | Promise<void>;
+  onConfirmCustomRoom?: (collectionId: string) => void | Promise<void>;
+  onConfirmLeaderboardChallenge?: (collectionId: string) => void | Promise<void>;
   onToggleFavorite?: () => void | Promise<void | boolean>;
   formatDurationLabel: (value: number) => string | null;
+  roomNameInput: string;
+  setRoomNameInput: (value: string) => void;
+  roomVisibilityInput: "public" | "private";
+  setRoomVisibilityInput: (value: "public" | "private") => void;
+  roomPasswordInput: string;
+  setRoomPasswordInput: (value: string) => void;
+  isPinProtectionEnabled: boolean;
+  setIsPinProtectionEnabled: (value: boolean) => void;
+  pinValidationAttempted?: boolean;
+  setRoomMaxPlayersInput: (value: string) => void;
+  parsedMaxPlayers: number | null;
+  questionCount: number;
+  questionMin: number;
+  questionMaxLimit: number;
+  updateQuestionCount: (value: number) => void;
+  roomPlayMode: RoomPlayMode;
+  setRoomPlayMode: (value: RoomPlayMode) => void;
+  playDurationSec: number;
+  revealDurationSec: number;
+  startOffsetSec: number;
+  allowCollectionClipTiming: boolean;
+  updatePlayDurationSec: (value: number) => number;
+  updateRevealDurationSec: (value: number) => number;
+  updateStartOffsetSec: (value: number) => number;
+  updateAllowCollectionClipTiming: (value: boolean) => boolean;
+  playbackExtensionMode: PlaybackExtensionMode;
+  setPlaybackExtensionMode: (value: PlaybackExtensionMode) => void;
+  supportsCollectionClipTiming: boolean;
+  selectedCreateSourceSummary: SourceSummary;
+  isSourceSummaryLoading: boolean;
+  createSettingsCards: CreateSettingsCard[];
+  createRequirementsHintText: string | null;
+  createRecommendationHintText: string | null;
+  canCreateRoom: boolean;
+  isCreatingRoom: boolean;
+  isCustomRoomStartPending?: boolean;
+  isLeaderboardStartPending?: boolean;
   selectedLeaderboardMode: LeaderboardModeKey;
   selectedLeaderboardVariant: LeaderboardVariantKey;
+  onLeaderboardSelectionChange: (
+    mode: LeaderboardModeKey,
+    variant: LeaderboardVariantKey,
+  ) => void;
   onLeaderboardModeChange: (value: LeaderboardModeKey) => void;
   onLeaderboardVariantChange: (value: LeaderboardVariantKey) => void;
 };
@@ -321,17 +377,56 @@ const CollectionPreviewListRow = ({
 const CollectionDetailDrawer = ({
   open,
   collection,
-  isPublicLibraryTab,
   isApplying = false,
   isFavoriteUpdating = false,
   onClose,
   onUseCollection,
   onStartCustomRoom,
   onStartLeaderboardChallenge,
+  onConfirmCustomRoom,
+  onConfirmLeaderboardChallenge,
   onToggleFavorite,
   formatDurationLabel,
+  roomNameInput,
+  setRoomNameInput,
+  roomVisibilityInput,
+  setRoomVisibilityInput,
+  roomPasswordInput,
+  setRoomPasswordInput,
+  isPinProtectionEnabled,
+  setIsPinProtectionEnabled,
+  pinValidationAttempted = false,
+  setRoomMaxPlayersInput,
+  parsedMaxPlayers,
+  questionCount,
+  questionMin,
+  questionMaxLimit,
+  updateQuestionCount,
+  roomPlayMode,
+  setRoomPlayMode,
+  playDurationSec,
+  revealDurationSec,
+  startOffsetSec,
+  allowCollectionClipTiming,
+  updatePlayDurationSec,
+  updateRevealDurationSec,
+  updateStartOffsetSec,
+  updateAllowCollectionClipTiming,
+  playbackExtensionMode,
+  setPlaybackExtensionMode,
+  supportsCollectionClipTiming,
+  selectedCreateSourceSummary,
+  isSourceSummaryLoading,
+  createSettingsCards,
+  createRequirementsHintText,
+  createRecommendationHintText,
+  canCreateRoom,
+  isCreatingRoom,
+  isCustomRoomStartPending = false,
+  isLeaderboardStartPending = false,
   selectedLeaderboardMode,
   selectedLeaderboardVariant,
+  onLeaderboardSelectionChange,
   onLeaderboardModeChange,
   onLeaderboardVariantChange,
 }: CollectionDetailDrawerProps) => {
@@ -355,6 +450,19 @@ const CollectionDetailDrawer = ({
       : "");
   const isPublic = (collection?.visibility ?? "private") === "public";
   const isFavorited = Boolean(collection?.is_favorited);
+  const [drawerView, setDrawerView] =
+    useState<CollectionDrawerView>("detail");
+  const isLeaderboardSetupView = drawerView === "leaderboardSetup" && isPublic;
+  const isCasualSetupView = drawerView === "casualSetup";
+  const isSetupView = isLeaderboardSetupView || isCasualSetupView;
+  const isSetupLeaderboardMode =
+    isSetupView && isPublic && roomPlayMode === "leaderboard";
+  const setupRoomCreateSourceMode: RoomCreateSourceMode = isPublic
+    ? "publicCollection"
+    : "privateCollection";
+  const setupSupportsCollectionClipTiming = isSetupView
+    ? true
+    : supportsCollectionClipTiming;
   const activeLeaderboardVariants =
     leaderboardVariants[selectedLeaderboardMode];
   const activeLeaderboardVariant = getLeaderboardVariant(
@@ -366,6 +474,23 @@ const CollectionDetailDrawer = ({
   const activeLeaderboardModeLabel = getLeaderboardModeLabel(
     selectedLeaderboardMode,
   );
+  const isPreparingLeaderboardChallenge =
+    isLeaderboardStartPending || isApplying || isCreatingRoom;
+  const isPreparingCustomRoom =
+    isCustomRoomStartPending || isApplying || isCreatingRoom;
+  const isPreparingSetup = isSetupLeaderboardMode
+    ? isPreparingLeaderboardChallenge
+    : isPreparingCustomRoom;
+  const leaderboardStartLabel = isCreatingRoom
+    ? "建立房間中..."
+    : isApplying || isLeaderboardStartPending
+      ? "載入題庫中..."
+      : "開始挑戰";
+  const customRoomStartLabel = isCreatingRoom
+    ? "建立房間中..."
+    : isApplying || isCustomRoomStartPending
+      ? "載入題庫中..."
+      : "建立休閒房";
   const stats: Array<{
     key: string;
     label: string;
@@ -404,15 +529,46 @@ const CollectionDetailDrawer = ({
       ),
     },
   ];
+  const setupSourceSummary: SourceSummary = collection
+    ? {
+        label: isPublic ? "公開收藏庫" : "私人收藏庫",
+        title: collection.title,
+        detail:
+          typeof collection.item_count === "number"
+            ? `${Math.max(0, collection.item_count)} 題`
+            : "題數未提供",
+        thumbnail: previewThumbnail,
+      }
+    : selectedCreateSourceSummary;
 
   const handleStartCustomRoom = () => {
     if (!collection) return;
-    void (onStartCustomRoom ?? onUseCollection)(collection.id);
+    setRoomPlayMode("casual");
+    setDrawerView("casualSetup");
   };
 
   const handleStartLeaderboardChallenge = () => {
     if (!collection) return;
-    void (onStartLeaderboardChallenge ?? onUseCollection)(collection.id);
+    if (!isPublic) return;
+    setRoomPlayMode("leaderboard");
+    setDrawerView("leaderboardSetup");
+  };
+
+  const handleConfirmLeaderboardChallenge = () => {
+    if (!collection) return;
+    if (!isPublic) return;
+    void (
+      onConfirmLeaderboardChallenge ??
+      onStartLeaderboardChallenge ??
+      onUseCollection
+    )(collection.id);
+  };
+
+  const handleConfirmCustomRoom = () => {
+    if (!collection) return;
+    void (onConfirmCustomRoom ?? onStartCustomRoom ?? onUseCollection)(
+      collection.id,
+    );
   };
 
   const fetchPreviewPage = useCallback(
@@ -546,6 +702,10 @@ const CollectionDetailDrawer = ({
   }, [collection?.id, fetchPreviewPage, open]);
 
   useEffect(() => {
+    setDrawerView("detail");
+  }, [collection?.id, open]);
+
+  useEffect(() => {
     const variants = leaderboardVariants[selectedLeaderboardMode];
     if (
       !variants.some((variant) => variant.key === selectedLeaderboardVariant)
@@ -583,10 +743,25 @@ const CollectionDetailDrawer = ({
     >
       <div className="flex h-full min-h-0 flex-col">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-cyan-300/12 px-4 py-3 sm:px-6">
-          <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            {isSetupView ? (
+              <IconButton
+                aria-label="返回題庫詳情"
+                onClick={() => setDrawerView("detail")}
+                className="!text-slate-100 hover:!bg-white/8"
+              >
+                <ChevronLeftRounded />
+              </IconButton>
+            ) : null}
+            <div className="min-w-0">
             <h2 className="mt-1 truncate text-lg font-semibold text-slate-50 sm:text-xl">
-              {collection?.title ?? "收藏庫"}
+              {isSetupLeaderboardMode
+                ? "排行挑戰設定"
+                : isSetupView
+                  ? "休閒房設定"
+                  : collection?.title ?? "收藏庫"}
             </h2>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden text-xs font-medium text-slate-400 sm:inline">
@@ -602,11 +777,98 @@ const CollectionDetailDrawer = ({
           </div>
         </header>
 
-        {collection ? (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden md:grid-cols-[minmax(360px,0.8fr)_minmax(460px,1.2fr)] md:grid-rows-none">
+        {collection ? isSetupView ? (
+          <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[240px_minmax(0,1fr)] md:grid-rows-none">
+            <aside className="border-b border-cyan-300/12 bg-slate-950/30 px-4 py-3 md:border-b-0 md:border-r md:px-5 md:py-5">
+              <div className="flex min-w-0 items-center gap-3 md:block">
+                <div className="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-900/80 md:h-auto md:w-full md:aspect-[16/9]">
+                  {previewThumbnail ? (
+                    <img
+                      src={previewThumbnail}
+                      alt={collection.cover_title ?? collection.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">
+                      無封面
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 md:mt-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/40 px-2 py-0.5 text-[11px] font-medium text-slate-300">
+                    {isPublic ? (
+                      <PublicOutlined sx={{ fontSize: 13 }} />
+                    ) : (
+                      <LockOutlined sx={{ fontSize: 13 }} />
+                    )}
+                    {isPublic ? "公開收藏庫" : "私人收藏庫"}
+                  </span>
+                  <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-slate-50">
+                    {collection.title}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {typeof collection.item_count === "number"
+                      ? `${Math.max(0, collection.item_count)} 題`
+                      : "題數未提供"}
+                  </p>
+                </div>
+              </div>
+            </aside>
+
+            <main className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <RoomSetupPanel
+                roomNameInput={roomNameInput}
+                setRoomNameInput={setRoomNameInput}
+                roomVisibilityInput={roomVisibilityInput}
+                setRoomVisibilityInput={setRoomVisibilityInput}
+                roomPasswordInput={roomPasswordInput}
+                setRoomPasswordInput={setRoomPasswordInput}
+                isPinProtectionEnabled={isPinProtectionEnabled}
+                setIsPinProtectionEnabled={setIsPinProtectionEnabled}
+                pinValidationAttempted={pinValidationAttempted}
+                setRoomMaxPlayersInput={setRoomMaxPlayersInput}
+                parsedMaxPlayers={parsedMaxPlayers}
+                questionCount={questionCount}
+                questionMin={questionMin}
+                questionMaxLimit={questionMaxLimit}
+                updateQuestionCount={updateQuestionCount}
+                roomPlayMode={roomPlayMode}
+                setRoomPlayMode={setRoomPlayMode}
+                roomCreateSourceMode={setupRoomCreateSourceMode}
+                selectedLeaderboardMode={selectedLeaderboardMode}
+                selectedLeaderboardVariant={selectedLeaderboardVariant}
+                onLeaderboardSelectionChange={onLeaderboardSelectionChange}
+                playDurationSec={playDurationSec}
+                revealDurationSec={revealDurationSec}
+                startOffsetSec={startOffsetSec}
+                allowCollectionClipTiming={allowCollectionClipTiming}
+                updatePlayDurationSec={updatePlayDurationSec}
+                updateRevealDurationSec={updateRevealDurationSec}
+                updateStartOffsetSec={updateStartOffsetSec}
+                updateAllowCollectionClipTiming={updateAllowCollectionClipTiming}
+                playbackExtensionMode={playbackExtensionMode}
+                setPlaybackExtensionMode={setPlaybackExtensionMode}
+                supportsCollectionClipTiming={setupSupportsCollectionClipTiming}
+                selectedCreateSourceSummary={setupSourceSummary}
+                isSourceSummaryLoading={isSourceSummaryLoading}
+                createSettingsCards={createSettingsCards}
+                createRequirementsHintText={createRequirementsHintText}
+                createRecommendationHintText={createRecommendationHintText}
+                canCreateRoom={canCreateRoom}
+                isCreatingRoom={isCreatingRoom}
+                onCreateRoom={
+                  isSetupLeaderboardMode
+                    ? handleConfirmLeaderboardChallenge
+                    : handleConfirmCustomRoom
+                }
+              />
+            </main>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:grid md:grid-cols-[minmax(360px,0.8fr)_minmax(460px,1.2fr)] md:grid-rows-none md:gap-0">
             <main className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               <section className="overflow-hidden rounded-[20px] border border-cyan-300/14 bg-slate-950/44 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="relative aspect-[16/5] min-h-28 overflow-hidden bg-slate-900/80 sm:min-h-32">
+                <div className="relative aspect-[16/5] min-h-24 overflow-hidden bg-slate-900/80 sm:min-h-32">
                   {previewThumbnail ? (
                     <img
                       src={previewThumbnail}
@@ -711,197 +973,285 @@ const CollectionDetailDrawer = ({
               </section>
             </main>
 
-            <aside className="min-h-0 border-t border-cyan-300/12 bg-slate-950/36 p-4 md:border-l md:border-t-0 md:p-5">
-              <div className="flex h-full min-h-0 flex-col rounded-2xl border border-amber-200/12 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.2))] p-4">
+            <aside className="min-h-0 shrink-0 border-t border-cyan-300/12 bg-slate-950/36 p-3 md:border-l md:border-t-0 md:p-5">
+              <div className="flex h-full min-h-0 flex-col rounded-2xl border border-amber-200/12 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.2))] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="mt-1 text-lg font-semibold text-slate-50">
+                    <h3 className="mt-1 text-base font-semibold text-slate-50 sm:text-lg">
                       全球排行榜
                     </h3>
                   </div>
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-200/16 bg-amber-300/10 text-amber-100">
+                  <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-amber-200/16 bg-amber-300/10 text-amber-100">
                     <EmojiEventsRounded />
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
-                  {leaderboardModes.map((mode) => {
-                    const selected = selectedLeaderboardMode === mode.key;
-                    return (
-                      <button
-                        key={mode.key}
-                        type="button"
-                        onClick={() => onLeaderboardModeChange(mode.key)}
-                        className={`h-9 rounded-lg text-sm font-semibold transition ${
-                          selected
-                            ? "bg-amber-300/16 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.18)]"
-                            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
-                        }`}
-                      >
-                        {mode.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {activeLeaderboardVariants.map((variant) => {
-                    const selected = selectedLeaderboardVariant === variant.key;
-                    return (
-                      <button
-                        key={variant.key}
-                        type="button"
-                        onClick={() => onLeaderboardVariantChange(variant.key)}
-                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                          selected
-                            ? "border-cyan-100/24 bg-cyan-300/12 text-cyan-50"
-                            : "border-white/8 bg-slate-950/20 text-slate-400 hover:border-white/14 hover:text-slate-100"
-                        }`}
-                      >
-                        {variant.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  {activeLeaderboardData.summary.map((item, index) => (
-                    <div
-                      key={item.label}
-                      className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
-                    >
-                      <p className="text-[11px] text-slate-400">{item.label}</p>
-                      <p
-                        className={`mt-1 text-base font-semibold ${
-                          index === 0 ? "text-amber-50" : "text-slate-50"
-                        }`}
-                      >
-                        {item.value}
-                      </p>
+                {isPublic ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-slate-950/28 p-1">
+                      {leaderboardModes.map((mode) => {
+                        const selected = selectedLeaderboardMode === mode.key;
+                        return (
+                          <button
+                            key={mode.key}
+                            type="button"
+                            onClick={() => onLeaderboardModeChange(mode.key)}
+                            className={`h-9 rounded-lg text-sm font-semibold transition ${
+                              selected
+                                ? "bg-amber-300/16 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.18)]"
+                                : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-4 space-y-2.5">
-                  {activeLeaderboardData.players.map((player) => (
-                    <div
-                      key={`${activeLeaderboardVariant.key}-${player.rank}`}
-                      className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/34 px-3 py-3"
-                    >
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-sm font-bold text-slate-100">
-                        {player.rank}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-100">
-                          {player.name}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-slate-400">
-                          {player.meta}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-semibold text-slate-50">
-                          {player.score}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500">pts</p>
-                      </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {activeLeaderboardVariants.map((variant) => {
+                        const selected =
+                          selectedLeaderboardVariant === variant.key;
+                        return (
+                          <button
+                            key={variant.key}
+                            type="button"
+                            onClick={() =>
+                              onLeaderboardVariantChange(variant.key)
+                            }
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                              selected
+                                ? "border-cyan-100/24 bg-cyan-300/12 text-cyan-50"
+                                : "border-white/8 bg-slate-950/20 text-slate-400 hover:border-white/14 hover:text-slate-100"
+                            }`}
+                          >
+                            {variant.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
 
-                <div className="mt-auto pt-5">
-                  <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
-                    <div className="flex items-start gap-3">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">
-                        {activeLeaderboardData.currentUser.rank}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-50">
-                          {activeLeaderboardModeLabel} ·{" "}
-                          {activeLeaderboardVariant.label}
-                        </p>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <div>
-                            <p className="text-[11px] text-slate-400">最高分</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.score}
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {activeLeaderboardData.summary.map((item, index) => (
+                        <div
+                          key={item.label}
+                          className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
+                        >
+                          <p className="text-[11px] text-slate-400">
+                            {item.label}
+                          </p>
+                          <p
+                            className={`mt-1 text-base font-semibold ${
+                              index === 0 ? "text-amber-50" : "text-slate-50"
+                            }`}
+                          >
+                            {item.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 space-y-2.5">
+                      {activeLeaderboardData.players.map((player) => (
+                        <div
+                          key={`${activeLeaderboardVariant.key}-${player.rank}`}
+                          className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/34 px-3 py-3"
+                        >
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-sm font-bold text-slate-100">
+                            {player.rank}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-100">
+                              {player.name}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-slate-400">
+                              {player.meta}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">命中率</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.accuracy}
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-semibold text-slate-50">
+                              {player.score}
                             </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">挑戰</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.attempts}
+                            <p className="mt-1 text-[11px] text-slate-500">
+                              pts
                             </p>
                           </div>
                         </div>
-                        <p className="mt-3 text-xs leading-5 text-slate-400">
-                          {activeLeaderboardData.currentUser.hint}
-                        </p>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 pt-3">
+                      <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(15,23,42,0.24))] p-3">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-100/14 bg-cyan-300/10 text-xs font-bold text-cyan-100">
+                            {activeLeaderboardData.currentUser.rank}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-slate-50">
+                              {activeLeaderboardModeLabel} ·{" "}
+                              {activeLeaderboardVariant.label}
+                            </p>
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  最高分
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.score}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  命中率
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.accuracy}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] text-slate-400">
+                                  挑戰
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-slate-100">
+                                  {activeLeaderboardData.currentUser.attempts}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-xs leading-5 text-slate-400">
+                              {activeLeaderboardData.currentUser.hint}
+                            </p>
+                        </div>
+                        </div>
                       </div>
+                      <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
+                        目前為前端假資料，後續接上 API 後會替換為真實排行榜。
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-0 flex-1 items-center justify-center py-10">
+                    <div className="max-w-sm rounded-2xl border border-white/10 bg-slate-950/42 p-5 text-center">
+                      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-100/18 bg-amber-300/10 text-amber-100">
+                        <LockOutlined sx={{ fontSize: 22 }} />
+                      </span>
+                      <p className="mt-4 text-base font-semibold text-slate-50">
+                        收藏庫目前非公開
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        排行榜與排行挑戰僅支援公開收藏庫。將收藏庫設為公開後，這裡會顯示排行榜資料。
+                      </p>
                     </div>
                   </div>
-                  <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
-                    目前為前端假資料，後續接上 API 後會替換為真實排行榜。
-                  </p>
-                </div>
+                )}
               </div>
             </aside>
           </div>
         ) : null}
 
-        {isPublicLibraryTab && collection ? (
+        {collection ? (
           <footer className="grid shrink-0 gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="flex min-w-0 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
-                  挑戰模式
-                </p>
-                <p className="mt-1 truncate text-sm font-semibold text-slate-100">
-                  {activeLeaderboardModeLabel} ·{" "}
-                  {activeLeaderboardVariant.label}
-                </p>
-              </div>
-              <Button
-                variant="text"
-                size="small"
-                startIcon={
-                  isFavorited ? <StarRounded /> : <StarBorderRounded />
-                }
-                disabled={isFavoriteUpdating || !onToggleFavorite}
-                onClick={() => {
-                  void onToggleFavorite?.();
-                }}
-                className="!shrink-0"
-              >
-                {isFavorited ? "取消收藏" : "收藏"}
-              </Button>
-            </div>
+            {isSetupView ? (
+              <>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold tracking-[0.16em] text-cyan-100/55">
+                    {isSetupLeaderboardMode ? "確認挑戰" : "確認房間"}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                    {isSetupLeaderboardMode
+                      ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
+                      : "休閒派對"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
+                  <Button
+                    variant="outlined"
+                    startIcon={<ChevronLeftRounded />}
+                    disabled={isPreparingSetup}
+                    onClick={() => setDrawerView("detail")}
+                    className="!border-white/14 !text-slate-100 hover:!border-white/24 hover:!bg-white/8"
+                  >
+                    返回
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<PlayArrowRounded />}
+                    disabled={isPreparingSetup}
+                    onClick={
+                      isSetupLeaderboardMode
+                        ? handleConfirmLeaderboardChallenge
+                        : handleConfirmCustomRoom
+                    }
+                  >
+                    {isSetupLeaderboardMode
+                      ? leaderboardStartLabel
+                      : customRoomStartLabel}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
+                      {isPublic ? "挑戰模式" : "房間模式"}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-100">
+                      {isPublic
+                        ? `${activeLeaderboardModeLabel} · ${activeLeaderboardVariant.label}`
+                        : "私人收藏庫僅可建立休閒房"}
+                    </p>
+                  </div>
+                  {isPublic ? (
+                    <Button
+                      variant="text"
+                      size="small"
+                      startIcon={
+                        isFavorited ? <StarRounded /> : <StarBorderRounded />
+                      }
+                      disabled={isFavoriteUpdating || !onToggleFavorite}
+                      onClick={() => {
+                        void onToggleFavorite?.();
+                      }}
+                      className="!shrink-0"
+                    >
+                      {isFavorited ? "取消收藏" : "收藏"}
+                    </Button>
+                  ) : null}
+                </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-end">
-              <Button
-                variant="outlined"
-                startIcon={<MeetingRoomRounded />}
-                disabled={isApplying}
-                onClick={handleStartCustomRoom}
-                className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
-              >
-                {isApplying ? "載入中..." : "自訂房"}
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<PlayArrowRounded />}
-                disabled={isApplying}
-                onClick={handleStartLeaderboardChallenge}
-              >
-                {isApplying ? "載入中..." : "進行排行挑戰"}
-              </Button>
-            </div>
+                <div
+                  className={`grid gap-2 sm:flex sm:items-center sm:justify-end ${
+                    isPublic ? "grid-cols-2" : "grid-cols-1"
+                  }`}
+                >
+                  <Button
+                    variant="outlined"
+                    startIcon={<CelebrationRounded />}
+                    disabled={isApplying}
+                    onClick={handleStartCustomRoom}
+                    className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
+                  >
+                    {isApplying
+                      ? "載入中..."
+                      : isPublic
+                        ? "休閒派對"
+                        : "建立休閒房"}
+                  </Button>
+                  {isPublic ? (
+                    <Button
+                      variant="contained"
+                      startIcon={<PlayArrowRounded />}
+                      disabled={isPreparingLeaderboardChallenge}
+                      onClick={handleStartLeaderboardChallenge}
+                    >
+                      {isPreparingLeaderboardChallenge
+                        ? leaderboardStartLabel
+                        : "進行排行挑戰"}
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            )}
           </footer>
         ) : null}
       </div>
