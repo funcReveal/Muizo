@@ -204,6 +204,27 @@ export const apiUnfavoriteCollection = (
     },
   });
 
+export const apiFetchCollectionFavoriteStatus = (
+  apiUrl: string,
+  token: string,
+  collectionId: string,
+) =>
+  fetchJson<{
+    ok?: boolean;
+    data?: {
+      collection_id: string;
+      is_favorited: boolean;
+    };
+    error?: string;
+  }>(
+    `${apiUrl}/api/collections/${encodeURIComponent(collectionId)}/favorite-status`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
 export const apiFetchCollectionItems = (
   apiUrl: string,
   token: string | null,

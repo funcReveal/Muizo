@@ -13,6 +13,9 @@ export const useRoomSessionListsState = () => {
   const [settlementHistory, setSettlementHistory] = useState<
     RoomSettlementSnapshot[]
   >([]);
+  const [rankChangeByRoundKey, setRankChangeByRoundKey] = useState<
+    Record<string, Record<string, number | null>>
+  >({});
 
   const setMessagesWithCap = useCallback<
     Dispatch<SetStateAction<ChatMessage[]>>
@@ -42,11 +45,23 @@ export const useRoomSessionListsState = () => {
     });
   }, []);
 
+  const mergeRankChange = useCallback(
+    (roundKey: string, changes: Record<string, number | null>) => {
+      setRankChangeByRoundKey((prev) => ({
+        ...prev,
+        [roundKey]: { ...(prev[roundKey] ?? {}), ...changes },
+      }));
+    },
+    [],
+  );
+
   return {
     messages,
     setMessagesWithCap,
     settlementHistory,
     setSettlementHistoryWithCap,
+    rankChangeByRoundKey,
+    mergeRankChange,
   };
 };
 

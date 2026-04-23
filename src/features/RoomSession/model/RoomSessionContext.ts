@@ -74,6 +74,7 @@ export interface RoomSessionContextValue {
     durationMs?: number | null,
   ) => void;
   handleTransferHost: (targetClientId: string) => void;
+  rankChangeByRoundKey: Record<string, Record<string, number | null>>;
   // 結算歷史
   fetchSettlementHistorySummaries: (options?: {
     limit?: number;

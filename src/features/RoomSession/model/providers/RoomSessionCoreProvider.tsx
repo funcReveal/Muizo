@@ -168,6 +168,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setMessagesWithCap,
     settlementHistory,
     setSettlementHistoryWithCap,
+    rankChangeByRoundKey,
+    mergeRankChange,
   } = useRoomSessionListsState();
   const {
     chatCooldownLeft,
@@ -393,6 +395,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setParticipants,
       setMessages: setMessagesWithCap,
       setSettlementHistory: setSettlementHistoryWithCap,
+      mergeRankChange,
       setPlaylistSuggestions,
       setPlaylistProgress,
       setGameState,
@@ -659,6 +662,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       handleLeaveRoom,
       handleKickPlayer,
       handleTransferHost,
+      rankChangeByRoundKey,
       fetchSettlementHistorySummaries,
       fetchSettlementReplay,
     }),
@@ -668,6 +672,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       participants,
       messages,
       settlementHistory,
+      rankChangeByRoundKey,
       statusText,
       setStatusText,
       statusNotification,
