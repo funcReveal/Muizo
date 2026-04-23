@@ -4,19 +4,21 @@ import { Slider, TextField, Tooltip } from "@mui/material";
 import {
   AccessTimeRounded,
   AddRounded,
-  CelebrationRounded,
+  ChairRounded,
+  ContentCutRounded,
   EditNoteRounded,
   EmojiEventsRounded,
+  FastForwardRounded,
   GroupsRounded,
+  HourglassTopRounded,
   KeyboardArrowDownRounded,
   LockRounded,
   LockOutlined,
   PinOutlined,
-  PlayCircleOutlineRounded,
   PublicOutlined,
   QuizRounded,
   RemoveRounded,
-  ScheduleRounded,
+  SportsEsportsRounded,
   TimerRounded,
   TuneRounded,
 } from "@mui/icons-material";
@@ -32,8 +34,14 @@ import {
   START_OFFSET_MAX,
   START_OFFSET_MIN,
 } from "@domain/room/constants";
-import type { PlaybackExtensionMode, RoomCreateSourceMode } from "@domain/room/types";
-import type { CreateSettingsCard, SourceSummary } from "../../roomsHubViewModels";
+import type {
+  PlaybackExtensionMode,
+  RoomCreateSourceMode,
+} from "@domain/room/types";
+import type {
+  CreateSettingsCard,
+  SourceSummary,
+} from "../../roomsHubViewModels";
 import {
   getLeaderboardModeDescription,
   leaderboardModes,
@@ -148,8 +156,9 @@ const RoomSetupPanel = ({
     leaderboardChallengeOptions.find(
       (option) => option.variantKey === selectedLeaderboardVariant,
     ) ?? leaderboardChallengeOptions[0];
-  const activeLeaderboardModeDescription =
-    getLeaderboardModeDescription(selectedLeaderboardMode);
+  const activeLeaderboardModeDescription = getLeaderboardModeDescription(
+    selectedLeaderboardMode,
+  );
   const isLeaderboardChallengeAvailable =
     roomCreateSourceMode === "publicCollection";
   const isLeaderboardRoom =
@@ -239,9 +248,7 @@ const RoomSetupPanel = ({
           <LockOutlined sx={{ fontSize: 18 }} />
         </span>
         <span className="min-w-0">
-          <span className="block text-sm font-semibold">
-            限時挑戰固定 1 人
-          </span>
+          <span className="block text-sm font-semibold">限時挑戰固定 1 人</span>
           <span className="mt-0.5 block text-xs text-cyan-100/72">
             不會變更休閒派對的人數設定
           </span>
@@ -412,8 +419,8 @@ const RoomSetupPanel = ({
       </section>
 
       <section className="px-1 py-2">
-        <div className="flex items-center gap-2">
-          <CelebrationRounded sx={{ fontSize: 18, color: "#34d399" }} />
+          <div className="flex items-center gap-2">
+          <SportsEsportsRounded sx={{ fontSize: 18, color: "#34d399" }} />
           <p className="text-sm font-semibold text-[var(--mc-text)]">
             房間模式
           </p>
@@ -441,7 +448,7 @@ const RoomSetupPanel = ({
                     : "border-white/10 bg-slate-950/35 text-slate-300"
                 }`}
               >
-                <CelebrationRounded sx={{ fontSize: 18 }} />
+                <ChairRounded sx={{ fontSize: 18 }} />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold">休閒派對</span>
@@ -454,146 +461,146 @@ const RoomSetupPanel = ({
 
           {showLeaderboardMode ? (
             <div
-            className={`relative rounded-2xl border px-3 py-3 transition ${
-              isLeaderboardRoom && isLeaderboardChallengeAvailable
-                ? "border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                : "border-white/8 bg-white/5 text-[var(--mc-text-muted)] hover:border-amber-300/28 hover:bg-white/[0.07]"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                disabled={!isLeaderboardChallengeAvailable}
-                onClick={() => {
-                  if (!isLeaderboardChallengeAvailable) return;
-                  setRoomPlayMode("leaderboard");
-                }}
-                className="flex min-w-0 flex-1 items-start gap-3 text-left disabled:cursor-not-allowed"
-              >
-                <span
-                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-                    isLeaderboardRoom && isLeaderboardChallengeAvailable
-                      ? "border-amber-200/24 bg-amber-300/14 text-amber-100"
-                      : "border-white/10 bg-slate-950/35 text-slate-300"
-                  }`}
-                >
-                  <EmojiEventsRounded sx={{ fontSize: 18 }} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">
-                    排行挑戰
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 opacity-80">
-                    {activeLeaderboardModeDescription}
-                  </span>
-                </span>
-              </button>
-
-              {isLeaderboardChallengeAvailable ? (
-                <div
-                  className="relative shrink-0"
-                  onBlur={(event) => {
-                    if (
-                      !event.currentTarget.contains(
-                        event.relatedTarget as Node | null,
-                      )
-                    ) {
-                      setIsLeaderboardSpecMenuOpen(false);
-                    }
+              className={`relative rounded-2xl border px-3 py-3 transition ${
+                isLeaderboardRoom && isLeaderboardChallengeAvailable
+                  ? "border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  : "border-white/8 bg-white/5 text-[var(--mc-text-muted)] hover:border-amber-300/28 hover:bg-white/[0.07]"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  disabled={!isLeaderboardChallengeAvailable}
+                  onClick={() => {
+                    if (!isLeaderboardChallengeAvailable) return;
+                    setRoomPlayMode("leaderboard");
                   }}
+                  className="flex min-w-0 flex-1 items-start gap-3 text-left disabled:cursor-not-allowed"
                 >
-                  <button
-                    type="button"
-                    aria-haspopup="listbox"
-                    aria-expanded={isLeaderboardSpecMenuOpen}
-                    onClick={() =>
-                      setIsLeaderboardSpecMenuOpen((current) => !current)
-                    }
-                    className={`inline-flex h-10 w-[124px] items-center justify-between gap-2.5 rounded-xl border px-3 text-left text-sm font-semibold outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-amber-100/36 hover:bg-slate-950/44 focus:border-amber-100/50 focus:ring-2 focus:ring-amber-200/10 ${
-                      isLeaderboardRoom
-                        ? "border-amber-100/22 bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(2,6,23,0.44))] text-amber-50"
-                        : "border-white/10 bg-slate-950/30 text-amber-100/86"
+                  <span
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                      isLeaderboardRoom && isLeaderboardChallengeAvailable
+                        ? "border-amber-200/24 bg-amber-300/14 text-amber-100"
+                        : "border-white/10 bg-slate-950/35 text-slate-300"
                     }`}
                   >
-                    <span className="min-w-0 truncate">
-                      {activeLeaderboardOption.label}
+                    <EmojiEventsRounded sx={{ fontSize: 18 }} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">
+                      排行挑戰
                     </span>
-                    <KeyboardArrowDownRounded
-                      sx={{ fontSize: 19 }}
-                      className={`shrink-0 text-amber-100/72 transition ${
-                        isLeaderboardSpecMenuOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
+                    <span className="mt-1 block text-xs leading-5 opacity-80">
+                      {activeLeaderboardModeDescription}
+                    </span>
+                  </span>
+                </button>
 
-                  {isLeaderboardSpecMenuOpen ? (
-                    <div className="absolute right-0 top-[calc(100%+0.45rem)] z-30 w-[216px] max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-amber-100/20 bg-slate-950/96 p-2 shadow-[0_22px_50px_-28px_rgba(251,191,36,0.72),0_18px_36px_-28px_rgba(2,6,23,0.95)] backdrop-blur-xl">
-                      <div
-                        role="listbox"
-                        aria-label="挑戰規格"
-                        className="space-y-1"
-                      >
-                        {leaderboardChallengeGroups.map((group) => (
-                          <div key={group.modeKey}>
-                            <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold tracking-[0.16em] text-amber-100/45">
-                              {group.label}
-                            </div>
-                            <div className="space-y-1">
-                              {group.options.map((option) => {
-                                const selected =
-                                  option.variantKey ===
-                                  selectedLeaderboardVariant;
-                                return (
-                                  <button
-                                    key={option.variantKey}
-                                    type="button"
-                                    role="option"
-                                    aria-selected={selected}
-                                    onMouseDown={(event) =>
-                                      event.preventDefault()
-                                    }
-                                    onClick={() => {
-                                      setRoomPlayMode("leaderboard");
-                                      onLeaderboardSelectionChange(
-                                        option.modeKey,
-                                        option.variantKey,
-                                      );
-                                      setIsLeaderboardSpecMenuOpen(false);
-                                    }}
-                                    className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
-                                      selected
-                                        ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
-                                        : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
-                                    }`}
-                                  >
-                                    <span className="min-w-0">
-                                      <span className="block truncate text-sm font-semibold">
-                                        {option.label}
+                {isLeaderboardChallengeAvailable ? (
+                  <div
+                    className="relative shrink-0"
+                    onBlur={(event) => {
+                      if (
+                        !event.currentTarget.contains(
+                          event.relatedTarget as Node | null,
+                        )
+                      ) {
+                        setIsLeaderboardSpecMenuOpen(false);
+                      }
+                    }}
+                  >
+                    <button
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded={isLeaderboardSpecMenuOpen}
+                      onClick={() =>
+                        setIsLeaderboardSpecMenuOpen((current) => !current)
+                      }
+                      className={`inline-flex h-10 w-[124px] items-center justify-between gap-2.5 rounded-xl border px-3 text-left text-sm font-semibold outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-amber-100/36 hover:bg-slate-950/44 focus:border-amber-100/50 focus:ring-2 focus:ring-amber-200/10 ${
+                        isLeaderboardRoom
+                          ? "border-amber-100/22 bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(2,6,23,0.44))] text-amber-50"
+                          : "border-white/10 bg-slate-950/30 text-amber-100/86"
+                      }`}
+                    >
+                      <span className="min-w-0 truncate">
+                        {activeLeaderboardOption.label}
+                      </span>
+                      <KeyboardArrowDownRounded
+                        sx={{ fontSize: 19 }}
+                        className={`shrink-0 text-amber-100/72 transition ${
+                          isLeaderboardSpecMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {isLeaderboardSpecMenuOpen ? (
+                      <div className="absolute right-0 top-[calc(100%+0.45rem)] z-30 w-[216px] max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-amber-100/20 bg-slate-950/96 p-2 shadow-[0_22px_50px_-28px_rgba(251,191,36,0.72),0_18px_36px_-28px_rgba(2,6,23,0.95)] backdrop-blur-xl">
+                        <div
+                          role="listbox"
+                          aria-label="挑戰規格"
+                          className="space-y-1"
+                        >
+                          {leaderboardChallengeGroups.map((group) => (
+                            <div key={group.modeKey}>
+                              <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold tracking-[0.16em] text-amber-100/45">
+                                {group.label}
+                              </div>
+                              <div className="space-y-1">
+                                {group.options.map((option) => {
+                                  const selected =
+                                    option.variantKey ===
+                                    selectedLeaderboardVariant;
+                                  return (
+                                    <button
+                                      key={option.variantKey}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={selected}
+                                      onMouseDown={(event) =>
+                                        event.preventDefault()
+                                      }
+                                      onClick={() => {
+                                        setRoomPlayMode("leaderboard");
+                                        onLeaderboardSelectionChange(
+                                          option.modeKey,
+                                          option.variantKey,
+                                        );
+                                        setIsLeaderboardSpecMenuOpen(false);
+                                      }}
+                                      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
+                                        selected
+                                          ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
+                                          : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
+                                      }`}
+                                    >
+                                      <span className="min-w-0">
+                                        <span className="block truncate text-sm font-semibold">
+                                          {option.label}
+                                        </span>
                                       </span>
-                                    </span>
-                                    {selected ? (
-                                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
-                                    ) : null}
-                                  </button>
-                                );
-                              })}
+                                      {selected ? (
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
+                                      ) : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {!isLeaderboardChallengeAvailable ? (
+                <div className="absolute inset-0 z-10 flex items-center justify-end rounded-2xl bg-slate-950/66 px-3 backdrop-blur-[2px]">
+                  <div className="inline-flex max-w-[13rem] items-center gap-2 rounded-xl border border-amber-100/18 bg-slate-950/84 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
+                    <LockOutlined sx={{ fontSize: 16 }} />
+                    <span className="leading-5">僅公開收藏庫可用</span>
+                  </div>
                 </div>
               ) : null}
-            </div>
-            {!isLeaderboardChallengeAvailable ? (
-              <div className="absolute inset-0 z-10 flex items-center justify-end rounded-2xl bg-slate-950/66 px-3 backdrop-blur-[2px]">
-                <div className="inline-flex max-w-[13rem] items-center gap-2 rounded-xl border border-amber-100/18 bg-slate-950/84 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
-                  <LockOutlined sx={{ fontSize: 16 }} />
-                  <span className="leading-5">僅公開收藏庫可用</span>
-                </div>
-              </div>
-            ) : null}
             </div>
           ) : null}
         </div>
@@ -853,10 +860,12 @@ const RoomSetupPanel = ({
                       {allowCollectionClipTiming ? (
                         <TuneRounded sx={{ fontSize: 18, color: "#34d399" }} />
                       ) : (
-                        <TimerRounded sx={{ fontSize: 18, color: "#7dd3fc" }} />
+                        <ContentCutRounded
+                          sx={{ fontSize: 18, color: "#7dd3fc" }}
+                        />
                       )}
                       <p className="text-sm font-semibold text-[var(--mc-text)]">
-                        {allowCollectionClipTiming ? "收藏庫片段" : "手動節奏"}
+                        {allowCollectionClipTiming ? "收藏庫片段" : "自訂片段"}
                       </p>
                     </div>
                   </div>
@@ -901,7 +910,7 @@ const RoomSetupPanel = ({
                 <div className="mt-3 grid gap-3">
                   <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
                     <div className="flex items-center gap-2">
-                      <PlayCircleOutlineRounded
+                      <HourglassTopRounded
                         sx={{ fontSize: 18, color: "#7dd3fc" }}
                       />
                       <p className="text-sm font-semibold text-[var(--mc-text)]">
@@ -962,7 +971,9 @@ const RoomSetupPanel = ({
 
                   <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
                     <div className="flex items-center gap-2">
-                      <ScheduleRounded sx={{ fontSize: 18, color: "#c084fc" }} />
+                      <FastForwardRounded
+                        sx={{ fontSize: 18, color: "#c084fc" }}
+                      />
                       <p className="text-sm font-semibold text-[var(--mc-text)]">
                         起始秒數
                       </p>

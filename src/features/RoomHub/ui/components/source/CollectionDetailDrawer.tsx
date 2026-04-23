@@ -8,7 +8,7 @@ import {
 } from "react";
 import {
   BarChartRounded,
-  CelebrationRounded,
+  ChairRounded,
   ChevronLeftRounded,
   CloseRounded,
   EmojiEventsRounded,
@@ -1229,7 +1229,7 @@ const CollectionDetailDrawer = ({
                 >
                   <Button
                     variant="outlined"
-                    startIcon={<CelebrationRounded />}
+                    startIcon={<ChairRounded />}
                     disabled={isApplying}
                     onClick={handleStartCustomRoom}
                     className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
