@@ -7,10 +7,11 @@ import {
 
 import type {
   ChatMessage,
+  LeaderboardSettlementReadyPayload,
+  RoomLookupResult,
   RoomParticipant,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
-  RoomLookupResult,
   RoomState,
   RoomSummary,
   SessionProgressPayload,
@@ -35,13 +36,11 @@ export type RoomClosedNotice = {
 };
 
 export interface RoomSessionContextValue {
-  // 房間狀態
   currentRoom: RoomState["room"] | null;
   currentRoomId: string | null;
   participants: RoomParticipant[];
   messages: ChatMessage[];
   settlementHistory: RoomSettlementSnapshot[];
-  // UI 狀態
   statusText: string | null;
   setStatusText: (value: string | null, options?: RoomStatusOptions) => void;
   statusNotification: RoomStatusNotification | null;
@@ -49,25 +48,21 @@ export interface RoomSessionContextValue {
   setKickedNotice: Dispatch<SetStateAction<RoomKickedNotice | null>>;
   closedRoomNotice: RoomClosedNotice | null;
   sessionProgress: SessionProgressPayload | null;
-  // 連線
   isConnected: boolean;
   isRecoveringConnection: boolean;
   recoveryStatusText: string | null;
   serverOffsetMs: number;
   syncServerOffset: (serverNow: number) => void;
   hostRoomPassword: string | null;
-  // 房間列表
   rooms: RoomSummary[];
   fetchRooms: () => Promise<void>;
   fetchRoomById: (roomId: string) => Promise<RoomLookupResult>;
-  // 邀請 / 路由
   inviteRoomId: string | null;
   inviteNotFound: boolean;
   isInviteMode: boolean;
   setInviteRoomId: (value: string | null) => void;
   routeRoomResolved: boolean;
   setRouteRoomId: (value: string | null) => void;
-  // 房間操作
   handleLeaveRoom: (onLeft?: () => void) => void;
   handleKickPlayer: (
     targetClientId: string,
@@ -75,7 +70,10 @@ export interface RoomSessionContextValue {
   ) => void;
   handleTransferHost: (targetClientId: string) => void;
   rankChangeByRoundKey: Record<string, Record<string, number | null>>;
-  // 結算歷史
+  leaderboardSettlementReadyByRoundKey: Record<
+    string,
+    LeaderboardSettlementReadyPayload
+  >;
   fetchSettlementHistorySummaries: (options?: {
     limit?: number;
     beforeEndedAt?: number | null;
@@ -92,7 +90,8 @@ export const RoomSessionContext = createContext<RoomSessionContextValue | null>(
 
 export const useRoomSession = (): RoomSessionContextValue => {
   const ctx = useContext(RoomSessionContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error("useRoomSession must be used within a RoomProvider");
+  }
   return ctx;
 };

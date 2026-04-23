@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ClientSocket,
   GameLiveUpdatePayload,
+  LeaderboardSettlementReadyPayload,
   PlaylistState,
   PlaylistSuggestion,
   RoomCreationState,
@@ -76,6 +77,9 @@ type RoomSocketHandlers = {
     roundKey: string;
     rankChangeByClientId: Record<string, number | null>;
   }) => void;
+  onLeaderboardSettlementReady?: (
+    payload: LeaderboardSettlementReadyPayload,
+  ) => void;
 };
 
 type RoomSocketAuth = {
@@ -192,6 +196,9 @@ export const connectRoomSocket = (
   );
   socket.on("settlementRankChange", (payload) =>
     handlers.onSettlementRankChange?.(payload),
+  );
+  socket.on("leaderboardSettlementReady", (payload) =>
+    handlers.onLeaderboardSettlementReady?.(payload),
   );
 
   return socket;

@@ -76,6 +76,80 @@ export interface RoomSettlementHistorySummary {
   } | null;
 }
 
+export interface LeaderboardSettlementEntry {
+  rank: number;
+  userId: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  score: number;
+  correctCount: number;
+  questionCount: number;
+  maxCombo: number;
+  avgCorrectMs: number | null;
+  isMe: boolean;
+}
+
+export interface PersonalBestComparison {
+  hasPreviousBest: boolean;
+  previousBestScore: number | null;
+  previousBestRank: number | null;
+  previousBestCorrectCount: number | null;
+  previousBestMaxCombo: number | null;
+  previousBestAvgCorrectMs: number | null;
+  scoreDelta: number | null;
+  rankDelta: number | null;
+}
+
+export interface LeaderboardSettlementReadyPayload {
+  roomId: string;
+  roundKey: string;
+  matchId: string;
+  collectionId: string;
+  leaderboardProfileKey: string;
+}
+
+export interface LeaderboardSettlementResponse {
+  match: {
+    matchId: string;
+    roundKey: string;
+    playedAt: number;
+    status: "ended" | "aborted";
+  };
+  collection: {
+    id: string;
+    title: string;
+    coverThumbnailUrl: string | null;
+    itemCount: number | null;
+    visibility: "public" | "private";
+  };
+  profile: {
+    profileKey: string;
+    title: string;
+    modeKey: "classic" | "time_attack";
+    variantKey: string | null;
+    ruleVersion: number;
+    targetQuestionCount: number | null;
+    timeLimitSec: number | null;
+  };
+  currentRun: {
+    score: number;
+    rank: number;
+    totalPlayers: number;
+    correctCount: number;
+    questionCount: number;
+    maxCombo: number;
+    avgCorrectMs: number | null;
+    percentile: number | null;
+    rankChange: number | null;
+    gapToFirst: number | null;
+    gapToPrevious: number | null;
+    isPersonalBest: boolean;
+  };
+  personalBestComparison: PersonalBestComparison | null;
+  leaderboardTop: LeaderboardSettlementEntry[];
+  leaderboardAroundMe: LeaderboardSettlementEntry[];
+}
+
 export interface RoomSettlementSnapshot {
   matchId?: string | null;
   roundKey: string;

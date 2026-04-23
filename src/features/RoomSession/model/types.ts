@@ -87,6 +87,10 @@ export interface SessionProgressPayload {
 }
 
 export type {
+  LeaderboardSettlementEntry,
+  LeaderboardSettlementReadyPayload,
+  LeaderboardSettlementResponse,
+  PersonalBestComparison,
   RoomSettlementHistorySummary,
   RoomSettlementQuestionAnswer,
   RoomSettlementQuestionChoice,

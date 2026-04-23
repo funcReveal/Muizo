@@ -21,7 +21,6 @@ import ChairRoundedIcon from "@mui/icons-material/ChairRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import FastForwardRoundedIcon from "@mui/icons-material/FastForwardRounded";
 import SportsEsportsRoundedIcon from "@mui/icons-material/SportsEsportsRounded";
-import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
 import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
@@ -154,7 +153,6 @@ interface RoomLobbyPanelProps {
   onOpenLastSettlement?: () => void;
   onOpenHistoryDrawer?: () => void;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
-  onOpenTestSettlement?: () => void;
   onOpenGame?: () => void;
   onKickPlayer: (clientId: string, durationMs?: number | null) => void;
   onTransferHost: (clientId: string) => void;
@@ -231,7 +229,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onStartGame,
   onUpdateRoomSettings,
   onOpenHistoryDrawer,
-  onOpenTestSettlement,
   onOpenGame,
   onKickPlayer,
   onTransferHost,
@@ -1306,21 +1303,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             },
           ]
         : []),
-      ...(onOpenTestSettlement
-        ? [
-            {
-              key: "test-settlement",
-              label: "測試結算",
-              ariaLabel: "開啟測試結算畫面",
-              icon: <ScienceRoundedIcon fontSize="small" />,
-              onClick: () => onOpenTestSettlement(),
-              disabled: false,
-              tone: "normal" as const,
-              title: "使用假資料直接開啟結算頁",
-              variant: "outlined" as const,
-            },
-          ]
-        : []),
       {
         key: "leave",
         label: "離開",
@@ -1337,7 +1319,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       requestLeaveRoom,
       settingsActionDisabledReason,
       isHost,
-      onOpenTestSettlement,
     ],
   );
   const mobileBottomActionButtons = useMemo(
