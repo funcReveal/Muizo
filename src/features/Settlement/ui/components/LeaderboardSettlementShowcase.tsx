@@ -857,43 +857,6 @@ const LeaderboardSettlementShowcase: React.FC<
       sortedParticipants,
     ]);
 
-    const percentileMetrics = useMemo(() => {
-      const accuracyValues = sortedParticipants.map((participant) =>
-        playedQuestionCount > 0
-          ? ((participant.correctCount ?? 0) / playedQuestionCount) * 100
-          : 0,
-      );
-      const comboValues = sortedParticipants.map((participant) =>
-        Math.max(participant.maxCombo ?? 0, participant.combo ?? 0),
-      );
-      const speedValues = sortedParticipants
-        .map((participant) =>
-          typeof participant.avgCorrectMs === "number" &&
-            Number.isFinite(participant.avgCorrectMs)
-            ? participant.avgCorrectMs
-            : null,
-        )
-        .filter((value): value is number => value !== null);
-
-      return {
-        accuracyPercentile: getPercentileLabel(
-          accuracyValues,
-          meSummary.me ? meSummary.accuracy : null,
-          "higher",
-        ),
-        comboPercentile: getPercentileLabel(
-          comboValues,
-          meSummary.me ? meSummary.combo : null,
-          "higher",
-        ),
-        speedPercentile: getPercentileLabel(
-          speedValues,
-          meSummary.avgCorrectMs,
-          "lower",
-        ),
-      };
-    }, [meSummary, playedQuestionCount, sortedParticipants]);
-
     const effectiveLeaderboardRows = useMemo<LeaderboardMetricRow[]>(() => {
       // While loading, show all placeholder skeletons — reveal real data only when ready.
       if (leaderboardSettlementLoading) {
@@ -959,6 +922,59 @@ const LeaderboardSettlementShowcase: React.FC<
       participants.length,
       rankChangeByClientId,
       sortedParticipants,
+    ]);
+    const percentileMetrics = useMemo(() => {
+      const metricRows = effectiveLeaderboardRows.filter((row) => !row.isSkeleton);
+
+      const currentAccuracy =
+        backendCurrentRun && backendCurrentRun.questionCount > 0
+          ? (backendCurrentRun.correctCount / backendCurrentRun.questionCount) * 100
+          : meSummary.accuracy;
+
+      const currentCombo = backendCurrentRun?.maxCombo ?? meSummary.combo;
+      const currentAvgCorrectMs =
+        backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs;
+
+      const accuracyValues = metricRows.map((row) =>
+        playedQuestionCount > 0
+          ? (row.correctCount / playedQuestionCount) * 100
+          : 0,
+      );
+
+      const comboValues = metricRows.map((row) => row.combo);
+
+      const speedValues = metricRows
+        .map((row) =>
+          typeof row.avgCorrectMs === "number" && Number.isFinite(row.avgCorrectMs)
+            ? row.avgCorrectMs
+            : null,
+        )
+        .filter((value): value is number => value !== null);
+
+      return {
+        accuracyPercentile: getPercentileLabel(
+          accuracyValues,
+          currentAccuracy,
+          "higher",
+        ),
+        comboPercentile: getPercentileLabel(
+          comboValues,
+          currentCombo,
+          "higher",
+        ),
+        speedPercentile: getPercentileLabel(
+          speedValues,
+          currentAvgCorrectMs,
+          "lower",
+        ),
+      };
+    }, [
+      backendCurrentRun,
+      effectiveLeaderboardRows,
+      meSummary.accuracy,
+      meSummary.avgCorrectMs,
+      meSummary.combo,
+      playedQuestionCount,
     ]);
 
     const aroundMeRows = useMemo<LeaderboardMetricRow[]>(() => {
@@ -1187,6 +1203,10 @@ const LeaderboardSettlementShowcase: React.FC<
       if (!baseRank) return 0;
       return baseRank + (selfBestAheadOfCurrent ? 1 : 0);
     })();
+    const displayedRankChange =
+      meSummary.myRankChange === null
+        ? null
+        : meSummary.myRankChange - (selfBestAheadOfCurrent ? 1 : 0);
     const gapTargetRank = (() => {
       if (backendCurrentRun?.rank && backendCurrentRun.rank > 1) {
         return Math.max(1, backendCurrentRun.rank - 1);
@@ -1340,17 +1360,17 @@ const LeaderboardSettlementShowcase: React.FC<
                         </div>
                       )}
                       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-xs text-[var(--mc-text-muted)]">
-                        {meSummary.myRankChange !== null && (
+                        {displayedRankChange !== null && (
                           <>
-                            {meSummary.myRankChange > 0 ? (
+                            {displayedRankChange > 0 ? (
                               <span className="inline-flex items-center gap-1 font-semibold text-emerald-400">
                                 <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
-                                升了 {meSummary.myRankChange}
+                                升了 {displayedRankChange}
                               </span>
-                            ) : meSummary.myRankChange < 0 ? (
+                            ) : displayedRankChange < 0 ? (
                               <span className="inline-flex items-center gap-1 font-semibold text-rose-400">
                                 <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
-                                降了 {Math.abs(meSummary.myRankChange)}
+                                降了 {Math.abs(displayedRankChange)}
                               </span>
                             ) : (
                               <span className="text-[var(--mc-text-muted)]">持平</span>
