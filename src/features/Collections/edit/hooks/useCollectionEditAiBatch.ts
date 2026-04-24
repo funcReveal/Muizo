@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { EditableItem } from "../utils/editTypes";
+import type {
+  AnswerAiProvider,
+  AnswerStatus,
+  EditableItem,
+} from "../utils/editTypes";
 
 const AI_BATCH_PAGE_SIZE = 100;
 const MAX_AI_ASSISTANT_URL_LENGTH = 45000;
-const AI_PROVIDER = "gemini";
+const AI_PROVIDER: AnswerAiProvider = "gemini";
+const AI_MODIFIED_STATUS: AnswerStatus = "ai_modified";
 const AI_PROVIDER_LABEL = "Gemini";
 const AI_PROVIDER_BASE_URL = "https://gemini.google.com/app";
 
@@ -416,7 +421,7 @@ export function useCollectionEditAiBatch({
     const updates = new Map(
       aiPreview.changedItems.map((item) => [item.id, item.newAnswer] as const),
     );
-    const nextPlaylistItems = playlistItems.map((item) => {
+    const nextPlaylistItems: EditableItem[] = playlistItems.map((item) => {
       const key = item.dbId ?? item.localId;
       const nextAnswer = updates.get(key);
       if (!nextAnswer) return item;
@@ -424,7 +429,7 @@ export function useCollectionEditAiBatch({
       return {
         ...item,
         answerText: nextAnswer,
-        answerStatus: "ai_modified",
+        answerStatus: AI_MODIFIED_STATUS,
         answerAiProvider: AI_PROVIDER,
         answerAiUpdatedAt: updatedAt,
         answerAiBatchKey: batchKey,
