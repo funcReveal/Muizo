@@ -79,6 +79,57 @@ export type CollectionItemPreviewRecord = {
   thumbnail_url?: string | null;
 };
 
+export type CollectionLeaderboardProfileSummary = {
+  profileKey: string;
+  title: string;
+  modeKey: string | null;
+  variantKey: string | null;
+  targetQuestionCount: number | null;
+  timeLimitSec: number | null;
+  totalPlayers: number;
+  myBestRank: number | null;
+  myBestScore: number | null;
+};
+
+export type CollectionLeaderboardEntry = {
+  rank: number;
+  userId: string | null;
+  displayName: string;
+  avatarUrl: string | null;
+  score: number;
+  correctCount: number | null;
+  questionCount: number | null;
+  maxCombo: number;
+  avgCorrectMs: number | null;
+  durationSec: number | null;
+  achievedAt: string;
+  isMe: boolean;
+};
+
+export type CollectionLeaderboardEntriesPage = {
+  profile: {
+    profileKey: string;
+    title: string;
+    modeKey: string | null;
+    variantKey: string | null;
+    targetQuestionCount: number | null;
+    timeLimitSec: number | null;
+  };
+  items: CollectionLeaderboardEntry[];
+  offset: number;
+  limit: number;
+  totalPlayers: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
+
+export type CollectionLeaderboardOverview = {
+  profiles: CollectionLeaderboardProfileSummary[];
+  activeProfile: CollectionLeaderboardEntriesPage & {
+    myBestEntry: CollectionLeaderboardEntry | null;
+  };
+};
+
 export type WorkerListPayload<TItem> = {
   ok?: boolean;
   data?: {
@@ -274,6 +325,76 @@ export const apiFetchCollectionItemPreview = (
       headers: Object.keys(headers).length > 0 ? headers : undefined,
     },
   );
+};
+
+export const apiFetchCollectionLeaderboardOverview = (
+  apiUrl: string,
+  token: string | null,
+  collectionId: string,
+  options: {
+    profileKey: string;
+    limit?: number;
+    readToken?: string | null;
+  },
+) => {
+  const url = new URL(
+    `${apiUrl}/api/collections/${collectionId}/leaderboard/overview`,
+  );
+  url.searchParams.set("profileKey", options.profileKey);
+  if (options.limit !== undefined) {
+    url.searchParams.set("limit", String(options.limit));
+  }
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (options.readToken) {
+    headers["X-Collection-Read-Token"] = options.readToken;
+  }
+  return fetchJson<{
+    ok?: boolean;
+    data?: CollectionLeaderboardOverview;
+    error?: string;
+  }>(url.toString(), {
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+  });
+};
+
+export const apiFetchCollectionLeaderboardRankings = (
+  apiUrl: string,
+  token: string | null,
+  collectionId: string,
+  options: {
+    profileKey: string;
+    limit?: number;
+    offset?: number;
+    readToken?: string | null;
+  },
+) => {
+  const url = new URL(
+    `${apiUrl}/api/collections/${collectionId}/leaderboard/rankings`,
+  );
+  url.searchParams.set("profileKey", options.profileKey);
+  if (options.limit !== undefined) {
+    url.searchParams.set("limit", String(options.limit));
+  }
+  if (options.offset !== undefined) {
+    url.searchParams.set("offset", String(options.offset));
+  }
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (options.readToken) {
+    headers["X-Collection-Read-Token"] = options.readToken;
+  }
+  return fetchJson<{
+    ok?: boolean;
+    data?: CollectionLeaderboardEntriesPage;
+    error?: string;
+  }>(url.toString(), {
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+  });
 };
 
 export const apiCreateCollectionReadToken = (

@@ -38,15 +38,21 @@ import { API_URL } from "@domain/room/constants";
 import type { RoomCreateSourceMode } from "@domain/room/types";
 import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
+  apiFetchCollectionLeaderboardOverview,
+  apiFetchCollectionLeaderboardRankings,
   apiFetchCollectionItemPreview,
+  type CollectionLeaderboardEntry,
+  type CollectionLeaderboardOverview,
   type CollectionItemPreviewRecord,
 } from "@features/CollectionContent/model/collectionContentApi";
 import { useAuth } from "@shared/auth/AuthContext";
 import { ensureFreshAuthToken } from "@shared/auth/token";
 import { useTransientScrollbar } from "@shared/hooks/useTransientScrollbar";
+import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 import {
   getLeaderboardModeDescription,
   getLeaderboardModeLabel,
+  getLeaderboardProfileKey,
   getLeaderboardVariant,
   leaderboardModes,
   leaderboardVariants,
@@ -142,22 +148,27 @@ type CollectionDetailDrawerProps = {
   onLoginRequired?: () => void;
 };
 
+type LeaderboardPreviewPlayer = {
+  rank: number | string;
+  name: string;
+  score: string;
+  meta: string;
+  duration: string;
+  clientId: string;
+  avatarUrl?: string | null;
+  isCurrentUser?: boolean;
+};
+
 const leaderboardPreviewByVariant: Record<
   LeaderboardVariantKey,
   {
     summary: Array<{ label: string; value: string }>;
-    players: Array<{
-      rank: number;
-      name: string;
-      score: string;
-      meta: string;
-      isCurrentUser?: boolean;
-    }>;
+    players: LeaderboardPreviewPlayer[];
     currentUser: {
       rank: string;
+      name: string;
       score: string;
-      accuracy: string;
-      attempts: string;
+      duration: string;
       hint: string;
     };
   }
@@ -174,44 +185,56 @@ const leaderboardPreviewByVariant: Record<
         name: "Luna",
         score: "28,740",
         meta: "29/30 · 命中 96% · combo 18",
+        duration: "06:18",
+        clientId: "preview-luna",
       },
       {
         rank: 2,
         name: "Kaito",
         score: "27,920",
         meta: "28/30 · 命中 93% · combo 16",
+        duration: "06:42",
+        clientId: "preview-kaito",
       },
       {
         rank: 3,
         name: "Mira",
         score: "26,880",
         meta: "28/30 · 命中 93% · combo 14",
+        duration: "07:05",
+        clientId: "preview-mira",
       },
       {
         rank: 4,
         name: "阿哲",
         score: "25,410",
         meta: "27/30 · 命中 90% · combo 13",
+        duration: "07:26",
+        clientId: "preview-a-zhe",
       },
       {
         rank: 5,
         name: "Rina",
         score: "24,950",
         meta: "27/30 · 命中 90% · combo 12",
+        duration: "07:44",
+        clientId: "preview-rina",
       },
       {
         rank: 6,
         name: "你",
         score: "24,120",
         meta: "27/30 · 命中 90% · combo 11",
+        duration: "08:03",
+        clientId: "preview-you-30q",
         isCurrentUser: true,
       },
     ],
     currentUser: {
       rank: "6",
+      name: "你",
       score: "24,120",
-      accuracy: "90%",
-      attempts: "3 局",
+      duration: "08:03",
       hint: "27/30 正確，距離第 5 名還差 830 pts。",
     },
   },
@@ -227,31 +250,39 @@ const leaderboardPreviewByVariant: Record<
         name: "Aki",
         score: "151,200",
         meta: "47/50 · 命中 94% · combo 26",
+        duration: "10:54",
+        clientId: "preview-aki",
       },
       {
         rank: 2,
         name: "Mika",
         score: "146,880",
         meta: "46/50 · 命中 92% · combo 24",
+        duration: "11:18",
+        clientId: "preview-mika-50q",
       },
       {
         rank: 3,
         name: "Sora",
         score: "139,540",
         meta: "44/50 · 命中 88% · combo 21",
+        duration: "12:07",
+        clientId: "preview-sora",
       },
       {
         rank: 4,
         name: "Rin",
         score: "133,020",
         meta: "43/50 · 命中 86% · combo 19",
+        duration: "12:41",
+        clientId: "preview-rin",
       },
     ],
     currentUser: {
-      rank: "#--",
+      rank: "--",
+      name: "你",
       score: "--",
-      accuracy: "--",
-      attempts: "0 局",
+      duration: "--",
       hint: "完成一次 50 題排行榜挑戰後，這裡會顯示你的紀錄。",
     },
   },
@@ -267,41 +298,170 @@ const leaderboardPreviewByVariant: Record<
         name: "Nana",
         score: "132,800",
         meta: "78 題 · 命中 91% · combo 24",
+        duration: "15:00",
+        clientId: "preview-nana",
       },
       {
         rank: 2,
         name: "Kai",
         score: "128,460",
         meta: "74 題 · 命中 90% · combo 22",
+        duration: "15:00",
+        clientId: "preview-kai-15m",
       },
       {
         rank: 3,
         name: "Mika",
         score: "124,900",
         meta: "72 題 · 命中 89% · combo 21",
+        duration: "15:00",
+        clientId: "preview-mika-15m",
       },
       {
         rank: 4,
         name: "Yuki",
         score: "119,320",
         meta: "70 題 · 命中 87% · combo 18",
+        duration: "15:00",
+        clientId: "preview-yuki",
       },
     ],
     currentUser: {
       rank: "18",
+      name: "你",
       score: "92,440",
-      accuracy: "81%",
-      attempts: "5 局",
+      duration: "15:00",
       hint: "15 分鐘內完成 61 題，距離前 15 名還差 4,200 pts。",
     },
   },
 };
 
+const LeaderboardPlayerRow = ({
+  player,
+  variant = "list",
+}: {
+  player: LeaderboardPreviewPlayer;
+  variant?: "list" | "current";
+}) => {
+  const rankLabel =
+    typeof player.rank === "number" ? `#${player.rank}` : `#${player.rank}`;
+  const isCurrent = Boolean(player.isCurrentUser);
+
+  return (
+    <div
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-3 py-3 transition duration-200 sm:gap-3 ${
+        isCurrent
+          ? "border-cyan-100/22 bg-[linear-gradient(90deg,rgba(34,211,238,0.1),rgba(15,23,42,0.34)_42%,rgba(15,23,42,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_16px_34px_-30px_rgba(34,211,238,0.8)]"
+          : variant === "current"
+            ? "border-cyan-100/16 bg-[linear-gradient(90deg,rgba(34,211,238,0.07),rgba(15,23,42,0.36)_46%,rgba(15,23,42,0.24))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+            : "border-white/8 bg-[linear-gradient(90deg,rgba(148,163,184,0.045),rgba(15,23,42,0.32)_46%,rgba(15,23,42,0.2))] hover:border-white/12 hover:bg-slate-950/42"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute inset-y-3 left-0 w-px ${
+          isCurrent || variant === "current"
+            ? "bg-cyan-200/45"
+            : "bg-slate-500/22 group-hover:bg-slate-300/34"
+        }`}
+      />
+      <span
+        className={`w-8 shrink-0 text-left text-sm font-semibold tabular-nums tracking-normal ${
+          isCurrent || variant === "current" ? "text-cyan-100" : "text-slate-300"
+        }`}
+      >
+        {rankLabel}
+      </span>
+      <PlayerAvatar
+        username={player.name}
+        clientId={player.clientId}
+        avatarUrl={player.avatarUrl}
+        rank={typeof player.rank === "number" ? player.rank : null}
+        isMe={isCurrent || variant === "current"}
+        size={38}
+        effectLevel="simple"
+        hideRankMark
+      />
+      <div className="min-w-0 flex-1">
+        <p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-slate-100">
+          <span className="truncate">{player.name}</span>
+          {isCurrent || variant === "current" ? (
+            <span className="shrink-0 rounded-full border border-cyan-100/16 bg-cyan-300/8 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
+              你的紀錄
+            </span>
+          ) : null}
+        </p>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+          <span className="min-w-0 truncate">{player.meta}</span>
+          <span className="shrink-0 text-slate-600">/</span>
+          <span className="shrink-0 text-slate-300">耗時 {player.duration}</span>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-sm font-semibold tabular-nums text-slate-50">
+          {player.score}
+        </p>
+        <p className="mt-1 text-[11px] text-slate-500">pts</p>
+      </div>
+    </div>
+  );
+};
+
 const COLLECTION_PREVIEW_PAGE_SIZE = 12;
 const COLLECTION_PREVIEW_ROW_HEIGHT = 73;
+const COLLECTION_LEADERBOARD_INITIAL_LIMIT = 10;
+const COLLECTION_LEADERBOARD_PAGE_SIZE = 30;
+const COLLECTION_LEADERBOARD_ROW_HEIGHT = 72;
+
+const formatLeaderboardScore = (value: number) =>
+  new Intl.NumberFormat("en-US").format(value);
+
+const formatLeaderboardEntryMeta = (entry: CollectionLeaderboardEntry) => {
+  const accuracy =
+    entry.correctCount !== null &&
+    entry.questionCount !== null &&
+    entry.questionCount > 0
+      ? `命中 ${Math.round((entry.correctCount / entry.questionCount) * 100)}%`
+      : null;
+  const correct =
+    entry.correctCount !== null && entry.questionCount !== null
+      ? `${entry.correctCount}/${entry.questionCount}`
+      : entry.correctCount !== null
+        ? `${entry.correctCount} 題`
+        : null;
+
+  return [correct, accuracy, `combo ${entry.maxCombo}`]
+    .filter(Boolean)
+    .join(" · ");
+};
+
+const toLeaderboardPreviewPlayer = (
+  entry: CollectionLeaderboardEntry,
+  formatDurationLabel: (value: number) => string | null,
+): LeaderboardPreviewPlayer => ({
+  rank: entry.rank,
+  name: entry.displayName,
+  score: formatLeaderboardScore(entry.score),
+  meta: formatLeaderboardEntryMeta(entry),
+  duration:
+    entry.durationSec !== null
+      ? (formatDurationLabel(entry.durationSec) ?? `${entry.durationSec}s`)
+      : "--",
+  clientId: entry.userId ?? `leaderboard-rank-${entry.rank}`,
+  avatarUrl: entry.avatarUrl,
+  isCurrentUser: entry.isMe,
+});
 
 type CollectionPreviewListRowProps = {
   items: CollectionItemPreviewRecord[];
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+  formatDurationLabel: (value: number) => string | null;
+};
+
+type CollectionLeaderboardListRowProps = {
+  items: CollectionLeaderboardEntry[];
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
@@ -398,6 +558,50 @@ const CollectionPreviewListRow = ({
   );
 };
 
+const CollectionLeaderboardListRow = ({
+  index,
+  style,
+  items,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+  formatDurationLabel,
+}: RowComponentProps<CollectionLeaderboardListRowProps>) => {
+  const item = items[index];
+  const isLoaderRow = !item && (hasMore || isLoadingMore);
+
+  useEffect(() => {
+    if (!isLoaderRow || !hasMore || isLoadingMore) return;
+    onLoadMore();
+  }, [hasMore, isLoaderRow, isLoadingMore, onLoadMore]);
+
+  if (isLoaderRow) {
+    return (
+      <div style={style}>
+        <div className="flex h-full items-center gap-3 rounded-xl border border-white/8 bg-slate-950/30 px-3 py-3">
+          <div className="h-4 w-8 rounded-full bg-white/8" />
+          <div className="h-9 w-9 rounded-full bg-white/8" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 w-1/2 rounded-full bg-white/10" />
+            <div className="h-2.5 w-2/3 rounded-full bg-white/6" />
+          </div>
+          <div className="h-3 w-12 rounded-full bg-white/8" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!item) return <div style={style} />;
+
+  return (
+    <div style={style}>
+      <LeaderboardPlayerRow
+        player={toLeaderboardPreviewPlayer(item, formatDurationLabel)}
+      />
+    </div>
+  );
+};
+
 const CollectionDetailDrawer = ({
   open,
   collection,
@@ -468,6 +672,19 @@ const CollectionDetailDrawer = ({
   const [previewHasMore, setPreviewHasMore] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewRequestIdRef = useRef(0);
+  const [leaderboardOverview, setLeaderboardOverview] =
+    useState<CollectionLeaderboardOverview | null>(null);
+  const [leaderboardEntries, setLeaderboardEntries] = useState<
+    CollectionLeaderboardEntry[]
+  >([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardLoadingMore, setLeaderboardLoadingMore] = useState(false);
+  const [leaderboardHasMore, setLeaderboardHasMore] = useState(false);
+  const [leaderboardNextOffset, setLeaderboardNextOffset] = useState<
+    number | null
+  >(null);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const leaderboardRequestIdRef = useRef(0);
   const {
     transientScrollbarClassName: previewScrollbarClassName,
     revealScrollbar: revealPreviewScrollbar,
@@ -506,8 +723,61 @@ const CollectionDetailDrawer = ({
     selectedLeaderboardMode,
     selectedLeaderboardVariant,
   );
+  const activeLeaderboardProfileKey = getLeaderboardProfileKey(
+    selectedLeaderboardMode,
+    selectedLeaderboardVariant,
+  );
   const activeLeaderboardData =
     leaderboardPreviewByVariant[activeLeaderboardVariant.key];
+  const activeLeaderboardProfileSummary = leaderboardOverview?.profiles.find(
+    (profile) => profile.profileKey === activeLeaderboardProfileKey,
+  );
+  const activeLeaderboardEntries =
+    leaderboardEntries.length > 0
+      ? leaderboardEntries
+      : activeLeaderboardData.players.map((player) => ({
+          rank: typeof player.rank === "number" ? player.rank : 0,
+          userId: null,
+          displayName: player.name,
+          avatarUrl: player.avatarUrl ?? null,
+          score: Number(player.score.replaceAll(",", "")) || 0,
+          correctCount: null,
+          questionCount: null,
+          maxCombo: 0,
+          avgCorrectMs: null,
+          durationSec: null,
+          achievedAt: new Date(0).toISOString(),
+          isMe: Boolean(player.isCurrentUser),
+        }));
+  const activeLeaderboardMyBestEntry =
+    leaderboardOverview?.activeProfile.profile.profileKey ===
+    activeLeaderboardProfileKey
+      ? leaderboardOverview.activeProfile.myBestEntry
+      : null;
+  const activeLeaderboardSummary = [
+    {
+      label: "最高分",
+      value: leaderboardOverview
+        ? activeLeaderboardEntries[0]?.score != null
+          ? formatLeaderboardScore(activeLeaderboardEntries[0].score)
+          : "--"
+        : activeLeaderboardData.summary[0]?.value ?? "--",
+    },
+    {
+      label: "參與玩家",
+      value: leaderboardOverview
+        ? activeLeaderboardProfileSummary?.totalPlayers != null
+          ? formatLeaderboardScore(activeLeaderboardProfileSummary.totalPlayers)
+          : "0"
+        : activeLeaderboardData.summary[2]?.value ?? "--",
+    },
+    {
+      label: "我的最佳",
+      value: activeLeaderboardProfileSummary?.myBestRank
+        ? `#${activeLeaderboardProfileSummary.myBestRank}`
+        : "尚無紀錄",
+    },
+  ];
   const activeLeaderboardModeLabel = getLeaderboardModeLabel(
     selectedLeaderboardMode,
   );
@@ -530,13 +800,40 @@ const CollectionDetailDrawer = ({
     leaderboardChallengeOptions.find(
       (option) => option.variantKey === selectedLeaderboardVariant,
     ) ?? leaderboardChallengeOptions[0];
+  const formatLeaderboardBestRank = (
+    modeKey: LeaderboardModeKey,
+    variantKey: LeaderboardVariantKey,
+  ) => {
+    const profileKey = getLeaderboardProfileKey(modeKey, variantKey);
+    const rank = profileKey
+      ? leaderboardOverview?.profiles.find(
+          (profile) => profile.profileKey === profileKey,
+        )?.myBestRank
+      : null;
+    if (leaderboardOverview) return rank ? `最佳 #${rank}` : "尚無紀錄";
+    const fallbackRank = leaderboardPreviewByVariant[variantKey].currentUser.rank;
+    return fallbackRank === "--" ? "尚無紀錄" : `最佳 #${fallbackRank}`;
+  };
   const leaderboardProfileMenuWidth = leaderboardProfileAnchorEl
     ? leaderboardProfileAnchorEl.clientWidth
     : 280;
-  const currentLeaderboardPlayer = activeLeaderboardData.players.find(
-    (player) => player.isCurrentUser,
-  );
-  const leaderboardPlayersToShow = isCompact
+  const currentLeaderboardPlayer = activeLeaderboardMyBestEntry
+    ? toLeaderboardPreviewPlayer(
+        activeLeaderboardMyBestEntry,
+        formatDurationLabel,
+      )
+    : activeLeaderboardData.players.find((player) => player.isCurrentUser);
+  const currentLeaderboardRecord: LeaderboardPreviewPlayer =
+    currentLeaderboardPlayer ?? {
+      rank: activeLeaderboardData.currentUser.rank,
+      name: activeLeaderboardData.currentUser.name,
+      score: activeLeaderboardData.currentUser.score,
+      meta: activeLeaderboardData.currentUser.hint,
+      duration: activeLeaderboardData.currentUser.duration,
+      clientId: `preview-you-${activeLeaderboardVariant.key}`,
+      isCurrentUser: true,
+    };
+  const leaderboardPlayersToShow = isCompact && !leaderboardOverview
     ? [
         ...activeLeaderboardData.players.slice(0, 3),
         ...(currentLeaderboardPlayer &&
@@ -546,7 +843,9 @@ const CollectionDetailDrawer = ({
           ? [currentLeaderboardPlayer]
           : []),
       ]
-    : activeLeaderboardData.players;
+    : activeLeaderboardEntries.map((entry) =>
+        toLeaderboardPreviewPlayer(entry, formatDurationLabel),
+      );
   const isPreparingLeaderboardChallenge =
     isLeaderboardStartPending || isApplying || isCreatingRoom;
   const isPreparingCustomRoom =
@@ -810,6 +1109,159 @@ const CollectionDetailDrawer = ({
     revealPreviewScrollbar();
   }, [revealPreviewScrollbar]);
 
+  const fetchLeaderboardOverview = useCallback(async () => {
+    if (!collection?.id || !API_URL || !isPublic) return;
+
+    const requestId = leaderboardRequestIdRef.current + 1;
+    leaderboardRequestIdRef.current = requestId;
+    setLeaderboardLoading(true);
+    setLeaderboardLoadingMore(false);
+    setLeaderboardError(null);
+    setLeaderboardOverview(null);
+    setLeaderboardEntries([]);
+    setLeaderboardHasMore(false);
+    setLeaderboardNextOffset(null);
+
+    try {
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+        leewayMs: 60_000,
+      });
+      const result = await apiFetchCollectionLeaderboardOverview(
+        API_URL,
+        token,
+        collection.id,
+        {
+          profileKey: activeLeaderboardProfileKey,
+          limit: COLLECTION_LEADERBOARD_INITIAL_LIMIT,
+        },
+      );
+      if (requestId !== leaderboardRequestIdRef.current) return;
+      if (!result.ok || !result.payload?.data) {
+        setLeaderboardError(
+          result.payload?.error ?? "排行榜資料載入失敗",
+        );
+        return;
+      }
+
+      const data = result.payload.data;
+      setLeaderboardOverview(data);
+      setLeaderboardEntries(data.activeProfile.items);
+      setLeaderboardHasMore(data.activeProfile.hasMore);
+      setLeaderboardNextOffset(data.activeProfile.nextOffset);
+    } catch (error) {
+      if (requestId !== leaderboardRequestIdRef.current) return;
+      setLeaderboardError(
+        error instanceof Error ? error.message : "排行榜資料載入失敗",
+      );
+    } finally {
+      if (requestId === leaderboardRequestIdRef.current) {
+        setLeaderboardLoading(false);
+      }
+    }
+  }, [
+    activeLeaderboardProfileKey,
+    authToken,
+    collection?.id,
+    isPublic,
+    refreshAuthToken,
+  ]);
+
+  const handleLoadMoreLeaderboardEntries = useCallback(async () => {
+    if (
+      !collection?.id ||
+      !API_URL ||
+      !leaderboardHasMore ||
+      leaderboardLoadingMore ||
+      leaderboardNextOffset === null
+    ) {
+      return;
+    }
+
+    const requestId = leaderboardRequestIdRef.current + 1;
+    leaderboardRequestIdRef.current = requestId;
+    setLeaderboardLoadingMore(true);
+    setLeaderboardError(null);
+
+    try {
+      const token = await ensureFreshAuthToken({
+        token: authToken,
+        refreshAuthToken,
+        leewayMs: 60_000,
+      });
+      const result = await apiFetchCollectionLeaderboardRankings(
+        API_URL,
+        token,
+        collection.id,
+        {
+          profileKey: activeLeaderboardProfileKey,
+          limit: COLLECTION_LEADERBOARD_PAGE_SIZE,
+          offset: leaderboardNextOffset,
+        },
+      );
+      if (requestId !== leaderboardRequestIdRef.current) return;
+      if (!result.ok || !result.payload?.data) {
+        setLeaderboardError(
+          result.payload?.error ?? "排行榜資料載入失敗",
+        );
+        return;
+      }
+
+      const data = result.payload.data;
+      setLeaderboardEntries((currentItems) => {
+        const existingKeys = new Set(
+          currentItems.map((item) => `${item.rank}:${item.userId ?? ""}`),
+        );
+        return [
+          ...currentItems,
+          ...data.items.filter(
+            (item) => !existingKeys.has(`${item.rank}:${item.userId ?? ""}`),
+          ),
+        ];
+      });
+      setLeaderboardHasMore(data.hasMore);
+      setLeaderboardNextOffset(data.nextOffset);
+    } catch (error) {
+      if (requestId !== leaderboardRequestIdRef.current) return;
+      setLeaderboardError(
+        error instanceof Error ? error.message : "排行榜資料載入失敗",
+      );
+    } finally {
+      if (requestId === leaderboardRequestIdRef.current) {
+        setLeaderboardLoadingMore(false);
+      }
+    }
+  }, [
+    activeLeaderboardProfileKey,
+    authToken,
+    collection?.id,
+    leaderboardHasMore,
+    leaderboardLoadingMore,
+    leaderboardNextOffset,
+    refreshAuthToken,
+  ]);
+
+  const leaderboardRowCount =
+    leaderboardEntries.length +
+    (leaderboardHasMore || leaderboardLoadingMore ? 1 : 0);
+  const leaderboardListRowProps = useMemo<CollectionLeaderboardListRowProps>(
+    () => ({
+      items: leaderboardEntries,
+      hasMore: leaderboardHasMore,
+      isLoadingMore: leaderboardLoadingMore,
+      onLoadMore: handleLoadMoreLeaderboardEntries,
+      formatDurationLabel,
+    }),
+    [
+      formatDurationLabel,
+      handleLoadMoreLeaderboardEntries,
+      leaderboardEntries,
+      leaderboardHasMore,
+      leaderboardLoadingMore,
+    ],
+  );
+
   useEffect(() => {
     if (!open || !collection?.id || !API_URL) {
       setPreviewItems([]);
@@ -829,6 +1281,26 @@ const CollectionDetailDrawer = ({
       previewRequestIdRef.current += 1;
     };
   }, [collection?.id, fetchPreviewPage, open]);
+
+  useEffect(() => {
+    if (!open || !collection?.id || !isPublic) {
+      setLeaderboardOverview(null);
+      setLeaderboardEntries([]);
+      setLeaderboardError(null);
+      setLeaderboardLoading(false);
+      setLeaderboardLoadingMore(false);
+      setLeaderboardHasMore(false);
+      setLeaderboardNextOffset(null);
+      leaderboardRequestIdRef.current += 1;
+      return;
+    }
+
+    void fetchLeaderboardOverview();
+
+    return () => {
+      leaderboardRequestIdRef.current += 1;
+    };
+  }, [collection?.id, fetchLeaderboardOverview, isPublic, open]);
 
   useEffect(() => {
     setDrawerView("detail");
@@ -862,7 +1334,7 @@ const CollectionDetailDrawer = ({
             borderTopLeftRadius: isCompact ? 0 : 24,
             borderBottomLeftRadius: isCompact ? 0 : 24,
             background:
-              "linear-gradient(180deg, rgba(8,15,28,0.98), rgba(2,6,23,0.98))",
+              "radial-gradient(circle at 18% 0%, rgba(34,211,238,0.16), transparent 34%), radial-gradient(circle at 100% 14%, rgba(251,191,36,0.1), transparent 32%), linear-gradient(180deg, rgba(8,15,28,0.99), rgba(2,6,23,0.99))",
             borderLeft: isCompact ? 0 : "1px solid rgba(103,232,249,0.18)",
             color: "var(--mc-text)",
             boxShadow: "0 24px 70px rgba(2,6,23,0.72)",
@@ -1231,9 +1703,18 @@ const CollectionDetailDrawer = ({
                                                 {option.label}
                                               </span>
                                             </span>
-                                            {selected ? (
-                                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
-                                            ) : null}
+                                            <span
+                                              className={`shrink-0 text-xs font-semibold tabular-nums ${
+                                                selected
+                                                  ? "text-amber-100"
+                                                  : "text-slate-500"
+                                              }`}
+                                            >
+                                              {formatLeaderboardBestRank(
+                                                option.modeKey,
+                                                option.variantKey,
+                                              )}
+                                            </span>
                                           </button>
                                         );
                                       })}
@@ -1248,7 +1729,7 @@ const CollectionDetailDrawer = ({
                     </Popper>
 
                     <div className="mt-3 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3">
-                      {activeLeaderboardData.summary.map((item, index) => (
+                      {activeLeaderboardSummary.map((item, index) => (
                         <div
                           key={item.label}
                           className="rounded-xl border border-amber-100/14 bg-slate-950/30 px-3 py-2"
@@ -1273,99 +1754,67 @@ const CollectionDetailDrawer = ({
                       onPointerDown={revealLeaderboardScrollbar}
                       onScroll={revealLeaderboardScrollbar}
                     >
-                      {leaderboardPlayersToShow.map((player) => (
-                        <div
-                          key={`${activeLeaderboardVariant.key}-${player.rank}`}
-                          className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition ${
-                            player.isCurrentUser
-                              ? "border-cyan-100/22 bg-cyan-300/[0.065] shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
-                              : "border-white/8 bg-slate-950/34"
-                          }`}
-                        >
-                          <span
-                            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
-                              player.isCurrentUser
-                                ? "border-cyan-100/20 bg-cyan-300/10 text-cyan-50"
-                                : "border-white/10 bg-white/6 text-slate-100"
-                            }`}
+                      {leaderboardLoading ? (
+                        Array.from({ length: 5 }).map((_, index) => (
+                          <div
+                            key={`leaderboard-loading-${index}`}
+                            className="flex items-center gap-3 rounded-xl border border-white/8 bg-slate-950/30 px-3 py-3"
                           >
-                            {player.rank}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-slate-100">
-                              <span className="truncate">{player.name}</span>
-                              {player.isCurrentUser ? (
-                                <span className="shrink-0 rounded-full border border-cyan-100/16 bg-cyan-300/8 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
-                                  上榜中
-                                </span>
-                              ) : null}
-                            </p>
-                            <p className="mt-1 truncate text-xs text-slate-400">
-                              {player.meta}
-                            </p>
+                            <div className="h-4 w-8 rounded-full bg-white/8" />
+                            <div className="h-9 w-9 rounded-full bg-white/8" />
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="h-3 w-1/2 rounded-full bg-white/10" />
+                              <div className="h-2.5 w-2/3 rounded-full bg-white/6" />
+                            </div>
+                            <div className="h-3 w-12 rounded-full bg-white/8" />
                           </div>
-                          <div className="shrink-0 text-right">
-                            <p className="text-sm font-semibold text-slate-50">
-                              {player.score}
-                            </p>
-                            <p className="mt-1 text-[11px] text-slate-500">
-                              pts
-                            </p>
-                          </div>
+                        ))
+                      ) : leaderboardError ? (
+                        <div className="rounded-xl border border-rose-200/14 bg-rose-500/8 px-3 py-4 text-sm text-rose-100">
+                          {leaderboardError}
                         </div>
-                      ))}
+                      ) : leaderboardOverview ? (
+                        leaderboardEntries.length > 0 ? (
+                          <List<CollectionLeaderboardListRowProps>
+                            className={`transient-scrollbar ${leaderboardScrollbarClassName}`}
+                            style={{
+                              height: "100%",
+                              minHeight: 180,
+                              width: "100%",
+                            }}
+                            rowCount={leaderboardRowCount}
+                            rowHeight={COLLECTION_LEADERBOARD_ROW_HEIGHT}
+                            rowProps={leaderboardListRowProps}
+                            rowComponent={CollectionLeaderboardListRow}
+                            onScroll={revealLeaderboardScrollbar}
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-white/8 bg-slate-950/30 px-3 py-5 text-sm text-slate-400">
+                            這個規格目前還沒有排行榜紀錄。
+                          </div>
+                        )
+                      ) : (
+                        leaderboardPlayersToShow.map((player) => (
+                          <LeaderboardPlayerRow
+                            key={`${activeLeaderboardVariant.key}-${player.rank}`}
+                            player={player}
+                          />
+                        ))
+                      )}
                     </div>
 
                     <div className="shrink-0 pt-3">
-                      <div className="rounded-2xl border border-cyan-100/14 bg-[linear-gradient(180deg,rgba(34,211,238,0.07),rgba(15,23,42,0.22))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-50">
-                              {activeLeaderboardModeLabel} · {activeLeaderboardVariant.label}
-                            </p>
-                            <p className="mt-1 text-xs leading-5 text-slate-400">
-                              {activeLeaderboardData.currentUser.hint}
-                            </p>
-                          </div>
-                          <span className="inline-flex shrink-0 items-baseline gap-1 text-cyan-50">
-                            <span className="text-xs font-semibold text-cyan-100/70">
-                              #
-                            </span>
-                            <span className="text-2xl font-semibold leading-none">
-                              {activeLeaderboardData.currentUser.rank}
-                            </span>
-                          </span>
+                      <div className="mb-3 h-px bg-gradient-to-r from-transparent via-cyan-100/18 to-transparent" />
+                      {activeLeaderboardMyBestEntry || !leaderboardOverview ? (
+                        <LeaderboardPlayerRow
+                          player={currentLeaderboardRecord}
+                          variant="current"
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-cyan-100/14 bg-slate-950/26 px-3 py-3 text-sm text-slate-400">
+                          完成一次排行榜挑戰後，這裡會顯示你的最佳紀錄。
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                          <div>
-                            <p className="text-[11px] text-slate-400">
-                              分數
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.score}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">
-                              命中率
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.accuracy}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-400">
-                              挑戰
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-slate-100">
-                              {activeLeaderboardData.currentUser.attempts}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="mt-3 hidden text-xs leading-5 text-slate-400 md:block">
-                        目前為前端假資料，後續接上 API 後會替換為真實排行榜。
-                      </p>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1389,7 +1838,7 @@ const CollectionDetailDrawer = ({
         ) : null}
 
         {collection ? (
-          <footer className="grid shrink-0 gap-3 border-t border-cyan-300/12 px-4 py-3 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <footer className="grid shrink-0 gap-3 border-t border-cyan-200/14 bg-[linear-gradient(90deg,rgba(8,47,73,0.16),rgba(15,23,42,0.7)_44%,rgba(120,53,15,0.1))] px-4 py-3 shadow-[0_-18px_48px_-42px_rgba(34,211,238,0.75)] sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             {isSetupView ? (
               <>
                 <div className="min-w-0">
@@ -1408,7 +1857,7 @@ const CollectionDetailDrawer = ({
                     startIcon={<ChevronLeftRounded />}
                     disabled={isPreparingSetup}
                     onClick={() => setDrawerView("detail")}
-                    className="!border-white/14 !text-slate-100 hover:!border-white/24 hover:!bg-white/8"
+                    className="!min-w-[7.25rem] !rounded-xl !border-white/14 !bg-slate-950/20 !px-4 !py-2 !font-semibold !text-slate-100 !normal-case hover:!border-cyan-100/26 hover:!bg-cyan-300/8"
                   >
                     返回
                   </Button>
@@ -1430,6 +1879,7 @@ const CollectionDetailDrawer = ({
                         ? handleConfirmLeaderboardChallenge
                         : handleConfirmCustomRoom
                     }
+                    className="!min-w-[9.5rem] !rounded-xl !bg-[linear-gradient(135deg,#22d3ee,#fbbf24)] !px-4 !py-2 !font-semibold !text-slate-950 !normal-case !shadow-[0_16px_34px_-22px_rgba(34,211,238,0.95)] hover:!shadow-[0_18px_42px_-22px_rgba(251,191,36,0.75)] disabled:!bg-slate-700 disabled:!text-slate-400 disabled:!shadow-none"
                   >
                     {isSetupLeaderboardMode && !isAuthenticated
                       ? isAuthLoading
@@ -1482,7 +1932,7 @@ const CollectionDetailDrawer = ({
                     startIcon={<ChairRounded />}
                     disabled={isApplying}
                     onClick={handleStartCustomRoom}
-                    className="!border-cyan-100/18 !text-cyan-50 hover:!border-cyan-100/32 hover:!bg-cyan-300/8"
+                    className="!min-w-[8.5rem] !rounded-xl !border-slate-100/14 !bg-slate-950/24 !px-4 !py-2 !font-semibold !text-slate-100 !normal-case hover:!border-cyan-100/30 hover:!bg-cyan-300/8"
                   >
                     {isApplying
                       ? "載入中..."
@@ -1504,6 +1954,7 @@ const CollectionDetailDrawer = ({
                         isPreparingLeaderboardChallenge || isAuthLoading
                       }
                       onClick={handleStartLeaderboardChallenge}
+                      className="!min-w-[9.5rem] !rounded-xl !bg-[linear-gradient(135deg,#22d3ee,#fbbf24)] !px-4 !py-2 !font-semibold !text-slate-950 !normal-case !shadow-[0_16px_34px_-22px_rgba(34,211,238,0.95)] hover:!shadow-[0_18px_42px_-22px_rgba(251,191,36,0.75)] disabled:!bg-slate-700 disabled:!text-slate-400 disabled:!shadow-none"
                     >
                       {leaderboardEntryLabel}
                     </Button>

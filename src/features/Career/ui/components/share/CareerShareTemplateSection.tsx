@@ -1,7 +1,9 @@
 import React from "react";
 
 import type { CareerShareTemplate } from "../../../types/career";
-import CareerShareSurface from "./CareerShareSurface";
+import CareerActionButton from "../primitives/CareerActionButton";
+import CareerSectionHeader from "../primitives/CareerSectionHeader";
+import CareerWorkbenchShell from "../primitives/CareerWorkbenchShell";
 
 interface CareerShareTemplateSectionProps {
   activeTemplate: CareerShareTemplate;
@@ -18,24 +20,19 @@ const CareerShareTemplateSection: React.FC<CareerShareTemplateSectionProps> = ({
   setActiveTemplate,
   templates,
 }) => {
+  const activeTemplateDescription =
+    templates.find((item) => item.key === activeTemplate)?.description ?? "";
+
   return (
-    <CareerShareSurface>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-[var(--mc-text)]">
-            分享
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--mc-text-muted)]">
-            先把模板、預覽、文案位置定住，之後再接實際輸出能力。
-          </p>
-        </div>
+    <CareerWorkbenchShell className="p-4">
+      <CareerSectionHeader
+        title="分享"
+        description="選擇你想輸出的分享樣式，預覽卡片與文案會跟著模板調整。"
+        badge="SHARE V1"
+        compact
+      />
 
-        <div className="inline-flex items-center rounded-full border border-emerald-300/26 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-emerald-100">
-          SHARE V1
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {templates.map((template) => {
           const active = template.key === activeTemplate;
 
@@ -44,22 +41,44 @@ const CareerShareTemplateSection: React.FC<CareerShareTemplateSectionProps> = ({
               key={template.key}
               type="button"
               onClick={() => setActiveTemplate(template.key)}
-              className={`rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.08em] transition ${
+              className={[
+                "rounded-[16px] border px-3 py-3 text-left transition",
                 active
-                  ? "border-sky-300/40 bg-sky-300/12 text-sky-100"
-                  : "border-[var(--mc-border)] bg-transparent text-[var(--mc-text-muted)] hover:border-sky-300/24 hover:bg-sky-300/8"
-              }`}
+                  ? "border-sky-300/42 bg-sky-300/12 shadow-[0_14px_28px_-24px_rgba(14,165,233,0.7)]"
+                  : "border-[var(--mc-border)] bg-[rgba(10,18,30,0.34)] hover:border-sky-300/24 hover:bg-sky-300/8",
+              ].join(" ")}
             >
-              {template.label}
+              <div
+                className={[
+                  "text-sm font-semibold tracking-[0.08em]",
+                  active ? "text-sky-100" : "text-[var(--mc-text)]",
+                ].join(" ")}
+              >
+                {template.label}
+              </div>
+
+              <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--mc-text-muted)]">
+                {template.description}
+              </div>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-2 text-xs text-[var(--mc-text-muted)]">
-        {templates.find((item) => item.key === activeTemplate)?.description}
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] border border-[var(--mc-border)] bg-[rgba(10,18,30,0.32)] px-3 py-2">
+        <div className="min-w-0 truncate text-xs text-[var(--mc-text-muted)]">
+          目前模板：{activeTemplateDescription}
+        </div>
+
+        <CareerActionButton
+          tone="secondary"
+          onClick={() => setActiveTemplate("career")}
+          disabled={activeTemplate === "career"}
+        >
+          重設
+        </CareerActionButton>
       </div>
-    </CareerShareSurface>
+    </CareerWorkbenchShell>
   );
 };
 

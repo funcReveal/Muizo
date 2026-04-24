@@ -1,30 +1,66 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 
-import CareerShareSurface from "./CareerShareSurface";
+import CareerActionButton from "../primitives/CareerActionButton";
+import CareerSectionHeader from "../primitives/CareerSectionHeader";
+import CareerStatePanel from "../primitives/CareerStatePanel";
+import CareerWorkbenchShell from "../primitives/CareerWorkbenchShell";
 
-const CareerShareActionsSection: React.FC = () => {
+interface CareerShareActionsSectionProps {
+  caption: string;
+}
+
+const CareerShareActionsSection: React.FC<CareerShareActionsSectionProps> = ({
+  caption,
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCaption = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(caption);
+      setCopied(true);
+
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 1600);
+    } catch {
+      setCopied(false);
+    }
+  }, [caption]);
+
   return (
-    <CareerShareSurface>
-      <div className="text-sm font-semibold tracking-[0.08em] text-[var(--mc-text)]">
-        快速動作
-      </div>
+    <CareerWorkbenchShell className="p-4">
+      <CareerSectionHeader
+        title="快速動作"
+        description="先支援文案複製，圖片下載之後再接產圖流程。"
+        compact
+      />
 
       <div className="mt-4 grid gap-3">
-        <button
-          type="button"
-          className="rounded-[16px] border border-sky-300/30 bg-sky-300/10 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:border-sky-300/45 hover:bg-sky-300/16"
+        <CareerActionButton
+          tone="primary"
+          className="justify-center rounded-[16px] py-3 text-sm"
+          disabled
         >
           下載 PNG
-        </button>
+        </CareerActionButton>
 
-        <button
-          type="button"
-          className="rounded-[16px] border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-300/16"
+        <CareerActionButton
+          tone="success"
+          className="justify-center rounded-[16px] py-3 text-sm"
+          onClick={() => {
+            void handleCopyCaption();
+          }}
         >
-          複製分享文案
-        </button>
+          {copied ? "已複製" : "複製分享文案"}
+        </CareerActionButton>
       </div>
-    </CareerShareSurface>
+
+      <div className="mt-3">
+        <CareerStatePanel className="py-3 text-xs">
+          PNG 輸出會等分享卡樣式穩定後再接，目前先把版面與文案流程固定。
+        </CareerStatePanel>
+      </div>
+    </CareerWorkbenchShell>
   );
 };
 
