@@ -1,10 +1,13 @@
-import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
+﻿import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
 import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import TrackChangesRoundedIcon from "@mui/icons-material/TrackChangesRounded";
@@ -60,6 +63,7 @@ type LeaderboardQuestionRow = {
   title: string;
   artist: string;
   thumbnail: string | null;
+  youtubeUrl: string | null;
   result: SettlementQuestionResult;
   badgeLabel: string;
   badgeTone: "success" | "warning" | "danger" | "neutral";
@@ -80,6 +84,7 @@ type PersonalSummary = {
 
 type QuestionListRowProps = {
   items: LeaderboardQuestionRow[];
+  isDesktopLayout: boolean;
 };
 
 type LeaderboardListRowProps = {
@@ -145,6 +150,64 @@ const formatVariantLabel = (
   return `${Math.max(1, questionCount || 30)} 題`;
 };
 
+const buildYouTubeUrl = ({
+  url,
+  videoId,
+  sourceId,
+  provider,
+}: {
+  url?: string | null;
+  videoId?: string | null;
+  sourceId?: string | null;
+  provider?: string | null;
+}) => {
+  if (typeof url === "string" && url.trim()) {
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname.toLowerCase();
+      if (host.includes("youtube.com") || host.includes("youtu.be")) {
+        return parsed.toString();
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof videoId === "string" && videoId.trim()) {
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId.trim())}`;
+  }
+
+  if (
+    typeof sourceId === "string" &&
+    sourceId.trim() &&
+    typeof provider === "string" &&
+    provider.toLowerCase().includes("youtube")
+  ) {
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(sourceId.trim())}`;
+  }
+
+  return null;
+};
+
+const getGapToFirstLabel = (gap: number | null | undefined) => {
+  if (typeof gap !== "number" || !Number.isFinite(gap)) {
+    return "與榜首差距暫時無法取得";
+  }
+  return `距離第 1 名差 ${formatScore(gap)} 分`;
+};
+
+const isRowAheadOfCurrent = (
+  row: Pick<LeaderboardMetricRow, "score" | "combo" | "correctCount" | "avgCorrectMs">,
+  current: Pick<LeaderboardMetricRow, "score" | "combo" | "correctCount" | "avgCorrectMs">,
+) => {
+  if (row.score !== current.score) return row.score > current.score;
+  if (row.combo !== current.combo) return row.combo > current.combo;
+  if (row.correctCount !== current.correctCount) return row.correctCount > current.correctCount;
+  const rowAvg = typeof row.avgCorrectMs === "number" ? row.avgCorrectMs : Number.POSITIVE_INFINITY;
+  const currentAvg =
+    typeof current.avgCorrectMs === "number" ? current.avgCorrectMs : Number.POSITIVE_INFINITY;
+  return rowAvg < currentAvg;
+};
 const getScoreGain = (breakdown: QuestionScoreBreakdown | null | undefined) => {
   if (!breakdown) return null;
   return typeof breakdown.totalGainPoints === "number" &&
@@ -183,6 +246,61 @@ const useElementWidth = () => {
 
   return { ref, width };
 };
+
+const OverflowLinkText = memo(function OverflowLinkText({
+  text,
+  url,
+  className,
+}: {
+  text: string;
+  url: string | null;
+  className?: string;
+}) {
+  const viewportRef = useRef<HTMLSpanElement | null>(null);
+  const contentRef = useRef<HTMLSpanElement | null>(null);
+  const [translateX, setTranslateX] = useState(0);
+
+  const reset = useCallback(() => setTranslateX(0), []);
+
+  const handleMouseEnter = useCallback(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!viewport || !content) return;
+    const overflow = Math.max(0, content.scrollWidth - viewport.clientWidth);
+    setTranslateX(overflow);
+  }, []);
+
+  const inner = (
+    <span
+      ref={viewportRef}
+      className={`block overflow-hidden whitespace-nowrap ${className ?? ""}`}
+      title={text}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={reset}
+    >
+      <span
+        ref={contentRef}
+        className="inline-block min-w-full transition-transform duration-500 ease-out"
+        style={{ transform: translateX > 0 ? `translateX(-${translateX}px)` : undefined }}
+      >
+        {text}
+      </span>
+    </span>
+  );
+
+  if (!url) return inner;
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block hover:text-amber-100"
+    >
+      {inner}
+    </a>
+  );
+});
 
 const badgeToneClass: Record<LeaderboardQuestionRow["badgeTone"], string> = {
   success:
@@ -261,11 +379,13 @@ const RankChangeBadge = memo(function RankChangeBadge({
     </span>
   );
 });
+void RankChangeBadge;
 
 const QuestionListRow = memo(function QuestionListRow({
   index,
   style,
   items,
+  isDesktopLayout,
 }: RowComponentProps<QuestionListRowProps>) {
   const item = items[index];
   if (!item) return null;
@@ -288,11 +408,30 @@ const QuestionListRow = memo(function QuestionListRow({
           )}
         </div>
         <div className="min-w-0">
-          <div className="truncate text-base font-semibold text-[var(--mc-text)]">
-            {item.title}
-          </div>
-          <div className="mt-0.5 truncate text-sm text-[var(--mc-text-muted)]">
-            {item.artist}
+          <OverflowLinkText
+            text={item.title}
+            url={isDesktopLayout ? item.youtubeUrl : null}
+            className="text-base font-semibold text-[var(--mc-text)]"
+          />
+          <div className="mt-0.5 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <OverflowLinkText
+                text={item.artist}
+                url={isDesktopLayout ? item.youtubeUrl : null}
+                className="text-sm text-[var(--mc-text-muted)]"
+              />
+            </div>
+            {!isDesktopLayout && item.youtubeUrl && (
+              <a
+                href={item.youtubeUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`前往 YouTube：${item.title}`}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[var(--mc-text-muted)] transition hover:border-amber-300/35 hover:text-amber-100"
+              >
+                <OpenInNewRoundedIcon sx={{ fontSize: 16 }} />
+              </a>
+            )}
           </div>
         </div>
         <div className="text-right">
@@ -318,11 +457,12 @@ const LeaderboardDesktopRow = memo(function LeaderboardDesktopRow({
 }: RowComponentProps<LeaderboardListRowProps>) {
   const row = rows[index];
   if (!row) return null;
+  const wrongCount = Math.max(playedQuestionCount - row.correctCount, 0);
 
   return (
     <div style={style} className="box-border pb-1.5">
       <div
-        className={`grid grid-cols-[52px_minmax(180px,1.65fr)_112px_112px_112px_108px_112px] items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+        className={`grid grid-cols-[52px_minmax(180px,1.75fr)_112px_112px_112px_120px] items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
           row.isMe
             ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
             : "border-white/6 bg-white/[0.02]"
@@ -347,7 +487,7 @@ const LeaderboardDesktopRow = memo(function LeaderboardDesktopRow({
           </div>
         </div>
         <div className="text-center text-xs text-[var(--mc-text-muted)]">
-          {row.correctCount} / {playedQuestionCount}
+          {row.correctCount} / {wrongCount}
         </div>
         <div className="text-center text-xs font-semibold text-violet-300">
           x{row.combo}
@@ -358,9 +498,11 @@ const LeaderboardDesktopRow = memo(function LeaderboardDesktopRow({
         <div className="text-center text-base font-black text-amber-100">
           {formatScore(row.score)}
         </div>
+        {/* 保留名次變化欄位結構，若之後要恢復可直接取消註解。
         <div className="flex min-w-0 items-center justify-center">
           <RankChangeBadge value={row.rankChange} />
         </div>
+        */}
       </div>
     </div>
   );
@@ -374,6 +516,7 @@ const LeaderboardMobileRow = memo(function LeaderboardMobileRow({
 }: RowComponentProps<LeaderboardListRowProps>) {
   const row = rows[index];
   if (!row) return null;
+  const wrongCount = Math.max(playedQuestionCount - row.correctCount, 0);
 
   return (
     <div style={style} className="box-border pb-2">
@@ -404,7 +547,7 @@ const LeaderboardMobileRow = memo(function LeaderboardMobileRow({
                 {row.isMe ? "（你）" : ""}
               </div>
               <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
-                答對 / 題數 {row.correctCount} / {playedQuestionCount}
+                答對 / 答錯 {row.correctCount} / {wrongCount}
               </div>
             </div>
           </div>
@@ -455,7 +598,6 @@ const LeaderboardSettlementShowcase: React.FC<
   playlistItems = [],
   playedQuestionCount,
   meClientId,
-  matchId = null,
   questionRecaps = [],
   rankChangeByClientId,
   leaderboardSettlement = null,
@@ -484,9 +626,8 @@ const LeaderboardSettlementShowcase: React.FC<
   const backendCurrentRun = leaderboardSettlement?.currentRun ?? null;
   const personalBestComparison =
     leaderboardSettlement?.personalBestComparison ?? null;
-  const backendTopEntries = leaderboardSettlement?.leaderboardTop ?? [];
-  const backendAroundMeEntries =
-    leaderboardSettlement?.leaderboardAroundMe ?? [];
+  const backendTopEntries = leaderboardSettlement?.leaderboardTop;
+  const backendAroundMeEntries = leaderboardSettlement?.leaderboardAroundMe;
   const localMyIndex = sortedParticipants.findIndex(
     (participant) => participant.clientId === meClientId,
   );
@@ -590,8 +731,9 @@ const LeaderboardSettlementShowcase: React.FC<
   }, [meSummary, playedQuestionCount, sortedParticipants]);
 
   const effectiveLeaderboardRows = useMemo<LeaderboardMetricRow[]>(() => {
-    if (backendTopEntries.length > 0) {
-      return backendTopEntries.map((entry) => ({
+    const topEntries = backendTopEntries ?? [];
+    if (topEntries.length > 0) {
+      return topEntries.map((entry) => ({
         clientId: entry.userId ?? `ranked-${entry.rank}-${entry.displayName}`,
         rank: entry.rank,
         username: entry.displayName,
@@ -634,8 +776,9 @@ const LeaderboardSettlementShowcase: React.FC<
   ]);
 
   const aroundMeRows = useMemo<LeaderboardMetricRow[]>(() => {
-    if (backendAroundMeEntries.length === 0) return [];
-    return backendAroundMeEntries.map((entry) => ({
+    const aroundEntries = backendAroundMeEntries ?? [];
+    if (aroundEntries.length === 0) return [];
+    return aroundEntries.map((entry) => ({
       clientId: entry.userId ?? `around-${entry.rank}-${entry.displayName}`,
       rank: entry.rank,
       username: entry.displayName,
@@ -649,6 +792,49 @@ const LeaderboardSettlementShowcase: React.FC<
         entry.isMe && backendCurrentRun ? backendCurrentRun.rankChange : null,
     }));
   }, [backendAroundMeEntries, backendCurrentRun]);
+
+  const personalBestRow = useMemo<LeaderboardMetricRow | null>(() => {
+    const topMe = effectiveLeaderboardRows.find((row) => row.isMe) ?? null;
+    if (topMe) return topMe;
+
+    const aroundMe = aroundMeRows.find((row) => row.isMe) ?? null;
+    if (aroundMe) return aroundMe;
+
+    if (backendCurrentRun) {
+      return {
+        clientId: meClientId ?? `current-run-${backendCurrentRun.rank}`,
+        rank: backendCurrentRun.rank,
+        username: localMe?.username ?? "你",
+        avatarUrl: localMe?.avatarUrl ?? localMe?.avatar_url ?? null,
+        score: backendCurrentRun.score,
+        correctCount: backendCurrentRun.correctCount,
+        combo: backendCurrentRun.maxCombo,
+        avgCorrectMs: backendCurrentRun.avgCorrectMs,
+        isMe: true,
+        rankChange: backendCurrentRun.rankChange,
+      };
+    }
+
+    if (localMe) {
+      return {
+        clientId: localMe.clientId,
+        rank: meSummary.myRank,
+        username: localMe.username,
+        avatarUrl: localMe.avatarUrl ?? localMe.avatar_url ?? null,
+        score: localMe.score,
+        correctCount: localMe.correctCount ?? 0,
+        combo: Math.max(localMe.maxCombo ?? 0, localMe.combo ?? 0),
+        avgCorrectMs:
+          typeof localMe.avgCorrectMs === "number" && Number.isFinite(localMe.avgCorrectMs)
+            ? localMe.avgCorrectMs
+            : null,
+        isMe: true,
+        rankChange: rankChangeByClientId?.[localMe.clientId] ?? null,
+      };
+    }
+
+    return null;
+  }, [aroundMeRows, backendCurrentRun, effectiveLeaderboardRows, localMe, meClientId, meSummary.myRank, rankChangeByClientId]);
 
   const shouldShowAroundMe = useMemo(() => {
     if (aroundMeRows.length === 0) return false;
@@ -679,6 +865,7 @@ const LeaderboardSettlementShowcase: React.FC<
         title: item.answerText?.trim() || item.title?.trim() || `第 ${index + 1} 題`,
         artist: item.uploader?.trim() || "未知歌手",
         thumbnail: item.thumbnail ?? null,
+        youtubeUrl: buildYouTubeUrl(item),
         result: "unanswered",
         badgeLabel: "未作答",
         badgeTone: "neutral" as const,
@@ -705,6 +892,7 @@ const LeaderboardSettlementShowcase: React.FC<
           title: recap.title,
           artist: recap.uploader,
           thumbnail: recap.thumbnail ?? null,
+          youtubeUrl: buildYouTubeUrl(recap),
           result,
           badgeLabel: "PERFECT!",
           badgeTone: "warning" as const,
@@ -719,6 +907,7 @@ const LeaderboardSettlementShowcase: React.FC<
           title: recap.title,
           artist: recap.uploader,
           thumbnail: recap.thumbnail ?? null,
+          youtubeUrl: buildYouTubeUrl(recap),
           result,
           badgeLabel: "答對",
           badgeTone: "success" as const,
@@ -733,6 +922,7 @@ const LeaderboardSettlementShowcase: React.FC<
           title: recap.title,
           artist: recap.uploader,
           thumbnail: recap.thumbnail ?? null,
+          youtubeUrl: buildYouTubeUrl(recap),
           result,
           badgeLabel: "答錯",
           badgeTone: "danger" as const,
@@ -746,6 +936,7 @@ const LeaderboardSettlementShowcase: React.FC<
         title: recap.title,
         artist: recap.uploader,
         thumbnail: recap.thumbnail ?? null,
+        youtubeUrl: buildYouTubeUrl(recap),
         result,
         badgeLabel: "未作答",
         badgeTone: "neutral" as const,
@@ -777,14 +968,54 @@ const LeaderboardSettlementShowcase: React.FC<
     [questionRows, questionFilter],
   );
 
-  const rankingSummaryLabel = useMemo(() => {
+  const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
+  const prevBestScore = personalBestComparison?.previousBestScore ?? null;
+  const scoreDelta =
+    prevBestScore !== null ? currentScore - prevBestScore : null;
+  const currentRunComparable = useMemo(
+    () => ({
+      score: currentScore,
+      combo: backendCurrentRun?.maxCombo ?? meSummary.combo,
+      correctCount: backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0,
+      avgCorrectMs: backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs,
+    }),
+    [
+      backendCurrentRun?.avgCorrectMs,
+      backendCurrentRun?.correctCount,
+      backendCurrentRun?.maxCombo,
+      currentScore,
+      meSummary.avgCorrectMs,
+      meSummary.combo,
+      meSummary.me?.correctCount,
+    ],
+  );
+  const selfBestAheadOfCurrent = useMemo(() => {
+    if (!personalBestRow?.isMe) return false;
+    return isRowAheadOfCurrent(personalBestRow, currentRunComparable);
+  }, [currentRunComparable, personalBestRow]);
+  const displayedCurrentRank = (() => {
+    const baseRank = backendCurrentRun?.rank ?? meSummary.myRank;
+    if (!baseRank) return 0;
+    return baseRank + (selfBestAheadOfCurrent ? 1 : 0);
+  })();
+  const gapTargetRank = (() => {
     if (backendCurrentRun?.rank && backendCurrentRun.rank > 1) {
-      if (backendCurrentRun.gapToPrevious !== null) {
-        return `距離前一名還差 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
-      }
-      return `目前全球排名第 ${backendCurrentRun.rank} 名`;
+      return Math.max(1, backendCurrentRun.rank - 1);
     }
-    if (backendCurrentRun?.rank === 1) {
+    if (displayedCurrentRank > 1) {
+      return Math.max(1, displayedCurrentRank - 1);
+    }
+    return null;
+  })();
+
+  const rankingSummaryLabel = (() => {
+    if (gapTargetRank !== null) {
+      if (backendCurrentRun?.gapToPrevious !== null && backendCurrentRun?.gapToPrevious !== undefined) {
+        return `距離第 ${gapTargetRank} 名差 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
+      }
+      return `距離第 ${gapTargetRank} 名的差距暫時無法取得`;
+    }
+    if (displayedCurrentRank === 1) {
       return "目前位居榜首";
     }
     if (effectiveLeaderboardRows.length === 0) {
@@ -792,21 +1023,8 @@ const LeaderboardSettlementShowcase: React.FC<
         ? "正在載入全球排行榜..."
         : "顯示本場即時結算";
     }
-    if (meSummary.myRank > 1 && meSummary.scoreGapToPrev !== null) {
-      return `距離前一名還差 ${formatScore(meSummary.scoreGapToPrev)} 分`;
-    }
-    if (meSummary.myRank === 1) {
-      return "目前位居榜首";
-    }
     return `顯示前 ${Math.min(10, effectiveLeaderboardRows.length || 10)} 名`;
-  }, [
-    backendCurrentRun?.gapToPrevious,
-    backendCurrentRun?.rank,
-    effectiveLeaderboardRows.length,
-    leaderboardSettlementLoading,
-    meSummary.myRank,
-    meSummary.scoreGapToPrev,
-  ]);
+  })();
 
   const leaderboardDesktopHeight = Math.min(
     340,
@@ -816,23 +1034,23 @@ const LeaderboardSettlementShowcase: React.FC<
     400,
     Math.max(96, effectiveLeaderboardRows.length * 96),
   );
-  const handleLeaderboardRowsRendered = useCallback(
-    (_payload: { startIndex: number; stopIndex: number }) => {},
-    [],
-  );
+  const handleLeaderboardRowsRendered = useCallback(() => {}, []);
 
-  const scoreSummaryLabel = useMemo(() => {
-    if (backendCurrentRun?.rank === 1) return "已經位居榜首";
-    if (backendCurrentRun != null && backendCurrentRun.gapToPrevious !== null) {
-      return `距離前一名 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
+  const scoreSummaryLabel = (() => {
+    if (displayedCurrentRank === 1) return "已經位居榜首";
+    if (gapTargetRank !== null) {
+      if (backendCurrentRun?.gapToPrevious !== null && backendCurrentRun?.gapToPrevious !== undefined) {
+        return `距離第 ${gapTargetRank} 名差 ${formatScore(backendCurrentRun.gapToPrevious)} 分`;
+      }
+      return `距離第 ${gapTargetRank} 名的差距暫時無法取得`;
     }
     if (backendCurrentRun != null && backendCurrentRun.gapToFirst !== null) {
-      return `距離第一名 ${formatScore(backendCurrentRun.gapToFirst)} 分`;
+      return getGapToFirstLabel(backendCurrentRun.gapToFirst);
     }
     if (!meSummary.me) return "顯示本場分數";
-    if (meSummary.scoreGapToPrev === null) return "顯示本場分數";
-    return `距離前一名 ${formatScore(meSummary.scoreGapToPrev)} 分`;
-  }, [backendCurrentRun, meSummary]);
+    if (displayedCurrentRank <= 1 || meSummary.scoreGapToPrev === null) return "顯示本場分數";
+    return `距離第 ${Math.max(1, displayedCurrentRank - 1)} 名差 ${formatScore(meSummary.scoreGapToPrev)} 分`;
+  })();
 
   const questionListHeight = useMemo(() => {
     const target = filteredQuestionRows.length * listRowHeight;
@@ -843,16 +1061,6 @@ const LeaderboardSettlementShowcase: React.FC<
     );
   }, [filteredQuestionRows.length, isDesktopLayout, listRowHeight]);
 
-  const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
-  const prevBestScore = personalBestComparison?.previousBestScore ?? null;
-  const scoreDelta =
-    prevBestScore !== null ? currentScore - prevBestScore : null;
-
-  const filterLabels: Record<Exclude<QuestionFilterType, null>, string> = {
-    correct: "答對",
-    wrong: "答錯",
-    unanswered: "未作答",
-  };
   const filterEmptyMessages: Record<Exclude<QuestionFilterType, null>, string> = {
     correct: "沒有答對的題目",
     wrong: "沒有答錯的題目",
@@ -860,10 +1068,9 @@ const LeaderboardSettlementShowcase: React.FC<
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1820px] min-w-0 px-3 pb-6 pt-2 sm:px-4 xl:px-5">
-      <section className="relative overflow-hidden rounded-[28px] border border-amber-300/14 bg-[radial-gradient(circle_at_8%_0%,rgba(245,158,11,0.16),transparent_24%),radial-gradient(circle_at_100%_20%,rgba(8,145,178,0.08),transparent_28%),linear-gradient(180deg,rgba(7,8,10,0.98),rgba(8,10,14,0.98))] px-4 py-4 text-[var(--mc-text)] shadow-[0_38px_100px_-68px_rgba(245,158,11,0.56)] sm:px-5 sm:py-5">
-        <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(245,158,11,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(245,158,11,0.02)_1px,transparent_1px)] [background-size:22px_22px]" />
-        <div className="relative">
+    <div className="mx-auto w-full max-w-[1820px] min-w-0 pb-6 pt-2 text-[var(--mc-text)]">
+      <section>
+        <div>
           <div className="flex flex-col gap-3 border-b border-amber-300/14 pb-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="flex items-start gap-3">
@@ -905,12 +1112,12 @@ const LeaderboardSettlementShowcase: React.FC<
                 <div className="grid gap-4 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
                   <div className="border-b border-amber-300/14 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
                     <div className="text-center text-lg font-semibold text-amber-50/92">
-                      全球名次
+                      本次排名
                     </div>
                     <div className="mt-4 flex items-center justify-center gap-5">
                       <AutoAwesomeRoundedIcon className="hidden text-amber-300/65 sm:block" sx={{ fontSize: 30 }} />
                       <div className="text-[4rem] font-black leading-none text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.3)] sm:text-[5rem]">
-                        #{meSummary.myRank || "--"}
+                        #{displayedCurrentRank || "--"}
                       </div>
                       <AutoAwesomeRoundedIcon className="hidden rotate-180 text-amber-300/65 sm:block" sx={{ fontSize: 30 }} />
                     </div>
@@ -932,12 +1139,12 @@ const LeaderboardSettlementShowcase: React.FC<
                       <div className="mt-1.5 flex items-center justify-center gap-1">
                         {scoreDelta > 0 ? (
                           <span className="inline-flex items-center gap-0.5 text-base font-semibold text-emerald-400">
-                            <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
+                            <AddRoundedIcon sx={{ fontSize: 16 }} />
                             {formatScore(scoreDelta)}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-0.5 text-base font-semibold text-rose-400">
-                            <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
+                            <RemoveRoundedIcon sx={{ fontSize: 16 }} />
                             {formatScore(Math.abs(scoreDelta))}
                           </span>
                         )}
@@ -1028,14 +1235,14 @@ const LeaderboardSettlementShowcase: React.FC<
                   </div>
                 </div>
 
-                <div className="mt-3 hidden grid-cols-[52px_minmax(180px,1.65fr)_112px_112px_112px_108px_112px] gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid">
+                <div className="mt-3 hidden grid-cols-[52px_minmax(180px,1.75fr)_112px_112px_112px_120px] gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid">
                   <div>名次</div>
                   <div>玩家</div>
-                  <div className="text-center">答對 / 題數</div>
+                  <div className="text-center">答對 / 答錯</div>
                   <div className="text-center">最大 Combo</div>
                   <div className="text-center">平均答題</div>
                   <div className="text-center">分數</div>
-                  <div className="text-center">排名變化</div>
+                  {/* <div className="text-center">排名變化</div> */}
                 </div>
 
                 {leaderboardSettlementLoading && effectiveLeaderboardRows.length === 0 ? (
@@ -1080,6 +1287,7 @@ const LeaderboardSettlementShowcase: React.FC<
                         style={{ height: leaderboardMobileHeight, width: "100%" }}
                       />
                     </div>
+
                   </>
                 ) : (
                   <div className="mt-3 rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--mc-text-muted)]">
@@ -1098,6 +1306,85 @@ const LeaderboardSettlementShowcase: React.FC<
                       <RefreshRoundedIcon sx={{ fontSize: 14 }} />
                       重新載入全球排行榜
                     </button>
+                  </div>
+                )}
+                {personalBestRow && (
+                  <div className="mt-3 rounded-[20px] border border-sky-300/20 bg-sky-500/8 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.04)]">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-sky-100/80">
+                      <span className="font-semibold tracking-[0.08em]">個人最佳</span>
+                      <span>
+                        第 {personalBestRow.rank} 名
+                        {personalBestComparison?.hasPreviousBest === false ? " · 首次紀錄" : ""}
+                      </span>
+                    </div>
+                    <div className="hidden grid-cols-[52px_minmax(180px,1.75fr)_112px_112px_112px_120px] items-center gap-2 xl:grid">
+                      <div className="text-base font-black text-sky-100">#{personalBestRow.rank}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <PlayerAvatar
+                          username={personalBestRow.username}
+                          clientId={personalBestRow.clientId}
+                          avatarUrl={personalBestRow.avatarUrl}
+                          size={32}
+                          rank={personalBestRow.rank}
+                          combo={personalBestRow.combo}
+                          isMe
+                          hideRankMark
+                          loading="lazy"
+                        />
+                        <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                          {personalBestRow.username}（你）
+                        </div>
+                      </div>
+                      <div className="text-center text-xs text-[var(--mc-text-muted)]">
+                        {personalBestRow.correctCount} / {Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
+                      </div>
+                      <div className="text-center text-xs font-semibold text-violet-300">
+                        x{personalBestRow.combo}
+                      </div>
+                      <div className="text-center text-xs text-[var(--mc-text-muted)]">
+                        {formatSeconds(personalBestRow.avgCorrectMs)}
+                      </div>
+                      <div className="text-center text-base font-black text-sky-100">
+                        {formatScore(personalBestRow.score)}
+                      </div>
+                    </div>
+                    <div className="xl:hidden">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="text-base font-black text-sky-100">#{personalBestRow.rank}</div>
+                          <PlayerAvatar
+                            username={personalBestRow.username}
+                            clientId={personalBestRow.clientId}
+                            avatarUrl={personalBestRow.avatarUrl}
+                            size={30}
+                            rank={personalBestRow.rank}
+                            combo={personalBestRow.combo}
+                            isMe
+                            hideRankMark
+                            loading="lazy"
+                          />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                              {personalBestRow.username}（你）
+                            </div>
+                            <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
+                              答對 / 答錯 {personalBestRow.correctCount} / {Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-base font-black text-sky-100">
+                            {formatScore(personalBestRow.score)}
+                          </div>
+                          <div className="mt-0.5 text-xs text-violet-300">
+                            Combo x{personalBestRow.combo}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-[var(--mc-text-muted)]">
+                        平均答題 {formatSeconds(personalBestRow.avgCorrectMs)}
+                      </div>
+                    </div>
                   </div>
                 )}
               </article>
@@ -1255,7 +1542,7 @@ const LeaderboardSettlementShowcase: React.FC<
                       rowComponent={QuestionListRow}
                       rowCount={filteredQuestionRows.length}
                       rowHeight={listRowHeight}
-                      rowProps={{ items: filteredQuestionRows }}
+                      rowProps={{ items: filteredQuestionRows, isDesktopLayout }}
                       overscanCount={5}
                       defaultHeight={questionListHeight}
                       style={{ height: questionListHeight, width: "100%" }}
@@ -1278,3 +1565,4 @@ const LeaderboardSettlementShowcase: React.FC<
 };
 
 export default memo(LeaderboardSettlementShowcase);
+

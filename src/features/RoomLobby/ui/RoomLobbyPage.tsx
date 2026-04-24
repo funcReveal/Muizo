@@ -1766,6 +1766,8 @@ const RoomLobbyPage: React.FC = () => {
       dismissedSettlementRoundKeysRef.current = [];
     }
     if (prevGameStatusRef.current === "playing" && nextStatus === "ended") {
+      setActiveSettlementRoundKey(null);
+      setLoadingSettlementRoundKey(null);
       setRoomViewMode("settlement");
     }
     prevGameStatusRef.current = nextStatus;
@@ -1826,8 +1828,16 @@ const RoomLobbyPage: React.FC = () => {
       currentRoom.id
       ? leaderboardSettlementReadyByRoundKey[activeSettlementSnapshot.roundKey]
       : null;
+
+  // For the active settlement page, prefer the realtime event matchId and
+  // fall back to the live snapshot matchId. History replay uses its own hook.
+  const activeMatchId =
+    activeLeaderboardSettlementReady?.matchId ??
+    activeSettlementSnapshot?.matchId ??
+    null;
+
   const leaderboardSettlement = useLeaderboardSettlement({
-    matchId: activeLeaderboardSettlementReady?.matchId ?? null,
+    matchId: activeMatchId,
     roomId: currentRoom?.id ?? null,
     roundKey: activeSettlementSnapshot?.roundKey ?? null,
     clientId,
@@ -1835,7 +1845,7 @@ const RoomLobbyPage: React.FC = () => {
       Boolean(currentRoom?.id) &&
       Boolean(activeSettlementSnapshot?.roundKey) &&
       isLeaderboardSettlementView &&
-      Boolean(activeLeaderboardSettlementReady?.matchId),
+      Boolean(activeMatchId),
   });
 
   const settlementCollectionId = activeSettlementSnapshot?.room.playlist.id ?? null;
@@ -1905,7 +1915,10 @@ const RoomLobbyPage: React.FC = () => {
     )
       return;
 
-    const liveSnapshot = roomScopedSettlementHistory[0] ?? null;
+    const expectedSettlementRoundKey = liveRoundKey;
+    const liveSnapshot = expectedSettlementRoundKey
+      ? liveSettlementSnapshotByRoundKey[expectedSettlementRoundKey] ?? null
+      : roomScopedSettlementHistory[0] ?? null;
     if (liveSnapshot) {
       const liveSettlementIdentity =
         getSettlementIdentityFromSnapshot(liveSnapshot);
@@ -1930,15 +1943,20 @@ const RoomLobbyPage: React.FC = () => {
     const requestVersion = settlementActivationVersionRef.current + 1;
     settlementActivationVersionRef.current = requestVersion;
     const request = (async () => {
-      let latestSummary = latestRoomScopedSettlementSummary;
+      let latestSummary = expectedSettlementRoundKey
+        ? settlementSummaryByRoundKey[expectedSettlementRoundKey] ?? null
+        : latestRoomScopedSettlementSummary;
       if (!latestSummary) {
         const loaded = await ensureSettlementSummaryListLoaded();
-        latestSummary =
-          loaded
-            .filter((item) => item.roomId === roomId)
-            .sort(
-              (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
-            )[0] ?? null;
+        latestSummary = expectedSettlementRoundKey
+          ? loaded.find((item) => item.roundKey === expectedSettlementRoundKey) ??
+            settlementSummaryByRoundKey[expectedSettlementRoundKey] ??
+            null
+          : loaded
+              .filter((item) => item.roomId === roomId)
+              .sort(
+                (a, b) => b.endedAt - a.endedAt || b.roundNo - a.roundNo,
+              )[0] ?? null;
       }
 
       if (!latestSummary) return;
@@ -2002,8 +2020,11 @@ const RoomLobbyPage: React.FC = () => {
     isDismissedSettlement,
     isGameView,
     latestRoomScopedSettlementSummary,
+    liveRoundKey,
+    liveSettlementSnapshotByRoundKey,
     roomViewMode,
     roomScopedSettlementHistory,
+    settlementSummaryByRoundKey,
     setIsGameView,
   ]);
 
@@ -2210,6 +2231,20 @@ const RoomLobbyPage: React.FC = () => {
       historyReplaySnapshot.questionRecaps ?? [],
     );
   }, [historyReplaySnapshot, settlementRecapsByRoundKey]);
+  const isHistoryReplayLeaderboardView = Boolean(
+    historyReplaySnapshot?.room.gameSettings?.leaderboardProfileKey,
+  );
+  const historyReplayMatchId = historyReplaySummary?.matchId ?? null;
+  const historyReplayLeaderboardSettlement = useLeaderboardSettlement({
+    matchId: historyReplayMatchId,
+    roomId: historyReplaySnapshot?.room.id ?? currentRoom?.id ?? null,
+    roundKey: historyReplaySnapshot?.roundKey ?? null,
+    clientId,
+    enabled:
+      Boolean(historyReplaySnapshot?.roundKey) &&
+      isHistoryReplayLeaderboardView &&
+      Boolean(historyReplayMatchId),
+  });
 
   const openHistoryReplayModal = useCallback(
     async (summary: RoomSettlementHistorySummary) => {
@@ -2915,19 +2950,45 @@ const RoomLobbyPage: React.FC = () => {
       !historyReplaySnapshot ? (
         <HistoryReplaySkeleton />
       ) : historyReplaySnapshot ? (
-        <HistoryReplayCompactView
-          key={historyReplaySummary?.roundKey ?? historyReplaySummary?.matchId}
-          room={historyReplaySnapshot.room}
-          participants={historyReplaySnapshot.participants}
-          messages={historyReplaySnapshot.messages}
-          playlistItems={historyReplaySnapshot.playlistItems ?? []}
-          trackOrder={historyReplaySnapshot.trackOrder}
-          playedQuestionCount={historyReplaySnapshot.playedQuestionCount}
-          startedAt={historyReplaySnapshot.startedAt}
-          endedAt={historyReplaySnapshot.endedAt}
-          meClientId={clientId}
-          questionRecaps={historyReplayQuestionRecaps}
-        />
+        isHistoryReplayLeaderboardView ? (
+          <LeaderboardSettlementShowcase
+            key={historyReplaySummary?.roundKey ?? historyReplaySummary?.matchId}
+            room={historyReplaySnapshot.room}
+            participants={historyReplaySnapshot.participants}
+            playlistItems={historyReplaySnapshot.playlistItems ?? []}
+            playedQuestionCount={historyReplaySnapshot.playedQuestionCount}
+            meClientId={clientId}
+            matchId={historyReplaySnapshot.matchId}
+            questionRecaps={historyReplayQuestionRecaps}
+            rankChangeByClientId={
+              rankChangeByRoundKey[historyReplaySnapshot.roundKey] ?? undefined
+            }
+            leaderboardSettlement={historyReplayLeaderboardSettlement.data}
+            leaderboardSettlementLoading={
+              historyReplayLeaderboardSettlement.isLoading
+            }
+            leaderboardSettlementError={
+              historyReplayLeaderboardSettlement.error
+            }
+            onRefreshLeaderboardSettlement={
+              historyReplayLeaderboardSettlement.refresh
+            }
+          />
+        ) : (
+          <HistoryReplayCompactView
+            key={historyReplaySummary?.roundKey ?? historyReplaySummary?.matchId}
+            room={historyReplaySnapshot.room}
+            participants={historyReplaySnapshot.participants}
+            messages={historyReplaySnapshot.messages}
+            playlistItems={historyReplaySnapshot.playlistItems ?? []}
+            trackOrder={historyReplaySnapshot.trackOrder}
+            playedQuestionCount={historyReplaySnapshot.playedQuestionCount}
+            startedAt={historyReplaySnapshot.startedAt}
+            endedAt={historyReplaySnapshot.endedAt}
+            meClientId={clientId}
+            questionRecaps={historyReplayQuestionRecaps}
+          />
+        )
       ) : (
         <div className="rounded-xl border border-amber-300/20 bg-amber-400/6 px-4 py-5 text-sm text-amber-100/90">
           找不到可顯示的回放資料。
