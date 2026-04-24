@@ -706,7 +706,11 @@ const LeaderboardSettlementShowcase: React.FC<
       const stopBgm = () => audio.pause();
 
       const handleVisibilityChange = () => {
-        document.hidden ? stopBgm() : tryPlay();
+        if (document.hidden) {
+          stopBgm();
+        } else {
+          tryPlay();
+        }
       };
       const handleBlur = () => stopBgm();
       const handleFocus = () => tryPlay();

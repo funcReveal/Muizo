@@ -146,6 +146,7 @@ const useGameRoomPlayerSync = ({
   const playbackWarmupStopTimerRef = useRef<number | null>(null);
   const bufferingRecoveryTimerRef = useRef<number | null>(null);
   const guessLoopRestartTimerRef = useRef<number | null>(null);
+  const scheduleGuessLoopRestartRef = useRef<() => void>(() => undefined);
   const postStartDriftTimersRef = useRef<number[]>([]);
   const postStartDriftRetriedRef = useRef(false);
   const silentAudioStartTimerRef = useRef<number | null>(null);
@@ -764,7 +765,7 @@ const useGameRoomPlayerSync = ({
         latestPositionSec < clipEndSec - 0.18;
 
       if (playerStillMidClip) {
-        scheduleGuessLoopRestart();
+        scheduleGuessLoopRestartRef.current();
         return;
       }
 
@@ -772,7 +773,7 @@ const useGameRoomPlayerSync = ({
       startPlayback(clipStartSec, true, {
         reason: "guess-loop",
       });
-      scheduleGuessLoopRestart();
+      scheduleGuessLoopRestartRef.current();
     }, remainingLoopMs + 80);
   }, [
     clearGuessLoopRestartTimer,
@@ -790,6 +791,7 @@ const useGameRoomPlayerSync = ({
     startPlayback,
     waitingToStart,
   ]);
+  scheduleGuessLoopRestartRef.current = scheduleGuessLoopRestart;
 
   useEffect(() => {
     scheduleGuessLoopRestart();
