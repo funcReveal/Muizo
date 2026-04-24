@@ -421,7 +421,7 @@ const COLLECTION_PREVIEW_PAGE_SIZE = 12;
 const COLLECTION_PREVIEW_ROW_HEIGHT = 73;
 const COLLECTION_LEADERBOARD_INITIAL_LIMIT = 10;
 const COLLECTION_LEADERBOARD_PAGE_SIZE = 30;
-const COLLECTION_LEADERBOARD_ROW_HEIGHT = 72;
+const COLLECTION_LEADERBOARD_ROW_HEIGHT = 88;
 
 const formatLeaderboardScore = (value: number) =>
   new Intl.NumberFormat("en-US").format(value);
@@ -587,7 +587,7 @@ const CollectionLeaderboardListRow = ({
 
   if (isLoaderRow) {
     return (
-      <div style={style}>
+      <div style={style} className="box-border pb-2">
         <div className="flex h-full items-center gap-3 rounded-xl border border-white/8 bg-slate-950/30 px-3 py-3">
           <div className="h-4 w-8 rounded-full bg-white/8" />
           <div className="h-9 w-9 rounded-full bg-white/8" />
@@ -604,7 +604,7 @@ const CollectionLeaderboardListRow = ({
   if (!item) return <div style={style} />;
 
   return (
-    <div style={style}>
+    <div style={style} className="box-border pb-2">
       <LeaderboardPlayerRow
         player={toLeaderboardPreviewPlayer(item, formatDurationLabel)}
       />

@@ -285,6 +285,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
 }) => {
   const isMobileDialog = useMediaQuery("(max-width:900px)");
   const settingsLocked = settingsDisabled || settingsSaving;
+  const settingsVisualLocked = settingsDisabled;
   const isLeaderboardRoom = roomPlayMode === "leaderboard";
   const leaderboardModeLocked = Boolean(
     leaderboardModeLockedReason && !isLeaderboardRoom,
@@ -1252,7 +1253,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
 
                 <div
                   className={`grid gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)] ${
-                    settingsLocked
+                    settingsVisualLocked
                       ? "pointer-events-none opacity-55 saturate-75"
                       : ""
                   }`}
