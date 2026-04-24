@@ -5,17 +5,13 @@ import {
   DEFAULT_START_OFFSET_SEC,
   QUESTION_MIN,
 } from "./roomConstants";
-import {
-  sanitizePossibleGarbledText,
-} from "../../../shared/utils/text";
+import { sanitizePossibleGarbledText } from "../../../shared/utils/text";
 import {
   clampPlayDurationSec,
   clampRevealDurationSec,
   clampStartOffsetSec,
 } from "./roomUtils";
-import {
-  normalizePlaylistItems,
-} from "@features/PlaylistSource";
+import { normalizePlaylistItems } from "@features/PlaylistSource";
 import { translateRoomErrorDetail } from "./roomErrorText";
 import type {
   ChatMessage,
@@ -218,8 +214,7 @@ export const mergeKnownGameSettings = (
   if (questionCount !== undefined) {
     next.questionCount = normalizeQuestionCount(questionCount, QUESTION_MIN);
   }
-  const playDurationSec =
-    incoming?.playDurationSec ?? current?.playDurationSec;
+  const playDurationSec = incoming?.playDurationSec ?? current?.playDurationSec;
   if (playDurationSec !== undefined) {
     next.playDurationSec = clampPlayDurationSec(playDurationSec);
   }
@@ -245,8 +240,9 @@ export const mergeKnownGameSettings = (
   const playbackExtensionMode =
     incoming?.playbackExtensionMode ?? current?.playbackExtensionMode;
   if (playbackExtensionMode !== undefined) {
-    next.playbackExtensionMode =
-      normalizePlaybackExtensionMode(playbackExtensionMode);
+    next.playbackExtensionMode = normalizePlaybackExtensionMode(
+      playbackExtensionMode,
+    );
   }
   const leaderboardProfileKey =
     incoming?.leaderboardProfileKey !== undefined
@@ -314,6 +310,16 @@ export const applyGameSettingsPatch = (
     ...patch,
   }),
 });
+
+/**
+ * Deprecated for room settings updates.
+ *
+ * Do not use this after changing room settings.
+ * Room setting timing must be resolved at game runtime,
+ * not persisted into playlist.items.
+ *
+ * playlist.items should remain canonical source data.
+ */
 
 export const buildUploadPlaylistItems = (
   sourceItems: PlaylistItem[],
@@ -426,8 +432,12 @@ export const mergeRoomSummaryIntoCurrentRoom = (
   ...(summary.playlistSourceType !== undefined
     ? { playlistSourceType: summary.playlistSourceType }
     : {}),
-  ...(summary.visibility !== undefined ? { visibility: summary.visibility } : {}),
-  ...(summary.maxPlayers !== undefined ? { maxPlayers: summary.maxPlayers } : {}),
+  ...(summary.visibility !== undefined
+    ? { visibility: summary.visibility }
+    : {}),
+  ...(summary.maxPlayers !== undefined
+    ? { maxPlayers: summary.maxPlayers }
+    : {}),
   ...(summary.hostClientId !== undefined
     ? { hostClientId: summary.hostClientId }
     : {}),
@@ -452,7 +462,10 @@ export const mergeRoomSummaryIntoCurrentRoom = (
         }
       : {}),
   },
-  gameSettings: mergeKnownGameSettings(current.gameSettings, summary.gameSettings),
+  gameSettings: mergeKnownGameSettings(
+    current.gameSettings,
+    summary.gameSettings,
+  ),
 });
 
 export const capRoomMessages = (

@@ -9,7 +9,6 @@ import {
 import {
   buildUploadPlaylistItems,
   formatAckError,
-  isLeaderboardChallengeSettings,
   mergeGameSettings,
   mergeRoomSummaryIntoCurrentRoom,
   type RoomGameSettings,
@@ -88,6 +87,7 @@ export const useRoomProviderSettingsActions = ({
         room.gameSettings,
         gameSettingsOverride,
       );
+
       const uploadItems = buildUploadPlaylistItems(sourceItems, {
         playDurationSec:
           gameSettings.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
@@ -95,6 +95,7 @@ export const useRoomProviderSettingsActions = ({
         allowCollectionClipTiming:
           gameSettings.allowCollectionClipTiming ?? true,
       });
+
       if (uploadItems.length === 0) return false;
 
       const uploadId =
@@ -136,6 +137,7 @@ export const useRoomProviderSettingsActions = ({
           },
         );
       });
+
       if (!changePlaylistOk) {
         setStatusText("同步播放清單失敗");
         return false;
@@ -145,6 +147,7 @@ export const useRoomProviderSettingsActions = ({
         for (let index = 0; index < remaining.length; index += CHUNK_SIZE) {
           const chunk = remaining.slice(index, index + CHUNK_SIZE);
           const isLastChunk = index + CHUNK_SIZE >= remaining.length;
+
           const chunkOk = await new Promise<boolean>((resolve) => {
             socket.emit(
               "uploadPlaylistChunk",
@@ -163,6 +166,7 @@ export const useRoomProviderSettingsActions = ({
               },
             );
           });
+
           if (!chunkOk) {
             setStatusText("同步播放清單失敗");
             return false;
@@ -205,10 +209,12 @@ export const useRoomProviderSettingsActions = ({
           ? { allowParticipantInvite: payload.allowParticipantInvite }
           : {}),
       };
+
       const nextCredentialValue =
         normalizedPayload.pin !== undefined
           ? normalizedPayload.pin
           : normalizedPayload.password;
+
       const compatibilityPayload =
         nextCredentialValue !== undefined
           ? {
@@ -227,95 +233,18 @@ export const useRoomProviderSettingsActions = ({
               resolve(false);
               return;
             }
+
             if (!ack.ok) {
               if (handleRoomGoneAck(currentRoom.id, ack)) {
                 resolve(false);
                 return;
               }
+
               setStatusText(formatAckError("更新房間設定失敗", ack.error));
               resolve(false);
               return;
             }
 
-            const gameSettingsPatch = {
-              ...(typeof normalizedPayload.questionCount === "number"
-                ? { questionCount: normalizedPayload.questionCount }
-                : {}),
-              ...(typeof normalizedPayload.playDurationSec === "number"
-                ? { playDurationSec: normalizedPayload.playDurationSec }
-                : {}),
-              ...(typeof normalizedPayload.revealDurationSec === "number"
-                ? { revealDurationSec: normalizedPayload.revealDurationSec }
-                : {}),
-              ...(typeof normalizedPayload.startOffsetSec === "number"
-                ? { startOffsetSec: normalizedPayload.startOffsetSec }
-                : {}),
-              ...(typeof normalizedPayload.allowCollectionClipTiming ===
-              "boolean"
-                ? {
-                    allowCollectionClipTiming:
-                      normalizedPayload.allowCollectionClipTiming,
-                  }
-                : {}),
-              ...(typeof normalizedPayload.allowParticipantInvite === "boolean"
-                ? {
-                    allowParticipantInvite:
-                      normalizedPayload.allowParticipantInvite,
-                  }
-                : {}),
-              ...(normalizedPayload.playbackExtensionMode
-                ? {
-                    playbackExtensionMode:
-                      normalizedPayload.playbackExtensionMode,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardProfileKey !== undefined
-                ? {
-                    leaderboardProfileKey:
-                      normalizedPayload.leaderboardProfileKey,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardRuleVersion !== undefined
-                ? {
-                    leaderboardRuleVersion:
-                      normalizedPayload.leaderboardRuleVersion,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardModeKey !== undefined
-                ? {
-                    leaderboardModeKey: normalizedPayload.leaderboardModeKey,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardVariantKey !== undefined
-                ? {
-                    leaderboardVariantKey:
-                      normalizedPayload.leaderboardVariantKey,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardTargetQuestionCount !== undefined
-                ? {
-                    leaderboardTargetQuestionCount:
-                      normalizedPayload.leaderboardTargetQuestionCount,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardTimeLimitSec !== undefined
-                ? {
-                    leaderboardTimeLimitSec:
-                      normalizedPayload.leaderboardTimeLimitSec,
-                  }
-                : {}),
-              ...(normalizedPayload.leaderboardRankingMetric !== undefined
-                ? {
-                    leaderboardRankingMetric:
-                      normalizedPayload.leaderboardRankingMetric,
-                  }
-                : {}),
-            } satisfies Partial<RoomGameSettings>;
-
-            const mergedRoom = mergeRoomSummaryIntoCurrentRoom(
-              currentRoom,
-              ack.data.room,
-            );
             setCurrentRoom((previous) =>
               previous
                 ? mergeRoomSummaryIntoCurrentRoom(previous, ack.data.room)
@@ -326,6 +255,7 @@ export const useRoomProviderSettingsActions = ({
               normalizedPayload.pin !== undefined
                 ? normalizedPayload.pin
                 : normalizedPayload.password;
+
             if (nextPinInput !== undefined) {
               const trimmed = nextPinInput?.trim() ?? "";
               const nextPassword = trimmed ? trimmed : null;
@@ -333,41 +263,12 @@ export const useRoomProviderSettingsActions = ({
               setHostRoomPassword(nextPassword);
             }
 
-            const nextGameSettings = mergeGameSettings(
-              mergedRoom.gameSettings,
-              gameSettingsPatch,
-            );
-            const nextIsLeaderboardChallenge =
-              isLeaderboardChallengeSettings(nextGameSettings);
-            const hasTimingPatch =
-              typeof normalizedPayload.playDurationSec === "number" ||
-              typeof normalizedPayload.revealDurationSec === "number" ||
-              typeof normalizedPayload.startOffsetSec === "number" ||
-              typeof normalizedPayload.allowCollectionClipTiming === "boolean";
-            const shouldSyncTiming =
-              hasTimingPatch && !nextIsLeaderboardChallenge;
-
-            if (!shouldSyncTiming) {
-              setStatusText("房間設定已更新");
-              resolve(true);
-              return;
-            }
-
-            void (async () => {
-              const synced = await syncRoomPlaylistTiming(
-                {
-                  ...mergedRoom,
-                  gameSettings: nextGameSettings,
-                },
-                gameSettingsPatch,
-              );
-              setStatusText(
-                synced
-                  ? "房間設定已更新，播放清單已同步"
-                  : "房間設定已更新，但播放清單同步失敗",
-              );
-              resolve(true);
-            })();
+            // Important:
+            // Room settings must not rewrite playlist.items.
+            // Timing should be resolved at game runtime, not persisted into playlist source.
+            setStatusText("房間設定已更新");
+            resolve(true);
+            return;
           },
         );
       });
@@ -380,7 +281,6 @@ export const useRoomProviderSettingsActions = ({
       handleRoomGoneAck,
       setHostRoomPassword,
       setStatusText,
-      syncRoomPlaylistTiming,
     ],
   );
 
