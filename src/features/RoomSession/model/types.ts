@@ -40,6 +40,7 @@ export type {
 
 export interface RoomParticipant {
   clientId: string;
+  authUserId?: string | null;
   username: string;
   avatar_url?: string | null;
   avatarUrl?: string | null;

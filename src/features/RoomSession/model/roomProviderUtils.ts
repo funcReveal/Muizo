@@ -16,6 +16,7 @@ import {
 import {
   normalizePlaylistItems,
 } from "@features/PlaylistSource";
+import { translateRoomErrorDetail } from "./roomErrorText";
 import type {
   ChatMessage,
   PlaylistItem,
@@ -29,9 +30,8 @@ export const MAX_SETTLEMENT_HISTORY_COUNT = 30;
 
 export const formatAckError = (prefix: string, error?: string) => {
   const safePrefix = sanitizePossibleGarbledText(prefix, "操作失敗");
-  const detail = sanitizePossibleGarbledText(
-    error?.trim() || "未知錯誤",
-    "未知錯誤",
+  const detail = translateRoomErrorDetail(
+    sanitizePossibleGarbledText(error?.trim() || "未知錯誤", "未知錯誤"),
   );
   return `${safePrefix}：${detail}`;
 };
@@ -48,6 +48,30 @@ export const normalizeQuestionCount = (
 
 export type RoomGameSettings = NonNullable<RoomSummary["gameSettings"]>;
 
+const LEADERBOARD_PLAYBACK_EXTENSION_MODE = "disabled" as const;
+
+export const isLeaderboardChallengeSettings = (
+  value: Pick<RoomGameSettings, "leaderboardProfileKey"> | null | undefined,
+) =>
+  typeof value?.leaderboardProfileKey === "string" &&
+  value.leaderboardProfileKey.trim().length > 0;
+
+export const normalizeLeaderboardChallengeGameSettings = <
+  T extends Partial<RoomGameSettings>,
+>(
+  settings: T,
+): T => {
+  if (!isLeaderboardChallengeSettings(settings)) return settings;
+  return {
+    ...settings,
+    playDurationSec: DEFAULT_PLAY_DURATION_SEC,
+    revealDurationSec: DEFAULT_REVEAL_DURATION_SEC,
+    startOffsetSec: DEFAULT_START_OFFSET_SEC,
+    allowCollectionClipTiming: true,
+    playbackExtensionMode: LEADERBOARD_PLAYBACK_EXTENSION_MODE,
+  };
+};
+
 export const normalizePlaybackExtensionMode = (
   value: RoomGameSettings["playbackExtensionMode"] | undefined,
 ) =>
@@ -63,7 +87,7 @@ export const mergeGameSettings = (
     current?.questionCount,
     QUESTION_MIN,
   );
-  return {
+  const next: RoomGameSettings = {
     questionCount: normalizeQuestionCount(
       incoming?.questionCount,
       fallbackQuestionCount,
@@ -123,6 +147,7 @@ export const mergeGameSettings = (
         ? incoming.leaderboardRankingMetric
         : current?.leaderboardRankingMetric,
   };
+  return normalizeLeaderboardChallengeGameSettings(next);
 };
 
 export const mergeKnownGameSettings = (
@@ -216,9 +241,10 @@ export const mergeKnownGameSettings = (
     next.leaderboardRankingMetric = leaderboardRankingMetric;
   }
 
-  return Object.keys(next).length > 0
-    ? (next as RoomSummary["gameSettings"])
-    : undefined;
+  if (Object.keys(next).length === 0) return undefined;
+  return normalizeLeaderboardChallengeGameSettings(
+    next,
+  ) as RoomSummary["gameSettings"];
 };
 
 export const applyGameSettingsPatch = (

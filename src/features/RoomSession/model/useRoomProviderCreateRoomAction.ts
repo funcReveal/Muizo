@@ -15,7 +15,10 @@ import type { CreateRoomOptions, RoomCreateSourceMode } from "./RoomCreateContex
 import {
   CHUNK_SIZE,
   DEFAULT_PLAYBACK_EXTENSION_MODE,
+  DEFAULT_PLAY_DURATION_SEC,
+  DEFAULT_REVEAL_DURATION_SEC,
   DEFAULT_ROOM_MAX_PLAYERS,
+  DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
   QUESTION_MIN,
@@ -309,6 +312,7 @@ export const useRoomProviderCreateRoomAction = ({
       options.leaderboardProfileKey.trim().length > 0
         ? options.leaderboardProfileKey.trim()
         : null;
+    const isLeaderboardChallenge = Boolean(leaderboardProfileKey);
     if (leaderboardProfileKey && !authToken) {
       setStatusText("排行挑戰需先登入。");
       onLeaderboardAuthRequired?.();
@@ -316,22 +320,36 @@ export const useRoomProviderCreateRoomAction = ({
       return;
     }
     const playbackExtensionMode =
-      options?.playbackExtensionMode ?? DEFAULT_PLAYBACK_EXTENSION_MODE;
+      isLeaderboardChallenge
+        ? "disabled"
+        : (options?.playbackExtensionMode ?? DEFAULT_PLAYBACK_EXTENSION_MODE);
+    const effectivePlayDurationSec = isLeaderboardChallenge
+      ? DEFAULT_PLAY_DURATION_SEC
+      : nextPlayDurationSec;
+    const effectiveRevealDurationSec = isLeaderboardChallenge
+      ? DEFAULT_REVEAL_DURATION_SEC
+      : nextRevealDurationSec;
+    const effectiveStartOffsetSec = isLeaderboardChallenge
+      ? DEFAULT_START_OFFSET_SEC
+      : nextStartOffsetSec;
+    const effectiveAllowCollectionClipTiming = isLeaderboardChallenge
+      ? true
+      : nextAllowCollectionClipTiming;
 
     trackEvent("room_create_click", {
       source_mode: roomCreateSourceMode,
       room_visibility: desiredVisibility,
       player_limit: desiredMaxPlayers,
       question_count: nextQuestionCount,
-      reveal_duration_sec: nextRevealDurationSec,
+      reveal_duration_sec: effectiveRevealDurationSec,
       playlist_count: playlistItems.length,
       leaderboard_profile_key: leaderboardProfileKey,
     });
 
     const uploadItems = buildUploadPlaylistItems(playlistItems, {
-      playDurationSec: nextPlayDurationSec,
-      startOffsetSec: nextStartOffsetSec,
-      allowCollectionClipTiming: nextAllowCollectionClipTiming,
+      playDurationSec: effectivePlayDurationSec,
+      startOffsetSec: effectiveStartOffsetSec,
+      allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
     });
 
     const finalizeAck = await runRoomCreationFlow({
@@ -344,10 +362,10 @@ export const useRoomProviderCreateRoomAction = ({
       },
       gameSettings: {
         questionCount: nextQuestionCount,
-        playDurationSec: nextPlayDurationSec,
-        revealDurationSec: nextRevealDurationSec,
-        startOffsetSec: nextStartOffsetSec,
-        allowCollectionClipTiming: nextAllowCollectionClipTiming,
+        playDurationSec: effectivePlayDurationSec,
+        revealDurationSec: effectiveRevealDurationSec,
+        startOffsetSec: effectiveStartOffsetSec,
+        allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
         allowParticipantInvite: false,
         playbackExtensionMode,
         leaderboardProfileKey,
@@ -403,10 +421,10 @@ export const useRoomProviderCreateRoomAction = ({
       finalizedState.room.gameSettings?.questionCount ?? nextQuestionCount;
     const finalizedRoom = applyGameSettingsPatch(finalizedState.room, {
       questionCount: finalizedQuestionCount,
-      playDurationSec: nextPlayDurationSec,
-      revealDurationSec: nextRevealDurationSec,
-      startOffsetSec: nextStartOffsetSec,
-      allowCollectionClipTiming: nextAllowCollectionClipTiming,
+      playDurationSec: effectivePlayDurationSec,
+      revealDurationSec: effectiveRevealDurationSec,
+      startOffsetSec: effectiveStartOffsetSec,
+      allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
       playbackExtensionMode,
     });
 

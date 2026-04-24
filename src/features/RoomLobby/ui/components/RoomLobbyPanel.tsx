@@ -597,6 +597,22 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const canUseLeaderboard30 = questionMaxLimit >= 30;
   const canUseLeaderboard50 = questionMaxLimit >= 50;
   const canUseLeaderboard15m = participants.length <= 1;
+  const canUseAnyLeaderboardVariant =
+    canUseLeaderboard30 || canUseLeaderboard50 || canUseLeaderboard15m;
+  const selfParticipant = participants.find(
+    (participant) => participant.clientId === selfClientId,
+  );
+  const selfIsGuest = selfParticipant ? !selfParticipant.authUserId : false;
+  const roomHasGuest = participants.some(
+    (participant) => !participant.authUserId?.trim(),
+  );
+  const leaderboardModeLockedReason = selfIsGuest
+    ? "排行挑戰需先登入才能使用。"
+    : roomHasGuest
+      ? "房內有訪客時，不能切換成排行挑戰。"
+      : !canUseAnyLeaderboardVariant
+        ? "多人排行至少需要 30 首收藏庫曲目；15 分鐘限時僅能單人進行。"
+        : null;
   const leaderboardQuestionHelpText = !canUseLeaderboard30
     ? "目前歌單少於 30 首，因此排行榜預設模式會受到限制。"
     : !canUseLeaderboard50
@@ -831,6 +847,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         }));
         return;
       }
+      if (leaderboardModeLockedReason) {
+        setSettingsError(leaderboardModeLockedReason);
+        return;
+      }
       setSettingsModeDraft((current) => ({
         roomPlayMode: "leaderboard",
         leaderboardVariant: normalizeLeaderboardVariant(
@@ -838,12 +858,16 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         ),
       }));
     },
-    [normalizeLeaderboardVariant, settingsError],
+    [leaderboardModeLockedReason, normalizeLeaderboardVariant, settingsError],
   );
 
   const handleSettingsLeaderboardVariantChange = React.useCallback(
     (value: LeaderboardVariantKey) => {
       const normalizedVariant = normalizeLeaderboardVariant(value);
+      if (leaderboardModeLockedReason) {
+        setSettingsError(leaderboardModeLockedReason);
+        return;
+      }
       if (normalizedVariant === "15m" && participants.length > 1) {
         setSettingsError("15 分鐘限時挑戰僅能在房內只有你自己時使用。");
         return;
@@ -856,7 +880,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         leaderboardVariant: normalizedVariant,
       });
     },
-    [normalizeLeaderboardVariant, participants.length, settingsError],
+    [
+      leaderboardModeLockedReason,
+      normalizeLeaderboardVariant,
+      participants.length,
+      settingsError,
+    ],
   );
 
   const handleSaveSettings = React.useCallback(async () => {
@@ -935,6 +964,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               settingsLeaderboardVariant === "15m" ? 15 * 60 : null,
             leaderboardRuleVersion: null,
             leaderboardRankingMetric: null,
+            playDurationSec: DEFAULT_PLAY_DURATION_SEC,
+            revealDurationSec: DEFAULT_REVEAL_DURATION_SEC,
+            startOffsetSec: DEFAULT_START_OFFSET_SEC,
+            allowCollectionClipTiming: true,
+            playbackExtensionMode: "disabled" as const,
           }
         : {
             ...basePayload,
@@ -959,6 +993,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           };
 
     if (settingsRoomPlayMode === "leaderboard") {
+      if (leaderboardModeLockedReason) {
+        setSettingsError(leaderboardModeLockedReason);
+        return;
+      }
       if (settingsLeaderboardVariant === "15m" && participants.length > 1) {
         setSettingsError("15 分鐘限時挑戰僅能在房內只有你自己時使用。");
         return;
@@ -986,6 +1024,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   }, [
     canUseLeaderboard30,
     canUseLeaderboard50,
+    leaderboardModeLockedReason,
     onUpdateRoomSettings,
     questionMaxLimit,
     settingsAllowCollectionClipTiming,
@@ -2437,6 +2476,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         canUseLeaderboard30={canUseLeaderboard30}
         canUseLeaderboard50={canUseLeaderboard50}
         canUseLeaderboard15m={participants.length <= 1}
+        leaderboardModeLockedReason={leaderboardModeLockedReason}
         leaderboardQuestionHelpText={leaderboardQuestionHelpText}
         settingsError={settingsError}
         onClose={closeSettingsModal}

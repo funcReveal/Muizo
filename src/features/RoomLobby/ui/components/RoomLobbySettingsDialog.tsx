@@ -85,6 +85,7 @@ interface RoomLobbySettingsDialogProps {
   canUseLeaderboard30: boolean;
   canUseLeaderboard50: boolean;
   canUseLeaderboard15m: boolean;
+  leaderboardModeLockedReason?: string | null;
   leaderboardQuestionHelpText: string | null;
   settingsError: string | null;
   onClose: () => void;
@@ -184,7 +185,7 @@ const Section = ({
   headerAside,
   hideHeader = false,
   locked = false,
-  lockedReason = "排行挑戰模式下，這個區塊無法在 lobby 修改。",
+  lockedReason = "排行挑戰，無法修改這個區塊。",
   children,
 }: SectionProps) => (
   <Box className="relative py-3 sm:py-4">
@@ -194,7 +195,10 @@ const Section = ({
           <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-slate-100 sm:h-10 sm:w-10">
             {icon}
           </div>
-          <Typography variant="subtitle1" className="font-semibold text-slate-50">
+          <Typography
+            variant="subtitle1"
+            className="font-semibold text-slate-50"
+          >
             {title}
           </Typography>
         </div>
@@ -274,6 +278,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   canUseLeaderboard30,
   canUseLeaderboard50,
   canUseLeaderboard15m,
+  leaderboardModeLockedReason,
   settingsError,
   onClose,
   onSave,
@@ -281,12 +286,15 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   const isMobileDialog = useMediaQuery("(max-width:900px)");
   const settingsLocked = settingsDisabled || settingsSaving;
   const isLeaderboardRoom = roomPlayMode === "leaderboard";
+  const leaderboardModeLocked = Boolean(
+    leaderboardModeLockedReason && !isLeaderboardRoom,
+  );
   const canUseCollectionTiming = settingsUseCollectionSource;
   const useCollectionTimingForSettings =
     settingsAllowCollectionClipTiming && canUseCollectionTiming;
   const challengeQuestionSummary =
-    challengeOptions.find((option) => option.key === leaderboardVariant)?.label ??
-    "30 題";
+    challengeOptions.find((option) => option.key === leaderboardVariant)
+      ?.label ?? "30 題";
   const parsedMaxPlayers = settingsMaxPlayers.trim()
     ? Number(settingsMaxPlayers)
     : PLAYER_MIN;
@@ -300,7 +308,8 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   const canEditPin = !settingsLocked;
   const isPrivateRoom = settingsVisibility === "private";
   const pinEnabled = settingsPassword.trim().length > 0;
-  const isTimeAttackLeaderboard = isLeaderboardRoom && leaderboardVariant === "15m";
+  const isTimeAttackLeaderboard =
+    isLeaderboardRoom && leaderboardVariant === "15m";
   const [leaderboardMenuOpen, setLeaderboardMenuOpen] = React.useState(false);
   const [leaderboardAnchorEl, setLeaderboardAnchorEl] =
     React.useState<HTMLDivElement | null>(null);
@@ -315,20 +324,21 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   const activeChallengeOption =
     challengeOptions.find((option) => option.key === leaderboardVariant) ??
     challengeOptions[0];
-  const getNextAvailableLeaderboardVariant = React.useCallback((): LeaderboardVariantKey => {
-    if (leaderboardVariant === "30q" && canUseLeaderboard30) return "30q";
-    if (leaderboardVariant === "50q" && canUseLeaderboard50) return "50q";
-    if (leaderboardVariant === "15m" && canUseLeaderboard15m) return "15m";
-    if (canUseLeaderboard30) return "30q";
-    if (canUseLeaderboard50) return "50q";
-    if (canUseLeaderboard15m) return "15m";
-    return leaderboardVariant;
-  }, [
-    canUseLeaderboard15m,
-    canUseLeaderboard30,
-    canUseLeaderboard50,
-    leaderboardVariant,
-  ]);
+  const getNextAvailableLeaderboardVariant =
+    React.useCallback((): LeaderboardVariantKey => {
+      if (leaderboardVariant === "30q" && canUseLeaderboard30) return "30q";
+      if (leaderboardVariant === "50q" && canUseLeaderboard50) return "50q";
+      if (leaderboardVariant === "15m" && canUseLeaderboard15m) return "15m";
+      if (canUseLeaderboard30) return "30q";
+      if (canUseLeaderboard50) return "50q";
+      if (canUseLeaderboard15m) return "15m";
+      return leaderboardVariant;
+    }, [
+      canUseLeaderboard15m,
+      canUseLeaderboard30,
+      canUseLeaderboard50,
+      leaderboardVariant,
+    ]);
   const displayedMaxPlayers = isTimeAttackLeaderboard ? 1 : effectiveMaxPlayers;
   const isMaxPlayersLocked = settingsLocked || isTimeAttackLeaderboard;
   const isQuestionSettingsLocked = settingsLocked || isLeaderboardRoom;
@@ -569,7 +579,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
         ) : null}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1.18fr)]">
           <Section
-            icon={<MeetingRoomRoundedIcon sx={{ fontSize: 20, color: "#7dd3fc" }} />}
+            icon={
+              <MeetingRoomRoundedIcon sx={{ fontSize: 20, color: "#7dd3fc" }} />
+            }
             title="房間核心設定"
             hideHeader
           >
@@ -600,7 +612,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       <ChairRoundedIcon sx={{ fontSize: 18 }} />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-semibold">休閒派對</span>
+                      <span className="block text-sm font-semibold">
+                        休閒派對
+                      </span>
                       <span className="mt-1 block text-xs leading-5 opacity-80">
                         自由調整題數、人數與播放節奏。
                       </span>
@@ -616,6 +630,10 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                   aria-expanded={leaderboardMenuOpen}
                   onClick={() => {
                     if (settingsLocked) return;
+                    if (leaderboardModeLocked) {
+                      onRoomPlayModeChange("leaderboard");
+                      return;
+                    }
                     if (!isLeaderboardRoom) {
                       onLeaderboardVariantChange(
                         getNextAvailableLeaderboardVariant(),
@@ -627,6 +645,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                   }}
                   onKeyDown={(event) => {
                     if (settingsLocked) return;
+                    if (
+                      leaderboardModeLocked &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      onRoomPlayModeChange("leaderboard");
+                      return;
+                    }
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       if (!isLeaderboardRoom) {
@@ -645,6 +671,8 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                   className={`relative rounded-2xl border px-3 py-3 transition ${
                     settingsLocked
                       ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                      : leaderboardModeLocked
+                        ? "cursor-pointer border-amber-300/18 bg-amber-300/[0.06] text-slate-400 outline-none hover:border-amber-300/30 hover:bg-amber-300/10 focus:border-amber-100/34 focus:ring-2 focus:ring-amber-200/10"
                       : isLeaderboardRoom
                         ? "cursor-pointer border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none hover:border-amber-300/48 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
                         : "cursor-pointer border-white/8 bg-white/5 text-slate-300 outline-none hover:border-amber-300/28 hover:bg-white/[0.07] hover:text-slate-100 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
@@ -666,17 +694,22 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                           排行挑戰
                         </span>
                         <span className="mt-1 block text-xs leading-5 opacity-80">
-                          {activeChallengeOption.summary}
+                          {leaderboardModeLockedReason ??
+                            activeChallengeOption.summary}
                         </span>
                       </span>
                     </div>
 
                     <span
                       className={`inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold ${
-                        isLeaderboardRoom ? "text-amber-50" : "text-amber-100/86"
+                        isLeaderboardRoom
+                          ? "text-amber-50"
+                          : "text-amber-100/86"
                       }`}
                     >
-                      <span className="truncate">{activeChallengeOption.label}</span>
+                      <span className="truncate">
+                        {activeChallengeOption.label}
+                      </span>
                       <KeyboardArrowDownRounded
                         sx={{ fontSize: 20 }}
                         className={`shrink-0 text-amber-100/72 transition ${
@@ -703,7 +736,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     role="switch"
                     aria-checked={isPrivateRoom}
                     onClick={() =>
-                      onSettingsVisibilityChange(isPrivateRoom ? "public" : "private")
+                      onSettingsVisibilityChange(
+                        isPrivateRoom ? "public" : "private",
+                      )
                     }
                     disabled={settingsLocked}
                     className={`inline-flex items-center gap-2 px-1 py-1 transition ${
@@ -711,9 +746,13 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     }`}
                   >
                     {isPrivateRoom ? (
-                      <LockRoundedIcon sx={{ fontSize: 16, color: "#fbbf24" }} />
+                      <LockRoundedIcon
+                        sx={{ fontSize: 16, color: "#fbbf24" }}
+                      />
                     ) : (
-                      <PublicOutlinedIcon sx={{ fontSize: 16, color: "#7dd3fc" }} />
+                      <PublicOutlinedIcon
+                        sx={{ fontSize: 16, color: "#7dd3fc" }}
+                      />
                     )}
                     <span
                       className={`text-xs font-semibold ${
@@ -748,14 +787,18 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     label="房間名稱"
                     value={settingsName}
                     sx={drawerFieldSx}
-                    onChange={(event) => onSettingsNameChange(event.target.value)}
+                    onChange={(event) =>
+                      onSettingsNameChange(event.target.value)
+                    }
                     disabled={settingsLocked}
                   />
 
                   <div className="rounded-xl border border-white/8 bg-slate-950/18 px-3 py-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-2">
-                        <PinOutlinedIcon sx={{ fontSize: 17, color: "#fbbf24" }} />
+                        <PinOutlinedIcon
+                          sx={{ fontSize: 17, color: "#fbbf24" }}
+                        />
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-100">
                             房間密碼
@@ -773,7 +816,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                             sx={drawerFieldSx}
                             onChange={(event) =>
                               onSettingsPasswordChange(
-                                event.target.value.replace(/\D/g, "").slice(0, 4),
+                                event.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 4),
                               )
                             }
                             slotProps={{
@@ -829,7 +874,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
               <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-100">
-                    <GroupsRoundedIcon sx={{ fontSize: 18, color: "#7dd3fc" }} />
+                    <GroupsRoundedIcon
+                      sx={{ fontSize: 18, color: "#7dd3fc" }}
+                    />
                     人數
                   </p>
                   <span className="text-[11px] text-slate-400">
@@ -876,12 +923,16 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                 </div>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   {[2, 4, 8, 12]
-                    .filter((count) => count >= PLAYER_MIN && count <= PLAYER_MAX)
+                    .filter(
+                      (count) => count >= PLAYER_MIN && count <= PLAYER_MAX,
+                    )
                     .map((count) => (
                       <button
                         key={count}
                         type="button"
-                        onClick={() => onSettingsMaxPlayersChange(String(count))}
+                        onClick={() =>
+                          onSettingsMaxPlayersChange(String(count))
+                        }
                         disabled={isMaxPlayersLocked}
                         className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                           displayedMaxPlayers === count
@@ -899,11 +950,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
               </div>
 
               <Section
-                icon={<QuizRoundedIcon sx={{ fontSize: 20, color: "#fbbf24" }} />}
+                icon={
+                  <QuizRoundedIcon sx={{ fontSize: 20, color: "#fbbf24" }} />
+                }
                 title="題數"
                 headerAside={
                   <span className="text-[11px] text-slate-400">
-                    {questionMinLimit} - {Math.min(questionMaxLimit, QUESTION_MAX)} 題
+                    {questionMinLimit} -{" "}
+                    {Math.min(questionMaxLimit, QUESTION_MAX)} 題
                   </span>
                 }
               >
@@ -917,7 +971,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                           Math.max(questionMinLimit, settingsQuestionCount - 1),
                         )
                       }
-                      disabled={isQuestionSettingsLocked || !canDecreaseQuestionCount}
+                      disabled={
+                        isQuestionSettingsLocked || !canDecreaseQuestionCount
+                      }
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
                         !isQuestionSettingsLocked && canDecreaseQuestionCount
                           ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
@@ -938,7 +994,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                           Math.min(questionMaxLimit, settingsQuestionCount + 1),
                         )
                       }
-                      disabled={isQuestionSettingsLocked || !canIncreaseQuestionCount}
+                      disabled={
+                        isQuestionSettingsLocked || !canIncreaseQuestionCount
+                      }
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
                         !isQuestionSettingsLocked && canIncreaseQuestionCount
                           ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
@@ -953,10 +1011,15 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       type="button"
                       onClick={() =>
                         onSettingsQuestionCountChange(
-                          Math.max(questionMinLimit, settingsQuestionCount - QUESTION_STEP),
+                          Math.max(
+                            questionMinLimit,
+                            settingsQuestionCount - QUESTION_STEP,
+                          ),
                         )
                       }
-                      disabled={isQuestionSettingsLocked || !canDecreaseQuestionCount}
+                      disabled={
+                        isQuestionSettingsLocked || !canDecreaseQuestionCount
+                      }
                       className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                         !isQuestionSettingsLocked && canDecreaseQuestionCount
                           ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
@@ -986,10 +1049,15 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       type="button"
                       onClick={() =>
                         onSettingsQuestionCountChange(
-                          Math.min(questionMaxLimit, settingsQuestionCount + QUESTION_STEP),
+                          Math.min(
+                            questionMaxLimit,
+                            settingsQuestionCount + QUESTION_STEP,
+                          ),
                         )
                       }
-                      disabled={isQuestionSettingsLocked || !canIncreaseQuestionCount}
+                      disabled={
+                        isQuestionSettingsLocked || !canIncreaseQuestionCount
+                      }
                       className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                         !isQuestionSettingsLocked && canIncreaseQuestionCount
                           ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
@@ -1020,7 +1088,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
               ]}
               sx={{ zIndex: 1700 }}
             >
-              <ClickAwayListener onClickAway={() => setLeaderboardMenuOpen(false)}>
+              <ClickAwayListener
+                onClickAway={() => setLeaderboardMenuOpen(false)}
+              >
                 <AnimatePresence>
                   {leaderboardMenuOpen ? (
                     <motion.div
@@ -1037,7 +1107,11 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       }}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <div role="listbox" aria-label="挑戰規格" className="space-y-1">
+                      <div
+                        role="listbox"
+                        aria-label="挑戰規格"
+                        className="space-y-1"
+                      >
                         {challengeOptions.map((option) => {
                           const selected = option.key === leaderboardVariant;
                           const disabled =
@@ -1104,7 +1178,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                     <button
                       key={option.key}
                       type="button"
-                      onClick={() => onSettingsPlaybackExtensionModeChange(option.key)}
+                      onClick={() =>
+                        onSettingsPlaybackExtensionModeChange(option.key)
+                      }
                       disabled={settingsLocked}
                       className={`rounded-2xl border px-3 py-3 text-left transition ${
                         selected
@@ -1120,7 +1196,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             </Section>
 
             <Section
-              icon={<TimerRoundedIcon sx={{ fontSize: 20, color: "#c084fc" }} />}
+              icon={
+                <TimerRoundedIcon sx={{ fontSize: 20, color: "#c084fc" }} />
+              }
               title="時間設定"
               locked={isLeaderboardRoom}
             >
@@ -1147,7 +1225,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                         settingsLocked ? "cursor-not-allowed opacity-55" : ""
                       }`}
                     >
-                      <TuneRoundedIcon sx={{ fontSize: 16, color: "#34d399" }} />
+                      <TuneRoundedIcon
+                        sx={{ fontSize: 16, color: "#34d399" }}
+                      />
                       <span className="hidden text-xs font-semibold text-emerald-100 sm:inline">
                         使用收藏庫片段
                       </span>
@@ -1172,7 +1252,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
 
                 <div
                   className={`grid gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)] ${
-                    settingsLocked ? "pointer-events-none opacity-55 saturate-75" : ""
+                    settingsLocked
+                      ? "pointer-events-none opacity-55 saturate-75"
+                      : ""
                   }`}
                 >
                   <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
@@ -1180,14 +1262,18 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       <>
                         <div className="flex items-center gap-2">
                           {useCollectionTimingForSettings ? (
-                            <TuneRoundedIcon sx={{ fontSize: 18, color: "#34d399" }} />
+                            <TuneRoundedIcon
+                              sx={{ fontSize: 18, color: "#34d399" }}
+                            />
                           ) : (
                             <ContentCutRoundedIcon
                               sx={{ fontSize: 18, color: "#7dd3fc" }}
                             />
                           )}
                           <p className="text-sm font-semibold text-slate-100">
-                            {useCollectionTimingForSettings ? "收藏庫片段" : "自訂片段"}
+                            {useCollectionTimingForSettings
+                              ? "收藏庫片段"
+                              : "自訂片段"}
                           </p>
                         </div>
                         <p className="mt-2 text-xs text-slate-400">
@@ -1202,12 +1288,15 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       </p>
                     )}
 
-                    {useCollectionTimingForSettings && canUseCollectionTiming ? (
+                    {useCollectionTimingForSettings &&
+                    canUseCollectionTiming ? (
                       <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <button
                           type="button"
                           disabled={settingsLocked}
-                          onClick={() => onSettingsAllowCollectionClipTimingChange(false)}
+                          onClick={() =>
+                            onSettingsAllowCollectionClipTimingChange(false)
+                          }
                           className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
                         >
                           <p className="text-sm font-semibold text-emerald-100">
@@ -1220,7 +1309,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                         <button
                           type="button"
                           disabled={settingsLocked}
-                          onClick={() => onSettingsAllowCollectionClipTimingChange(false)}
+                          onClick={() =>
+                            onSettingsAllowCollectionClipTimingChange(false)
+                          }
                           className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-left transition hover:border-emerald-300/35 hover:bg-white/[0.07] disabled:cursor-not-allowed"
                         >
                           <p className="text-sm font-semibold text-emerald-100">
@@ -1366,7 +1457,9 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
 
                   <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-3">
                     <div className="flex items-center gap-2">
-                      <TimerRoundedIcon sx={{ fontSize: 18, color: "#fbbf24" }} />
+                      <TimerRoundedIcon
+                        sx={{ fontSize: 18, color: "#fbbf24" }}
+                      />
                       <p className="text-sm font-semibold text-slate-100">
                         揭曉時間
                       </p>

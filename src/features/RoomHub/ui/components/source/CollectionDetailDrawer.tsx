@@ -87,6 +87,7 @@ type CollectionDetail = {
 };
 
 type CollectionDrawerView = "detail" | "leaderboardSetup" | "casualSetup";
+type MobileDetailTab = "collection" | "leaderboard";
 
 type CollectionDetailDrawerProps = {
   open: boolean;
@@ -713,6 +714,8 @@ const CollectionDetailDrawer = ({
   const canStartLeaderboardChallenge = isPublic && isAuthenticated;
   const isFavorited = Boolean(collection?.is_favorited);
   const [drawerView, setDrawerView] = useState<CollectionDrawerView>("detail");
+  const [mobileDetailTab, setMobileDetailTab] =
+    useState<MobileDetailTab>("collection");
   const [isLeaderboardProfileMenuOpen, setIsLeaderboardProfileMenuOpen] =
     useState(false);
   const [leaderboardProfileAnchorEl, setLeaderboardProfileAnchorEl] =
@@ -1253,6 +1256,7 @@ const CollectionDetailDrawer = ({
 
   useEffect(() => {
     setDrawerView("detail");
+    setMobileDetailTab("collection");
     setIsLeaderboardProfileMenuOpen(false);
   }, [collection?.id, open]);
 
@@ -1425,7 +1429,53 @@ const CollectionDetailDrawer = ({
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:grid md:grid-cols-[minmax(360px,0.82fr)_minmax(420px,1.18fr)] md:grid-rows-none md:gap-0">
-              <main className="min-h-0 overflow-y-auto px-3 py-3 sm:px-6 sm:py-5">
+              {isCompact ? (
+                <div
+                  role="tablist"
+                  aria-label="收藏庫詳情分頁"
+                  className="shrink-0 px-3 pt-3"
+                >
+                  <div className="grid h-11 grid-cols-2 overflow-hidden rounded-2xl border border-cyan-100/14 bg-slate-950/42 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mobileDetailTab === "collection"}
+                      onClick={() => {
+                        setMobileDetailTab("collection");
+                        setIsLeaderboardProfileMenuOpen(false);
+                      }}
+                      className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                        mobileDetailTab === "collection"
+                          ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                          : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                      }`}
+                    >
+                      <QuizRounded sx={{ fontSize: 18 }} />
+                      收藏庫
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mobileDetailTab === "leaderboard"}
+                      onClick={() => setMobileDetailTab("leaderboard")}
+                      className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                        mobileDetailTab === "leaderboard"
+                          ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                          : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                      }`}
+                    >
+                      <PublicRounded sx={{ fontSize: 18 }} />
+                      排行榜
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <main
+                className={`min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-6 sm:py-5 ${
+                  isCompact && mobileDetailTab !== "collection" ? "hidden" : ""
+                }`}
+              >
                 <section className="overflow-hidden rounded-[22px] border border-cyan-300/14 bg-slate-950/44 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                   <div className="relative aspect-[16/9] min-h-40 overflow-hidden bg-slate-900/80 sm:aspect-[16/5] sm:min-h-32">
                     {previewThumbnail ? (
@@ -1532,7 +1582,13 @@ const CollectionDetailDrawer = ({
                 </section>
               </main>
 
-              <aside className="min-h-0 overflow-hidden border-t border-cyan-300/12 bg-slate-950/36 p-3 md:border-l md:border-t-0 md:p-5">
+              <aside
+                className={`min-h-0 flex-1 overflow-hidden border-t border-cyan-300/12 bg-slate-950/36 p-3 md:border-l md:border-t-0 md:p-5 ${
+                  isCompact && mobileDetailTab !== "leaderboard"
+                    ? "hidden"
+                    : ""
+                }`}
+              >
                 <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-amber-200/12 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.2))] p-3 sm:p-4">
                   <div className="flex items-center gap-3">
                     <h3 className="flex items-center gap-2 text-base font-semibold text-slate-50 sm:mt-1 sm:text-lg">

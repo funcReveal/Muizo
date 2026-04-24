@@ -78,5 +78,9 @@ export const translateRoomErrorDetail = (
     return "排行挑戰需先登入";
   }
 
+  if (/^Leaderboard challenge cannot include guests$/i.test(normalized)) {
+    return "房內有訪客時，不能切換成排行挑戰";
+  }
+
   return normalized;
 };

@@ -227,31 +227,31 @@ const RoomSetupPanel = ({
   ];
   const controlSliderSx = useMemo(
     () => ({
-    height: 8,
-    py: 1.5,
-    "& .MuiSlider-rail": {
-      height: 10,
-      borderRadius: 999,
-      backgroundColor: "rgba(148,163,184,0.22)",
-      opacity: 1,
-    },
-    "& .MuiSlider-track": {
-      height: 10,
-      borderRadius: 999,
-      background:
-        "linear-gradient(90deg, rgba(34,211,238,0.88), rgba(52,211,153,0.82))",
-      border: "none",
-    },
-    "& .MuiSlider-thumb": {
-      width: 28,
-      height: 28,
-      border: "2px solid rgba(226,232,240,0.95)",
-      backgroundColor: "#0f172a",
-      boxShadow: "0 10px 24px -14px rgba(34,211,238,0.9)",
-      "&:hover, &.Mui-focusVisible": {
-        boxShadow: "0 0 0 8px rgba(34,211,238,0.12)",
+      height: 8,
+      py: 1.5,
+      "& .MuiSlider-rail": {
+        height: 10,
+        borderRadius: 999,
+        backgroundColor: "rgba(148,163,184,0.22)",
+        opacity: 1,
       },
-    },
+      "& .MuiSlider-track": {
+        height: 10,
+        borderRadius: 999,
+        background:
+          "linear-gradient(90deg, rgba(34,211,238,0.88), rgba(52,211,153,0.82))",
+        border: "none",
+      },
+      "& .MuiSlider-thumb": {
+        width: 28,
+        height: 28,
+        border: "2px solid rgba(226,232,240,0.95)",
+        backgroundColor: "#0f172a",
+        boxShadow: "0 10px 24px -14px rgba(34,211,238,0.9)",
+        "&:hover, &.Mui-focusVisible": {
+          boxShadow: "0 0 0 8px rgba(34,211,238,0.12)",
+        },
+      },
     }),
     [],
   );
@@ -333,7 +333,7 @@ const RoomSetupPanel = ({
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold">
-            排行挑戰模式下，這個區塊無法在 lobby 修改。
+            排行挑戰，無法修改這個區塊。
           </span>
           <span className="mt-0.5 block text-xs text-amber-100/72">
             會沿用排行榜固定規格
@@ -524,7 +524,7 @@ const RoomSetupPanel = ({
       </section>
 
       <section className="px-1 py-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <SportsEsportsRounded sx={{ fontSize: 18, color: "#34d399" }} />
           <p className="text-sm font-semibold text-[var(--mc-text)]">
             房間模式
@@ -572,7 +572,9 @@ const RoomSetupPanel = ({
               ref={setLeaderboardAnchorEl}
               role={isLeaderboardChallengeAvailable ? "button" : undefined}
               tabIndex={isLeaderboardChallengeAvailable ? 0 : undefined}
-              aria-haspopup={isLeaderboardChallengeAvailable ? "listbox" : undefined}
+              aria-haspopup={
+                isLeaderboardChallengeAvailable ? "listbox" : undefined
+              }
               aria-expanded={
                 isLeaderboardChallengeAvailable
                   ? isLeaderboardSpecMenuOpen
@@ -612,9 +614,7 @@ const RoomSetupPanel = ({
                 {isLeaderboardChallengeAvailable ? (
                   <span
                     className={`inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold transition ${
-                      isLeaderboardRoom
-                        ? "text-amber-50"
-                        : "text-amber-100/86"
+                      isLeaderboardRoom ? "text-amber-50" : "text-amber-100/86"
                     }`}
                   >
                     <span className="max-w-[5.5rem] truncate">
@@ -634,7 +634,9 @@ const RoomSetupPanel = ({
                   <div className="inline-flex max-w-[15rem] items-center gap-2 rounded-xl border border-amber-100/18 bg-slate-950/84 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
                     <LockOutlined sx={{ fontSize: 16 }} />
                     <span className="min-w-0 leading-5">
-                      <span className="block">{leaderboardUnavailableTitle}</span>
+                      <span className="block">
+                        {leaderboardUnavailableTitle}
+                      </span>
                       <span className="block text-[11px] font-medium text-amber-100/62">
                         {leaderboardUnavailableHint}
                       </span>
