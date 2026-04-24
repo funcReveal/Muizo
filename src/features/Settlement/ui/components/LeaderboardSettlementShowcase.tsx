@@ -237,14 +237,15 @@ const getPercentileLabel = (
   current: number | null,
   direction: "higher" | "lower",
 ) => {
-  if (current === null || values.length <= 0) return null;
+  if (current === null || values.length <= 1) return null;
 
   const compareCount = values.filter((value) =>
     direction === "higher" ? current > value : current < value,
   ).length;
 
-  return Math.round((compareCount / values.length) * 100);
+  return Math.round((compareCount / Math.max(1, values.length - 1)) * 100);
 };
+
 const LEADERBOARD_DESKTOP_GRID_CLASS =
   "grid-cols-[44px_minmax(0,1.2fr)_92px_88px_104px_84px_108px]";
 
@@ -1665,40 +1666,50 @@ const LeaderboardSettlementShowcase: React.FC<
                           </div>
                         </div>
                         <div className="xl:hidden">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <div className="text-base font-black text-sky-100">#{personalBestRow.rank}</div>
-                              <PlayerAvatar
-                                username={personalBestRow.username}
-                                clientId={personalBestRow.clientId}
-                                avatarUrl={personalBestRow.avatarUrl}
-                                size={30}
-                                rank={personalBestRow.rank}
-                                combo={personalBestRow.combo}
-                                isMe
-                                hideRankMark
-                                loading="lazy"
-                              />
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                                  {personalBestRow.username}（你）
-                                </div>
-                                <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
-                                  答對 / 答錯 {personalBestRow.correctCount} / {Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
-                                </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 shrink-0 text-base font-black text-sky-100">
+                              #{personalBestRow.rank}
+                            </div>
+
+                            <PlayerAvatar
+                              username={personalBestRow.username}
+                              clientId={personalBestRow.clientId}
+                              avatarUrl={personalBestRow.avatarUrl}
+                              size={30}
+                              rank={personalBestRow.rank}
+                              combo={personalBestRow.combo}
+                              isMe
+                              hideRankMark
+                              loading="lazy"
+                            />
+
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                                {personalBestRow.username}（你）
+                              </div>
+
+                              <div className="mt-1 grid grid-cols-[minmax(42px,0.9fr)_minmax(36px,0.75fr)_minmax(48px,0.95fr)_minmax(42px,0.8fr)_minmax(54px,1fr)] items-center gap-1 text-[11px] font-semibold text-[var(--mc-text-muted)]">
+                                <span className="tabular-nums text-sky-50/90">
+                                  {personalBestRow.correctCount}/{Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
+                                </span>
+
+                                <span className="tabular-nums text-violet-300">
+                                  x{personalBestRow.combo}
+                                </span>
+
+                                <span className="tabular-nums text-slate-300">
+                                  {formatAnswerTime(personalBestRow.avgCorrectMs)}
+                                </span>
+
+                                <span className="tabular-nums text-slate-300">
+                                  {formatDurationSec(personalBestRow.durationSec)}
+                                </span>
+
+                                <span className="truncate text-right tabular-nums font-black text-sky-100">
+                                  {formatScore(personalBestRow.score)}
+                                </span>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-base font-black text-sky-100">
-                                {formatScore(personalBestRow.score)}
-                              </div>
-                              <div className="mt-0.5 text-xs text-violet-300">
-                                Combo x{personalBestRow.combo}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-2 text-xs text-[var(--mc-text-muted)]">
-                            平均答題 {formatSeconds(personalBestRow.avgCorrectMs)} · 耗時 {formatDurationSec(personalBestRow.durationSec)}
                           </div>
                         </div>
                       </div>
