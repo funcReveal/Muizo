@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 type CreateStep = "source" | "review" | "publish";
 
 type Props = {
@@ -19,6 +21,8 @@ export default function CollectionCreateActionBar({
   onNext,
   onCreate,
 }: Props) {
+  const { t } = useTranslation(["common", "collectionCreate"]);
+
   const isFirstStep = currentStep === "source";
   const isLastStep = currentStep === "publish";
 
@@ -31,7 +35,7 @@ export default function CollectionCreateActionBar({
           disabled={isFirstStep || isCreating}
           className="rounded-full border border-[var(--mc-border)] px-4 py-2 text-sm font-semibold text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60 disabled:cursor-not-allowed disabled:opacity-45"
         >
-          Back
+          {t("actions.back", { ns: "common" })}
         </button>
 
         {isLastStep ? (
@@ -41,7 +45,11 @@ export default function CollectionCreateActionBar({
             disabled={!canCreate || isCreating}
             className="rounded-full bg-[var(--mc-accent)] px-5 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {isCreating ? "Creating..." : "Create Collection"}
+            {isCreating
+              ? t("actionBar.creating", { ns: "collectionCreate" })
+              : t("actionBar.createCollection", {
+                  ns: "collectionCreate",
+                })}
           </button>
         ) : (
           <button
@@ -50,7 +58,7 @@ export default function CollectionCreateActionBar({
             disabled={!canGoNext || isCreating}
             className="rounded-full bg-[var(--mc-accent)] px-5 py-2 text-sm font-semibold text-slate-950 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            Next
+            {t("actions.next", { ns: "common" })}
           </button>
         )}
       </div>

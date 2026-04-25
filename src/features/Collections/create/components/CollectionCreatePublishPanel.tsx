@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
 import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import LockOutlined from "@mui/icons-material/LockOutlined";
@@ -36,7 +38,7 @@ const ChecklistItem = ({
   children,
 }: {
   tone: ChecklistTone;
-  children: React.ReactNode;
+  children: ReactNode;
 }) => {
   const icon =
     tone === "success" ? (
@@ -110,6 +112,8 @@ export default function CollectionCreatePublishPanel({
   draftOverflowCount,
   isReadyToCreate,
 }: Props) {
+  const { t } = useTranslation("collectionCreate");
+
   const trimmedTitle = title.trim();
   const hasTitle = trimmedTitle.length > 0;
   const hasPlayableItems = readyItems > 0;
@@ -119,10 +123,10 @@ export default function CollectionCreatePublishPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-lg font-semibold text-[var(--mc-text)]">
-            Publish Collection
+            {t("publish.title")}
           </div>
           <div className="mt-1 text-sm leading-6 text-[var(--mc-text-muted)]">
-            Confirm the final settings before creating this playable collection.
+            {t("publish.description")}
           </div>
         </div>
 
@@ -133,26 +137,28 @@ export default function CollectionCreatePublishPanel({
               : "border-amber-300/25 bg-amber-300/10 text-amber-100"
           }`}
         >
-          {isReadyToCreate ? "Ready to create" : "Needs attention"}
+          {isReadyToCreate
+            ? t("publish.readyBadge")
+            : t("publish.attentionBadge")}
         </div>
       </div>
 
       <div className="mt-5 space-y-4">
         <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-4">
           <div className="text-sm font-semibold text-[var(--mc-text)]">
-            Collection details
+            {t("publish.details.title")}
           </div>
 
           <div className="mt-4">
             <TextField
               fullWidth
               size="small"
-              label="Collection name"
+              label={t("publish.details.nameLabel")}
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}
-              placeholder="Enter collection name"
+              placeholder={t("publish.details.namePlaceholder")}
               error={!hasTitle}
-              helperText={!hasTitle ? "Collection name is required." : " "}
+              helperText={!hasTitle ? t("publish.details.nameRequired") : " "}
               slotProps={{
                 inputLabel: { shrink: true },
               }}
@@ -193,17 +199,20 @@ export default function CollectionCreatePublishPanel({
                 },
               }}
             />
+
             <TextField
               fullWidth
               multiline
               minRows={3}
               maxRows={6}
               size="small"
-              label="Description"
+              label={t("publish.details.descriptionLabel")}
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
-              placeholder="Describe what this collection is about, who it is for, or what kind of songs it contains."
-              helperText={`${description.trim().length}/500`}
+              placeholder={t("publish.details.descriptionPlaceholder")}
+              helperText={t("publish.details.descriptionCounter", {
+                count: description.trim().length,
+              })}
               slotProps={{
                 inputLabel: { shrink: true },
                 htmlInput: {
@@ -247,7 +256,7 @@ export default function CollectionCreatePublishPanel({
 
         <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-4">
           <div className="text-sm font-semibold text-[var(--mc-text)]">
-            Visibility
+            {t("publish.visibility.title")}
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 p-4">
@@ -263,13 +272,13 @@ export default function CollectionCreatePublishPanel({
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-[var(--mc-text)]">
                   {visibility === "public"
-                    ? "Public collection"
-                    : "Private collection"}
+                    ? t("publish.visibility.publicTitle")
+                    : t("publish.visibility.privateTitle")}
                 </div>
                 <div className="mt-1 text-xs leading-5 text-[var(--mc-text-muted)]">
                   {visibility === "public"
-                    ? "Other players can browse and use this collection."
-                    : "Only you can view and use this collection."}
+                    ? t("publish.visibility.publicDescription")
+                    : t("publish.visibility.privateDescription")}
                 </div>
               </div>
             </div>
@@ -284,51 +293,58 @@ export default function CollectionCreatePublishPanel({
 
           {reachedPrivateCollectionLimit && visibility !== "public" && (
             <div className="mt-3 rounded-xl border border-amber-300/35 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
-              私人收藏最多只能建立 {maxPrivateCollectionsPerUser} 個。
+              {t("publish.visibility.privateLimit", {
+                count: maxPrivateCollectionsPerUser,
+              })}
             </div>
           )}
         </div>
 
         <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-4">
           <div className="text-sm font-semibold text-[var(--mc-text)]">
-            Readiness checklist
+            {t("publish.checklist.title")}
           </div>
 
           <div className="mt-3 space-y-2">
             <ChecklistItem tone={hasTitle ? "success" : "danger"}>
               {hasTitle
-                ? "Collection name is set."
-                : "Collection name is required before creating."}
+                ? t("publish.checklist.titleReady")
+                : t("publish.checklist.titleMissing")}
             </ChecklistItem>
 
             <ChecklistItem tone={hasPlayableItems ? "success" : "danger"}>
               {hasPlayableItems
-                ? `${readyItems} playable items are ready.`
-                : "At least one playable item is required."}
+                ? t("publish.checklist.itemsReady", { count: readyItems })
+                : t("publish.checklist.itemsMissing")}
             </ChecklistItem>
 
             <ChecklistItem tone={isDraftOverflow ? "danger" : "success"}>
               {isDraftOverflow
-                ? `Item limit exceeded. Remove ${draftOverflowCount} more items.`
-                : "Item count is within the allowed limit."}
+                ? t("publish.checklist.limitExceeded", {
+                    count: draftOverflowCount,
+                  })
+                : t("publish.checklist.withinLimit")}
             </ChecklistItem>
 
             <ChecklistItem tone={reachedCollectionLimit ? "danger" : "success"}>
               {reachedCollectionLimit
-                ? "Collection limit reached. Please remove an existing collection first."
-                : "Collection quota is available."}
+                ? t("publish.checklist.quotaReached")
+                : t("publish.checklist.quotaAvailable")}
             </ChecklistItem>
 
             {skippedItems > 0 && (
               <ChecklistItem tone="warning">
-                {skippedItems} skipped items will not be imported.
+                {t("publish.checklist.skippedWarning", {
+                  count: skippedItems,
+                })}
               </ChecklistItem>
             )}
 
             {longItems > 0 && (
               <ChecklistItem tone="warning">
-                {longItems} long tracks are included. They can still be used,
-                but may need review later.
+                {t("publish.checklist.longWarning", {
+                  count: longItems,
+                })}
               </ChecklistItem>
             )}
           </div>
@@ -336,23 +352,27 @@ export default function CollectionCreatePublishPanel({
 
         <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-4">
           <div className="text-sm font-semibold text-[var(--mc-text)]">
-            Final summary
+            {t("publish.summary.title")}
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-4">
-            <SummaryMetric label="Ready" value={readyItems} tone="success" />
             <SummaryMetric
-              label="Long tracks"
+              label={t("publish.summary.ready")}
+              value={readyItems}
+              tone="success"
+            />
+            <SummaryMetric
+              label={t("publish.summary.longTracks")}
               value={longItems}
               tone={longItems > 0 ? "warning" : "default"}
             />
             <SummaryMetric
-              label="Skipped"
+              label={t("publish.summary.skipped")}
               value={skippedItems}
               tone={skippedItems > 0 ? "warning" : "default"}
             />
             <SummaryMetric
-              label="Duplicates removed"
+              label={t("publish.summary.duplicatesRemoved")}
               value={removedDuplicateCount}
               tone={removedDuplicateCount > 0 ? "success" : "default"}
             />

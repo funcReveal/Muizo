@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 type CreateStep = "source" | "review" | "publish";
 
 type Props = {
@@ -7,27 +9,7 @@ type Props = {
   canOpenPublish: boolean;
 };
 
-const STEPS: Array<{
-  key: CreateStep;
-  label: string;
-  description: string;
-}> = [
-  {
-    key: "source",
-    label: "Source",
-    description: "Import playlist",
-  },
-  {
-    key: "review",
-    label: "Review",
-    description: "Check items",
-  },
-  {
-    key: "publish",
-    label: "Publish",
-    description: "Finalize settings",
-  },
-];
+const STEPS: CreateStep[] = ["source", "review", "publish"];
 
 export default function CollectionCreateStepNav({
   currentStep,
@@ -35,27 +17,29 @@ export default function CollectionCreateStepNav({
   canOpenReview,
   canOpenPublish,
 }: Props) {
+  const { t } = useTranslation("collectionCreate");
+
   const canOpenStep = (step: CreateStep) => {
     if (step === "source") return true;
     if (step === "review") return canOpenReview;
     return canOpenPublish;
   };
 
-  const currentIndex = STEPS.findIndex((step) => step.key === currentStep);
+  const currentIndex = STEPS.findIndex((step) => step === currentStep);
 
   return (
     <div className="grid gap-2 sm:grid-cols-3">
       {STEPS.map((step, index) => {
-        const active = step.key === currentStep;
+        const active = step === currentStep;
         const completed = index < currentIndex;
-        const disabled = !canOpenStep(step.key);
+        const disabled = !canOpenStep(step);
 
         return (
           <button
-            key={step.key}
+            key={step}
             type="button"
             disabled={disabled}
-            onClick={() => onStepChange(step.key)}
+            onClick={() => onStepChange(step)}
             className={`rounded-2xl border px-4 py-3 text-left transition ${
               active
                 ? "border-[var(--mc-accent)]/60 bg-[var(--mc-accent)]/10"
@@ -66,14 +50,14 @@ export default function CollectionCreateStepNav({
           >
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-semibold text-[var(--mc-text)]">
-                {step.label}
+                {t(`steps.${step}.label`)}
               </div>
               <div className="text-xs tabular-nums text-[var(--mc-text-muted)]">
                 {index + 1}/3
               </div>
             </div>
             <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-              {step.description}
+              {t(`steps.${step}.description`)}
             </div>
           </button>
         );

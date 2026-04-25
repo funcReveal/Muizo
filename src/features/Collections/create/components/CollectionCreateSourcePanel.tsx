@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import {
   Button,
@@ -75,15 +76,16 @@ export default function CollectionCreateSourcePanel({
   onEnsureYoutubePlaylists,
   onImportSelectedYoutubePlaylist,
 }: Props) {
+  const { t } = useTranslation("collectionCreate");
+
   return (
     <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-4">
       <div>
         <div className="text-lg font-semibold text-[var(--mc-text)]">
-          Choose Source
+          {t("source.title")}
         </div>
         <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-          Import a YouTube playlist by URL or select one from your Google
-          account.
+          {t("source.description")}
         </div>
       </div>
 
@@ -97,7 +99,7 @@ export default function CollectionCreateSourcePanel({
               : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
           }`}
         >
-          Playlist URL
+          {t("source.urlTab")}
         </button>
         <button
           type="button"
@@ -108,7 +110,7 @@ export default function CollectionCreateSourcePanel({
               : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
           }`}
         >
-          My YouTube playlists
+          {t("source.youtubeTab")}
         </button>
       </div>
 
@@ -134,8 +136,8 @@ export default function CollectionCreateSourcePanel({
               <TextField
                 fullWidth
                 size="small"
-                label="YouTube playlist URL"
-                placeholder="https://www.youtube.com/playlist?list=..."
+                label={t("source.playlistUrlLabel")}
+                placeholder={t("source.playlistUrlPlaceholder")}
                 value={playlistUrl}
                 autoComplete="off"
                 error={showPlaylistUrlError}
@@ -158,7 +160,7 @@ export default function CollectionCreateSourcePanel({
                           size="small"
                           onClick={onClearPlaylistUrl}
                           edge="end"
-                          aria-label="清除播放清單網址"
+                          aria-label={t("source.clearPlaylistUrl")}
                           sx={{ color: "rgba(148,163,184,0.92)" }}
                         >
                           <CloseRounded fontSize="small" />
@@ -225,8 +227,7 @@ export default function CollectionCreateSourcePanel({
             </Tooltip>
 
             <div className="mt-3 text-xs text-[var(--mc-text-muted)]">
-              Paste a playlist URL. Muizo will automatically analyze available
-              items and remove duplicates when possible.
+              {t("source.playlistUrlHint")}
             </div>
 
             {playlistLoading ? (
@@ -237,7 +238,7 @@ export default function CollectionCreateSourcePanel({
                     thickness={5}
                     sx={{ color: "#38bdf8" }}
                   />
-                  Loading...
+                  {t("source.loading")}
                 </div>
               </div>
             ) : null}
@@ -260,19 +261,19 @@ export default function CollectionCreateSourcePanel({
         >
           <div className="rounded-[24px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(2,6,23,0.34),rgba(15,23,42,0.22))] p-4 sm:p-5">
             <div className="text-sm font-semibold text-[var(--mc-text)]">
-              Select from YouTube
+              {t("source.selectFromYoutube")}
             </div>
 
             <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
               {(!authUserExists || needsGoogleReauth) && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span>登入 Google 後可直接載入你的 YouTube 播放清單。</span>
+                  <span>{t("source.googleLoginHint")}</span>
                   <Button
                     variant="outlined"
                     size="small"
                     onClick={onLoginWithGoogle}
                   >
-                    登入 Google
+                    {t("source.googleLogin")}
                   </Button>
                 </div>
               )}
@@ -298,19 +299,22 @@ export default function CollectionCreateSourcePanel({
               >
                 <option value="">
                   {youtubePlaylistsLoading
-                    ? "載入播放清單中..."
-                    : "請選擇 YouTube 播放清單"}
+                    ? t("source.playlistSelectLoading")
+                    : t("source.playlistSelectPlaceholder")}
                 </option>
                 {youtubePlaylists.map((playlist) => (
                   <option key={playlist.id} value={playlist.id}>
-                    {`${playlist.title}（${playlist.itemCount} 首）`}
+                    {t("source.playlistOption", {
+                      title: playlist.title,
+                      count: playlist.itemCount,
+                    })}
                   </option>
                 ))}
               </select>
 
               {youtubePlaylistsLoading && (
                 <div className="animate-pulse rounded-lg border border-[var(--mc-border)] bg-[var(--mc-surface)]/55 px-3 py-2 text-xs text-[var(--mc-text-muted)]">
-                  正在載入你的播放清單...
+                  {t("source.playlistLoadingHint")}
                 </div>
               )}
 

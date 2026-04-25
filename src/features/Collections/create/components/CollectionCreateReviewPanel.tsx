@@ -1,4 +1,5 @@
-import { useMemo, useState, type RefObject } from "react";
+import { useMemo, useState, type ReactNode, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
@@ -28,6 +29,10 @@ type ReviewItemView = {
 
 type ReviewVirtualRowProps = {
   items: ReviewItemView[];
+  readyLabel: string;
+  longLabel: string;
+  noCoverLabel: string;
+  unknownUploaderLabel: string;
 };
 
 type Props = {
@@ -71,13 +76,15 @@ type Props = {
 const toReviewItems = ({
   normalItems,
   longItems,
+  untitledItemLabel,
 }: {
   normalItems: DraftPlaylistItem[];
   longItems: DraftPlaylistItem[];
+  untitledItemLabel: string;
 }): ReviewItemView[] => {
   const normal = normalItems.map((item) => ({
     draftKey: item.draftKey,
-    title: item.title || item.answerText || "未命名歌曲",
+    title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
     duration: item.duration,
@@ -87,7 +94,7 @@ const toReviewItems = ({
 
   const long = longItems.map((item) => ({
     draftKey: item.draftKey,
-    title: item.title || item.answerText || "未命名歌曲",
+    title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
     duration: item.duration,
@@ -98,18 +105,26 @@ const toReviewItems = ({
   return [...normal, ...long];
 };
 
-const StatusBadge = ({ status }: { status: ReviewItemStatus }) => {
+const StatusBadge = ({
+  status,
+  readyLabel,
+  longLabel,
+}: {
+  status: ReviewItemStatus;
+  readyLabel: string;
+  longLabel: string;
+}) => {
   if (status === "long") {
     return (
       <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
-        Long
+        {longLabel}
       </span>
     );
   }
 
   return (
     <span className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-100">
-      Ready
+      {readyLabel}
     </span>
   );
 };
@@ -118,6 +133,10 @@ const ReviewVirtualRow = ({
   index,
   style,
   items,
+  readyLabel,
+  longLabel,
+  noCoverLabel,
+  unknownUploaderLabel,
 }: RowComponentProps<ReviewVirtualRowProps>) => {
   const item = items[index];
   if (!item) return <div style={style} />;
@@ -132,28 +151,32 @@ const ReviewVirtualRow = ({
         {item.thumbnail ? (
           <img
             src={item.thumbnail}
-            alt={item.title || item.answerText || "歌曲封面"}
+            alt={item.title}
             loading="lazy"
             className="h-10 w-[72px] shrink-0 rounded-lg border border-[var(--mc-border)] object-cover"
           />
         ) : (
           <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-lg border border-[var(--mc-border)] bg-[linear-gradient(145deg,rgba(56,189,248,0.18),rgba(15,23,42,0.25))] text-[10px] text-[var(--mc-text-muted)]">
-            No Cover
+            {noCoverLabel}
           </div>
         )}
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-[var(--mc-text)]">
-            {item.title || item.answerText || "未命名歌曲"}
+            {item.title}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
-            {item.uploader || "未知上傳者"}
+            {item.uploader || unknownUploaderLabel}
             {item.duration ? ` · ${item.duration}` : ""}
           </div>
         </div>
 
         <div className="shrink-0">
-          <StatusBadge status={item.status} />
+          <StatusBadge
+            status={item.status}
+            readyLabel={readyLabel}
+            longLabel={longLabel}
+          />
         </div>
       </div>
     </div>
@@ -169,7 +192,7 @@ const SummaryCard = ({
   label: string;
   value: number;
   tone?: "default" | "success" | "warning" | "danger";
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) => {
   const toneClass =
     tone === "success"
@@ -229,6 +252,8 @@ export default function CollectionCreateReviewPanel({
   playlistIssueTotal,
   onOpenPlaylistIssueDialog,
 }: Props) {
+  const { t } = useTranslation("collectionCreate");
+
   const [filterMode, setFilterMode] = useState<ReviewFilterMode>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -237,8 +262,9 @@ export default function CollectionCreateReviewPanel({
       toReviewItems({
         normalItems: normalDraftPlaylistItems,
         longItems: longDraftPlaylistItems,
+        untitledItemLabel: t("review.untitledItem"),
       }),
-    [normalDraftPlaylistItems, longDraftPlaylistItems],
+    [normalDraftPlaylistItems, longDraftPlaylistItems, t],
   );
 
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
@@ -267,8 +293,14 @@ export default function CollectionCreateReviewPanel({
   }, [allReviewItems, filterMode, normalizedSearchQuery]);
 
   const reviewRowProps = useMemo<ReviewVirtualRowProps>(
-    () => ({ items: filteredItems }),
-    [filteredItems],
+    () => ({
+      items: filteredItems,
+      readyLabel: t("review.summary.ready"),
+      longLabel: t("review.summary.long"),
+      noCoverLabel: t("review.noCover"),
+      unknownUploaderLabel: t("review.unknownUploader"),
+    }),
+    [filteredItems, t],
   );
 
   const listHeight = Math.min(
@@ -309,15 +341,15 @@ export default function CollectionCreateReviewPanel({
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[var(--mc-text)]">
                 {playlistSource === "youtube"
-                  ? "Importing YouTube playlist"
-                  : "Importing playlist"}
+                  ? t("review.importing.youtubeTitle")
+                  : t("review.importing.urlTitle")}
               </div>
               <div className="mt-0.5 text-xs text-[var(--mc-text-muted)]">
-                {importProgressLabel ?? "Preparing import..."}
+                {importProgressLabel ?? t("review.importing.fallback")}
               </div>
               {playlistProgressTotal > 0 && (
                 <div className="mt-1 text-[11px] text-cyan-100/90">
-                  The review list will update automatically after import.
+                  {t("review.importing.hint")}
                 </div>
               )}
             </div>
@@ -330,11 +362,10 @@ export default function CollectionCreateReviewPanel({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="text-lg font-semibold text-[var(--mc-text)]">
-                Review Import Result
+                {t("review.title")}
               </div>
               <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-                Check playable items, long tracks, duplicates, and skipped
-                videos before publishing.
+                {t("review.description")}
               </div>
             </div>
 
@@ -357,7 +388,7 @@ export default function CollectionCreateReviewPanel({
                       onSaveTitle();
                     }
                   }}
-                  placeholder="請輸入收藏標題"
+                  placeholder={t("review.titlePlaceholder")}
                   className="min-w-0 rounded-none border-0 border-b border-[var(--mc-border)] bg-transparent px-0 py-1 text-base font-semibold text-[var(--mc-text)] outline-none"
                 />
               ) : (
@@ -366,7 +397,7 @@ export default function CollectionCreateReviewPanel({
                     type="button"
                     onClick={onStartEditTitle}
                     className="min-w-0 cursor-pointer text-left sm:text-right"
-                    aria-label="編輯收藏標題"
+                    aria-label={t("review.editTitleAria")}
                   >
                     <div className="max-w-[280px] truncate text-base font-semibold text-[var(--mc-text)]">
                       {collectionPreview.title}
@@ -376,7 +407,7 @@ export default function CollectionCreateReviewPanel({
                     type="button"
                     onClick={onStartEditTitle}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-[var(--mc-surface)]/60 hover:text-[var(--mc-text)]"
-                    aria-label="編輯收藏標題"
+                    aria-label={t("review.editTitleAria")}
                   >
                     <EditOutlined sx={{ fontSize: 16 }} />
                   </button>
@@ -384,40 +415,44 @@ export default function CollectionCreateReviewPanel({
               )}
 
               <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                {collectionPreview.count} playable items
+                {t("review.playableItems", {
+                  count: collectionPreview.count,
+                })}
               </div>
             </div>
           </div>
 
           {!isAdmin && (
             <div className="mt-3 rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 px-3 py-2 text-[11px] text-[var(--mc-text-muted)]">
-              一般使用者每個收藏庫最多可收錄{" "}
-              {collectionItemLimit === null ? "無上限" : collectionItemLimit}{" "}
-              題。
+              {collectionItemLimit === null
+                ? t("review.itemLimitUnlimited")
+                : t("review.itemLimitHint", {
+                    limit: collectionItemLimit,
+                  })}
             </div>
           )}
 
           <div className="mt-4 grid gap-2 sm:grid-cols-4">
             <SummaryCard
-              label="Ready"
+              label={t("review.summary.ready")}
               value={normalDraftPlaylistItems.length}
               tone="success"
               icon={<CheckCircleOutlineRounded sx={{ fontSize: 17 }} />}
             />
             <SummaryCard
-              label="Long"
+              label={t("review.summary.long")}
               value={longDraftPlaylistItems.length}
               tone={longDraftPlaylistItems.length > 0 ? "warning" : "default"}
               icon={<WarningAmberRounded sx={{ fontSize: 17 }} />}
             />
             <SummaryCard
-              label="Duplicates"
+              label={t("review.summary.duplicates")}
               value={removedDuplicateCount}
               tone={removedDuplicateCount > 0 ? "success" : "default"}
               icon={<LibraryMusicRounded sx={{ fontSize: 17 }} />}
             />
             <SummaryCard
-              label="Skipped"
+              label={t("review.summary.skipped")}
               value={playlistIssueTotal}
               tone={playlistIssueTotal > 0 ? "danger" : "default"}
               icon={<ErrorOutlineRounded sx={{ fontSize: 17 }} />}
@@ -431,8 +466,14 @@ export default function CollectionCreateReviewPanel({
                 onClick={onOpenDuplicateDialog}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-left text-xs text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-300/15"
               >
-                <span className="font-semibold">Duplicates removed</span>
-                <span>{removedDuplicateCount} items · View details</span>
+                <span className="font-semibold">
+                  {t("review.alerts.duplicatesRemoved")}
+                </span>
+                <span>
+                  {t("review.alerts.duplicatesRemovedDetail", {
+                    count: removedDuplicateCount,
+                  })}
+                </span>
               </button>
             )}
 
@@ -442,8 +483,14 @@ export default function CollectionCreateReviewPanel({
                 onClick={onOpenLimitDialog}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-left text-xs text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-300/15"
               >
-                <span className="font-semibold">Item limit exceeded</span>
-                <span>Remove {draftOverflowCount} more items</span>
+                <span className="font-semibold">
+                  {t("review.alerts.itemLimitExceeded")}
+                </span>
+                <span>
+                  {t("review.alerts.itemLimitExceededDetail", {
+                    count: draftOverflowCount,
+                  })}
+                </span>
               </button>
             )}
 
@@ -453,14 +500,20 @@ export default function CollectionCreateReviewPanel({
                 onClick={onOpenPlaylistIssueDialog}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-left text-xs text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-300/15"
               >
-                <span className="font-semibold">Skipped items</span>
-                <span>{playlistIssueTotal} items · View details</span>
+                <span className="font-semibold">
+                  {t("review.alerts.skippedItems")}
+                </span>
+                <span>
+                  {t("review.alerts.skippedItemsDetail", {
+                    count: playlistIssueTotal,
+                  })}
+                </span>
               </button>
             )}
 
             {!hasIssues && (
               <div className="rounded-xl border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs text-emerald-100">
-                Import result looks clean. You can continue to publish settings.
+                {t("review.alerts.cleanResult")}
               </div>
             )}
           </div>
@@ -471,19 +524,19 @@ export default function CollectionCreateReviewPanel({
                 {[
                   {
                     key: "all",
-                    label: `All (${allReviewItems.length})`,
+                    label: `${t("review.filters.all")} (${allReviewItems.length})`,
                   },
                   {
                     key: "ready",
-                    label: `Ready (${normalDraftPlaylistItems.length})`,
+                    label: `${t("review.filters.ready")} (${normalDraftPlaylistItems.length})`,
                   },
                   {
                     key: "long",
-                    label: `Long (${longDraftPlaylistItems.length})`,
+                    label: `${t("review.filters.long")} (${longDraftPlaylistItems.length})`,
                   },
                   {
                     key: "issues",
-                    label: `Issues (${playlistIssueTotal})`,
+                    label: `${t("review.filters.issues")} (${playlistIssueTotal})`,
                   },
                 ].map((item) => (
                   <button
@@ -507,7 +560,7 @@ export default function CollectionCreateReviewPanel({
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search title or uploader"
+                  placeholder={t("review.searchPlaceholder")}
                   className="min-w-0 flex-1 bg-transparent text-sm text-[var(--mc-text)] outline-none placeholder:text-[var(--mc-text-muted)]"
                 />
                 {searchQuery ? (
@@ -515,7 +568,7 @@ export default function CollectionCreateReviewPanel({
                     type="button"
                     onClick={() => setSearchQuery("")}
                     className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-[var(--mc-surface)]/70 hover:text-[var(--mc-text)]"
-                    aria-label="清除搜尋"
+                    aria-label={t("review.clearSearch")}
                   >
                     <CloseRounded sx={{ fontSize: 12 }} />
                   </button>
@@ -525,9 +578,7 @@ export default function CollectionCreateReviewPanel({
 
             {filterMode === "issues" ? (
               <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
-                Issues are grouped above. Use “Skipped items”, “Duplicates
-                removed”, or “Item limit exceeded” to view details and resolve
-                them.
+                {t("review.issuesHint")}
               </div>
             ) : filteredItems.length > 0 ? (
               <div className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45">
@@ -541,14 +592,14 @@ export default function CollectionCreateReviewPanel({
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
-                No items match the current filter.
+                {t("review.emptyFilter")}
               </div>
             )}
           </div>
         </div>
       ) : !(playlistLoading || isImportingYoutubePlaylist) ? (
         <div className="rounded-xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 p-4 text-sm text-[var(--mc-text-muted)]">
-          Import a playlist first. The review result will appear here.
+          {t("review.empty")}
         </div>
       ) : null}
     </div>

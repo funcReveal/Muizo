@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 type Props = {
   totalItems: number;
   readyItems: number;
@@ -69,22 +71,31 @@ export default function CollectionCreateInspectorPanel({
   visibility,
   createError,
 }: Props) {
+  const { t } = useTranslation("collectionCreate");
+
   const readyTone = readyItems > 0 && !isDraftOverflow ? "success" : "default";
 
   return (
     <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
       <section className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/65 p-4">
         <div className="text-sm font-semibold text-[var(--mc-text)]">
-          Import Summary
+          {t("inspector.importSummary")}
         </div>
 
         <div className="mt-3 space-y-2">
-          <StatRow label="Total items" value={totalItems} />
-          <StatRow label="Ready items" value={readyItems} tone={readyTone} />
-          <StatRow label="Long tracks" value={longItems} />
-          <StatRow label="Duplicates removed" value={removedDuplicateCount} />
+          <StatRow label={t("inspector.totalItems")} value={totalItems} />
           <StatRow
-            label="Skipped items"
+            label={t("inspector.readyItems")}
+            value={readyItems}
+            tone={readyTone}
+          />
+          <StatRow label={t("inspector.longTracks")} value={longItems} />
+          <StatRow
+            label={t("inspector.duplicatesRemoved")}
+            value={removedDuplicateCount}
+          />
+          <StatRow
+            label={t("inspector.skippedItems")}
             value={skippedCount}
             tone={skippedCount > 0 ? "warning" : "default"}
           />
@@ -92,46 +103,53 @@ export default function CollectionCreateInspectorPanel({
 
         {collectionItemLimit !== null && (
           <div className="mt-4 rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/35 px-3 py-2 text-xs text-[var(--mc-text-muted)]">
-            Item limit: {readyItems} / {collectionItemLimit}
+            {t("inspector.itemLimit", {
+              current: readyItems,
+              limit: collectionItemLimit,
+            })}
           </div>
         )}
 
         {isDraftOverflow && (
           <div className="mt-3 rounded-xl border border-amber-300/35 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
-            還需要移除 {draftOverflowCount} 首才能建立收藏庫。
+            {t("inspector.overflow", { count: draftOverflowCount })}
           </div>
         )}
       </section>
 
       <section className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/65 p-4">
         <div className="text-sm font-semibold text-[var(--mc-text)]">
-          Publish Readiness
+          {t("inspector.publishReadiness")}
         </div>
 
         <div className="mt-3 space-y-2">
           <StatRow
-            label="Visibility"
-            value={visibility === "public" ? "Public" : "Private"}
+            label={t("inspector.visibility")}
+            value={
+              visibility === "public"
+                ? t("inspector.public")
+                : t("inspector.private")
+            }
           />
 
           {!isAdmin && (
             <>
               <StatRow
-                label="Collections"
+                label={t("inspector.collections")}
                 value={`${collectionsCount}/${maxCollectionsPerUser}`}
                 tone={reachedCollectionLimit ? "danger" : "default"}
               />
               <StatRow
-                label="Private collections"
+                label={t("inspector.privateCollections")}
                 value={`${privateCollectionsCount}/${maxPrivateCollectionsPerUser}`}
                 tone={reachedPrivateCollectionLimit ? "warning" : "default"}
               />
               <StatRow
-                label="Collection slots"
+                label={t("inspector.collectionSlots")}
                 value={remainingCollectionSlots}
               />
               <StatRow
-                label="Private slots"
+                label={t("inspector.privateSlots")}
                 value={remainingPrivateCollectionSlots}
               />
             </>
@@ -140,13 +158,13 @@ export default function CollectionCreateInspectorPanel({
 
         {reachedCollectionLimit && (
           <div className="mt-3 rounded-xl border border-rose-300/35 bg-rose-300/10 px-3 py-2 text-xs text-rose-100">
-            已達收藏庫建立上限，請先整理現有收藏庫。
+            {t("inspector.collectionLimitReached")}
           </div>
         )}
 
         {!reachedCollectionLimit && reachedPrivateCollectionLimit && (
           <div className="mt-3 rounded-xl border border-amber-300/35 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
-            私人收藏已達上限，目前只能建立公開收藏。
+            {t("inspector.privateLimitReached")}
           </div>
         )}
 
