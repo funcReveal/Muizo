@@ -10,28 +10,11 @@ export const SUPPORTED_LANGUAGES = ["en", "zh-TW"] as const;
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
-const DEFAULT_LANGUAGE: SupportedLanguage = "en";
+const DEFAULT_LANGUAGE: SupportedLanguage = "zh-TW";
 
-const LANGUAGE_STORAGE_KEY = "muizo.language";
-
-const isSupportedLanguage = (
-  value: string | null,
-): value is SupportedLanguage => value === "en" || value === "zh-TW";
-
-const getInitialLanguage = (): SupportedLanguage => {
-  if (typeof window === "undefined") return DEFAULT_LANGUAGE;
-
-  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (isSupportedLanguage(stored)) return stored;
-
-  const browserLanguage = window.navigator.language;
-
-  if (browserLanguage === "zh-TW" || browserLanguage === "zh-Hant") {
-    return "zh-TW";
-  }
-
-  return DEFAULT_LANGUAGE;
-};
+// TODO(i18n): 暫時鎖定繁中。
+// 等全站主要頁面完成 i18n 遷移，並完成語言切換器後，再恢復自動偵測與 localStorage 偏好。
+const LOCKED_LANGUAGE: SupportedLanguage = "zh-TW";
 
 void i18n.use(initReactI18next).init({
   resources: {
@@ -44,7 +27,7 @@ void i18n.use(initReactI18next).init({
       collectionCreate: zhTWCollectionCreate,
     },
   },
-  lng: getInitialLanguage(),
+  lng: LOCKED_LANGUAGE,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: "common",
   interpolation: {
@@ -52,12 +35,11 @@ void i18n.use(initReactI18next).init({
   },
 });
 
-export const changeLanguage = async (language: SupportedLanguage) => {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-  }
-
-  await i18n.changeLanguage(language);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const changeLanguage = async (_language: SupportedLanguage) => {
+  // TODO(i18n): 語言切換功能正式開放後，再恢復：
+  // await i18n.changeLanguage(language);
+  await i18n.changeLanguage(LOCKED_LANGUAGE);
 };
 
 export default i18n;
