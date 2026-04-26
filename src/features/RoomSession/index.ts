@@ -42,6 +42,7 @@ export type {
   GameState,
   PlaybackExtensionMode,
   PlaybackExtensionVoteState,
+  RestartGameVoteState,
   PlaylistItem,
   PlaylistSourceType,
   PlaylistSuggestion,

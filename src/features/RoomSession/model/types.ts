@@ -33,6 +33,7 @@ export type {
   GameSyncVersion,
   PlaybackExtensionMode,
   PlaybackExtensionVoteState,
+  RestartGameVoteState,
   QuestionScoreBreakdown,
   SubmitAnswerAckData,
   SubmitAnswerResult,

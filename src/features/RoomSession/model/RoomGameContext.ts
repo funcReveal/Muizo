@@ -26,6 +26,7 @@ export interface RoomGameContextValue {
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
   // 遊戲操作
   handleStartGame: () => void;
+  handleRestartGame: () => void;
   handleSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
   handleRequestPlaybackExtensionVote: (
     remainingMs?: number,
@@ -33,6 +34,8 @@ export interface RoomGameContextValue {
   handleCastPlaybackExtensionVote: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;
+  handleRequestRestartGameVote: () => Promise<boolean>;
+  handleCastRestartGameVote: (vote: "approve" | "reject") => Promise<boolean>;
   handleUpdateRoomSettings: (payload: {
     name?: string;
     visibility?: "public" | "private";

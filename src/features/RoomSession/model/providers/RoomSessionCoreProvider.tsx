@@ -481,9 +481,12 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
 
   const {
     handleStartGame,
+    handleRestartGame,
     handleSubmitChoice,
     handleRequestPlaybackExtensionVote,
     handleCastPlaybackExtensionVote,
+    handleRequestRestartGameVote,
+    handleCastRestartGameVote,
   } = useRoomGameActions({
     getSocket,
     currentRoom,
@@ -725,9 +728,12 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       updateStartOffsetSec,
       updateAllowCollectionClipTiming,
       handleStartGame,
+      handleRestartGame,
       handleSubmitChoice,
       handleRequestPlaybackExtensionVote,
       handleCastPlaybackExtensionVote,
+      handleRequestRestartGameVote,
+      handleCastRestartGameVote,
       handleUpdateRoomSettings,
     }),
     [
@@ -744,9 +750,12 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       updateRevealDurationSec,
       updateStartOffsetSec,
       handleStartGame,
+      handleRestartGame,
       handleSubmitChoice,
       handleRequestPlaybackExtensionVote,
       handleCastPlaybackExtensionVote,
+      handleRequestRestartGameVote,
+      handleCastRestartGameVote,
       handleUpdateRoomSettings,
     ],
   );

@@ -137,6 +137,10 @@ const useGameRoomPlayerSync = ({
   const guessLoopSpanRef = useRef<number | null>(null);
   const revealReplayRef = useRef(false);
   const lastRevealStartKeyRef = useRef<string | null>(null);
+  // Stays true from when reveal begins until trackSessionKey changes (new question).
+  // Lets the clip keep looping even after isReveal becomes false (phase cleared,
+  // game ended, etc.) so there is never a silence gap before navigation.
+  const keepRevealAliveRef = useRef(false);
   const bufferingStartedAtRef = useRef<number | null>(null);
   const lastBufferingAtMsRef = useRef<number>(0);
   const bufferingGraceUntilMsRef = useRef<number>(0);
@@ -370,6 +374,7 @@ const useGameRoomPlayerSync = ({
 
   useEffect(() => {
     guessLoopSpanRef.current = null;
+    keepRevealAliveRef.current = false;
   }, [trackLoadKey, trackSessionKey]);
 
   useEffect(() => {
@@ -1765,6 +1770,34 @@ const useGameRoomPlayerSync = ({
             startPlayback(undefined, true, {
               reason: "reveal-replay",
             });
+          } else if (
+            phase === "guess" &&
+            !isTimeAttackMode &&
+            !isEnded &&
+            isStartedByServerTime() &&
+            serverNow >= guessEndsAt
+          ) {
+            // Clip ended at/past the guess boundary before the reveal
+            // gameUpdated arrived. The guess-loop branch above was skipped
+            // (serverNow >= guessEndsAt) and isReveal is not yet true.
+            // Restart from clipStartSec now so the reveal phase begins
+            // without a silence gap. The isReveal useEffect will take over
+            // once the phase update is processed.
+            revealReplayRef.current = true;
+            startPlayback(clipStartSec, true, {
+              reason: "reveal-replay",
+            });
+          } else if (keepRevealAliveRef.current && isStartedByServerTime()) {
+            // Phase has transitioned away from reveal (game ended, between
+            // questions, etc.) but we haven't navigated to the next screen yet.
+            // Keep the current clip looping seamlessly until trackSessionKey
+            // changes (new question loaded), at which point keepRevealAliveRef
+            // is reset. This prevents a silence gap on the settlement screen
+            // transition or while the host is stalling between questions.
+            revealReplayRef.current = true;
+            startPlayback(clipStartSec, true, {
+              reason: "reveal-replay",
+            });
           }
         }
       }
@@ -1924,6 +1957,9 @@ const useGameRoomPlayerSync = ({
       lastRevealStartKeyRef.current = null;
       return;
     }
+    // Arm keep-alive for the entire duration of this track session so the clip
+    // keeps looping even if the phase transitions away before navigation.
+    keepRevealAliveRef.current = true;
     const revealKey = `${trackSessionKey}:${revealEndsAt}:reveal`;
     if (lastRevealStartKeyRef.current === revealKey) return;
     lastRevealStartKeyRef.current = revealKey;

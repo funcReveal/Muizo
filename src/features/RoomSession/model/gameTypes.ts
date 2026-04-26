@@ -78,6 +78,7 @@ export interface GameState {
   trackCursor: number;
   playbackExtensionMs?: number;
   playbackExtensionVote?: PlaybackExtensionVoteState | null;
+  restartGameVote?: RestartGameVoteState | null;
   lockedClientIds?: string[];
   lockedOrder?: string[];
   questionStats?: GameQuestionStats;
@@ -93,6 +94,17 @@ export interface PlaybackExtensionVoteState {
   startedAt: number;
   endsAt: number;
   extendMs: number;
+  eligibleClientIds: string[];
+  approveClientIds: string[];
+  rejectClientIds: string[];
+  status: "active" | "approved" | "rejected";
+  resolvedAt?: number;
+}
+
+export interface RestartGameVoteState {
+  requestedByClientId: string;
+  requestedByUsername: string;
+  startedAt: number;
   eligibleClientIds: string[];
   approveClientIds: string[];
   rejectClientIds: string[];

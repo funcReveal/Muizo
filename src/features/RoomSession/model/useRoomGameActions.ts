@@ -327,11 +327,142 @@ export const useRoomGameActions = ({
     [pendingAnswerSubmitRef],
   );
 
+  const handleRestartGame = useCallback(() => {
+    const socket = getSocket();
+    if (!socket || !currentRoom) {
+      setStatusText("尚未加入房間");
+      return;
+    }
+    const guessDurationMs =
+      clampPlayDurationSec(
+        currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+      ) * 1000;
+    const revealDurationMs =
+      clampRevealDurationSec(
+        currentRoom.gameSettings?.revealDurationSec ??
+          DEFAULT_REVEAL_DURATION_SEC,
+      ) * 1000;
+
+    socket.emit(
+      "startGame",
+      { roomId: currentRoom.id, guessDurationMs, revealDurationMs, forceRestart: true },
+      (ack: Ack<GameLiveUpdatePayload>) => {
+        if (!ack) return;
+        if (ack.ok) {
+          syncServerOffset(ack.data.serverNow);
+          setGamePlaylist([]);
+          applyGameLiveUpdate(ack.data);
+          setIsGameView(true);
+          void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
+        } else {
+          if (handleRoomGoneAck(currentRoom.id, ack)) return;
+          setStatusText(formatAckError("重新開始失敗", ack.error));
+        }
+      },
+    );
+  }, [
+    currentRoom,
+    fetchCompletePlaylist,
+    getSocket,
+    handleRoomGoneAck,
+    setGamePlaylist,
+    setIsGameView,
+    setStatusText,
+    syncServerOffset,
+    applyGameLiveUpdate,
+  ]);
+
+  const handleRequestRestartGameVote = useCallback(async (): Promise<boolean> => {
+    const socket = getSocket();
+    if (!socket || !currentRoom) {
+      setStatusText("目前不在房間內");
+      return false;
+    }
+    return await new Promise<boolean>((resolve) => {
+      socket.emit(
+        "requestRestartGameVote",
+        { roomId: currentRoom.id },
+        (ack: Ack<GameLiveUpdatePayload>) => {
+          if (!ack) {
+            setStatusText("發起重新開始投票失敗，請稍後再試");
+            resolve(false);
+            return;
+          }
+          if (!ack.ok) {
+            if (handleRoomGoneAck(currentRoom.id, ack)) {
+              resolve(false);
+              return;
+            }
+            setStatusText(formatAckError("發起重新開始投票失敗", ack.error));
+            resolve(false);
+            return;
+          }
+          syncServerOffset(ack.data.serverNow);
+          applyGameLiveUpdate(ack.data);
+          resolve(true);
+        },
+      );
+    });
+  }, [
+    currentRoom,
+    getSocket,
+    setStatusText,
+    syncServerOffset,
+    applyGameLiveUpdate,
+    handleRoomGoneAck,
+  ]);
+
+  const handleCastRestartGameVote = useCallback(
+    async (vote: "approve" | "reject"): Promise<boolean> => {
+      const socket = getSocket();
+      if (!socket || !currentRoom) {
+        setStatusText("目前不在房間內");
+        return false;
+      }
+      return await new Promise<boolean>((resolve) => {
+        socket.emit(
+          "castRestartGameVote",
+          { roomId: currentRoom.id, vote },
+          (ack: Ack<GameLiveUpdatePayload>) => {
+            if (!ack) {
+              setStatusText("送出投票失敗，請稍後再試");
+              resolve(false);
+              return;
+            }
+            if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
+              setStatusText(formatAckError("送出投票失敗", ack.error));
+              resolve(false);
+              return;
+            }
+            syncServerOffset(ack.data.serverNow);
+            applyGameLiveUpdate(ack.data);
+            resolve(true);
+          },
+        );
+      });
+    },
+    [
+      currentRoom,
+      getSocket,
+      setStatusText,
+      syncServerOffset,
+      applyGameLiveUpdate,
+      handleRoomGoneAck,
+    ],
+  );
+
   return {
     handleStartGame,
+    handleRestartGame,
     handleSubmitChoice,
     handleRequestPlaybackExtensionVote,
     handleCastPlaybackExtensionVote,
+    handleRequestRestartGameVote,
+    handleCastRestartGameVote,
   };
 };
 

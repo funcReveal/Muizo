@@ -1086,9 +1086,12 @@ const RoomLobbyPage: React.FC = () => {
     setIsGameView,
     gamePlaylist,
     handleStartGame,
+    handleRestartGame,
     handleSubmitChoice,
     handleRequestPlaybackExtensionVote,
     handleCastPlaybackExtensionVote,
+    handleRequestRestartGameVote,
+    handleCastRestartGameVote,
     handleUpdateRoomSettings,
   } = useRoomGame();
 
@@ -3580,8 +3583,11 @@ const RoomLobbyPage: React.FC = () => {
                 handleRequestPlaybackExtensionVote
               }
               onCastPlaybackExtensionVote={handleCastPlaybackExtensionVote}
+              onRequestRestartGameVote={handleRequestRestartGameVote}
+              onCastRestartGameVote={handleCastRestartGameVote}
               onKickPlayer={handleKickPlayer}
               onTransferHost={handleTransferHost}
+              onRestartGame={handleRestartGame}
               participants={participants}
               meClientId={clientId}
               username={username}
