@@ -547,8 +547,8 @@ const CollectionCreatePage = () => {
         )}
 
         <div className="relative">
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => navigate("/collections")}
@@ -561,9 +561,6 @@ const CollectionCreatePage = () => {
               <div className="min-w-0">
                 <div className="text-xl font-semibold leading-none text-[var(--mc-text)] sm:text-2xl">
                   {t("page.title")}
-                </div>
-                <div className="mt-2 max-w-2xl text-sm leading-6 text-[var(--mc-text-muted)]">
-                  {t("page.description")}
                 </div>
               </div>
             </div>
