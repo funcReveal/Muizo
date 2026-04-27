@@ -779,6 +779,14 @@ const RoomsHubPage: React.FC = () => {
       },
     });
   };
+  const handleCreatePublicCollection = useCallback(() => {
+    navigate("/collections/new", {
+      state: {
+        from: "roomHub",
+        intent: "createPublicCollection",
+      },
+    });
+  }, [navigate]);
   const { publicLibrarySearchActive, togglePublicLibrarySearch } =
     usePublicCollectionsSearchUi({
       createLibraryTab,
@@ -1780,6 +1788,8 @@ const RoomsHubPage: React.FC = () => {
                     setCreateLibraryTab={setCreateLibraryTab}
                     handleBackToCreateLibrary={handleBackToCreateLibrary}
                     onLockedSourceClick={loginWithGoogle}
+                    showCreatePublicCollectionAction
+                    onCreatePublicCollection={handleCreatePublicCollection}
                   >
                     <div className="flex min-h-0 flex-1 flex-col bg-[var(--mc-surface)]/10 lg:rounded-none lg:border-l lg:border-[var(--mc-border)]/45 lg:pl-5">
                       <div className="flex min-h-0 flex-1 flex-col">

@@ -18,6 +18,8 @@ import {
   YouTube,
 } from "@mui/icons-material";
 
+import CreatePublicCollectionSourceAction from "./CreatePublicCollectionSourceAction";
+
 type CreateLibraryTab = "public" | "personal" | "youtube" | "link";
 type CreateLeftTab = "library" | "settings";
 
@@ -30,6 +32,8 @@ type LibrarySourcePanelProps = {
   onLockedSourceClick: () => void;
   sidebarContent?: ReactNode;
   children: ReactNode;
+  showCreatePublicCollectionAction?: boolean;
+  onCreatePublicCollection?: () => void;
 };
 
 const sourceItems: Array<{
@@ -68,11 +72,20 @@ const LibrarySourcePanel = ({
   onLockedSourceClick,
   sidebarContent,
   children,
+  showCreatePublicCollectionAction = false,
+  onCreatePublicCollection,
 }: LibrarySourcePanelProps) => {
   const selectedSource =
     sourceItems.find((item) => item.key === createLibraryTab) ?? sourceItems[0];
 
-  const handleMobileSelectChange = (event: SelectChangeEvent<CreateLibraryTab>) => {
+  const shouldShowDesktopCreatePublicCollectionAction =
+    createLeftTab === "library" &&
+    showCreatePublicCollectionAction &&
+    Boolean(onCreatePublicCollection);
+
+  const handleMobileSelectChange = (
+    event: SelectChangeEvent<CreateLibraryTab>,
+  ) => {
     const nextValue = event.target.value as CreateLibraryTab;
     const isLocked =
       !canUseGoogleLibraries && nextValue !== "public" && nextValue !== "link";
@@ -254,7 +267,9 @@ const LibrarySourcePanel = ({
                           <Typography
                             variant="body2"
                             sx={{
-                              color: disabled ? "rgba(148,163,184,0.7)" : "#e2e8f0",
+                              color: disabled
+                                ? "rgba(148,163,184,0.7)"
+                                : "#e2e8f0",
                               fontWeight: 600,
                               lineHeight: 1.3,
                             }}
@@ -263,7 +278,9 @@ const LibrarySourcePanel = ({
                           </Typography>
                         </Box>
                         {disabled ? (
-                          <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                          <LockOutlined
+                            sx={{ fontSize: 14, color: "#fbbf24" }}
+                          />
                         ) : null}
                       </MenuItem>
                     );
@@ -307,7 +324,9 @@ const LibrarySourcePanel = ({
                       </span>
                       {disabled ? (
                         <Tooltip title="點擊即可登入後使用" placement="top">
-                          <LockOutlined sx={{ fontSize: 14, color: "#fbbf24" }} />
+                          <LockOutlined
+                            sx={{ fontSize: 14, color: "#fbbf24" }}
+                          />
                         </Tooltip>
                       ) : null}
                     </span>
@@ -315,6 +334,15 @@ const LibrarySourcePanel = ({
                 );
               })}
             </div>
+
+            {shouldShowDesktopCreatePublicCollectionAction ? (
+              <div className="mt-auto hidden pt-3 lg:block">
+                <CreatePublicCollectionSourceAction
+                  isAuthenticated={canUseGoogleLibraries}
+                  onClick={onCreatePublicCollection!}
+                />
+              </div>
+            ) : null}
           </>
         ) : null}
       </aside>

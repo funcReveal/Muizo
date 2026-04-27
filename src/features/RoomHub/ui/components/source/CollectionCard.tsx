@@ -57,7 +57,7 @@ const menuPaperSx = {
 const CollectionCard = ({
   collection,
   view,
-  // selected,
+  selected,
   isPublicLibraryTab,
   isFavoriteUpdating = false,
   onSelect,
@@ -214,7 +214,15 @@ const CollectionCard = ({
         tabIndex={0}
         onClick={onSelect}
         onKeyDown={handleCardKeyDown}
-        className={`group relative h-full cursor-pointer overflow-hidden rounded-[22px] border-gray-50 text-left transition `}
+        className={`group relative h-full cursor-pointer overflow-hidden rounded-[22px] border text-left transition ${
+          selected
+            ? "border-cyan-300/55 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(8,47,73,0.42))] shadow-[0_24px_44px_-28px_rgba(34,211,238,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]"
+            : `border-cyan-300/18 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.58))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_16px_34px_-32px_rgba(15,23,42,0.9)] ${
+                suppressCardHover
+                  ? ""
+                  : "hover:border-cyan-300/38 hover:bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(8,47,73,0.44))] hover:shadow-[0_22px_42px_-30px_rgba(34,211,238,0.32),inset_0_1px_0_rgba(255,255,255,0.06)]"
+              }`
+        }`}
       >
         <div className="relative h-36 w-full overflow-hidden bg-slate-900/60">
           {previewThumbnail ? (
@@ -289,7 +297,13 @@ const CollectionCard = ({
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={handleCardKeyDown}
-      className={`w-full cursor-pointer px-3 py-2 text-left transition border-b-gray-600`}
+      className={`w-full cursor-pointer border-b border-slate-700/55 px-3 py-3 text-left transition last:border-b-0 ${
+        selected
+          ? "bg-cyan-500/10"
+          : suppressCardHover
+            ? "bg-transparent"
+            : "hover:bg-cyan-500/[0.06]"
+      }`}
     >
       <div className="flex items-center gap-3">
         <div className="h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900/40">

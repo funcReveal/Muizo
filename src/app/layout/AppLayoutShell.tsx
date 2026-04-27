@@ -1,7 +1,4 @@
-import React, {
-  useCallback,
-  useState,
-} from "react";
+import React, { useCallback, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Button,
@@ -51,6 +48,7 @@ const AppLayoutShell: React.FC = () => {
     displayUsername,
     username,
   } = useAuth();
+
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -67,6 +65,7 @@ const AppLayoutShell: React.FC = () => {
         setSettingsOpen(true);
         return;
       }
+
       navigate(getNavigationPath(target));
     },
     [navigate],
@@ -75,13 +74,17 @@ const AppLayoutShell: React.FC = () => {
   return (
     <div
       className={`flex bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start ${
-        isRoomsHubPage ? "h-dvh overflow-hidden" : "min-h-screen"
+        isRoomsHubPage
+          ? "min-h-dvh overflow-x-hidden lg:h-dvh lg:overflow-hidden"
+          : "min-h-screen"
       }`}
     >
       <div
         className={`flex w-full min-w-0 max-w-[1600px] p-4 flex-col ${
-          isRoomsHubPage ? "space-y-2" : "space-y-4"
-        }${isRoomsHubPage ? "h-full min-h-0" : ""}`}
+          isRoomsHubPage
+            ? "space-y-2 min-h-dvh lg:h-full lg:min-h-0"
+            : "space-y-4"
+        }`}
       >
         <AppHeader
           displayUsername={displayUsername}
@@ -98,7 +101,7 @@ const AppLayoutShell: React.FC = () => {
         />
 
         {isRoomsHubPage ? (
-          <div className="min-h-0 flex-1 overflow-hidden pb-2">
+          <div className="min-h-0 pb-2 lg:flex-1 lg:overflow-hidden">
             <Outlet />
           </div>
         ) : (
@@ -113,7 +116,9 @@ const AppLayoutShell: React.FC = () => {
           >
             隱私權政策
           </button>
+
           <span className="text-[var(--mc-border)]">‧</span>
+
           <button
             type="button"
             className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
@@ -128,15 +133,21 @@ const AppLayoutShell: React.FC = () => {
           onClose={() => setLogoutConfirmOpen(false)}
         >
           <DialogTitle>確定要登出？</DialogTitle>
+
           <DialogContent>
             <p className="text-sm text-[var(--mc-text-muted)]">
               你將登出目前帳號。
             </p>
           </DialogContent>
+
           <DialogActions>
-            <Button onClick={() => setLogoutConfirmOpen(false)} variant="outlined">
+            <Button
+              onClick={() => setLogoutConfirmOpen(false)}
+              variant="outlined"
+            >
               取消
             </Button>
+
             <Button
               onClick={() => {
                 setLogoutConfirmOpen(false);
@@ -153,6 +164,7 @@ const AppLayoutShell: React.FC = () => {
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
         />
+
         <IdentityProfileDialog
           needsNicknameConfirm={needsNicknameConfirm}
           isProfileEditorOpen={isProfileEditorOpen}
