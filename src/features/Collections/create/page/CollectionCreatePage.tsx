@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
-import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
-import { Box, CircularProgress } from "@mui/material";
+import { Box } from "@mui/material";
 import { useAuth } from "../../../../shared/auth/AuthContext";
 import { isAdminRole } from "../../../../shared/auth/roles";
 import { isGoogleReauthRequired } from "../../../../shared/auth/providerAuth";
@@ -26,10 +25,12 @@ import CollectionPlaylistIssueDrawer from "../components/CollectionPlaylistIssue
 import CollectionDuplicateDialog from "../components/CollectionDuplicateDialog";
 import CollectionClearPlaylistDialog from "../components/CollectionClearPlaylistDialog";
 import CollectionItemLimitDialog from "../components/CollectionItemLimitDialog";
+import CollectionCreateProgressOverlay from "../components/CollectionCreateProgressOverlay";
 import { useCollectionCreateDraft } from "../hooks/useCollectionCreateDraft";
 import { useCollectionCreateSubmit } from "../hooks/useCollectionCreateSubmit";
 import { useCollectionCreateImportSources } from "../hooks/useCollectionCreateImportSources";
 import { useEditableCollectionTitle } from "../hooks/useEditableCollectionTitle";
+import { useCollectionCreateAutoImport } from "../hooks/useCollectionCreateAutoImport";
 import {
   useCollectionCreateReadiness,
   type CollectionCreateStep,
@@ -309,19 +310,32 @@ const CollectionCreatePage = () => {
     t,
   ]);
 
-  const createProgressPercent = useMemo(() => {
-    if (!createProgress || createProgress.total <= 0) return null;
-
-    return Math.min(
-      100,
-      Math.round((createProgress.completed / createProgress.total) * 100),
-    );
-  }, [createProgress]);
-
   const activePlaylistIssueTotal = playlistPreviewMeta?.skippedCount ?? 0;
 
   const playlistIssueTotal =
     importSources.length > 0 ? totalSkippedItemCount : activePlaylistIssueTotal;
+
+  const resetPlaylistSelection = useCallback(() => {
+    handleResetPlaylist();
+    lastAutoImportUrlRef.current = "";
+    setSelectedYoutubePlaylistId("");
+    setYoutubeActionError(null);
+  }, [handleResetPlaylist]);
+
+  useCollectionCreateAutoImport({
+    hasResolvedPlaylist,
+    lastFetchedPlaylistId,
+    lastFetchedPlaylistTitle,
+    playlistItems,
+    playlistPreviewMeta,
+    playlistSource,
+    trimmedPlaylistUrl,
+    youtubePlaylists,
+    untitledSourceLabel: t("source.untitledSource"),
+    addImportSource,
+    resetPlaylistSelection,
+    initializeCollectionTitleIfEmpty,
+  });
 
   useEffect(() => {
     handleResetPlaylist();
@@ -432,13 +446,6 @@ const CollectionCreatePage = () => {
     }
   };
 
-  const resetPlaylistSelection = useCallback(() => {
-    handleResetPlaylist();
-    lastAutoImportUrlRef.current = "";
-    setSelectedYoutubePlaylistId("");
-    setYoutubeActionError(null);
-  }, [handleResetPlaylist]);
-
   const handleRequestClearPlaylistUrl = () => {
     if (hasResolvedPlaylist) {
       setClearPlaylistDialogOpen(true);
@@ -454,52 +461,6 @@ const CollectionCreatePage = () => {
     setCreateStep("source");
     setClearPlaylistDialogOpen(false);
   };
-
-  useEffect(() => {
-    if (!hasResolvedPlaylist || !lastFetchedPlaylistId) return;
-    if (playlistItems.length === 0) return;
-
-    const matchedYoutubePlaylist = youtubePlaylists.find(
-      (playlist) => playlist.id === lastFetchedPlaylistId,
-    );
-
-    const sourceTitle =
-      lastFetchedPlaylistTitle?.trim() ||
-      matchedYoutubePlaylist?.title?.trim() ||
-      (playlistSource === "url" ? trimmedPlaylistUrl : "") ||
-      t("source.untitledSource");
-
-    addImportSource({
-      type:
-        playlistSource === "youtube"
-          ? "youtube_account_playlist"
-          : "youtube_url",
-      title: sourceTitle,
-      sourceId: lastFetchedPlaylistId,
-      url: playlistSource === "url" ? trimmedPlaylistUrl : undefined,
-      expectedCount: playlistPreviewMeta?.expectedCount ?? playlistItems.length,
-      skippedCount: playlistPreviewMeta?.skippedCount ?? 0,
-      skippedItems: playlistPreviewMeta?.skippedItems ?? [],
-      items: playlistItems,
-    });
-
-    resetPlaylistSelection();
-    initializeCollectionTitleIfEmpty(sourceTitle);
-  }, [
-    addImportSource,
-    hasResolvedPlaylist,
-    initializeCollectionTitleIfEmpty,
-    lastFetchedPlaylistId,
-    lastFetchedPlaylistTitle,
-    playlistItems,
-    playlistPreviewMeta?.expectedCount,
-    playlistPreviewMeta?.skippedCount,
-    playlistSource,
-    resetPlaylistSelection,
-    t,
-    trimmedPlaylistUrl,
-    youtubePlaylists,
-  ]);
 
   const handleVisibilityChange = (nextVisibility: "private" | "public") => {
     if (nextVisibility === "private" && reachedPrivateCollectionLimit) {
@@ -519,61 +480,10 @@ const CollectionCreatePage = () => {
     <Box className="mx-auto w-full max-w-7xl px-4 pb-6 pt-4">
       <Box className="relative overflow-hidden text-[var(--mc-text)]">
         {isCreating && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[rgba(2,6,23,0.72)] backdrop-blur-md">
-            <div className="w-full max-w-md rounded-[28px] border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(8,15,28,0.96),rgba(10,18,32,0.9))] p-6 shadow-[0_32px_120px_-48px_rgba(34,211,238,0.5)]">
-              <div className="flex items-center gap-4">
-                <div className="relative inline-flex h-16 w-16 items-center justify-center">
-                  <CircularProgress
-                    size={56}
-                    thickness={4}
-                    variant={
-                      createProgressPercent === null
-                        ? "indeterminate"
-                        : "determinate"
-                    }
-                    value={createProgressPercent ?? undefined}
-                    sx={{ color: "#67e8f9" }}
-                  />
-                  <PlaylistAddRounded
-                    sx={{
-                      position: "absolute",
-                      fontSize: 24,
-                      color: "#cffafe",
-                    }}
-                  />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="text-lg font-semibold text-[var(--mc-text)]">
-                    {createStageLabel ?? t("creatingOverlay.title")}
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-                    {t("creatingOverlay.description")}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <div className="h-2 overflow-hidden rounded-full bg-slate-800/80">
-                  <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,#38bdf8,#67e8f9,#f59e0b)] transition-[width] duration-300 ease-out"
-                    style={{ width: `${createProgressPercent ?? 16}%` }}
-                  />
-                </div>
-
-                <div className="mt-2 flex items-center justify-between text-xs text-[var(--mc-text-muted)]">
-                  <span>
-                    {createStageLabel ?? t("creatingOverlay.fallbackStage")}
-                  </span>
-                  <span>
-                    {createProgress
-                      ? `${createProgress.completed}/${createProgress.total}`
-                      : t("creatingOverlay.pendingCount")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <CollectionCreateProgressOverlay
+            createStageLabel={createStageLabel}
+            createProgress={createProgress}
+          />
         )}
 
         <div className="relative">
