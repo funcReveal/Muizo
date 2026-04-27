@@ -215,30 +215,51 @@ export const useRoomGameActions = ({
   const handleRequestPlaybackExtensionVote = useCallback(
     async (remainingMs?: number): Promise<boolean> => {
       const socket = getSocket();
+
+      console.log("[playback-vote:action] enter", {
+        hasSocket: Boolean(socket),
+        connected: socket?.connected ?? null,
+        roomId: currentRoom?.id ?? null,
+        remainingMs,
+      });
+
       if (!socket || !currentRoom) {
         setStatusText("目前不在房間內");
         return false;
       }
+
       const normalizedRemainingMs =
         typeof remainingMs === "number" && Number.isFinite(remainingMs)
           ? Math.max(0, Math.floor(remainingMs))
           : undefined;
+
+      const payload = {
+        roomId: currentRoom.id,
+        ...(typeof normalizedRemainingMs === "number"
+          ? { remainingMs: normalizedRemainingMs }
+          : {}),
+      };
+
+      console.log(
+        "[playback-vote:action] emit requestPlaybackExtensionVote",
+        payload,
+      );
+
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "requestPlaybackExtensionVote",
-          {
-            roomId: currentRoom.id,
-            ...(typeof normalizedRemainingMs === "number"
-              ? { remainingMs: normalizedRemainingMs }
-              : {}),
-          },
+          payload,
           (ack: Ack<GameLiveUpdatePayload>) => {
+            console.log("[playback-vote:action] ack", ack);
+
             if (!ack) {
               setStatusText("發起延長投票失敗，請稍後再試");
               resolve(false);
               return;
             }
             if (!ack.ok) {
+              console.warn("[playback-vote:action] failed", ack.error);
+
               if (handleRoomGoneAck(currentRoom.id, ack)) {
                 resolve(false);
                 return;
@@ -247,6 +268,7 @@ export const useRoomGameActions = ({
               resolve(false);
               return;
             }
+
             syncServerOffset(ack.data.serverNow);
             applyGameLiveUpdate(ack.data);
             resolve(true);
@@ -412,11 +434,13 @@ export const useRoomGameActions = ({
               return;
             }
             if (!ack.ok) {
+              console.warn("[requestPlaybackExtensionVote] failed", ack.error);
+
               if (handleRoomGoneAck(currentRoom.id, ack)) {
                 resolve(false);
                 return;
               }
-              setStatusText(formatAckError("發起重新投票失敗", ack.error));
+              setStatusText(formatAckError("發起延長投票失敗", ack.error));
               resolve(false);
               return;
             }

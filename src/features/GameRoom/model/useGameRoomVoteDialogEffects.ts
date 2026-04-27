@@ -64,15 +64,20 @@ export function useGameRoomVoteDialogEffects({
   ]);
 
   useEffect(() => {
-    setPlaybackVoteDialogOpen(false);
     if (!isManualPlaybackExtensionMode) return;
+
     if (!playbackExtensionVote || playbackExtensionVote.status !== "active") {
+      setPlaybackVoteDialogOpen(false);
       return;
     }
+
     if (!meClientId || myPlaybackVote !== null) return;
+
     const promptKey = `${trackSessionKey}:${playbackExtensionVote.startedAt}`;
     if (lastPlaybackVotePromptKeyRef.current === promptKey) return;
+
     lastPlaybackVotePromptKeyRef.current = promptKey;
+    setPlaybackVoteDialogOpen(true);
   }, [
     isManualPlaybackExtensionMode,
     meClientId,
@@ -120,4 +125,3 @@ export function useGameRoomVoteDialogEffects({
     trackSessionKey,
   ]);
 }
-
