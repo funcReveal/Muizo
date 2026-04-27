@@ -223,9 +223,8 @@ const CollectionCreatePage = () => {
 
   const playlistUrlReadOnly =
     playlistSource === "url" &&
-    Boolean(trimmedPlaylistUrl) &&
-    playlistUrlLooksValid &&
-    !playlistError;
+    !playlistError &&
+    (playlistLoading || hasResolvedPlaylist);
 
   const playlistUrlTooltipMessage = showPlaylistUrlError
     ? t("source.invalidPlaylistUrl")

@@ -124,13 +124,15 @@ export default function MuizoSelect({
                 color: "var(--mc-text)",
                 boxShadow:
                   "0 24px 80px rgba(2,6,23,0.55), 0 0 0 1px rgba(148,163,184,0.12)",
-                overflow: "hidden",
+                maxHeight: 360,
+                overflowY: "auto",
+                overflowX: "hidden",
+                overscrollBehavior: "contain",
               },
             },
             MenuListProps: {
               sx: {
                 p: 1,
-                maxHeight: 360,
               },
             },
           }}
