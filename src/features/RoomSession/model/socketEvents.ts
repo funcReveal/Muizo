@@ -121,7 +121,10 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
   ) => void;
   requestRestartGameVote: (
-    payload: { roomId: string },
+    payload: {
+      roomId: string;
+      action?: "return_to_lobby" | "restart_now";
+    },
     callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
   ) => void;
   castRestartGameVote: (
@@ -278,6 +281,7 @@ export interface ServerToClientEvents {
   messageAdded: (payload: { roomId: string; message: ChatMessage }) => void;
   gameStarted: (payload: GameLiveUpdatePayload) => void;
   gameUpdated: (payload: GameLiveUpdatePayload) => void;
+  gameReturnedToLobby: (payload: { roomId: string; serverNow: number }) => void;
   roomUpdated: (payload: { room: RoomSummary }) => void;
   kicked: (payload: {
     roomId: string;
