@@ -97,7 +97,7 @@ const CollectionCreatePage = () => {
   );
   const [isPlaylistUrlFocused, setIsPlaylistUrlFocused] = useState(false);
   const [playlistIssueDrawerOpen, setPlaylistIssueDrawerOpen] = useState(false);
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateDrawerOpen, setDuplicateDrawerOpen] = useState(false);
   const [clearPlaylistDialogOpen, setClearPlaylistDialogOpen] = useState(false);
 
   const needsGoogleReauth = isGoogleReauthRequired({
@@ -597,7 +597,7 @@ const CollectionCreatePage = () => {
                     onRemoveImportItem={removeImportItem}
                     onRestoreImportItem={restoreImportItem}
                     removedDuplicateCount={removedDuplicateCount}
-                    onOpenDuplicateDialog={() => setDuplicateDialogOpen(true)}
+                    onOpenDuplicateDialog={() => setDuplicateDrawerOpen(true)}
                     isDraftOverflow={isDraftOverflow}
                     draftOverflowCount={draftOverflowCount}
                     onOpenLimitDialog={() => setLimitDialogOpen(true)}
@@ -684,8 +684,8 @@ const CollectionCreatePage = () => {
         />
 
         <CollectionDuplicateDrawer
-          open={duplicateDialogOpen}
-          onClose={() => setDuplicateDialogOpen(false)}
+          open={duplicateDrawerOpen}
+          onClose={() => setDuplicateDrawerOpen(false)}
           removedDuplicateCount={removedDuplicateCount}
           removedDuplicateGroups={removedDuplicateGroups}
         />
