@@ -27,6 +27,8 @@ const collectionCreate = {
       "Import a YouTube playlist by URL or select one from your Google account.",
     urlTab: "Playlist URL",
     youtubeTab: "My YouTube playlists",
+    sourceSwitchDisabledHint:
+      "A playlist is being analyzed. Please wait before switching sources.",
     playlistUrlLabel: "YouTube playlist URL",
     playlistUrlPlaceholder: "https://www.youtube.com/playlist?list=...",
     playlistUrlHint:
@@ -74,6 +76,12 @@ const collectionCreate = {
     playableItems: "{{count}} playable items",
     itemLimitHint: "Each collection can include up to {{limit}} questions.",
     itemLimitUnlimited: "Each collection can include unlimited questions.",
+    untitledItem: "Untitled item",
+    noCover: "No cover",
+    unknownUploader: "Unknown uploader",
+    titlePlaceholder: "Enter collection name",
+    editTitleAria: "Edit collection name",
+    clearSearch: "Clear search",
     summary: {
       ready: "Ready",
       long: "Long",

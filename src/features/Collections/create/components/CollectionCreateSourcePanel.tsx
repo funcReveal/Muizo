@@ -26,6 +26,7 @@ type Props = {
 
   playlistSource: "url" | "youtube";
   onPlaylistSourceChange: (value: "url" | "youtube") => void;
+  sourceSwitchDisabled: boolean;
 
   playlistUrl: string;
   trimmedPlaylistUrl: string;
@@ -72,6 +73,7 @@ export default function CollectionCreateSourcePanel({
 
   playlistSource,
   onPlaylistSourceChange,
+  sourceSwitchDisabled,
 
   playlistUrl,
   trimmedPlaylistUrl,
@@ -125,6 +127,9 @@ export default function CollectionCreateSourcePanel({
       ? t("source.importingYoutube")
       : t("source.playlistSelectPlaceholder");
 
+  const sourceTabBaseClass =
+    "rounded-full px-3 py-1 transition disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
     <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/70 p-4">
       <div>
@@ -139,8 +144,9 @@ export default function CollectionCreateSourcePanel({
       <div className="mt-4 inline-flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-1 text-[11px]">
         <button
           type="button"
+          disabled={sourceSwitchDisabled}
           onClick={() => onPlaylistSourceChange("url")}
-          className={`rounded-full px-3 py-1 transition ${
+          className={`${sourceTabBaseClass} ${
             playlistSource === "url"
               ? "bg-[var(--mc-accent)]/15 text-[var(--mc-text)]"
               : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
@@ -148,10 +154,12 @@ export default function CollectionCreateSourcePanel({
         >
           {t("source.urlTab")}
         </button>
+
         <button
           type="button"
+          disabled={sourceSwitchDisabled}
           onClick={() => onPlaylistSourceChange("youtube")}
-          className={`rounded-full px-3 py-1 transition ${
+          className={`${sourceTabBaseClass} ${
             playlistSource === "youtube"
               ? "bg-[var(--mc-accent-2)]/15 text-[var(--mc-text)]"
               : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
@@ -160,6 +168,12 @@ export default function CollectionCreateSourcePanel({
           {t("source.youtubeTab")}
         </button>
       </div>
+
+      {sourceSwitchDisabled && (
+        <div className="mt-2 text-[11px] text-[var(--mc-text-muted)]">
+          {t("source.sourceSwitchDisabledHint")}
+        </div>
+      )}
 
       <div className="relative mt-4 min-h-[170px]">
         <div

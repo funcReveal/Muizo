@@ -800,6 +800,9 @@ const CollectionCreatePage = () => {
                     onLoginWithGoogle={loginWithGoogle}
                     playlistSource={playlistSource}
                     onPlaylistSourceChange={setPlaylistSource}
+                    sourceSwitchDisabled={
+                      playlistLoading || isImportingYoutubePlaylist
+                    }
                     playlistUrl={playlistUrl}
                     trimmedPlaylistUrl={trimmedPlaylistUrl}
                     showPlaylistUrlError={showPlaylistUrlError}
@@ -861,9 +864,19 @@ const CollectionCreatePage = () => {
                     draftOverflowCount={draftOverflowCount}
                     onOpenLimitDialog={() => setLimitDialogOpen(true)}
                     playlistIssueTotal={playlistIssueTotal}
-                    onOpenPlaylistIssueDialog={() =>
-                      setPlaylistIssueDialogOpen(true)
-                    }
+                    onOpenPlaylistIssueDialog={() => {
+                      if (importSources.length > 0) {
+                        appToast.info(
+                          "多來源的略過明細會在下一階段整理，目前先顯示總數。",
+                          {
+                            id: "multi-source-skipped-detail-pending",
+                          },
+                        );
+                        return;
+                      }
+
+                      setPlaylistIssueDialogOpen(true);
+                    }}
                   />
                 )}
 
