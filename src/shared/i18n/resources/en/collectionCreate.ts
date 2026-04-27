@@ -127,6 +127,8 @@ const collectionCreate = {
       source: "By source",
     },
     removeSource: "Remove source",
+    removeSourceConfirm:
+      'Remove "{{title}}"? All songs from this source will be removed from this collection draft.',
     sourceGroup: {
       selected: "{{count}} selected",
       removed: "{{count}} removed",

@@ -122,6 +122,8 @@ const collectionCreate = {
       source: "依來源",
     },
     removeSource: "移除此來源",
+    removeSourceConfirm:
+      "確定要移除「{{title}}」這個來源嗎？此來源底下的歌曲會一併從建立內容中移除。",
     sourceGroup: {
       selected: "保留 {{count}} 首",
       removed: "已移除 {{count}} 首",

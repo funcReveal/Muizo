@@ -1,4 +1,10 @@
-import { useMemo, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useTranslation } from "react-i18next";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import SearchRounded from "@mui/icons-material/SearchRounded";
@@ -456,34 +462,36 @@ export default function CollectionCreateReviewPanel({
 
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
 
-  const filterReviewItem = (item: ReviewItemView) => {
-    if (filterMode === "all" && item.status === "removed") return false;
-    if (filterMode === "ready" && item.status !== "ready") return false;
-    if (filterMode === "long" && item.status !== "long") return false;
-    if (filterMode === "removed" && item.status !== "removed") return false;
-    if (filterMode === "issues") return false;
+  const filterReviewItem = useCallback(
+    (item: ReviewItemView) => {
+      if (filterMode === "all" && item.status === "removed") return false;
+      if (filterMode === "ready" && item.status !== "ready") return false;
+      if (filterMode === "long" && item.status !== "long") return false;
+      if (filterMode === "removed" && item.status !== "removed") return false;
+      if (filterMode === "issues") return false;
 
-    if (!normalizedSearchQuery) return true;
+      if (!normalizedSearchQuery) return true;
 
-    const haystack = [
-      item.title,
-      item.answerText,
-      item.uploader,
-      item.duration,
-      item.sourceTitle,
-      item.status,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLocaleLowerCase();
+      const haystack = [
+        item.title,
+        item.answerText,
+        item.uploader,
+        item.duration,
+        item.sourceTitle,
+        item.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
 
-    return haystack.includes(normalizedSearchQuery);
-  };
+      return haystack.includes(normalizedSearchQuery);
+    },
+    [filterMode, normalizedSearchQuery],
+  );
 
   const filteredItems = useMemo(
     () => allReviewItems.filter(filterReviewItem),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allReviewItems, filterMode, normalizedSearchQuery],
+    [allReviewItems, filterReviewItem],
   );
 
   const sourceGroups = useMemo<SourceReviewGroup[]>(() => {
@@ -512,13 +520,13 @@ export default function CollectionCreateReviewPanel({
           group.visibleItems.length > 0 || normalizedSearchQuery.length === 0
         );
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    importSources,
-    selectedReviewItems,
-    removedReviewItems,
     filterMode,
-    normalizedSearchQuery,
+    filterReviewItem,
+    importSources,
+    normalizedSearchQuery.length,
+    removedReviewItems,
+    selectedReviewItems,
   ]);
 
   const reviewRowProps = useMemo<ReviewVirtualRowProps>(
@@ -925,7 +933,17 @@ export default function CollectionCreateReviewPanel({
 
                         <button
                           type="button"
-                          onClick={() => onRemoveImportSource(group.source.id)}
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              t("review.removeSourceConfirm", {
+                                title: group.source.title,
+                              }),
+                            );
+
+                            if (!confirmed) return;
+
+                            onRemoveImportSource(group.source.id);
+                          }}
                           className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
                         >
                           <DeleteOutlineRounded sx={{ fontSize: 15 }} />
