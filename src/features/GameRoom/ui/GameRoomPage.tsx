@@ -1028,6 +1028,22 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     canViewPlaybackVoteDialog &&
     myPlaybackVote === null &&
     !!onCastPlaybackExtensionVote;
+  const lastPlaybackVoteToastKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!canOpenPlaybackVotePrompt || !playbackExtensionVote) return;
+
+    const toastKey = `${trackSessionKey}:${playbackExtensionVote.startedAt}`;
+    if (lastPlaybackVoteToastKeyRef.current === toastKey) return;
+
+    lastPlaybackVoteToastKeyRef.current = toastKey;
+
+    appToast.info("有人發起了延長播放投票，點擊右上角「延長播放」進行表態。", {
+      id: "playback-extension-vote-started",
+      duration: 4500,
+    });
+  }, [canOpenPlaybackVotePrompt, playbackExtensionVote, trackSessionKey]);
+
   const playbackVoteButtonDisabled =
     playbackVoteRequestPending ||
     playbackVoteSubmitPending !== null ||
@@ -1213,65 +1229,37 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const preStartCountdownSfxSec = startCountdownSec;
 
   const handleRequestPlaybackVote = useCallback(async () => {
-    console.log("[playback-vote:UI] clicked", {
-      canViewPlaybackVoteDialog,
-      canRequestPlaybackExtensionVote,
-      hasOnRequestPlaybackExtensionVote: Boolean(onRequestPlaybackExtensionVote),
-      playbackExtensionVoteStatus: playbackExtensionVote?.status ?? null,
-      phase: gameState.phase,
-      status: gameState.status,
-      waitingToStart,
-      isEnded,
-      allAnsweredReadyForReveal,
-    });
-
     if (canViewPlaybackVoteDialog) {
-      console.log("[playback-vote:UI] open existing active vote dialog");
       setPlaybackVoteDialogOpen(true);
       return;
     }
 
     if (!canRequestPlaybackExtensionVote || !onRequestPlaybackExtensionVote) {
-      console.warn("[playback-vote:UI] blocked before request", {
-        canRequestPlaybackExtensionVote,
-        hasOnRequestPlaybackExtensionVote: Boolean(onRequestPlaybackExtensionVote),
-      });
       return;
     }
 
     setPlaybackVoteRequestPending(true);
     try {
       const latestRemainingMs = Math.max(0, phaseEndsAt - getServerNowMs());
-      console.log("[playback-vote:UI] sending request", {
-        latestRemainingMs,
-        phaseEndsAt,
-        serverNow: getServerNowMs(),
-      });
-
       const ok = await onRequestPlaybackExtensionVote(
         latestRemainingMs > 0 ? latestRemainingMs : undefined,
       );
 
-      console.log("[playback-vote:UI] request result", { ok });
-
       if (ok) {
-        setPlaybackVoteDialogOpen(true);
+        appToast.info("已發起延長播放投票，其他玩家可點擊右上角「延長播放」表態。", {
+          id: "playback-extension-vote-requested",
+          duration: 3500,
+        });
       }
     } finally {
       setPlaybackVoteRequestPending(false);
     }
   }, [
-    allAnsweredReadyForReveal,
     canRequestPlaybackExtensionVote,
     canViewPlaybackVoteDialog,
-    gameState.phase,
-    gameState.status,
     getServerNowMs,
-    isEnded,
     onRequestPlaybackExtensionVote,
     phaseEndsAt,
-    playbackExtensionVote?.status,
-    waitingToStart,
   ]);
 
   const handleCastPlaybackVote = useCallback(
@@ -1579,6 +1567,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           onClick={handleRequestPlaybackVote}
         >
           {playbackVoteActionLabel}
+          {canOpenPlaybackVotePrompt && (
+            <span className="game-room-playback-vote-red-dot" aria-hidden="true" />
+          )}
         </Button>
       ) : null;
     const showRestartBtn = gameState.status === "playing";
@@ -1647,6 +1638,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             </Button>
           </>
         )}
+        {voteButton}
         {isHostInGame && (
           <Button
             type="button"
@@ -1660,7 +1652,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             房主管理
           </Button>
         )}
-        {voteButton}
+
       </Stack>
     );
   }, [
@@ -1712,6 +1704,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         <span className="game-room-extend-vote-btn__copy">
           {playbackVoteActionLabel}
         </span>
+        {canOpenPlaybackVotePrompt && (
+          <span className="game-room-playback-vote-red-dot" aria-hidden="true" />
+        )}
       </button>
     );
   }, [

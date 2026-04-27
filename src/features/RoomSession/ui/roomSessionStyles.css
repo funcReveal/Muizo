@@ -25791,3 +25791,61 @@
     linear-gradient(180deg, rgba(4, 9, 19, 0.96), rgba(4, 8, 17, 0.98));
   color: #e2e8f0;
 }
+
+.game-room-extend-vote-btn {
+  position: relative;
+}
+
+.game-room-extend-vote-btn--prompt {
+  animation: game-room-extend-vote-nudge 1.4s ease-in-out infinite;
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.36),
+    0 0 18px rgba(251, 191, 36, 0.24);
+}
+
+.game-room-playback-vote-red-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #f43f5e;
+  box-shadow:
+    0 0 0 3px rgba(244, 63, 94, 0.18),
+    0 0 12px rgba(244, 63, 94, 0.55);
+  pointer-events: none;
+}
+
+@keyframes game-room-extend-vote-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  8% {
+    transform: translateX(-1px);
+  }
+
+  16% {
+    transform: translateX(2px);
+  }
+
+  24% {
+    transform: translateX(-1px);
+  }
+
+  32% {
+    transform: translateX(1px);
+  }
+
+  40% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-room-extend-vote-btn--prompt {
+    animation: none;
+  }
+}

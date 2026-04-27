@@ -77,7 +77,6 @@ export function useGameRoomVoteDialogEffects({
     if (lastPlaybackVotePromptKeyRef.current === promptKey) return;
 
     lastPlaybackVotePromptKeyRef.current = promptKey;
-    setPlaybackVoteDialogOpen(true);
   }, [
     isManualPlaybackExtensionMode,
     meClientId,

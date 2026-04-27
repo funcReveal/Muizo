@@ -216,13 +216,6 @@ export const useRoomGameActions = ({
     async (remainingMs?: number): Promise<boolean> => {
       const socket = getSocket();
 
-      console.log("[playback-vote:action] enter", {
-        hasSocket: Boolean(socket),
-        connected: socket?.connected ?? null,
-        roomId: currentRoom?.id ?? null,
-        remainingMs,
-      });
-
       if (!socket || !currentRoom) {
         setStatusText("目前不在房間內");
         return false;
@@ -240,26 +233,18 @@ export const useRoomGameActions = ({
           : {}),
       };
 
-      console.log(
-        "[playback-vote:action] emit requestPlaybackExtensionVote",
-        payload,
-      );
-
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "requestPlaybackExtensionVote",
           payload,
           (ack: Ack<GameLiveUpdatePayload>) => {
-            console.log("[playback-vote:action] ack", ack);
-
             if (!ack) {
               setStatusText("發起延長投票失敗，請稍後再試");
               resolve(false);
               return;
             }
-            if (!ack.ok) {
-              console.warn("[playback-vote:action] failed", ack.error);
 
+            if (!ack.ok) {
               if (handleRoomGoneAck(currentRoom.id, ack)) {
                 resolve(false);
                 return;
