@@ -24,6 +24,8 @@ interface UseGameRoomPlayerSyncParams {
   videoId: string | null;
   currentTrackIndex: number;
   primeSfxAudio: () => void;
+  clipReplayStartSec: number;
+  clipReplayEndSec: number;
 }
 
 const PLAYER_ID = "mq-main-player";
@@ -101,6 +103,8 @@ const useGameRoomPlayerSync = ({
   videoId,
   currentTrackIndex,
   primeSfxAudio,
+  clipReplayStartSec,
+  clipReplayEndSec,
 }: UseGameRoomPlayerSyncParams) => {
   const [audioUnlockSessionKey, setAudioUnlockSessionKey] = useState<
     string | null
@@ -343,25 +347,65 @@ const useGameRoomPlayerSync = ({
 
   const computeServerPositionSec = useCallback(() => {
     const elapsed = Math.max(0, (getServerNowMs() - startedAt) / 1000);
-    const loopSpan = guessLoopSpanRef.current;
-    if (phase === "guess" && loopSpan && loopSpan > 0.01) {
-      const offset = elapsed % loopSpan;
-      return Math.min(clipEndSec, clipStartSec + offset);
+
+    const firstSpanSec = Math.max(0.01, clipEndSec - clipStartSec);
+
+    if (phase !== "guess") {
+      return Math.min(clipEndSec, clipStartSec + elapsed);
     }
-    return Math.min(clipEndSec, clipStartSec + elapsed);
-  }, [clipEndSec, clipStartSec, getServerNowMs, phase, startedAt]);
+
+    if (elapsed < firstSpanSec) {
+      return Math.min(clipEndSec, clipStartSec + elapsed);
+    }
+
+    const replaySpanSec = Math.max(0.01, clipReplayEndSec - clipReplayStartSec);
+
+    const replayElapsed = elapsed - firstSpanSec;
+    const replayOffset = replayElapsed % replaySpanSec;
+
+    return Math.min(clipReplayEndSec, clipReplayStartSec + replayOffset);
+  }, [
+    clipEndSec,
+    clipReplayEndSec,
+    clipReplayStartSec,
+    clipStartSec,
+    getServerNowMs,
+    phase,
+    startedAt,
+  ]);
 
   const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
 
   const getEstimatedLocalPositionSec = useCallback(() => {
     const elapsed = (getServerNowMs() - lastSyncMsRef.current) / 1000;
-    return Math.min(clipEndSec, Math.max(0, playerStartRef.current + elapsed));
-  }, [clipEndSec, getServerNowMs]);
+    const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+    const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
+    return Math.min(
+      maxPlayableSec,
+      Math.max(minPlayableSec, playerStartRef.current + elapsed),
+    );
+  }, [
+    clipEndSec,
+    clipReplayEndSec,
+    clipReplayStartSec,
+    clipStartSec,
+    getServerNowMs,
+  ]);
 
   const getClipGuardPositionSec = useCallback(() => {
     const estimated = getEstimatedLocalPositionSec();
-    return Math.min(clipEndSec, Math.max(clipStartSec, estimated));
-  }, [clipEndSec, clipStartSec, getEstimatedLocalPositionSec]);
+    const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+    const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
+    return Math.min(maxPlayableSec, Math.max(minPlayableSec, estimated));
+  }, [
+    clipEndSec,
+    clipStartSec,
+    getEstimatedLocalPositionSec,
+    clipReplayStartSec,
+    clipReplayEndSec,
+  ]);
 
   const getDesiredPositionSec = useCallback(() => {
     if (revealReplayRef.current || keepRevealAliveRef.current) {
@@ -657,9 +701,12 @@ const useGameRoomPlayerSync = ({
       const serverNowMs = getServerNowMs();
       if (serverNowMs < startedAt) return;
       const rawStartPos = forcedPosition ?? getDesiredPositionSec();
+      const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+      const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
       const startPos = Math.min(
-        clipEndSec,
-        Math.max(clipStartSec, rawStartPos),
+        maxPlayableSec,
+        Math.max(minPlayableSec, rawStartPos),
       );
       const estimated = getEstimatedLocalPositionSec();
       const bufferingGraceActive = isBufferingGraceActive(serverNowMs);
@@ -717,8 +764,6 @@ const useGameRoomPlayerSync = ({
     },
     [
       applyVolume,
-      clipEndSec,
-      clipStartSec,
       debugSync,
       gameVolume,
       getDesiredPositionSec,
@@ -730,6 +775,10 @@ const useGameRoomPlayerSync = ({
       scheduleInitialAudioHoldRelease,
       startSilentAudio,
       startedAt,
+      clipEndSec,
+      clipReplayEndSec,
+      clipReplayStartSec,
+      clipStartSec,
     ],
   );
 
@@ -749,14 +798,14 @@ const useGameRoomPlayerSync = ({
       revealReplayRef.current = true;
       keepRevealAliveRef.current = true;
 
-      startPlayback(clipStartSec, true, {
+      startPlayback(clipReplayStartSec, true, {
         holdAudio: false,
         reason: "reveal-replay",
       });
 
       scheduleRevealClipEndGuardRef.current();
     },
-    [clipStartSec, debugSync, getServerNowMs, startPlayback],
+    [clipReplayStartSec, debugSync, getServerNowMs, startPlayback],
   );
 
   const scheduleRevealClipEndGuard = useCallback(() => {
@@ -969,7 +1018,7 @@ const useGameRoomPlayerSync = ({
       }
 
       guessLoopSpanRef.current = clipSpanSec;
-      startPlayback(clipStartSec, true, {
+      startPlayback(computeServerPositionSec(), true, {
         reason: "guess-loop",
       });
       scheduleGuessLoopRestartRef.current();
@@ -991,6 +1040,7 @@ const useGameRoomPlayerSync = ({
     shouldLoopRoomSettingsClip,
     startPlayback,
     waitingToStart,
+    computeServerPositionSec,
   ]);
 
   useEffect(() => {
@@ -1920,7 +1970,7 @@ const useGameRoomPlayerSync = ({
                 Math.min(5, fallbackDurationSec),
               );
             }
-            startPlayback(clipStartSec, true, {
+            startPlayback(computeServerPositionSec(), true, {
               reason: "guess-loop",
             });
             return;

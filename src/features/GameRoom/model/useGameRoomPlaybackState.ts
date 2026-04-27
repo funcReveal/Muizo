@@ -57,13 +57,13 @@ export function useGameRoomPlaybackState({
 
   const trackCursor = Math.max(0, gameState.trackCursor ?? 0);
   const trackOrderLength = effectiveTrackOrder.length || playlist.length || 0;
-  const boundedCursor = Math.min(trackCursor, Math.max(trackOrderLength - 1, 0));
+  const boundedCursor = Math.min(
+    trackCursor,
+    Math.max(trackOrderLength - 1, 0),
+  );
   const backendTrackIndex = effectiveTrackOrder[boundedCursor];
   const currentTrackIndex =
-    backendTrackIndex ??
-    gameState.currentIndex ??
-    effectiveTrackOrder[0] ??
-    0;
+    backendTrackIndex ?? gameState.currentIndex ?? effectiveTrackOrder[0] ?? 0;
 
   const item = useMemo(
     () => playlist[currentTrackIndex] ?? playlist[0],
@@ -109,32 +109,35 @@ export function useGameRoomPlaybackState({
   // ------------------------------------------------------------------
   const hasExplicitEndSec = Boolean(
     item &&
-      (typeof item.hasExplicitEndSec === "boolean"
-        ? item.hasExplicitEndSec
-        : typeof item.endSec === "number" &&
-          Math.abs(
-            item.endSec -
-              ((typeof item.startSec === "number" ? item.startSec : 0) +
-                DEFAULT_CLIP_SEC),
-          ) > 0.001),
+    (typeof item.hasExplicitEndSec === "boolean"
+      ? item.hasExplicitEndSec
+      : typeof item.endSec === "number" &&
+        Math.abs(
+          item.endSec -
+            ((typeof item.startSec === "number" ? item.startSec : 0) +
+              DEFAULT_CLIP_SEC),
+        ) > 0.001),
   );
 
   const hasExplicitStartSec = Boolean(
     item &&
-      (typeof item.hasExplicitStartSec === "boolean"
-        ? item.hasExplicitStartSec
-        : (typeof item.startSec === "number" && item.startSec > 0) ||
-          hasExplicitEndSec),
+    (typeof item.hasExplicitStartSec === "boolean"
+      ? item.hasExplicitStartSec
+      : (typeof item.startSec === "number" && item.startSec > 0) ||
+        hasExplicitEndSec),
   );
 
   const itemTimingSource =
-    item?.timingSource === "room_settings" || item?.timingSource === "track_clip"
+    item?.timingSource === "room_settings" ||
+    item?.timingSource === "track_clip"
       ? item.timingSource
       : null;
 
   const fallbackClipSource: "room_settings" | "track_clip" =
     itemTimingSource ??
-    (!hasExplicitStartSec && !hasExplicitEndSec ? "room_settings" : "track_clip");
+    (!hasExplicitStartSec && !hasExplicitEndSec
+      ? "room_settings"
+      : "track_clip");
 
   const serverClipSource =
     gameState.clipSource === "room_settings" ||
@@ -178,27 +181,52 @@ export function useGameRoomPlaybackState({
     serverClipEndSec !== null && serverClipEndSec > rawClipStartSec
       ? serverClipEndSec
       : derivedClipEndSec;
-  const trackDurationSec = parseDurationToSeconds(item?.duration);
-  const hasTrackDuration =
-    typeof trackDurationSec === "number" &&
-    Number.isFinite(trackDurationSec) &&
-    trackDurationSec > 0;
-  const clipStartSec = hasTrackDuration
-    ? rawClipStartSec >= trackDurationSec
-      ? 0
-      : Math.max(0, rawClipStartSec)
-    : rawClipStartSec;
-  const clipEndSec = hasTrackDuration
-    ? Math.min(
-        trackDurationSec,
-        Math.max(
-          clipStartSec + 1,
-          rawClipEndSec > clipStartSec
-            ? rawClipEndSec
-            : clipStartSec + fallbackDurationSec,
-        ),
-      )
-    : rawClipEndSec;
+  const serverTrackDurationSec =
+    typeof gameState.trackDurationSec === "number" &&
+    Number.isFinite(gameState.trackDurationSec) &&
+    gameState.trackDurationSec > 0
+      ? gameState.trackDurationSec
+      : null;
+
+  const fallbackTrackDurationSec = parseDurationToSeconds(item?.duration);
+
+  const trackDurationSec = serverTrackDurationSec ?? fallbackTrackDurationSec;
+
+  const clipStartSec = Math.max(0, rawClipStartSec);
+
+  const clipEndSec =
+    rawClipEndSec > clipStartSec
+      ? rawClipEndSec
+      : clipStartSec + fallbackDurationSec;
+
+  const serverClipReplayStartSec =
+    typeof gameState.clipReplayStartSec === "number" &&
+    Number.isFinite(gameState.clipReplayStartSec) &&
+    gameState.clipReplayStartSec >= 0
+      ? gameState.clipReplayStartSec
+      : null;
+
+  const serverClipReplayEndSec =
+    typeof gameState.clipReplayEndSec === "number" &&
+    Number.isFinite(gameState.clipReplayEndSec) &&
+    gameState.clipReplayEndSec > 0
+      ? gameState.clipReplayEndSec
+      : null;
+
+  const clipReplayStartSec =
+    serverClipReplayStartSec !== null
+      ? serverClipReplayStartSec
+      : effectiveClipSource === "track_clip"
+        ? clipStartSec
+        : 0;
+
+  const clipReplayEndSec =
+    serverClipReplayEndSec !== null &&
+    serverClipReplayEndSec > clipReplayStartSec
+      ? serverClipReplayEndSec
+      : effectiveClipSource === "track_clip"
+        ? clipEndSec
+        : (trackDurationSec ?? clipEndSec);
 
   const shouldLoopRoomSettingsClip = effectiveClipSource === "room_settings";
 
@@ -255,6 +283,8 @@ export function useGameRoomPlaybackState({
     trackDurationSec,
     clipStartSec,
     clipEndSec,
+    clipReplayStartSec,
+    clipReplayEndSec,
     shouldLoopRoomSettingsClip,
     // Phase / session
     videoId,
@@ -265,6 +295,6 @@ export function useGameRoomPlaybackState({
     clipIdentityStartSec,
     trackSessionKey,
     trackLoadKey,
+    serverTrackDurationSec,
   };
 }
-

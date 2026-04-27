@@ -70,6 +70,9 @@ export interface GameState {
   revealDurationMs: number;
   clipStartSec?: number;
   clipEndSec?: number;
+  clipReplayStartSec?: number;
+  clipReplayEndSec?: number;
+  trackDurationSec?: number | null;
   clipSource?: "room_settings" | "track_clip";
   choices: GameChoice[];
   answerTitle?: string;

@@ -774,6 +774,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     fallbackDurationSec,
     clipStartSec,
     clipEndSec,
+    clipReplayStartSec,
+    clipReplayEndSec,
     shouldLoopRoomSettingsClip,
     videoId,
     phaseEndsAt,
@@ -873,6 +875,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     videoId,
     currentTrackIndex,
     primeSfxAudio,
+    clipReplayStartSec,
+    clipReplayEndSec,
   });
   const shouldShowGestureOverlay =
     !isEnded && requiresAudioGesture && !audioUnlocked;
