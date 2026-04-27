@@ -122,6 +122,17 @@ const collectionCreate = {
     sourceLabel: "Source",
     removeItem: "Remove song",
     restoreItem: "Restore song",
+    display: {
+      list: "List",
+      source: "By source",
+    },
+    removeSource: "Remove source",
+    sourceGroup: {
+      selected: "{{count}} selected",
+      removed: "{{count}} removed",
+      total: "{{count}} total",
+      skipped: "{{count}} skipped",
+    },
   },
 
   publish: {

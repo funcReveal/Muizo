@@ -860,10 +860,12 @@ const CollectionCreatePage = () => {
                     onCancelTitle={handleTitleCancel}
                     isAdmin={isAdmin}
                     collectionItemLimit={collectionItemLimit}
+                    importSources={importSources}
                     normalDraftPlaylistItems={normalDraftPlaylistItems}
                     longDraftPlaylistItems={longDraftPlaylistItems}
                     removedImportItems={removedImportItems}
                     removedImportItemCount={removedImportItemCount}
+                    onRemoveImportSource={removeImportSource}
                     onRemoveImportItem={removeImportItem}
                     onRestoreImportItem={restoreImportItem}
                     removedDuplicateCount={removedDuplicateCount}

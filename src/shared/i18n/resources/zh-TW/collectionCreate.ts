@@ -117,6 +117,17 @@ const collectionCreate = {
     sourceLabel: "來源",
     removeItem: "移除歌曲",
     restoreItem: "還原歌曲",
+    display: {
+      list: "列表",
+      source: "依來源",
+    },
+    removeSource: "移除此來源",
+    sourceGroup: {
+      selected: "保留 {{count}} 首",
+      removed: "已移除 {{count}} 首",
+      total: "共 {{count}} 首",
+      skipped: "略過 {{count}} 首",
+    },
   },
 
   publish: {

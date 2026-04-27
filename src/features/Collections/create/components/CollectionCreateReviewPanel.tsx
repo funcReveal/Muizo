@@ -8,20 +8,27 @@ import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRou
 import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import LibraryMusicRounded from "@mui/icons-material/LibraryMusicRounded";
 import RestoreRounded from "@mui/icons-material/RestoreRounded";
+import FolderRounded from "@mui/icons-material/FolderRounded";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import { CircularProgress } from "@mui/material";
 import { List, type RowComponentProps } from "react-window";
 import type { DraftPlaylistItem } from "../utils/createCollectionImport";
-import type { CollectionCreateImportItem } from "../hooks/useCollectionCreateImportSources";
+import type {
+  CollectionCreateImportItem,
+  CollectionCreateImportSource,
+} from "../hooks/useCollectionCreateImportSources";
 
 const REVIEW_ROW_HEIGHT = 80;
 
 type ReviewFilterMode = "all" | "ready" | "long" | "removed" | "issues";
+type ReviewDisplayMode = "list" | "source";
 
 type ReviewItemStatus = "ready" | "long" | "removed";
 
 type ReviewItemView = {
   draftKey: string;
   importItemKey?: string;
+  sourceImportId?: string;
   title: string;
   answerText?: string;
   uploader?: string;
@@ -29,6 +36,13 @@ type ReviewItemView = {
   thumbnail?: string;
   sourceTitle?: string;
   status: ReviewItemStatus;
+};
+
+type SourceReviewGroup = {
+  source: CollectionCreateImportSource;
+  selectedItems: ReviewItemView[];
+  removedItems: ReviewItemView[];
+  visibleItems: ReviewItemView[];
 };
 
 type ReviewVirtualRowProps = {
@@ -69,10 +83,12 @@ type Props = {
   isAdmin: boolean;
   collectionItemLimit: number | null;
 
+  importSources: CollectionCreateImportSource[];
   normalDraftPlaylistItems: DraftPlaylistItem[];
   longDraftPlaylistItems: DraftPlaylistItem[];
   removedImportItems: CollectionCreateImportItem[];
   removedImportItemCount: number;
+  onRemoveImportSource: (sourceId: string) => void;
   onRemoveImportItem: (itemKey: string) => void;
   onRestoreImportItem: (itemKey: string) => void;
 
@@ -87,20 +103,19 @@ type Props = {
   onOpenPlaylistIssueDialog: () => void;
 };
 
-const toReviewItems = ({
+const toSelectedReviewItems = ({
   normalItems,
   longItems,
-  removedItems,
   untitledItemLabel,
 }: {
   normalItems: DraftPlaylistItem[];
   longItems: DraftPlaylistItem[];
-  removedItems: CollectionCreateImportItem[];
   untitledItemLabel: string;
 }): ReviewItemView[] => {
   const normal = normalItems.map((item) => ({
     draftKey: item.draftKey,
     importItemKey: item.importItemKey,
+    sourceImportId: item.sourceImportId,
     title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
@@ -113,6 +128,7 @@ const toReviewItems = ({
   const long = longItems.map((item) => ({
     draftKey: item.draftKey,
     importItemKey: item.importItemKey,
+    sourceImportId: item.sourceImportId,
     title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
@@ -122,9 +138,20 @@ const toReviewItems = ({
     status: "long" as const,
   }));
 
-  const removed = removedItems.map((item) => ({
+  return [...normal, ...long];
+};
+
+const toRemovedReviewItems = ({
+  removedItems,
+  untitledItemLabel,
+}: {
+  removedItems: CollectionCreateImportItem[];
+  untitledItemLabel: string;
+}): ReviewItemView[] => {
+  return removedItems.map((item) => ({
     draftKey: item.importItemKey,
     importItemKey: item.importItemKey,
+    sourceImportId: item.sourceImportId,
     title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
@@ -133,8 +160,6 @@ const toReviewItems = ({
     sourceTitle: item.sourceTitle,
     status: "removed" as const,
   }));
-
-  return [...normal, ...long, ...removed];
 };
 
 const StatusBadge = ({
@@ -171,6 +196,121 @@ const StatusBadge = ({
   );
 };
 
+const ReviewItemRow = ({
+  item,
+  index,
+  readyLabel,
+  longLabel,
+  removedLabel,
+  noCoverLabel,
+  unknownUploaderLabel,
+  sourceLabel,
+  removeLabel,
+  restoreLabel,
+  onRemoveImportItem,
+  onRestoreImportItem,
+}: {
+  item: ReviewItemView;
+  index?: number;
+  readyLabel: string;
+  longLabel: string;
+  removedLabel: string;
+  noCoverLabel: string;
+  unknownUploaderLabel: string;
+  sourceLabel: string;
+  removeLabel: string;
+  restoreLabel: string;
+  onRemoveImportItem: (itemKey: string) => void;
+  onRestoreImportItem: (itemKey: string) => void;
+}) => {
+  const canManageItem = Boolean(item.importItemKey);
+  const isRemoved = item.status === "removed";
+
+  return (
+    <div
+      className={`flex h-[72px] items-center gap-3 rounded-xl border px-2 transition ${
+        isRemoved
+          ? "border-rose-300/15 bg-rose-950/10 opacity-80"
+          : "border-transparent hover:border-[var(--mc-border)] hover:bg-[var(--mc-surface-strong)]/35"
+      }`}
+    >
+      {typeof index === "number" && (
+        <div className="w-8 shrink-0 text-right text-[11px] tabular-nums text-[var(--mc-text-muted)]">
+          {index + 1}
+        </div>
+      )}
+
+      {item.thumbnail ? (
+        <img
+          src={item.thumbnail}
+          alt={item.title}
+          loading="lazy"
+          className="h-10 w-[72px] shrink-0 rounded-lg border border-[var(--mc-border)] object-cover"
+        />
+      ) : (
+        <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-lg border border-[var(--mc-border)] bg-[linear-gradient(145deg,rgba(56,189,248,0.18),rgba(15,23,42,0.25))] text-[10px] text-[var(--mc-text-muted)]">
+          {noCoverLabel}
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div
+          className={`truncate text-sm font-medium ${
+            isRemoved
+              ? "text-[var(--mc-text-muted)] line-through"
+              : "text-[var(--mc-text)]"
+          }`}
+        >
+          {item.title}
+        </div>
+        <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
+          {item.uploader || unknownUploaderLabel}
+          {item.duration ? ` · ${item.duration}` : ""}
+          {item.sourceTitle ? ` · ${sourceLabel}: ${item.sourceTitle}` : ""}
+        </div>
+      </div>
+
+      <div className="hidden shrink-0 sm:block">
+        <StatusBadge
+          status={item.status}
+          readyLabel={readyLabel}
+          longLabel={longLabel}
+          removedLabel={removedLabel}
+        />
+      </div>
+
+      {canManageItem && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!item.importItemKey) return;
+
+            if (isRemoved) {
+              onRestoreImportItem(item.importItemKey);
+              return;
+            }
+
+            onRemoveImportItem(item.importItemKey);
+          }}
+          className={`inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition ${
+            isRemoved
+              ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/15"
+              : "border-rose-300/25 bg-rose-300/10 text-rose-100 hover:bg-rose-300/15"
+          }`}
+          aria-label={isRemoved ? restoreLabel : removeLabel}
+          title={isRemoved ? restoreLabel : removeLabel}
+        >
+          {isRemoved ? (
+            <RestoreRounded sx={{ fontSize: 16 }} />
+          ) : (
+            <CloseRounded sx={{ fontSize: 16 }} />
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const ReviewVirtualRow = ({
   index,
   style,
@@ -189,90 +329,22 @@ const ReviewVirtualRow = ({
   const item = items[index];
   if (!item) return <div style={style} />;
 
-  const canManageItem = Boolean(item.importItemKey);
-  const isRemoved = item.status === "removed";
-
   return (
     <div style={style} className="px-2">
-      <div
-        className={`flex h-[72px] items-center gap-3 rounded-xl border px-2 transition ${
-          isRemoved
-            ? "border-rose-300/15 bg-rose-950/10 opacity-80"
-            : "border-transparent hover:border-[var(--mc-border)] hover:bg-[var(--mc-surface-strong)]/35"
-        }`}
-      >
-        <div className="w-8 shrink-0 text-right text-[11px] tabular-nums text-[var(--mc-text-muted)]">
-          {index + 1}
-        </div>
-
-        {item.thumbnail ? (
-          <img
-            src={item.thumbnail}
-            alt={item.title}
-            loading="lazy"
-            className="h-10 w-[72px] shrink-0 rounded-lg border border-[var(--mc-border)] object-cover"
-          />
-        ) : (
-          <div className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-lg border border-[var(--mc-border)] bg-[linear-gradient(145deg,rgba(56,189,248,0.18),rgba(15,23,42,0.25))] text-[10px] text-[var(--mc-text-muted)]">
-            {noCoverLabel}
-          </div>
-        )}
-
-        <div className="min-w-0 flex-1">
-          <div
-            className={`truncate text-sm font-medium ${
-              isRemoved
-                ? "text-[var(--mc-text-muted)] line-through"
-                : "text-[var(--mc-text)]"
-            }`}
-          >
-            {item.title}
-          </div>
-          <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
-            {item.uploader || unknownUploaderLabel}
-            {item.duration ? ` · ${item.duration}` : ""}
-            {item.sourceTitle ? ` · ${sourceLabel}: ${item.sourceTitle}` : ""}
-          </div>
-        </div>
-
-        <div className="hidden shrink-0 sm:block">
-          <StatusBadge
-            status={item.status}
-            readyLabel={readyLabel}
-            longLabel={longLabel}
-            removedLabel={removedLabel}
-          />
-        </div>
-
-        {canManageItem && (
-          <button
-            type="button"
-            onClick={() => {
-              if (!item.importItemKey) return;
-
-              if (isRemoved) {
-                onRestoreImportItem(item.importItemKey);
-                return;
-              }
-
-              onRemoveImportItem(item.importItemKey);
-            }}
-            className={`inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition ${
-              isRemoved
-                ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/15"
-                : "border-rose-300/25 bg-rose-300/10 text-rose-100 hover:bg-rose-300/15"
-            }`}
-            aria-label={isRemoved ? restoreLabel : removeLabel}
-            title={isRemoved ? restoreLabel : removeLabel}
-          >
-            {isRemoved ? (
-              <RestoreRounded sx={{ fontSize: 16 }} />
-            ) : (
-              <CloseRounded sx={{ fontSize: 16 }} />
-            )}
-          </button>
-        )}
-      </div>
+      <ReviewItemRow
+        item={item}
+        index={index}
+        readyLabel={readyLabel}
+        longLabel={longLabel}
+        removedLabel={removedLabel}
+        noCoverLabel={noCoverLabel}
+        unknownUploaderLabel={unknownUploaderLabel}
+        sourceLabel={sourceLabel}
+        removeLabel={removeLabel}
+        restoreLabel={restoreLabel}
+        onRemoveImportItem={onRemoveImportItem}
+        onRestoreImportItem={onRestoreImportItem}
+      />
     </div>
   );
 };
@@ -333,10 +405,12 @@ export default function CollectionCreateReviewPanel({
   isAdmin,
   collectionItemLimit,
 
+  importSources,
   normalDraftPlaylistItems,
   longDraftPlaylistItems,
   removedImportItems,
   removedImportItemCount,
+  onRemoveImportSource,
   onRemoveImportItem,
   onRestoreImportItem,
 
@@ -353,46 +427,99 @@ export default function CollectionCreateReviewPanel({
   const { t } = useTranslation("collectionCreate");
 
   const [filterMode, setFilterMode] = useState<ReviewFilterMode>("all");
+  const [displayMode, setDisplayMode] = useState<ReviewDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const allReviewItems = useMemo(
+  const selectedReviewItems = useMemo(
     () =>
-      toReviewItems({
+      toSelectedReviewItems({
         normalItems: normalDraftPlaylistItems,
         longItems: longDraftPlaylistItems,
+        untitledItemLabel: t("review.untitledItem"),
+      }),
+    [normalDraftPlaylistItems, longDraftPlaylistItems, t],
+  );
+
+  const removedReviewItems = useMemo(
+    () =>
+      toRemovedReviewItems({
         removedItems: removedImportItems,
         untitledItemLabel: t("review.untitledItem"),
       }),
-    [normalDraftPlaylistItems, longDraftPlaylistItems, removedImportItems, t],
+    [removedImportItems, t],
+  );
+
+  const allReviewItems = useMemo(
+    () => [...selectedReviewItems, ...removedReviewItems],
+    [selectedReviewItems, removedReviewItems],
   );
 
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
 
-  const filteredItems = useMemo(() => {
-    return allReviewItems.filter((item) => {
-      if (filterMode === "all" && item.status === "removed") return false;
-      if (filterMode === "ready" && item.status !== "ready") return false;
-      if (filterMode === "long" && item.status !== "long") return false;
-      if (filterMode === "removed" && item.status !== "removed") return false;
-      if (filterMode === "issues") return false;
+  const filterReviewItem = (item: ReviewItemView) => {
+    if (filterMode === "all" && item.status === "removed") return false;
+    if (filterMode === "ready" && item.status !== "ready") return false;
+    if (filterMode === "long" && item.status !== "long") return false;
+    if (filterMode === "removed" && item.status !== "removed") return false;
+    if (filterMode === "issues") return false;
 
-      if (!normalizedSearchQuery) return true;
+    if (!normalizedSearchQuery) return true;
 
-      const haystack = [
-        item.title,
-        item.answerText,
-        item.uploader,
-        item.duration,
-        item.sourceTitle,
-        item.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase();
+    const haystack = [
+      item.title,
+      item.answerText,
+      item.uploader,
+      item.duration,
+      item.sourceTitle,
+      item.status,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase();
 
-      return haystack.includes(normalizedSearchQuery);
-    });
-  }, [allReviewItems, filterMode, normalizedSearchQuery]);
+    return haystack.includes(normalizedSearchQuery);
+  };
+
+  const filteredItems = useMemo(
+    () => allReviewItems.filter(filterReviewItem),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allReviewItems, filterMode, normalizedSearchQuery],
+  );
+
+  const sourceGroups = useMemo<SourceReviewGroup[]>(() => {
+    return importSources
+      .map((source) => {
+        const selectedItems = selectedReviewItems.filter(
+          (item) => item.sourceImportId === source.id,
+        );
+        const removedItems = removedReviewItems.filter(
+          (item) => item.sourceImportId === source.id,
+        );
+        const visibleItems = [...selectedItems, ...removedItems].filter(
+          filterReviewItem,
+        );
+
+        return {
+          source,
+          selectedItems,
+          removedItems,
+          visibleItems,
+        };
+      })
+      .filter((group) => {
+        if (filterMode === "issues") return false;
+        return (
+          group.visibleItems.length > 0 || normalizedSearchQuery.length === 0
+        );
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    importSources,
+    selectedReviewItems,
+    removedReviewItems,
+    filterMode,
+    normalizedSearchQuery,
+  ]);
 
   const reviewRowProps = useMemo<ReviewVirtualRowProps>(
     () => ({
@@ -421,6 +548,17 @@ export default function CollectionCreateReviewPanel({
     playlistIssueTotal > 0 ||
     isDraftOverflow ||
     longDraftPlaylistItems.length > 0;
+
+  const commonRowLabels = {
+    readyLabel: t("review.summary.ready"),
+    longLabel: t("review.summary.long"),
+    removedLabel: t("review.summary.removed"),
+    noCoverLabel: t("review.noCover"),
+    unknownUploaderLabel: t("review.unknownUploader"),
+    sourceLabel: t("review.sourceLabel"),
+    removeLabel: t("review.removeItem"),
+    restoreLabel: t("review.restoreItem"),
+  };
 
   return (
     <div className="h-full rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-4">
@@ -571,7 +709,10 @@ export default function CollectionCreateReviewPanel({
             {removedImportItemCount > 0 && (
               <button
                 type="button"
-                onClick={() => setFilterMode("removed")}
+                onClick={() => {
+                  setFilterMode("removed");
+                  setDisplayMode("list");
+                }}
                 className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-left text-xs text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-300/15"
               >
                 <span className="font-semibold">
@@ -644,7 +785,7 @@ export default function CollectionCreateReviewPanel({
           </div>
 
           <div className="mt-4 space-y-3 border-t border-[var(--mc-border)]/70 pt-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="inline-flex flex-wrap rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 p-1 text-[11px]">
                 {[
                   {
@@ -686,32 +827,132 @@ export default function CollectionCreateReviewPanel({
                 ))}
               </div>
 
-              <label className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 py-1.5 text-[var(--mc-text)] sm:w-[260px]">
-                <SearchRounded sx={{ fontSize: 16 }} className="shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={t("review.searchPlaceholder")}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[var(--mc-text)] outline-none placeholder:text-[var(--mc-text-muted)]"
-                />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-[var(--mc-surface)]/70 hover:text-[var(--mc-text)]"
-                    aria-label={t("review.clearSearch")}
-                  >
-                    <CloseRounded sx={{ fontSize: 12 }} />
-                  </button>
-                ) : null}
-              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div className="inline-flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 p-1 text-[11px]">
+                  {[
+                    { key: "list", label: t("review.display.list") },
+                    { key: "source", label: t("review.display.source") },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() =>
+                        setDisplayMode(item.key as ReviewDisplayMode)
+                      }
+                      className={`rounded-full px-3 py-1 transition ${
+                        displayMode === item.key
+                          ? "bg-[var(--mc-accent-2)]/15 text-[var(--mc-text)]"
+                          : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 py-1.5 text-[var(--mc-text)] sm:w-[260px]">
+                  <SearchRounded sx={{ fontSize: 16 }} className="shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={t("review.searchPlaceholder")}
+                    className="min-w-0 flex-1 bg-transparent text-sm text-[var(--mc-text)] outline-none placeholder:text-[var(--mc-text-muted)]"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-[var(--mc-surface)]/70 hover:text-[var(--mc-text)]"
+                      aria-label={t("review.clearSearch")}
+                    >
+                      <CloseRounded sx={{ fontSize: 12 }} />
+                    </button>
+                  ) : null}
+                </label>
+              </div>
             </div>
 
             {filterMode === "issues" ? (
               <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
                 {t("review.issuesHint")}
               </div>
+            ) : displayMode === "source" ? (
+              sourceGroups.length > 0 ? (
+                <div className="space-y-3">
+                  {sourceGroups.map((group) => (
+                    <div
+                      key={group.source.id}
+                      className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45"
+                    >
+                      <div className="flex flex-col gap-3 border-b border-[var(--mc-border)]/70 bg-[var(--mc-surface-strong)]/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FolderRounded
+                              sx={{ fontSize: 18 }}
+                              className="shrink-0 text-cyan-100"
+                            />
+                            <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                              {group.source.title}
+                            </div>
+                          </div>
+
+                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--mc-text-muted)]">
+                            <span>
+                              {t("review.sourceGroup.selected", {
+                                count: group.selectedItems.length,
+                              })}
+                            </span>
+                            <span>
+                              {t("review.sourceGroup.removed", {
+                                count: group.removedItems.length,
+                              })}
+                            </span>
+                            <span>
+                              {t("review.sourceGroup.total", {
+                                count: group.source.itemCount,
+                              })}
+                            </span>
+                            {group.source.skippedCount > 0 && (
+                              <span className="text-amber-200">
+                                {t("review.sourceGroup.skipped", {
+                                  count: group.source.skippedCount,
+                                })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => onRemoveImportSource(group.source.id)}
+                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
+                        >
+                          <DeleteOutlineRounded sx={{ fontSize: 15 }} />
+                          {t("review.removeSource")}
+                        </button>
+                      </div>
+
+                      <div className="max-h-[420px] overflow-y-auto px-2 py-2">
+                        {group.visibleItems.map((item, index) => (
+                          <ReviewItemRow
+                            key={item.importItemKey ?? item.draftKey}
+                            item={item}
+                            index={index}
+                            {...commonRowLabels}
+                            onRemoveImportItem={onRemoveImportItem}
+                            onRestoreImportItem={onRestoreImportItem}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
+                  {t("review.emptyFilter")}
+                </div>
+              )
             ) : filteredItems.length > 0 ? (
               <div className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45">
                 <List<ReviewVirtualRowProps>
