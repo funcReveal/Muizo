@@ -1,7 +1,4 @@
-import type {
-  GameState,
-  PlaybackExtensionMode,
-} from "./gameTypes";
+import type { GameState, PlaybackExtensionMode } from "./gameTypes";
 import type { RoomSettlementSnapshot } from "./settlementTypes";
 import type {
   PlaylistItem,
@@ -33,6 +30,7 @@ export type {
   GameSyncVersion,
   PlaybackExtensionMode,
   PlaybackExtensionVoteState,
+  RestartGameVoteAction,
   RestartGameVoteState,
   QuestionScoreBreakdown,
   SubmitAnswerAckData,

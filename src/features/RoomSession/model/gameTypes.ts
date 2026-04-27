@@ -105,6 +105,8 @@ export interface PlaybackExtensionVoteState {
   resolvedAt?: number;
 }
 
+export type RestartGameVoteAction = "return_to_lobby" | "restart_now";
+
 export interface RestartGameVoteState {
   requestedByClientId: string;
   requestedByUsername: string;
@@ -113,6 +115,7 @@ export interface RestartGameVoteState {
   approveClientIds: string[];
   rejectClientIds: string[];
   status: "active" | "approved" | "rejected";
+  action: RestartGameVoteAction;
   resolvedAt?: number;
 }
 

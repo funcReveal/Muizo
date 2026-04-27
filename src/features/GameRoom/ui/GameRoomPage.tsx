@@ -34,6 +34,7 @@ import HowToVoteRoundedIcon from "@mui/icons-material/HowToVoteRounded";
 import type {
   GameState,
   PlaylistItem,
+  RestartGameVoteAction,
   RestartGameVoteState,
   RoomState,
   SubmitAnswerResult,
@@ -97,7 +98,9 @@ interface GameRoomPageProps {
   ) => Promise<boolean>;
   onKickPlayer?: (clientId: string, durationMs?: number | null) => void;
   onTransferHost?: (clientId: string) => void;
-  onRequestRestartGameVote?: () => Promise<boolean>;
+  onRequestRestartGameVote?: (
+    action: RestartGameVoteAction,
+  ) => Promise<boolean>;
   onCastRestartGameVote?: (vote: "approve" | "reject") => Promise<boolean>;
   participants?: RoomState["participants"];
   meClientId?: string;
@@ -400,7 +403,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     useState(false);
   const [restartVoteDialogOpen, setRestartVoteDialogOpen] = useState(false);
   const [restartVoteRequestPending, setRestartVoteRequestPending] = useState(false);
-  const [restartVoteSubmitPending, setRestartVoteSubmitPending] = useState<"approve" | "reject" | null>(null);
+  const [restartVoteSubmitPending, setRestartVoteSubmitPending] = useState<
+    "approve" | "reject" | null
+  >(null);
+  const [pendingRestartVoteAction, setPendingRestartVoteAction] =
+    useState<RestartGameVoteAction>("restart_now");
   const [playbackVoteSubmitPending, setPlaybackVoteSubmitPending] = useState<
     "approve" | "reject" | null
   >(null);
@@ -674,6 +681,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? "已發起重啟投票"
       : "重新開始";
 
+  const restartVoteAction: RestartGameVoteAction =
+    restartGameVote?.action === "return_to_lobby" ||
+      restartGameVote?.action === "restart_now"
+      ? restartGameVote.action
+      : pendingRestartVoteAction;
+
+  const restartVoteActionLabel =
+    restartVoteAction === "return_to_lobby" ? "回到房間" : "重新開始";
+
+  const restartVoteDialogTitle =
+    restartVoteAction === "return_to_lobby"
+      ? "要發起回到房間投票嗎？"
+      : "要發起重新開始投票嗎？";
+
+  const restartVoteDialogDescription =
+    restartVoteAction === "return_to_lobby"
+      ? "通過後會結束目前這一局，保留房間、玩家、歌單與設定，回到房間大廳。"
+      : "通過後會直接進入 5 秒倒數，並開始新一局。";
+
   const restartVoteButtonDisabled =
     restartVoteRequestPending ||
     restartVoteSubmitPending !== null ||
@@ -691,14 +717,23 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (prevStatus !== "active" && nextStatus === "active") {
       const isInitiator = currentVote?.requestedByClientId === meClientId;
       if (!isInitiator) {
-        appToast.info("有人發起了重新開始投票", {
-          id: "restart-vote-started",
-          duration: 4000,
-        });
+        appToast.info(
+          currentVote?.action === "return_to_lobby"
+            ? "有人發起了回到房間投票"
+            : "有人發起了重新開始投票",
+          {
+            id: "restart-vote-started",
+            duration: 4000,
+          },
+        );
       }
     } else if (prevStatus === "active" && nextStatus === "rejected") {
       appToast.error(
-        `重新開始投票未通過（${currentVote?.approveClientIds.length ?? 0} / ${currentVote?.eligibleClientIds.length ?? 0} 票贊成）`,
+        `${currentVote?.action === "return_to_lobby"
+          ? "回到房間投票"
+          : "重新開始投票"
+        }未通過（${currentVote?.approveClientIds.length ?? 0} / ${currentVote?.eligibleClientIds.length ?? 0
+        } 票贊成）`,
         { id: "restart-vote-rejected", duration: 5000 },
       );
     }
@@ -739,8 +774,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? "armed"
       : "idle";
   const isMobileDrawerGestureActive = mobileScoreboardDragDismiss.isDragging;
+  const mobileRestartActionCount = gameState.status === "playing" ? 2 : 0;
+
   const mobileSubdockActionCount =
-    1 +
+    mobileRestartActionCount +
     (isHostInGame ? 1 : 0) +
     (gameState.status === "playing" && isManualPlaybackExtensionMode ? 1 : 0) +
     3;
@@ -966,6 +1003,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       : typeof gameState.questionStats?.unansweredCount === "number"
         ? Math.max(0, Math.floor(gameState.questionStats.unansweredCount))
         : null;
+  const hasPlaybackExtensionApplied =
+    Math.max(0, gameState.playbackExtensionMs ?? 0) > 0;
+
   const canRequestPlaybackExtensionVote =
     isManualPlaybackExtensionMode &&
     gameState.status === "playing" &&
@@ -973,7 +1013,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !waitingToStart &&
     !isEnded &&
     !allAnsweredReadyForReveal &&
-    !playbackExtensionVote;
+    !playbackExtensionVote &&
+    !hasPlaybackExtensionApplied;
   const canOpenPlaybackVotePrompt =
     isManualPlaybackExtensionMode &&
     playbackExtensionVote?.status === "active" &&
@@ -1207,19 +1248,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     [handleCastPlaybackVote],
   );
 
-  const handleRequestRestartVote = useCallback(async () => {
-    if (canOpenRestartVoteDialog) {
-      setRestartVoteDialogOpen(true);
-      return;
-    }
-    if (!canRequestRestartVote || !onRequestRestartGameVote) return;
-    setRestartVoteRequestPending(true);
-    try {
-      await onRequestRestartGameVote();
-    } finally {
-      setRestartVoteRequestPending(false);
-    }
-  }, [canOpenRestartVoteDialog, canRequestRestartVote, onRequestRestartGameVote]);
+  const handleRequestRestartVote = useCallback(
+    async (action: RestartGameVoteAction) => {
+      setPendingRestartVoteAction(action);
+
+      if (canOpenRestartVoteDialog) {
+        setRestartVoteDialogOpen(true);
+        return;
+      }
+
+      if (!canRequestRestartVote || !onRequestRestartGameVote) return;
+
+      setRestartVoteRequestPending(true);
+      try {
+        await onRequestRestartGameVote(action);
+      } finally {
+        setRestartVoteRequestPending(false);
+      }
+    },
+    [
+      canOpenRestartVoteDialog,
+      canRequestRestartVote,
+      onRequestRestartGameVote,
+    ],
+  );
 
   const handleCastRestartVote = useCallback(
     async (vote: "approve" | "reject") => {
@@ -1484,7 +1536,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     const restartBtnLabel = restartVoteRequestPending
       ? "投票中..."
       : isRestartVoteActive
-        ? `重新開始投票 ${restartVoteApproveCount}/${restartVoteMajorityCount}`
+        ? `${restartVoteActionLabel}投票 ${restartVoteApproveCount}/${restartVoteMajorityCount}`
         : restartVoteButtonLabel;
     return (
       <Stack
@@ -1493,22 +1545,57 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         className="max-[760px]:w-full max-[760px]:grid max-[760px]:grid-cols-1"
       >
         {showRestartBtn && (
-          <Button
-            type="button"
-            variant={isRestartVoteActive ? "contained" : "outlined"}
-            color="warning"
-            size="small"
-            startIcon={<RestartAltRoundedIcon />}
-            className={`max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs ${showRestartVoteRedDot ? "game-room-restart-vote-btn--notify" : ""
-              }`}
-            disabled={restartVoteButtonDisabled}
-            onClick={handleRequestRestartVote}
-          >
-            {restartBtnLabel}
-            {showRestartVoteRedDot && (
-              <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
-            )}
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant={
+                isRestartVoteActive && restartVoteAction === "return_to_lobby"
+                  ? "contained"
+                  : "outlined"
+              }
+              color="info"
+              size="small"
+              startIcon={<LogoutRoundedIcon />}
+              className={`max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs ${showRestartVoteRedDot && restartVoteAction === "return_to_lobby"
+                ? "game-room-restart-vote-btn--notify"
+                : ""
+                }`}
+              disabled={restartVoteButtonDisabled}
+              onClick={() => handleRequestRestartVote("return_to_lobby")}
+            >
+              {isRestartVoteActive && restartVoteAction === "return_to_lobby"
+                ? `回到房間投票 ${restartVoteApproveCount}/${restartVoteMajorityCount}`
+                : "回到房間"}
+              {showRestartVoteRedDot && restartVoteAction === "return_to_lobby" && (
+                <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant={
+                isRestartVoteActive && restartVoteAction === "restart_now"
+                  ? "contained"
+                  : "outlined"
+              }
+              color="warning"
+              size="small"
+              startIcon={<RestartAltRoundedIcon />}
+              className={`max-[760px]:!w-full max-[760px]:!px-2 max-[760px]:!py-1 max-[760px]:!text-xs ${showRestartVoteRedDot && restartVoteAction === "restart_now"
+                ? "game-room-restart-vote-btn--notify"
+                : ""
+                }`}
+              disabled={restartVoteButtonDisabled}
+              onClick={() => handleRequestRestartVote("restart_now")}
+            >
+              {isRestartVoteActive && restartVoteAction === "restart_now"
+                ? restartBtnLabel
+                : restartVoteButtonLabel}
+              {showRestartVoteRedDot && restartVoteAction === "restart_now" && (
+                <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
+              )}
+            </Button>
+          </>
         )}
         {isHostInGame && (
           <Button
@@ -1538,6 +1625,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     playbackExtensionVote?.status,
     playbackVoteButtonDisabled,
     playbackVoteButtonLabel,
+    restartVoteAction,
+    restartVoteActionLabel,
     restartVoteApproveCount,
     restartVoteButtonDisabled,
     restartVoteButtonLabel,
@@ -1910,28 +1999,57 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     }`}
                 >
                   {gameState.status === "playing" && (
-                    <button
-                      type="button"
-                      className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--warning game-room-mobile-toggle-chip--wide ${isRestartVoteActive ? "game-room-mobile-toggle-chip--active" : ""
-                        } ${showRestartVoteRedDot ? "game-room-restart-vote-btn--notify" : ""}`}
-                      disabled={restartVoteButtonDisabled}
-                      onClick={handleRequestRestartVote}
-                    >
-                      <span
-                        className="game-room-mobile-action-icon"
-                        aria-hidden
+                    <>
+                      <button
+                        type="button"
+                        className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--primary game-room-mobile-toggle-chip--wide ${isRestartVoteActive && restartVoteAction === "return_to_lobby"
+                          ? "game-room-mobile-toggle-chip--active"
+                          : ""
+                          } ${showRestartVoteRedDot && restartVoteAction === "return_to_lobby"
+                            ? "game-room-restart-vote-btn--notify"
+                            : ""
+                          }`}
+                        disabled={restartVoteButtonDisabled}
+                        onClick={() => handleRequestRestartVote("return_to_lobby")}
                       >
-                        <RestartAltRoundedIcon fontSize="inherit" />
-                        {showRestartVoteRedDot && (
-                          <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
-                        )}
-                      </span>
-                      <span>
-                        {isRestartVoteActive
-                          ? `${restartVoteApproveCount}/${restartVoteMajorityCount}`
-                          : restartVoteButtonLabel}
-                      </span>
-                    </button>
+                        <span className="game-room-mobile-action-icon" aria-hidden>
+                          <LogoutRoundedIcon fontSize="inherit" />
+                          {showRestartVoteRedDot && restartVoteAction === "return_to_lobby" && (
+                            <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
+                          )}
+                        </span>
+                        <span>
+                          {isRestartVoteActive && restartVoteAction === "return_to_lobby"
+                            ? `${restartVoteApproveCount}/${restartVoteMajorityCount}`
+                            : "回房間"}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`game-room-mobile-toggle-chip game-room-mobile-toggle-chip--warning game-room-mobile-toggle-chip--wide ${isRestartVoteActive && restartVoteAction === "restart_now"
+                          ? "game-room-mobile-toggle-chip--active"
+                          : ""
+                          } ${showRestartVoteRedDot && restartVoteAction === "restart_now"
+                            ? "game-room-restart-vote-btn--notify"
+                            : ""
+                          }`}
+                        disabled={restartVoteButtonDisabled}
+                        onClick={() => handleRequestRestartVote("restart_now")}
+                      >
+                        <span className="game-room-mobile-action-icon" aria-hidden>
+                          <RestartAltRoundedIcon fontSize="inherit" />
+                          {showRestartVoteRedDot && restartVoteAction === "restart_now" && (
+                            <span className="game-room-restart-vote-red-dot" aria-hidden="true" />
+                          )}
+                        </span>
+                        <span>
+                          {isRestartVoteActive && restartVoteAction === "restart_now"
+                            ? `${restartVoteApproveCount}/${restartVoteMajorityCount}`
+                            : restartVoteButtonLabel}
+                        </span>
+                      </button>
+                    </>
                   )}
                   {isHostInGame && (
                     <button
@@ -2142,11 +2260,11 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               open
               PaperProps={RESTART_VOTE_DIALOG_PAPER_PROPS}
             >
-              <DialogTitle>重新開始投票</DialogTitle>
+              <DialogTitle>{restartVoteDialogTitle}</DialogTitle>
               <DialogContent dividers>
                 <Stack spacing={1.2}>
                   <Typography variant="body2" className="text-slate-300">
-                    有人提議重新開始遊戲，請表態。
+                    {restartVoteDialogDescription}
                   </Typography>
                   <div className="game-room-playback-vote-dialog__stats">
                     <span>{`贊成 ${restartVoteApproveCount} / ${restartVoteMajorityCount} 票`}</span>
@@ -2177,10 +2295,12 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 <Button
                   onClick={handleRestartVoteApprove}
                   variant="contained"
-                  color="warning"
+                  color={restartVoteAction === "return_to_lobby" ? "info" : "warning"}
                   disabled={restartVoteSubmitPending !== null}
                 >
-                  {restartVoteSubmitPending === "approve" ? "送出中..." : "是"}
+                  {restartVoteSubmitPending === "approve"
+                    ? "送出中..."
+                    : `同意${restartVoteActionLabel}`}
                 </Button>
               </DialogActions>
             </Dialog>

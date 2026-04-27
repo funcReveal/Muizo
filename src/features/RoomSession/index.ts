@@ -42,6 +42,7 @@ export type {
   GameState,
   PlaybackExtensionMode,
   PlaybackExtensionVoteState,
+  RestartGameVoteAction,
   RestartGameVoteState,
   PlaylistItem,
   PlaylistSourceType,
@@ -57,6 +58,4 @@ export type {
   RoomSummary,
   SubmitAnswerResult,
 } from "./model/types";
-export type {
-  RoomCreateSourceMode,
-} from "./model/RoomCreateContext";
+export type { RoomCreateSourceMode } from "./model/RoomCreateContext";
