@@ -93,6 +93,7 @@ const collectionCreate = {
     playableItems: "{{count}} playable items",
     itemLimitHint: "Each collection can include up to {{limit}} questions.",
     itemLimitUnlimited: "Each collection can include unlimited questions.",
+    untitledCollection: "Untitled collection",
     untitledItem: "Untitled item",
     noCover: "No cover",
     unknownUploader: "Unknown uploader",
@@ -141,7 +142,14 @@ const collectionCreate = {
     },
 
     sourcePicker: {
+      title: "Source filter",
+      description: "Choose one imported source to review, or show all sources.",
+      placeholder: "Select source",
       all: "All sources",
+      allDescription: "Show all {{count}} sources",
+      sourceDescription:
+        "{{selected}} / {{total}} selected · {{removed}} removed · {{skipped}} skipped",
+      hasSkipped: "Has skipped items",
     },
 
     sourceGroup: {
@@ -172,6 +180,8 @@ const collectionCreate = {
     close: "Close skipped import items",
     missingDetails:
       "{{count}} items do not have detailed information because the backend only returned a skipped count.",
+    duplicateRedirectHint:
+      "{{count}} duplicate items are grouped under duplicate details and are not shown here.",
     emptyTab: "No items in this category.",
     untitledItem: "Untitled item",
     videoId: "Video ID: {{videoId}}",
@@ -198,6 +208,31 @@ const collectionCreate = {
       unknown:
         "The exact reason is unknown. You may need to review the playlist again.",
     },
+    reasonLabels: {
+      removed:
+        "This video may have been removed by the uploader or is no longer accessible.",
+      private: "This video is private and cannot be read by the system.",
+      blocked:
+        "This video blocks embedded playback and may not work reliably as a quiz item.",
+      unavailable:
+        "This video is currently unavailable due to region, license, or status restrictions.",
+      unknown:
+        "The system could not determine the exact reason. Please review the playlist again.",
+      unknownWithReason: "System reason: {{reason}}",
+    },
+  },
+
+  duplicateDrawer: {
+    title: "Duplicate item details",
+    description:
+      "{{count}} duplicate items were automatically removed. Only the first occurrence will be kept.",
+    close: "Close duplicate item details",
+    unknownUploader: "Unknown uploader",
+    occurrenceSummary:
+      "This item appeared {{totalCount}} times. Kept item #{{keptIndex}} and removed {{removedCount}} duplicate items.",
+    removedPositions: "Removed positions: #{{positions}}",
+    positionSeparator: ", #",
+    empty: "No automatically removed duplicate songs.",
   },
 
   publish: {

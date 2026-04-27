@@ -17,6 +17,7 @@ import RestoreRounded from "@mui/icons-material/RestoreRounded";
 import FolderRounded from "@mui/icons-material/FolderRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import { CircularProgress } from "@mui/material";
+import { MuizoSelect, type MuizoSelectOption } from "@shared/ui/select";
 import { List, type RowComponentProps } from "react-window";
 import type { DraftPlaylistItem } from "../utils/createCollectionImport";
 import type {
@@ -531,6 +532,33 @@ export default function CollectionCreateReviewPanel({
     selectedReviewItems,
   ]);
 
+  const sourcePickerOptions = useMemo<MuizoSelectOption[]>(
+    () => [
+      {
+        value: "all",
+        label: t("review.sourcePicker.all"),
+        description: t("review.sourcePicker.allDescription", {
+          count: sourceGroups.length,
+        }),
+      },
+      ...sourceGroups.map((group) => ({
+        value: group.source.id,
+        label: group.source.title,
+        description: t("review.sourcePicker.sourceDescription", {
+          selected: group.selectedCount,
+          total: group.source.itemCount,
+          removed: group.removedCount,
+          skipped: group.source.skippedCount,
+        }),
+        meta:
+          group.source.skippedCount > 0
+            ? t("review.sourcePicker.hasSkipped")
+            : undefined,
+      })),
+    ],
+    [sourceGroups, t],
+  );
+
   const selectedSourceGroup = useMemo(() => {
     if (selectedSourceId === "all") return null;
 
@@ -877,24 +905,6 @@ export default function CollectionCreateReviewPanel({
                   ))}
                 </div>
 
-                {displayMode === "source" && (
-                  <select
-                    value={selectedSourceId}
-                    onChange={(event) =>
-                      setSelectedSourceId(event.target.value)
-                    }
-                    className="h-8 min-w-[220px] rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 text-xs font-semibold text-[var(--mc-text)] outline-none"
-                  >
-                    <option value="all">{t("review.sourcePicker.all")}</option>
-                    {sourceGroups.map((group) => (
-                      <option key={group.source.id} value={group.source.id}>
-                        {group.source.title} · {group.selectedCount}/
-                        {group.source.itemCount}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
                 <label className="flex min-w-0 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 py-1.5 text-[var(--mc-text)] sm:w-[260px]">
                   <SearchRounded sx={{ fontSize: 16 }} className="shrink-0" />
                   <input
@@ -919,92 +929,114 @@ export default function CollectionCreateReviewPanel({
             </div>
 
             {displayMode === "source" ? (
-              visibleSourceGroups.length > 0 ? (
-                <div className="space-y-3">
-                  {visibleSourceGroups.map((group) => (
-                    <div
-                      key={group.source.id}
-                      className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45"
-                    >
-                      <div className="flex flex-col gap-3 border-b border-[var(--mc-border)]/70 bg-[var(--mc-surface-strong)]/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <FolderRounded
-                              sx={{ fontSize: 18 }}
-                              className="shrink-0 text-cyan-100"
-                            />
-                            <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                              {group.source.title}
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-3">
+                  <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--mc-text)]">
+                        {t("review.sourcePicker.title")}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-[var(--mc-text-muted)]">
+                        {t("review.sourcePicker.description")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <MuizoSelect
+                    value={selectedSourceId}
+                    options={sourcePickerOptions}
+                    placeholder={t("review.sourcePicker.placeholder")}
+                    onChange={setSelectedSourceId}
+                  />
+                </div>
+
+                {visibleSourceGroups.length > 0 ? (
+                  <>
+                    {visibleSourceGroups.map((group) => (
+                      <div
+                        key={group.source.id}
+                        className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45"
+                      >
+                        <div className="flex flex-col gap-3 border-b border-[var(--mc-border)]/70 bg-[var(--mc-surface-strong)]/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <FolderRounded
+                                sx={{ fontSize: 18 }}
+                                className="shrink-0 text-cyan-100"
+                              />
+                              <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                                {group.source.title}
+                              </div>
+                            </div>
+
+                            <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--mc-text-muted)]">
+                              <span>
+                                {t("review.sourceGroup.selected", {
+                                  count: group.selectedCount,
+                                })}
+                              </span>
+                              <span>
+                                {t("review.sourceGroup.removed", {
+                                  count: group.removedCount,
+                                })}
+                              </span>
+                              <span>
+                                {t("review.sourceGroup.total", {
+                                  count: group.source.itemCount,
+                                })}
+                              </span>
+                              {group.source.skippedCount > 0 && (
+                                <span className="text-amber-200">
+                                  {t("review.sourceGroup.skipped", {
+                                    count: group.source.skippedCount,
+                                  })}
+                                </span>
+                              )}
                             </div>
                           </div>
 
-                          <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-[var(--mc-text-muted)]">
-                            <span>
-                              {t("review.sourceGroup.selected", {
-                                count: group.selectedCount,
-                              })}
-                            </span>
-                            <span>
-                              {t("review.sourceGroup.removed", {
-                                count: group.removedCount,
-                              })}
-                            </span>
-                            <span>
-                              {t("review.sourceGroup.total", {
-                                count: group.source.itemCount,
-                              })}
-                            </span>
-                            {group.source.skippedCount > 0 && (
-                              <span className="text-amber-200">
-                                {t("review.sourceGroup.skipped", {
-                                  count: group.source.skippedCount,
-                                })}
-                              </span>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const confirmed = window.confirm(
+                                t("review.removeSourceConfirm", {
+                                  title: group.source.title,
+                                }),
+                              );
+
+                              if (!confirmed) return;
+
+                              onRemoveImportSource(group.source.id);
+                              setSelectedSourceId("all");
+                            }}
+                            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
+                          >
+                            <DeleteOutlineRounded sx={{ fontSize: 15 }} />
+                            {t("review.removeSource")}
+                          </button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const confirmed = window.confirm(
-                              t("review.removeSourceConfirm", {
-                                title: group.source.title,
-                              }),
-                            );
-
-                            if (!confirmed) return;
-
-                            onRemoveImportSource(group.source.id);
-                            setSelectedSourceId("all");
-                          }}
-                          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
-                        >
-                          <DeleteOutlineRounded sx={{ fontSize: 15 }} />
-                          {t("review.removeSource")}
-                        </button>
+                        <div className="max-h-[420px] overflow-y-auto px-2 py-2">
+                          {group.visibleItems.map((item, index) => (
+                            <ReviewItemRow
+                              key={item.importItemKey ?? item.draftKey}
+                              item={item}
+                              index={index}
+                              {...commonRowLabels}
+                              onRemoveImportItem={onRemoveImportItem}
+                              onRestoreImportItem={onRestoreImportItem}
+                            />
+                          ))}
+                        </div>
                       </div>
-
-                      <div className="max-h-[420px] overflow-y-auto px-2 py-2">
-                        {group.visibleItems.map((item, index) => (
-                          <ReviewItemRow
-                            key={item.importItemKey ?? item.draftKey}
-                            item={item}
-                            index={index}
-                            {...commonRowLabels}
-                            onRemoveImportItem={onRemoveImportItem}
-                            onRestoreImportItem={onRestoreImportItem}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
-                  {t("review.emptyFilter")}
-                </div>
-              )
+                    ))}
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 px-4 py-6 text-sm text-[var(--mc-text-muted)]">
+                    {t("review.emptyFilter")}
+                  </div>
+                )}
+              </div>
             ) : filteredItems.length > 0 ? (
               <div className="overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45">
                 <List<ReviewVirtualRowProps>

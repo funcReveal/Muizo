@@ -89,6 +89,7 @@ const collectionCreate = {
     playableItems: "{{count}} 個可遊玩項目",
     itemLimitHint: "每個收藏庫最多可收錄 {{limit}} 題。",
     itemLimitUnlimited: "每個收藏庫可收錄無上限題目。",
+    untitledCollection: "未命名收藏",
     untitledItem: "未命名項目",
     noCover: "無封面",
     unknownUploader: "未知上傳者",
@@ -136,7 +137,14 @@ const collectionCreate = {
     },
 
     sourcePicker: {
+      title: "來源篩選",
+      description: "選擇要檢查的匯入來源，或查看全部來源的項目。",
+      placeholder: "選擇來源",
       all: "全部來源",
+      allDescription: "查看全部 {{count}} 個來源",
+      sourceDescription:
+        "保留 {{selected}} / {{total}} 首 · 已移除 {{removed}} 首 · 略過 {{skipped}} 首",
+      hasSkipped: "有略過項目",
     },
 
     sourceGroup: {
@@ -167,6 +175,8 @@ const collectionCreate = {
     close: "關閉未成功匯入項目",
     missingDetails:
       "其中 {{count}} 個項目目前沒有詳細資料，可能是後端只回傳了略過數量。",
+    duplicateRedirectHint:
+      "{{count}} 個重複項目已整理到「重複項目」明細中，不會在這裡重複顯示。",
     emptyTab: "這個分類目前沒有項目。",
     untitledItem: "未命名項目",
     videoId: "影片 ID：{{videoId}}",
@@ -188,6 +198,27 @@ const collectionCreate = {
       unavailable: "這些影片目前不可用，可能是地區、授權或狀態限制。",
       unknown: "這些項目無法判斷具體原因，建議重新檢查播放清單。",
     },
+    reasonLabels: {
+      removed: "影片可能已被移除，或原始連結已無法存取。",
+      private: "影片目前是私人狀態，系統無法讀取內容。",
+      blocked: "影片限制嵌入播放，無法穩定作為遊戲題目。",
+      unavailable: "影片目前不可用，可能受到地區、授權或狀態限制。",
+      unknown: "系統無法判斷具體原因，建議重新檢查播放清單。",
+      unknownWithReason: "系統回傳原因：{{reason}}",
+    },
+  },
+
+  duplicateDrawer: {
+    title: "重複項目明細",
+    description:
+      "共自動移除 {{count}} 個重複項目，建立時只會保留第一個出現的位置。",
+    close: "關閉重複項目明細",
+    unknownUploader: "未知上傳者",
+    occurrenceSummary:
+      "原清單共出現 {{totalCount}} 次，已保留第 {{keptIndex}} 首，另外移除 {{removedCount}} 首。",
+    removedPositions: "已移除位置：第 {{positions}} 首",
+    positionSeparator: "、",
+    empty: "目前沒有被自動移除的重複歌曲。",
   },
 
   publish: {

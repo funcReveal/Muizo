@@ -22,7 +22,7 @@ import CollectionCreatePublishPanel from "../components/CollectionCreatePublishP
 import CollectionCreateSourcePanel from "../components/CollectionCreateSourcePanel";
 import CollectionCreateStepNav from "../components/CollectionCreateStepNav";
 import CollectionPlaylistIssueDrawer from "../components/CollectionPlaylistIssueDrawer";
-import CollectionDuplicateDialog from "../components/CollectionDuplicateDialog";
+import CollectionDuplicateDrawer from "../components/CollectionDuplicateDrawer";
 import CollectionClearPlaylistDialog from "../components/CollectionClearPlaylistDialog";
 import CollectionItemLimitDialog from "../components/CollectionItemLimitDialog";
 import CollectionCreateProgressOverlay from "../components/CollectionCreateProgressOverlay";
@@ -683,7 +683,7 @@ const CollectionCreatePage = () => {
           skippedCount={playlistIssueTotal}
         />
 
-        <CollectionDuplicateDialog
+        <CollectionDuplicateDrawer
           open={duplicateDialogOpen}
           onClose={() => setDuplicateDialogOpen(false)}
           removedDuplicateCount={removedDuplicateCount}

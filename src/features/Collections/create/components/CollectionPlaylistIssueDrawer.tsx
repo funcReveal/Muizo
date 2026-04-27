@@ -9,7 +9,6 @@ import type {
 } from "../hooks/useCollectionCreateImportSources";
 
 type PlaylistIssueTab =
-  | "duplicate"
   | "removed"
   | "private"
   | "blocked"
@@ -33,7 +32,6 @@ type IssueGroup = {
 const normalizeStatus = (
   status: CollectionCreateSkippedItemStatus | undefined,
 ): PlaylistIssueTab => {
-  if (status === "duplicate") return "duplicate";
   if (status === "removed") return "removed";
   if (status === "private") return "private";
   if (status === "blocked") return "blocked";
@@ -66,11 +64,14 @@ export default function CollectionPlaylistIssueDrawer({
       Record<PlaylistIssueTab, CollectionCreateSkippedItem[]>
     >(
       (acc, item) => {
+        if (item.status === "duplicate") {
+          return acc;
+        }
+
         acc[normalizeStatus(item.status)].push(item);
         return acc;
       },
       {
-        duplicate: [],
         removed: [],
         private: [],
         blocked: [],
@@ -79,13 +80,7 @@ export default function CollectionPlaylistIssueDrawer({
       },
     );
 
-    return [
-      {
-        key: "duplicate",
-        label: t("issueDrawer.tabs.duplicate"),
-        description: t("issueDrawer.descriptions.duplicate"),
-        items: grouped.duplicate,
-      },
+    const baseGroups: IssueGroup[] = [
       {
         key: "removed",
         label: t("issueDrawer.tabs.removed"),
@@ -110,6 +105,14 @@ export default function CollectionPlaylistIssueDrawer({
         description: t("issueDrawer.descriptions.unavailable"),
         items: grouped.unavailable,
       },
+    ];
+
+    if (grouped.unknown.length === 0) {
+      return baseGroups;
+    }
+
+    return [
+      ...baseGroups,
       {
         key: "unknown",
         label: t("issueDrawer.tabs.unknown"),
@@ -120,19 +123,47 @@ export default function CollectionPlaylistIssueDrawer({
   }, [skippedItems, t]);
 
   const defaultActiveTab = useMemo<PlaylistIssueTab>(() => {
-    return groups.find((group) => group.items.length > 0)?.key ?? "duplicate";
+    return groups.find((group) => group.items.length > 0)?.key ?? "removed";
   }, [groups]);
 
-  const activeTab = selectedTabOverride ?? defaultActiveTab;
+  const activeTab =
+    selectedTabOverride &&
+    groups.some((group) => group.key === selectedTabOverride)
+      ? selectedTabOverride
+      : defaultActiveTab;
 
   const activeGroup =
     groups.find((group) => group.key === activeTab) ?? groups[0];
 
-  const unresolvedDetailCount = Math.max(0, skippedCount - skippedItems.length);
+  const duplicateSkippedCount = skippedItems.filter(
+    (item) => item.status === "duplicate",
+  ).length;
+
+  const visibleSkippedItemCount = groups.reduce(
+    (sum, group) => sum + group.items.length,
+    0,
+  );
+
+  const unresolvedDetailCount = Math.max(
+    0,
+    skippedCount - visibleSkippedItemCount - duplicateSkippedCount,
+  );
 
   const handleClose = () => {
     setSelectedTabOverride(null);
     onClose();
+  };
+
+  const getReasonLabel = (item: CollectionCreateSkippedItem) => {
+    const normalizedStatus = normalizeStatus(item.status);
+
+    if (normalizedStatus === "unknown" && item.reason?.trim()) {
+      return t("issueDrawer.reasonLabels.unknownWithReason", {
+        reason: item.reason.trim(),
+      });
+    }
+
+    return t(`issueDrawer.reasonLabels.${normalizedStatus}`);
   };
 
   return (
@@ -161,6 +192,7 @@ export default function CollectionPlaylistIssueDrawer({
                 <ErrorOutlineRounded sx={{ fontSize: 20 }} />
                 {t("issueDrawer.title")}
               </div>
+
               <div className="mt-1 text-sm leading-6 text-[var(--mc-text-muted)]">
                 {t("issueDrawer.description", {
                   count: skippedCount,
@@ -177,6 +209,14 @@ export default function CollectionPlaylistIssueDrawer({
               <CloseRounded fontSize="small" />
             </IconButton>
           </div>
+
+          {duplicateSkippedCount > 0 && (
+            <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs leading-5 text-emerald-100">
+              {t("issueDrawer.duplicateRedirectHint", {
+                count: duplicateSkippedCount,
+              })}
+            </div>
+          )}
 
           {unresolvedDetailCount > 0 && (
             <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs leading-5 text-amber-100">
@@ -211,11 +251,12 @@ export default function CollectionPlaylistIssueDrawer({
                 textTransform: "none",
               },
               "& .Mui-selected": {
-                color: "var(--mc-text)",
+                color: "#67e8f9",
               },
               "& .MuiTabs-indicator": {
-                background:
-                  "linear-gradient(90deg, rgba(251,191,36,0.9), rgba(34,211,238,0.9))",
+                height: 2,
+                borderRadius: 999,
+                backgroundColor: "#67e8f9",
               },
             }}
           >
@@ -264,11 +305,9 @@ export default function CollectionPlaylistIssueDrawer({
                       </span>
                     </div>
 
-                    {item.reason && (
-                      <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs leading-5 text-rose-100">
-                        {item.reason}
-                      </div>
-                    )}
+                    <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs leading-5 text-rose-100">
+                      {getReasonLabel(item)}
+                    </div>
                   </div>
                 </div>
               ))}
