@@ -503,7 +503,7 @@ const CollectionCreatePage = () => {
   return (
     <Box
       ref={pageRootRef}
-      className="mx-auto w-full max-w-6xl px-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3 sm:px-4 sm:pb-6 sm:pt-4"
+      className="mx-auto w-full max-w-6xl px-3 pb-5 pt-3 sm:px-4 sm:pb-6 sm:pt-4"
     >
       <Box className="relative overflow-visible p-0 text-[var(--mc-text)] sm:p-5">
         {isCreating && (
@@ -551,7 +551,7 @@ const CollectionCreatePage = () => {
             />
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="min-w-0">
+              <div className="min-w-0 space-y-3">
                 {createStep === "source" && (
                   <CollectionCreateSourcePanel
                     authUserExists={Boolean(authUser)}
@@ -662,6 +662,16 @@ const CollectionCreatePage = () => {
                     isReadyToCreate={canCreateCollection}
                   />
                 )}
+
+                <CollectionCreateActionBar
+                  currentStep={createStep}
+                  canGoNext={canGoNext}
+                  canCreate={canCreateCollection}
+                  isCreating={isCreating}
+                  onBack={handleGoPreviousStep}
+                  onNext={handleGoNextStep}
+                  onCreate={() => void handleCreateCollection()}
+                />
               </div>
 
               <CollectionCreateInspectorPanel
@@ -690,16 +700,6 @@ const CollectionCreatePage = () => {
                 createError={createError}
               />
             </div>
-
-            <CollectionCreateActionBar
-              currentStep={createStep}
-              canGoNext={canGoNext}
-              canCreate={canCreateCollection}
-              isCreating={isCreating}
-              onBack={handleGoPreviousStep}
-              onNext={handleGoNextStep}
-              onCreate={() => void handleCreateCollection()}
-            />
           </div>
         </div>
 

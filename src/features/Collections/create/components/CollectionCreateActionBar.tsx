@@ -38,10 +38,10 @@ export default function CollectionCreateActionBar({
     }
 
     if (currentStep === "source") {
-      return t("action.reviewNext", { defaultValue: "下一步：檢查內容" });
+      return t("action.reviewNext", { defaultValue: "下一步" });
     }
 
-    return t("action.publishNext", { defaultValue: "下一步：發布設定" });
+    return t("action.publishNext", { defaultValue: "下一步" });
   }, [currentStep, isCreating, isPublishStep, t]);
 
   const helperText = useMemo(() => {
@@ -75,9 +75,9 @@ export default function CollectionCreateActionBar({
   }, [canCreate, canGoNext, currentStep, isPublishStep, t]);
 
   return (
-    <div className="sticky bottom-0 z-30 -mx-3 border-t border-[var(--mc-border)] bg-[rgba(2,6,23,0.9)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_48px_rgba(2,6,23,0.45)] backdrop-blur-xl sm:static sm:mx-0 sm:rounded-2xl sm:border sm:bg-[var(--mc-surface)]/70 sm:px-4 sm:pb-4 sm:shadow-none">
+    <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 text-xs leading-5 text-[var(--mc-text-muted)]">
+        <div className="hidden min-w-0 text-xs leading-5 text-[var(--mc-text-muted)] sm:block">
           {helperText}
         </div>
 
@@ -88,17 +88,21 @@ export default function CollectionCreateActionBar({
             disabled={!canGoBack}
             className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/45 px-4 py-2 text-sm font-semibold text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/65 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {t("action.back", { defaultValue: "上一步" })}
+            {t("action.back", { defaultValue: "返回" })}
           </button>
 
           <button
             type="button"
             onClick={isPublishStep ? onCreate : onNext}
             disabled={primaryDisabled}
-            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-[var(--mc-accent)] px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_14px_34px_rgba(34,211,238,0.22)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
+            className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-[var(--mc-accent)] px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_14px_34px_rgba(34,211,238,0.18)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
           >
             {primaryLabel}
           </button>
+        </div>
+
+        <div className="text-center text-[11px] leading-4 text-[var(--mc-text-muted)] sm:hidden">
+          {helperText}
         </div>
       </div>
     </div>
