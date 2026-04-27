@@ -5,6 +5,7 @@ import type {
   GameSyncVersion,
   PlaybackExtensionMode,
   PlaylistItem,
+  RestartGameVoteAction,
   SubmitAnswerResult,
 } from "./types";
 
@@ -34,7 +35,9 @@ export interface RoomGameContextValue {
   handleCastPlaybackExtensionVote: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;
-  handleRequestRestartGameVote: () => Promise<boolean>;
+  handleRequestRestartGameVote: (
+    action: RestartGameVoteAction,
+  ) => Promise<boolean>;
   handleCastRestartGameVote: (vote: "approve" | "reject") => Promise<boolean>;
   handleUpdateRoomSettings: (payload: {
     name?: string;

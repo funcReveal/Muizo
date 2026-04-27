@@ -59,6 +59,10 @@ type RoomSocketHandlers = {
   onGameStarted?: (payload: GameLiveUpdatePayload) => void;
   onGameUpdated?: (payload: GameLiveUpdatePayload) => void;
   onRoomUpdated?: (payload: { room: RoomSummary }) => void;
+  onGameReturnedToLobby?: (payload: {
+    roomId: string;
+    serverNow: number;
+  }) => void;
   onKicked?: (payload: {
     roomId: string;
     reason: string;
@@ -187,6 +191,9 @@ export const connectRoomSocket = (
   socket.on("gameStarted", (payload) => handlers.onGameStarted?.(payload));
   socket.on("gameUpdated", (payload) => handlers.onGameUpdated?.(payload));
   socket.on("roomUpdated", (payload) => handlers.onRoomUpdated?.(payload));
+  socket.on("gameReturnedToLobby", (payload) =>
+    handlers.onGameReturnedToLobby?.(payload),
+  );
   socket.on("kicked", (payload) => handlers.onKicked?.(payload));
   socket.on("playlistSuggestionsUpdated", (payload) =>
     handlers.onPlaylistSuggestionsUpdated?.(payload),

@@ -1006,6 +1006,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const hasPlaybackExtensionApplied =
     Math.max(0, gameState.playbackExtensionMs ?? 0) > 0;
 
+  const isPlaybackExtensionVoteActive =
+    playbackExtensionVote?.status === "active";
+
   const canRequestPlaybackExtensionVote =
     isManualPlaybackExtensionMode &&
     gameState.status === "playing" &&
@@ -1013,7 +1016,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !waitingToStart &&
     !isEnded &&
     !allAnsweredReadyForReveal &&
-    !playbackExtensionVote &&
+    !isPlaybackExtensionVoteActive &&
     !hasPlaybackExtensionApplied;
   const canOpenPlaybackVotePrompt =
     isManualPlaybackExtensionMode &&
