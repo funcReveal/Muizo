@@ -151,11 +151,15 @@ const CollectionCreatePage = () => {
   const {
     importSources,
     importedPlaylistItems,
+    removedImportItems,
     totalImportedItemCount,
     totalSkippedItemCount,
+    removedImportItemCount,
     addImportSource,
     removeImportSource,
     resetImportSources,
+    removeImportItem,
+    restoreImportItem,
   } = useCollectionCreateImportSources();
 
   const {
@@ -858,6 +862,10 @@ const CollectionCreatePage = () => {
                     collectionItemLimit={collectionItemLimit}
                     normalDraftPlaylistItems={normalDraftPlaylistItems}
                     longDraftPlaylistItems={longDraftPlaylistItems}
+                    removedImportItems={removedImportItems}
+                    removedImportItemCount={removedImportItemCount}
+                    onRemoveImportItem={removeImportItem}
+                    onRestoreImportItem={restoreImportItem}
                     removedDuplicateCount={removedDuplicateCount}
                     onOpenDuplicateDialog={() => setDuplicateDialogOpen(true)}
                     isDraftOverflow={isDraftOverflow}

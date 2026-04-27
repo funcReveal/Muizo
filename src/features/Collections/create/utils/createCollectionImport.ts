@@ -1,4 +1,5 @@
 import { getPlaylistItemKey } from "../../edit/utils/editUtils";
+import type { CollectionCreateImportSourceType } from "../hooks/useCollectionCreateImportSources";
 
 type BasePlaylistItem = {
   title?: string;
@@ -8,6 +9,12 @@ type BasePlaylistItem = {
   thumbnail?: string;
   url?: string;
   channelId?: string | null;
+
+  importItemKey?: string;
+  sourceImportId?: string;
+  sourceTitle?: string;
+  sourceType?: CollectionCreateImportSourceType;
+  sourceItemIndex?: number;
 };
 
 export type DraftPlaylistItem = BasePlaylistItem & {

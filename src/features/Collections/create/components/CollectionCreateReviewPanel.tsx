@@ -7,23 +7,27 @@ import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
 import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import LibraryMusicRounded from "@mui/icons-material/LibraryMusicRounded";
+import RestoreRounded from "@mui/icons-material/RestoreRounded";
 import { CircularProgress } from "@mui/material";
 import { List, type RowComponentProps } from "react-window";
 import type { DraftPlaylistItem } from "../utils/createCollectionImport";
+import type { CollectionCreateImportItem } from "../hooks/useCollectionCreateImportSources";
 
-const REVIEW_ROW_HEIGHT = 72;
+const REVIEW_ROW_HEIGHT = 80;
 
-type ReviewFilterMode = "all" | "ready" | "long" | "issues";
+type ReviewFilterMode = "all" | "ready" | "long" | "removed" | "issues";
 
-type ReviewItemStatus = "ready" | "long";
+type ReviewItemStatus = "ready" | "long" | "removed";
 
 type ReviewItemView = {
   draftKey: string;
+  importItemKey?: string;
   title: string;
   answerText?: string;
   uploader?: string;
   duration?: string;
   thumbnail?: string;
+  sourceTitle?: string;
   status: ReviewItemStatus;
 };
 
@@ -31,8 +35,14 @@ type ReviewVirtualRowProps = {
   items: ReviewItemView[];
   readyLabel: string;
   longLabel: string;
+  removedLabel: string;
   noCoverLabel: string;
   unknownUploaderLabel: string;
+  sourceLabel: string;
+  removeLabel: string;
+  restoreLabel: string;
+  onRemoveImportItem: (itemKey: string) => void;
+  onRestoreImportItem: (itemKey: string) => void;
 };
 
 type Props = {
@@ -61,6 +71,10 @@ type Props = {
 
   normalDraftPlaylistItems: DraftPlaylistItem[];
   longDraftPlaylistItems: DraftPlaylistItem[];
+  removedImportItems: CollectionCreateImportItem[];
+  removedImportItemCount: number;
+  onRemoveImportItem: (itemKey: string) => void;
+  onRestoreImportItem: (itemKey: string) => void;
 
   removedDuplicateCount: number;
   onOpenDuplicateDialog: () => void;
@@ -76,44 +90,72 @@ type Props = {
 const toReviewItems = ({
   normalItems,
   longItems,
+  removedItems,
   untitledItemLabel,
 }: {
   normalItems: DraftPlaylistItem[];
   longItems: DraftPlaylistItem[];
+  removedItems: CollectionCreateImportItem[];
   untitledItemLabel: string;
 }): ReviewItemView[] => {
   const normal = normalItems.map((item) => ({
     draftKey: item.draftKey,
+    importItemKey: item.importItemKey,
     title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
     duration: item.duration,
     thumbnail: item.thumbnail,
+    sourceTitle: item.sourceTitle,
     status: "ready" as const,
   }));
 
   const long = longItems.map((item) => ({
     draftKey: item.draftKey,
+    importItemKey: item.importItemKey,
     title: item.title || item.answerText || untitledItemLabel,
     answerText: item.answerText,
     uploader: item.uploader,
     duration: item.duration,
     thumbnail: item.thumbnail,
+    sourceTitle: item.sourceTitle,
     status: "long" as const,
   }));
 
-  return [...normal, ...long];
+  const removed = removedItems.map((item) => ({
+    draftKey: item.importItemKey,
+    importItemKey: item.importItemKey,
+    title: item.title || item.answerText || untitledItemLabel,
+    answerText: item.answerText,
+    uploader: item.uploader,
+    duration: item.duration,
+    thumbnail: item.thumbnail,
+    sourceTitle: item.sourceTitle,
+    status: "removed" as const,
+  }));
+
+  return [...normal, ...long, ...removed];
 };
 
 const StatusBadge = ({
   status,
   readyLabel,
   longLabel,
+  removedLabel,
 }: {
   status: ReviewItemStatus;
   readyLabel: string;
   longLabel: string;
+  removedLabel: string;
 }) => {
+  if (status === "removed") {
+    return (
+      <span className="inline-flex items-center rounded-full border border-rose-300/30 bg-rose-300/10 px-2 py-0.5 text-[10px] font-semibold text-rose-100">
+        {removedLabel}
+      </span>
+    );
+  }
+
   if (status === "long") {
     return (
       <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
@@ -135,15 +177,30 @@ const ReviewVirtualRow = ({
   items,
   readyLabel,
   longLabel,
+  removedLabel,
   noCoverLabel,
   unknownUploaderLabel,
+  sourceLabel,
+  removeLabel,
+  restoreLabel,
+  onRemoveImportItem,
+  onRestoreImportItem,
 }: RowComponentProps<ReviewVirtualRowProps>) => {
   const item = items[index];
   if (!item) return <div style={style} />;
 
+  const canManageItem = Boolean(item.importItemKey);
+  const isRemoved = item.status === "removed";
+
   return (
     <div style={style} className="px-2">
-      <div className="flex h-[64px] items-center gap-3 rounded-xl border border-transparent px-2 transition hover:border-[var(--mc-border)] hover:bg-[var(--mc-surface-strong)]/35">
+      <div
+        className={`flex h-[72px] items-center gap-3 rounded-xl border px-2 transition ${
+          isRemoved
+            ? "border-rose-300/15 bg-rose-950/10 opacity-80"
+            : "border-transparent hover:border-[var(--mc-border)] hover:bg-[var(--mc-surface-strong)]/35"
+        }`}
+      >
         <div className="w-8 shrink-0 text-right text-[11px] tabular-nums text-[var(--mc-text-muted)]">
           {index + 1}
         </div>
@@ -162,22 +219,59 @@ const ReviewVirtualRow = ({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-[var(--mc-text)]">
+          <div
+            className={`truncate text-sm font-medium ${
+              isRemoved
+                ? "text-[var(--mc-text-muted)] line-through"
+                : "text-[var(--mc-text)]"
+            }`}
+          >
             {item.title}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]">
             {item.uploader || unknownUploaderLabel}
             {item.duration ? ` · ${item.duration}` : ""}
+            {item.sourceTitle ? ` · ${sourceLabel}: ${item.sourceTitle}` : ""}
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="hidden shrink-0 sm:block">
           <StatusBadge
             status={item.status}
             readyLabel={readyLabel}
             longLabel={longLabel}
+            removedLabel={removedLabel}
           />
         </div>
+
+        {canManageItem && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!item.importItemKey) return;
+
+              if (isRemoved) {
+                onRestoreImportItem(item.importItemKey);
+                return;
+              }
+
+              onRemoveImportItem(item.importItemKey);
+            }}
+            className={`inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition ${
+              isRemoved
+                ? "border-emerald-300/25 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/15"
+                : "border-rose-300/25 bg-rose-300/10 text-rose-100 hover:bg-rose-300/15"
+            }`}
+            aria-label={isRemoved ? restoreLabel : removeLabel}
+            title={isRemoved ? restoreLabel : removeLabel}
+          >
+            {isRemoved ? (
+              <RestoreRounded sx={{ fontSize: 16 }} />
+            ) : (
+              <CloseRounded sx={{ fontSize: 16 }} />
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -241,6 +335,10 @@ export default function CollectionCreateReviewPanel({
 
   normalDraftPlaylistItems,
   longDraftPlaylistItems,
+  removedImportItems,
+  removedImportItemCount,
+  onRemoveImportItem,
+  onRestoreImportItem,
 
   removedDuplicateCount,
   onOpenDuplicateDialog,
@@ -262,17 +360,20 @@ export default function CollectionCreateReviewPanel({
       toReviewItems({
         normalItems: normalDraftPlaylistItems,
         longItems: longDraftPlaylistItems,
+        removedItems: removedImportItems,
         untitledItemLabel: t("review.untitledItem"),
       }),
-    [normalDraftPlaylistItems, longDraftPlaylistItems, t],
+    [normalDraftPlaylistItems, longDraftPlaylistItems, removedImportItems, t],
   );
 
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
 
   const filteredItems = useMemo(() => {
     return allReviewItems.filter((item) => {
+      if (filterMode === "all" && item.status === "removed") return false;
       if (filterMode === "ready" && item.status !== "ready") return false;
       if (filterMode === "long" && item.status !== "long") return false;
+      if (filterMode === "removed" && item.status !== "removed") return false;
       if (filterMode === "issues") return false;
 
       if (!normalizedSearchQuery) return true;
@@ -282,6 +383,7 @@ export default function CollectionCreateReviewPanel({
         item.answerText,
         item.uploader,
         item.duration,
+        item.sourceTitle,
         item.status,
       ]
         .filter(Boolean)
@@ -297,10 +399,16 @@ export default function CollectionCreateReviewPanel({
       items: filteredItems,
       readyLabel: t("review.summary.ready"),
       longLabel: t("review.summary.long"),
+      removedLabel: t("review.summary.removed"),
       noCoverLabel: t("review.noCover"),
       unknownUploaderLabel: t("review.unknownUploader"),
+      sourceLabel: t("review.sourceLabel"),
+      removeLabel: t("review.removeItem"),
+      restoreLabel: t("review.restoreItem"),
+      onRemoveImportItem,
+      onRestoreImportItem,
     }),
-    [filteredItems, t],
+    [filteredItems, onRemoveImportItem, onRestoreImportItem, t],
   );
 
   const listHeight = Math.min(
@@ -460,6 +568,23 @@ export default function CollectionCreateReviewPanel({
           </div>
 
           <div className="mt-4 grid gap-2">
+            {removedImportItemCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("removed")}
+                className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-rose-300/25 bg-rose-300/10 px-3 py-2 text-left text-xs text-rose-100 transition hover:border-rose-300/45 hover:bg-rose-300/15"
+              >
+                <span className="font-semibold">
+                  {t("review.alerts.removedItems")}
+                </span>
+                <span>
+                  {t("review.alerts.removedItemsDetail", {
+                    count: removedImportItemCount,
+                  })}
+                </span>
+              </button>
+            )}
+
             {removedDuplicateCount > 0 && (
               <button
                 type="button"
@@ -520,11 +645,14 @@ export default function CollectionCreateReviewPanel({
 
           <div className="mt-4 space-y-3 border-t border-[var(--mc-border)]/70 pt-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="inline-flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 p-1 text-[11px]">
+              <div className="inline-flex flex-wrap rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 p-1 text-[11px]">
                 {[
                   {
                     key: "all",
-                    label: `${t("review.filters.all")} (${allReviewItems.length})`,
+                    label: `${t("review.filters.all")} (${
+                      normalDraftPlaylistItems.length +
+                      longDraftPlaylistItems.length
+                    })`,
                   },
                   {
                     key: "ready",
@@ -533,6 +661,10 @@ export default function CollectionCreateReviewPanel({
                   {
                     key: "long",
                     label: `${t("review.filters.long")} (${longDraftPlaylistItems.length})`,
+                  },
+                  {
+                    key: "removed",
+                    label: `${t("review.filters.removed")} (${removedImportItemCount})`,
                   },
                   {
                     key: "issues",

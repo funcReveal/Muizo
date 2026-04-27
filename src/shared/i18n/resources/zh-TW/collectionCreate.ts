@@ -83,6 +83,7 @@ const collectionCreate = {
       long: "超長",
       duplicates: "重複",
       skipped: "略過",
+      removed: "已移除",
     },
     alerts: {
       duplicatesRemoved: "已移除重複項目",
@@ -92,12 +93,15 @@ const collectionCreate = {
       skippedItems: "未成功匯入項目",
       skippedItemsDetail: "{{count}} 個項目 · 查看明細",
       cleanResult: "匯入結果看起來正常，可以繼續設定發布內容。",
+      removedItems: "已手動移除項目",
+      removedItemsDetail: "{{count}} 個項目 · 查看與還原",
     },
     filters: {
       all: "全部",
       ready: "可用",
       long: "超長",
       issues: "問題",
+      removed: "已移除",
     },
     searchPlaceholder: "搜尋歌曲名稱或上傳者",
     issuesHint:
@@ -110,6 +114,9 @@ const collectionCreate = {
       fallback: "正在準備匯入...",
       hint: "匯入完成後，檢查列表會自動更新。",
     },
+    sourceLabel: "來源",
+    removeItem: "移除歌曲",
+    restoreItem: "還原歌曲",
   },
 
   publish: {

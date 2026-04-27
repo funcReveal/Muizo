@@ -87,6 +87,7 @@ const collectionCreate = {
       long: "Long",
       duplicates: "Duplicates",
       skipped: "Skipped",
+      removed: "Removed",
     },
     alerts: {
       duplicatesRemoved: "Duplicates removed",
@@ -97,12 +98,15 @@ const collectionCreate = {
       skippedItemsDetail: "{{count}} items · View details",
       cleanResult:
         "Import result looks clean. You can continue to publish settings.",
+      removedItems: "Manually removed items",
+      removedItemsDetail: "{{count}} items · View and restore",
     },
     filters: {
       all: "All",
       ready: "Ready",
       long: "Long",
       issues: "Issues",
+      removed: "Removed",
     },
     searchPlaceholder: "Search title or uploader",
     issuesHint:
@@ -115,6 +119,9 @@ const collectionCreate = {
       fallback: "Preparing import...",
       hint: "The review list will update automatically after import.",
     },
+    sourceLabel: "Source",
+    removeItem: "Remove song",
+    restoreItem: "Restore song",
   },
 
   publish: {

@@ -18,6 +18,7 @@ export type CollectionCreateSourcePlaylistItem = {
 };
 
 export type CollectionCreateImportItem = CollectionCreateSourcePlaylistItem & {
+  importItemKey: string;
   sourceImportId: string;
   sourceTitle: string;
   sourceType: CollectionCreateImportSourceType;
@@ -54,10 +55,20 @@ const buildImportSourceId = (
   sourceId: string,
 ) => `${type}:${sourceId}`;
 
+const buildImportItemKey = (sourceImportId: string, index: number) =>
+  `${sourceImportId}:${index}`;
+
+const isItemFromSource = (itemKey: string, sourceImportId: string) =>
+  itemKey.startsWith(`${sourceImportId}:`);
+
 export function useCollectionCreateImportSources() {
   const [importSources, setImportSources] = useState<
     CollectionCreateImportSource[]
   >([]);
+
+  const [removedImportItemKeys, setRemovedImportItemKeys] = useState<string[]>(
+    [],
+  );
 
   const addImportSource = useCallback((input: AddImportSourceInput) => {
     const title = input.title.trim() || "Untitled source";
@@ -82,6 +93,7 @@ export function useCollectionCreateImportSources() {
       createdAt: Date.now(),
       items: input.items.map((item, index) => ({
         ...item,
+        importItemKey: buildImportItemKey(id, index),
         sourceImportId: id,
         sourceTitle: title,
         sourceType: input.type,
@@ -94,23 +106,76 @@ export function useCollectionCreateImportSources() {
       nextSource,
     ]);
 
+    setRemovedImportItemKeys((prev) =>
+      prev.filter((key) => !isItemFromSource(key, id)),
+    );
+
     return id;
   }, []);
 
   const removeImportSource = useCallback((sourceId: string) => {
     setImportSources((prev) => prev.filter((source) => source.id !== sourceId));
+
+    setRemovedImportItemKeys((prev) =>
+      prev.filter((key) => !isItemFromSource(key, sourceId)),
+    );
   }, []);
 
   const resetImportSources = useCallback(() => {
     setImportSources([]);
+    setRemovedImportItemKeys([]);
   }, []);
 
-  const importedPlaylistItems = useMemo(
+  const removeImportItem = useCallback((itemKey: string) => {
+    if (!itemKey) return;
+
+    setRemovedImportItemKeys((prev) => {
+      if (prev.includes(itemKey)) return prev;
+      return [...prev, itemKey];
+    });
+  }, []);
+
+  const restoreImportItem = useCallback((itemKey: string) => {
+    if (!itemKey) return;
+
+    setRemovedImportItemKeys((prev) =>
+      prev.filter((currentKey) => currentKey !== itemKey),
+    );
+  }, []);
+
+  const resetRemovedImportItems = useCallback(() => {
+    setRemovedImportItemKeys([]);
+  }, []);
+
+  const allImportItems = useMemo(
     () => importSources.flatMap((source) => source.items),
     [importSources],
   );
 
-  const totalImportedItemCount = importedPlaylistItems.length;
+  const removedImportItemKeySet = useMemo(
+    () => new Set(removedImportItemKeys),
+    [removedImportItemKeys],
+  );
+
+  const importedPlaylistItems = useMemo(
+    () =>
+      allImportItems.filter(
+        (item) => !removedImportItemKeySet.has(item.importItemKey),
+      ),
+    [allImportItems, removedImportItemKeySet],
+  );
+
+  const removedImportItems = useMemo(
+    () =>
+      allImportItems.filter((item) =>
+        removedImportItemKeySet.has(item.importItemKey),
+      ),
+    [allImportItems, removedImportItemKeySet],
+  );
+
+  const totalImportedItemCount = allImportItems.length;
+  const selectedImportedItemCount = importedPlaylistItems.length;
+  const removedImportItemCount = removedImportItems.length;
 
   const totalSkippedItemCount = useMemo(
     () => importSources.reduce((sum, source) => sum + source.skippedCount, 0),
@@ -125,11 +190,18 @@ export function useCollectionCreateImportSources() {
   return {
     importSources,
     importedPlaylistItems,
+    removedImportItems,
+    removedImportItemKeys,
     totalImportedItemCount,
+    selectedImportedItemCount,
+    removedImportItemCount,
     totalSkippedItemCount,
     totalDuplicateItemCount,
     addImportSource,
     removeImportSource,
     resetImportSources,
+    removeImportItem,
+    restoreImportItem,
+    resetRemovedImportItems,
   };
 }
