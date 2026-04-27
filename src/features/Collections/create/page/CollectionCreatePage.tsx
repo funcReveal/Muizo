@@ -6,10 +6,12 @@ import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
 import {
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
 } from "@mui/material";
 import { useAuth } from "../../../../shared/auth/AuthContext";
 import { isAdminRole } from "../../../../shared/auth/roles";
@@ -114,6 +116,10 @@ const CollectionCreatePage = () => {
   const [clearPlaylistDialogOpen, setClearPlaylistDialogOpen] = useState(false);
   const [pendingRemoveItem, setPendingRemoveItem] =
     useState<DraftPlaylistItem | null>(null);
+
+  const [skipRemoveItemConfirm, setSkipRemoveItemConfirm] = useState(false);
+  const [pendingSkipRemoveItemConfirm, setPendingSkipRemoveItemConfirm] =
+    useState(false);
 
   const needsGoogleReauth = isGoogleReauthRequired({
     error: youtubePlaylistsError ?? youtubeActionError,
@@ -505,11 +511,20 @@ const CollectionCreatePage = () => {
   };
 
   const handleRequestRemoveImportItem = (item: DraftPlaylistItem) => {
+    const itemKey = item.importItemKey ?? item.draftKey;
+
+    if (skipRemoveItemConfirm) {
+      removeImportItem(itemKey);
+      return;
+    }
+
     setPendingRemoveItem(item);
+    setPendingSkipRemoveItemConfirm(false);
   };
 
   const handleCancelRemoveImportItem = () => {
     setPendingRemoveItem(null);
+    setPendingSkipRemoveItemConfirm(false);
   };
 
   const handleConfirmRemoveImportItem = () => {
@@ -518,7 +533,13 @@ const CollectionCreatePage = () => {
     removeImportItem(
       pendingRemoveItem.importItemKey ?? pendingRemoveItem.draftKey,
     );
+
+    if (pendingSkipRemoveItemConfirm) {
+      setSkipRemoveItemConfirm(true);
+    }
+
     setPendingRemoveItem(null);
+    setPendingSkipRemoveItemConfirm(false);
   };
 
   const handleVisibilityChange = (nextVisibility: "private" | "public") => {
@@ -807,6 +828,34 @@ const CollectionCreatePage = () => {
                 </div>
               </div>
             )}
+            <FormControlLabel
+              sx={{
+                mt: 2,
+                alignItems: "flex-start",
+                color: "var(--mc-text-muted)",
+                "& .MuiFormControlLabel-label": {
+                  fontSize: 12,
+                  lineHeight: 1.7,
+                },
+              }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={pendingSkipRemoveItemConfirm}
+                  onChange={(event) =>
+                    setPendingSkipRemoveItemConfirm(event.target.checked)
+                  }
+                  sx={{
+                    mt: -0.25,
+                    color: "rgba(148, 163, 184, 0.8)",
+                    "&.Mui-checked": {
+                      color: "#67e8f9",
+                    },
+                  }}
+                />
+              }
+              label="本次建立流程不要再提醒"
+            />
           </DialogContent>
 
           <DialogActions sx={{ px: 3, pb: 2 }}>

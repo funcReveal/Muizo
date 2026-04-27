@@ -6,11 +6,60 @@ import type {
 } from "../utils/editTypes";
 
 const AI_BATCH_PAGE_SIZE = 100;
-const MAX_AI_ASSISTANT_URL_LENGTH = 45000;
+
 const AI_PROVIDER: AnswerAiProvider = "gemini";
 const AI_MODIFIED_STATUS: AnswerStatus = "ai_modified";
 const AI_PROVIDER_LABEL = "Gemini";
 const AI_PROVIDER_BASE_URL = "https://gemini.google.com/app";
+
+const copyTextWithTextarea = (text: string) => {
+  if (!text.trim()) return false;
+
+  const textarea = document.createElement("textarea");
+
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.width = "1px";
+  textarea.style.height = "1px";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+
+  document.body.appendChild(textarea);
+
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+};
+
+const copyTextToClipboard = async (text: string) => {
+  if (!text.trim()) return false;
+
+  // 優先走傳統複製，避免瀏覽器跳出 Clipboard API 權限提示。
+  if (copyTextWithTextarea(text)) {
+    return true;
+  }
+
+  // fallback：有些環境 execCommand 失敗，再嘗試 Clipboard API。
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+};
 
 type AiAnswerUpdate = {
   id: string;
@@ -172,11 +221,6 @@ export function useCollectionEditAiBatch({
       ].join("\n"),
     [aiPromptPayload],
   );
-
-  const aiPromptUrl = useMemo(() => {
-    const encoded = encodeURIComponent(aiPromptText);
-    return `${AI_PROVIDER_BASE_URL}?q=${encoded}`;
-  }, [aiPromptText]);
 
   const aiParsedResult = useMemo(() => {
     if (!currentAiJsonDraft.trim()) {
@@ -382,33 +426,32 @@ export function useCollectionEditAiBatch({
   }, []);
 
   const handleCopyAiPrompt = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(aiPromptText);
-      setAiHelperNotice("Prompt 已複製，可以直接貼到 AI。");
-    } catch {
-      setAiHelperNotice("無法自動複製，請手動複製下方內容。");
-    }
-  }, [aiPromptText]);
+    const copied = await copyTextToClipboard(aiPromptText);
 
-  const handleOpenAiAssistant = useCallback(async () => {
-    if (aiPromptUrl && aiPromptUrl.length <= MAX_AI_ASSISTANT_URL_LENGTH) {
-      window.open(aiPromptUrl, "_blank", "noopener,noreferrer");
+    if (copied) {
+      setAiHelperNotice("Prompt 已複製，可以直接貼到 AI。");
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(aiPromptText);
-      setAiHelperNotice(
-        `Prompt 過長，這次不會自動帶入 ${AI_PROVIDER_LABEL}，已改為複製內容並開啟首頁，請直接貼上。`,
-      );
-    } catch {
-      setAiHelperNotice(
-        `Prompt 過長，這次不會自動帶入 ${AI_PROVIDER_LABEL}。若未自動複製，請手動複製下方內容。`,
-      );
-    }
+    setAiHelperNotice("無法自動複製，請手動複製下方內容。");
+  }, [aiPromptText]);
+
+  const handleOpenAiAssistant = useCallback(async () => {
+    const copied = await copyTextToClipboard(aiPromptText);
 
     window.open(AI_PROVIDER_BASE_URL, "_blank", "noopener,noreferrer");
-  }, [aiPromptText, aiPromptUrl]);
+
+    if (copied) {
+      setAiHelperNotice(
+        `Prompt 已複製，已開啟 ${AI_PROVIDER_LABEL}，請直接貼上。`,
+      );
+      return;
+    }
+
+    setAiHelperNotice(
+      `已開啟 ${AI_PROVIDER_LABEL}，但無法自動複製。請手動複製下方內容後貼上。`,
+    );
+  }, [aiPromptText]);
 
   const handleApplyAiBatch = useCallback(async () => {
     if (!canApplyAiBatch || aiBatchWriteState.status !== "idle") return;
