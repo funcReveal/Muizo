@@ -77,6 +77,8 @@ const LARGE_DRIFT_OVERRIDE_SEC = 1.5;
 // After coming back from background / focus event, force a resume at the
 // server-derived position, then do one delayed verification check.
 const RESUME_RESYNC_CHECK_MS = 700;
+const REVEAL_CLIP_END_GUARD_LEAD_MS = 800;
+const MIN_REVEAL_CLIP_END_GUARD_DELAY_MS = 160;
 const SYNC_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 
 const useGameRoomPlayerSync = ({
@@ -152,6 +154,7 @@ const useGameRoomPlayerSync = ({
   const guessLoopRestartTimerRef = useRef<number | null>(null);
   const clipEndGuardTimerRef = useRef<number | null>(null);
   const scheduleGuessLoopRestartRef = useRef<() => void>(() => undefined);
+  const scheduleRevealClipEndGuardRef = useRef<() => void>(() => undefined);
   const postStartDriftTimersRef = useRef<number[]>([]);
   const postStartDriftRetriedRef = useRef(false);
   const silentAudioStartTimerRef = useRef<number | null>(null);
@@ -342,8 +345,6 @@ const useGameRoomPlayerSync = ({
   );
 
   const revealStartAt = revealEndsAt - revealDurationMs;
-  const revealDurationSec = Math.max(0, revealDurationMs / 1000);
-  const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
 
   const computeServerPositionSec = useCallback(() => {
     const elapsed = Math.max(0, (getServerNowMs() - startedAt) / 1000);
@@ -355,20 +356,13 @@ const useGameRoomPlayerSync = ({
     return Math.min(clipEndSec, clipStartSec + elapsed);
   }, [clipEndSec, clipStartSec, getServerNowMs, phase, startedAt]);
 
+  const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
+
   const computeRevealPositionSec = useCallback(() => {
     const elapsed = Math.max(0, (getServerNowMs() - revealStartAt) / 1000);
-    const effectiveElapsed =
-      revealDurationSec > 0 ? Math.min(elapsed, revealDurationSec) : elapsed;
-    const offset = clipLengthSec > 0 ? effectiveElapsed % clipLengthSec : 0;
+    const offset = clipLengthSec > 0 ? elapsed % clipLengthSec : 0;
     return Math.min(clipEndSec, clipStartSec + offset);
-  }, [
-    clipEndSec,
-    clipLengthSec,
-    clipStartSec,
-    getServerNowMs,
-    revealDurationSec,
-    revealStartAt,
-  ]);
+  }, [clipEndSec, clipLengthSec, clipStartSec, getServerNowMs, revealStartAt]);
 
   const getDesiredPositionSec = useCallback(() => {
     if (revealReplayRef.current) {
@@ -758,6 +752,66 @@ const useGameRoomPlayerSync = ({
       startedAt,
     ],
   );
+
+  const scheduleRevealClipEndGuard = useCallback(() => {
+    clearClipEndGuardTimer();
+
+    if (
+      !videoId ||
+      !audioUnlockedRef.current ||
+      !keepRevealAliveRef.current ||
+      clipEndSec <= clipStartSec
+    ) {
+      return;
+    }
+
+    const nowPositionSec = computeRevealPositionSec();
+
+    const guardDelayMs = Math.max(
+      MIN_REVEAL_CLIP_END_GUARD_DELAY_MS,
+      Math.round((clipEndSec - nowPositionSec) * 1000) -
+        REVEAL_CLIP_END_GUARD_LEAD_MS,
+    );
+
+    clipEndGuardTimerRef.current = window.setTimeout(() => {
+      clipEndGuardTimerRef.current = null;
+
+      if (
+        !videoId ||
+        !audioUnlockedRef.current ||
+        !keepRevealAliveRef.current
+      ) {
+        return;
+      }
+
+      const state = lastPlayerStateRef.current;
+
+      // During reveal keep-alive, non-playing states should not kill the guard.
+      // The game owns playback here, so recover by restarting from clipStartSec.
+      if (state !== 1 && state !== 3) {
+        requestPlayerTime("reveal-guard-non-playing");
+      }
+
+      startPlayback(clipStartSec, true, {
+        holdAudio: false,
+        reason: "reveal-replay",
+      });
+
+      scheduleRevealClipEndGuardRef.current();
+    }, guardDelayMs);
+  }, [
+    clearClipEndGuardTimer,
+    clipEndSec,
+    clipStartSec,
+    computeRevealPositionSec,
+    requestPlayerTime,
+    startPlayback,
+    videoId,
+  ]);
+
+  useEffect(() => {
+    scheduleRevealClipEndGuardRef.current = scheduleRevealClipEndGuard;
+  }, [scheduleRevealClipEndGuard]);
 
   const kickPlaybackAfterMobileUnlock = useCallback(() => {
     clearMobileUnlockKickTimer();
@@ -1822,7 +1876,12 @@ const useGameRoomPlayerSync = ({
               clipStartSec,
               keepRevealAlive: keepRevealAliveRef.current,
             });
-            startPlayback(clipStartSec, true, { reason: "reveal-replay" });
+            startPlayback(clipStartSec, true, {
+              holdAudio: false,
+              reason: "reveal-replay",
+            });
+            scheduleRevealClipEndGuard();
+            return;
           } else if (
             phase === "guess" &&
             !isTimeAttackMode &&
@@ -1838,8 +1897,11 @@ const useGameRoomPlayerSync = ({
             // once the phase update is processed.
             revealReplayRef.current = true;
             startPlayback(clipStartSec, true, {
+              holdAudio: false,
               reason: "reveal-replay",
             });
+            scheduleRevealClipEndGuard();
+            return;
           } else if (keepRevealAliveRef.current && isStartedByServerTime()) {
             // Phase has transitioned away from reveal (game ended, between
             // questions, etc.) but we haven't navigated to the next screen yet.
@@ -1849,8 +1911,11 @@ const useGameRoomPlayerSync = ({
             // transition or while the host is stalling between questions.
             revealReplayRef.current = true;
             startPlayback(clipStartSec, true, {
+              holdAudio: false,
               reason: "reveal-replay",
             });
+            scheduleRevealClipEndGuard();
+            return;
           }
         }
       }
@@ -1951,6 +2016,7 @@ const useGameRoomPlayerSync = ({
     schedulePlaybackStart,
     schedulePostStartDriftChecks,
     scheduleResumeResync,
+    scheduleRevealClipEndGuard,
     shouldLoopRoomSettingsClip,
     startPlayback,
     startSilentAudio,
@@ -2006,106 +2072,96 @@ const useGameRoomPlayerSync = ({
 
   useEffect(() => {
     if (!isReveal) {
-      revealReplayRef.current = false;
       lastRevealStartKeyRef.current = null;
+
+      // If the game has ended, keep the reveal loop alive until navigation.
+      // For normal next-question transitions, the track-load effect will clear
+      // the old guard and the state=1 handler will retire keepRevealAliveRef.
+      if (isEnded && keepRevealAliveRef.current) {
+        revealReplayRef.current = true;
+        scheduleRevealClipEndGuard();
+        return;
+      }
+
+      revealReplayRef.current = false;
+      clearClipEndGuardTimer();
       return;
     }
+
     // Arm keep-alive for the entire duration of this track session so the clip
     // keeps looping even if the phase transitions away before navigation.
     keepRevealAliveRef.current = true;
+
     const revealKey = `${trackSessionKey}:${revealEndsAt}:reveal`;
-    if (lastRevealStartKeyRef.current === revealKey) return;
+
+    if (lastRevealStartKeyRef.current === revealKey) {
+      scheduleRevealClipEndGuard();
+      return;
+    }
+
     lastRevealStartKeyRef.current = revealKey;
+    revealReplayRef.current = true;
+
+    clearGuessLoopRestartTimer();
+    clearClipEndGuardTimer();
+    startSilentAudio();
+
     const latestPlayerTimeSec = lastPlayerTimeSecRef.current;
     const playerEnded =
       lastPlayerStateRef.current === 0 ||
       (typeof latestPlayerTimeSec === "number" &&
         latestPlayerTimeSec >= clipEndSec - 0.12);
 
-    if (playerEnded) {
-      if (hasRecentBuffering()) {
-        const timerId = window.setTimeout(() => {
-          revealReplayRef.current = true;
-          startPlayback(undefined, false, {
-            reason: "reveal-replay",
-          });
-        }, 260);
-        return () => window.clearTimeout(timerId);
-      }
+    const recentBuffering = hasRecentBuffering();
+
+    const restartRevealPlayback = (reason: string) => {
       revealReplayRef.current = true;
-      startPlayback(undefined, true, {
+      keepRevealAliveRef.current = true;
+
+      debugSync("reveal-replay-start", {
+        reason,
+        playerEnded,
+        recentBuffering,
+        clipStartSec,
+        clipEndSec,
+        lastPlayerState: lastPlayerStateRef.current,
+        lastPlayerTimeSec: lastPlayerTimeSecRef.current,
+      });
+
+      startPlayback(clipStartSec, true, {
+        holdAudio: false,
         reason: "reveal-replay",
       });
-      return;
+
+      scheduleRevealClipEndGuard();
+      requestPlayerTime(reason);
+    };
+
+    if (playerEnded && recentBuffering) {
+      const timerId = window.setTimeout(() => {
+        restartRevealPlayback("reveal-replay-after-buffering-ended");
+      }, 260);
+
+      // Important: do not return before scheduling the guard. The timer above is
+      // only a buffering-friendly delayed restart; the guard still protects this
+      // reveal session and will re-arm itself after each loop.
+      scheduleRevealClipEndGuard();
+
+      return () => {
+        window.clearTimeout(timerId);
+        clearClipEndGuardTimer();
+      };
     }
 
-    // Arm reveal-replay so that if the clip ends during the reveal
-    // window, state=0 correctly loops back to clipStartSec.
-    // Previously this was set to false, which caused two problems:
-    // 1) A race-condition where state=0 fired in the old (isReveal=false)
-    //    handleMessage closure and correctly set revealReplayRef=true, but
-    //    this effect then immediately overwrote it back to false.
-    // 2) Clips that were still playing when reveal began had no replay arm,
-    //    so they would end in silence rather than looping.
-    revealReplayRef.current = true;
-    const revealPos = computeRevealPositionSec();
-    const freshPos = getFreshPlayerTimeSec();
+    restartRevealPlayback(
+      playerEnded ? "reveal-replay-after-ended" : "reveal-replay-start",
+    );
+
     const state = lastPlayerStateRef.current;
-    const recentBuffering = hasRecentBuffering();
-    startSilentAudio();
-    if (!recentBuffering) {
-      // Seek to the reveal-synced position when the clip is meaningfully
-      // off (e.g. just restarted from a guess-loop at the guess boundary
-      // and landed a second or two past the reveal start point).
-      if (freshPos !== null && Math.abs(freshPos - revealPos) > DRIFT_TOLERANCE_SEC) {
-        postCommand("seekTo", [revealPos, true]);
-      }
-      postCommand("playVideo");
-      postCommand("unMute");
-      applyVolume(gameVolume);
-    }
-
-    // Clip-end guard: schedule a one-shot timer to fire ~200ms before clipEndSec
-    // so we can pre-empt the YouTube "replay" overlay by seeking back to
-    // clipStartSec before state=0 fires.  This handles the edge case where
-    // state=0 arrives while the handleMessage closure still has isReveal=false
-    // (race between the clip ending and the phase-update re-render completing).
-    // Minimum clip length of 1s prevents a rapid-fire guard on degenerate clips.
-    clearClipEndGuardTimer();
-    const currentPos = freshPos ?? revealPos;
-    const clipLengthForGuard = clipEndSec - clipStartSec;
-    if (clipLengthForGuard >= 1) {
-      const timeUntilEndMs = Math.max(0, (clipEndSec - currentPos) * 1000) - 200;
-      if (timeUntilEndMs > 50) {
-        clipEndGuardTimerRef.current = window.setTimeout(() => {
-          clipEndGuardTimerRef.current = null;
-          // Only act if we are still in reveal and player is playing.
-          if (!keepRevealAliveRef.current) return;
-          if (lastPlayerStateRef.current !== 1) return;
-          const currentPlayerPos = lastPlayerTimeSecRef.current;
-          // Confirm player is actually near the end (not already looped).
-          if (
-            typeof currentPlayerPos === "number" &&
-            currentPlayerPos < clipEndSec - 0.5
-          ) {
-            return;
-          }
-          // Pre-empt the YouTube clip-end overlay: seek to clipStartSec while
-          // still in state=1 (playing), before YouTube can show the overlay.
-          debugSync("reveal-clip-end-guard", {
-            reason: "reveal-clip-end-guard",
-            currentPlayerPos,
-            clipEndSec,
-            clipStartSec,
-          });
-          startPlayback(clipStartSec, true, { reason: "reveal-replay" });
-        }, timeUntilEndMs);
-      }
-    }
-
-    if (state === 1 || (state === 3 && recentBuffering)) {
+    if (state === 1 || state === 3) {
       return () => clearClipEndGuardTimer();
     }
+
     const fallbackTimer = window.setTimeout(
       () => {
         if (lastPlayerStateRef.current !== 1 && !hasRecentBuffering()) {
@@ -2113,10 +2169,12 @@ const useGameRoomPlayerSync = ({
           postCommand("unMute");
           applyVolume(gameVolume);
           startSilentAudio();
+          scheduleRevealClipEndGuard();
         }
       },
       recentBuffering ? 780 : 420,
     );
+
     return () => {
       window.clearTimeout(fallbackTimer);
       clearClipEndGuardTimer();
@@ -2124,15 +2182,17 @@ const useGameRoomPlayerSync = ({
   }, [
     applyVolume,
     clearClipEndGuardTimer,
+    clearGuessLoopRestartTimer,
     clipEndSec,
     clipStartSec,
-    computeRevealPositionSec,
     debugSync,
     gameVolume,
     hasRecentBuffering,
-    getFreshPlayerTimeSec,
     isReveal,
+    isEnded,
+    scheduleRevealClipEndGuard,
     postCommand,
+    requestPlayerTime,
     revealEndsAt,
     startSilentAudio,
     startPlayback,

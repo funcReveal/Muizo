@@ -2976,8 +2976,13 @@
 
 /* Combo breathing pulse — shared keyframe, duration & scale controlled per-tier */
 @keyframes game-room-combo-breathe {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(var(--cb-scale, 1.06)); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--cb-scale, 1.06));
+  }
 }
 
 .game-room-combo-breathe {
@@ -4407,13 +4412,27 @@
 
 /* Leaderboard: seesaw shake on the locked answer when a hotkey attempts to switch */
 @keyframes game-room-choice-shake {
-  0%   { transform: rotate(0deg);    }
-  18%  { transform: rotate(-0.9deg); }
-  36%  { transform: rotate(0.8deg);  }
-  54%  { transform: rotate(-0.6deg); }
-  72%  { transform: rotate(0.4deg);  }
-  86%  { transform: rotate(-0.2deg); }
-  100% { transform: rotate(0deg);    }
+  0% {
+    transform: rotate(0deg);
+  }
+  18% {
+    transform: rotate(-0.9deg);
+  }
+  36% {
+    transform: rotate(0.8deg);
+  }
+  54% {
+    transform: rotate(-0.6deg);
+  }
+  72% {
+    transform: rotate(0.4deg);
+  }
+  86% {
+    transform: rotate(-0.2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
 }
 
 .game-room-choice-shake {
@@ -4470,18 +4489,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
-  margin-left: -8px;
+  margin-left: -6px;
   border-radius: 999px;
   user-select: none;
   line-height: 1;
 }
-
 .game-room-choice-avatar {
   box-sizing: border-box;
-  border: 1px solid rgba(148, 163, 184, 0.14);
   background:
     radial-gradient(
       circle at 30% 28%,
@@ -4551,8 +4568,9 @@
 
   .game-room-choice-avatar,
   .game-room-choice-avatar-more {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
+    margin-left: -6px;
   }
 
   .game-room-choice-avatar {
@@ -4578,9 +4596,9 @@
 
   .game-room-choice-avatar,
   .game-room-choice-avatar-more {
-    width: 32px;
-    height: 32px;
-    margin-left: -6px;
+    width: 28px;
+    height: 28px;
+    margin-left: -5px;
   }
 
   .game-room-choice-avatar {
