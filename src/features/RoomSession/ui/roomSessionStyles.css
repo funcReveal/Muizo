@@ -4489,14 +4489,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   margin-left: -6px;
   border-radius: 999px;
   user-select: none;
   line-height: 1;
 }
+
 .game-room-choice-avatar {
   box-sizing: border-box;
   background:
@@ -4568,8 +4569,8 @@
 
   .game-room-choice-avatar,
   .game-room-choice-avatar-more {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     margin-left: -6px;
   }
 
