@@ -29,6 +29,7 @@ import CollectionItemLimitDialog from "../components/CollectionItemLimitDialog";
 import { useCollectionCreateDraft } from "../hooks/useCollectionCreateDraft";
 import { useCollectionCreateSubmit } from "../hooks/useCollectionCreateSubmit";
 import { useCollectionCreateImportSources } from "../hooks/useCollectionCreateImportSources";
+import { useEditableCollectionTitle } from "../hooks/useEditableCollectionTitle";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -73,7 +74,6 @@ const CollectionCreatePage = () => {
     useCollectionContent();
 
   const [createStep, setCreateStep] = useState<CreateStep>("source");
-  const [collectionTitle, setCollectionTitle] = useState("");
   const [collectionDescription, setCollectionDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("public");
   const [playlistSource, setPlaylistSource] = useState<"url" | "youtube">(
@@ -86,8 +86,6 @@ const CollectionCreatePage = () => {
     useState("");
   const [isImportingYoutubePlaylist, setIsImportingYoutubePlaylist] =
     useState(false);
-  const [isTitleEditing, setIsTitleEditing] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
   const [youtubeActionError, setYoutubeActionError] = useState<string | null>(
     null,
   );
@@ -127,6 +125,19 @@ const CollectionCreatePage = () => {
     role: authUser?.role,
     plan: authUser?.plan,
   });
+
+  const {
+    title: collectionTitle,
+    draft: titleDraft,
+    isEditing: isTitleEditing,
+    setTitle: setCollectionTitle,
+    setDraft: setTitleDraft,
+    startEdit: handleStartEditTitle,
+    save: handleTitleSave,
+    cancel: handleTitleCancel,
+    reset: resetCollectionTitle,
+    initializeIfEmpty: initializeCollectionTitleIfEmpty,
+  } = useEditableCollectionTitle();
 
   const {
     importSources,
@@ -237,20 +248,10 @@ const CollectionCreatePage = () => {
   }, [handleResetPlaylist]);
 
   useEffect(() => {
-    if (!lastFetchedPlaylistTitle) return;
-    setCollectionTitle(lastFetchedPlaylistTitle);
-    setTitleDraft(lastFetchedPlaylistTitle);
-  }, [lastFetchedPlaylistTitle]);
-
-  useEffect(() => {
     if (!authToken || !authUser?.id) return;
     if (collectionScope === "owner") return;
     void fetchCollections("owner");
   }, [authToken, authUser?.id, collectionScope, fetchCollections]);
-
-  useEffect(() => {
-    setTitleDraft(collectionTitle);
-  }, [collectionTitle]);
 
   useEffect(() => {
     if (!reachedPrivateCollectionLimit) return;
@@ -436,25 +437,6 @@ const CollectionCreatePage = () => {
     }
   };
 
-  const handleTitleSave = () => {
-    const nextTitle = titleDraft.trim();
-
-    if (!nextTitle) {
-      setTitleDraft(collectionTitle);
-      setIsTitleEditing(false);
-      return;
-    }
-
-    setCollectionTitle(nextTitle);
-    setTitleDraft(nextTitle);
-    setIsTitleEditing(false);
-  };
-
-  const handleTitleCancel = () => {
-    setTitleDraft(collectionTitle);
-    setIsTitleEditing(false);
-  };
-
   const resetPlaylistSelection = useCallback(() => {
     handleResetPlaylist();
     lastAutoImportUrlRef.current = "";
@@ -473,8 +455,7 @@ const CollectionCreatePage = () => {
 
   const handleConfirmClearPlaylist = () => {
     resetPlaylistSelection();
-    setCollectionTitle("");
-    setTitleDraft("");
+    resetCollectionTitle();
     setCreateStep("source");
     setClearPlaylistDialogOpen(false);
   };
@@ -509,13 +490,10 @@ const CollectionCreatePage = () => {
 
     resetPlaylistSelection();
 
-    if (!collectionTitle.trim()) {
-      setCollectionTitle(sourceTitle);
-      setTitleDraft(sourceTitle);
-    }
+    initializeCollectionTitleIfEmpty(sourceTitle);
   }, [
     addImportSource,
-    collectionTitle,
+    initializeCollectionTitleIfEmpty,
     hasResolvedPlaylist,
     lastFetchedPlaylistId,
     lastFetchedPlaylistTitle,
@@ -701,7 +679,7 @@ const CollectionCreatePage = () => {
                     titleDraft={titleDraft}
                     titleInputRef={titleInputRef}
                     onTitleDraftChange={setTitleDraft}
-                    onStartEditTitle={() => setIsTitleEditing(true)}
+                    onStartEditTitle={handleStartEditTitle}
                     onSaveTitle={handleTitleSave}
                     onCancelTitle={handleTitleCancel}
                     isAdmin={isAdmin}
