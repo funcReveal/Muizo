@@ -53,6 +53,7 @@ const AppLayoutShell: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isRoomsHubPage = location.pathname === "/rooms";
+  const isRoomsEntryGatePage = isRoomsHubPage && !username;
 
   const handleLoginRequest = useCallback(() => {
     if (authLoading) return;
@@ -71,20 +72,29 @@ const AppLayoutShell: React.FC = () => {
     [navigate],
   );
 
+  const roomsOutletClassName = isRoomsEntryGatePage
+    ? [
+        "min-h-0 flex-1",
+        "overflow-y-auto overflow-x-hidden",
+        "pb-[calc(88px+env(safe-area-inset-bottom))]",
+        "[-webkit-overflow-scrolling:touch]",
+        "overscroll-y-contain",
+        "[&>*]:!h-auto",
+        "[&>*]:!min-h-full",
+        "[&>*]:!overflow-visible",
+      ].join(" ")
+    : "min-h-0 flex-1 overflow-hidden pb-2";
+
   return (
     <div
       className={`flex bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start ${
-        isRoomsHubPage
-          ? "min-h-dvh overflow-x-hidden lg:h-dvh lg:overflow-hidden"
-          : "min-h-screen"
+        isRoomsHubPage ? "h-dvh overflow-hidden" : "min-h-screen"
       }`}
     >
       <div
         className={`flex w-full min-w-0 max-w-[1600px] p-4 flex-col ${
-          isRoomsHubPage
-            ? "space-y-2 min-h-dvh lg:h-full lg:min-h-0"
-            : "space-y-4"
-        }`}
+          isRoomsHubPage ? "space-y-2" : "space-y-4"
+        }${isRoomsHubPage ? " h-full min-h-0" : ""}`}
       >
         <AppHeader
           displayUsername={displayUsername}
@@ -101,7 +111,7 @@ const AppLayoutShell: React.FC = () => {
         />
 
         {isRoomsHubPage ? (
-          <div className="min-h-0 pb-2 lg:flex-1 lg:overflow-hidden">
+          <div className={roomsOutletClassName}>
             <Outlet />
           </div>
         ) : (
