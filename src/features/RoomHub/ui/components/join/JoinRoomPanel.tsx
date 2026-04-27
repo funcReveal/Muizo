@@ -30,10 +30,7 @@ import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import ViewAgendaRounded from "@mui/icons-material/ViewAgendaRounded";
 
-import type {
-  PlaybackExtensionMode,
-  RoomSummary,
-} from "@domain/room/types";
+import type { PlaybackExtensionMode, RoomSummary } from "@domain/room/types";
 import VirtualJoinRoomRow, {
   type VirtualJoinRoomRowProps,
 } from "./VirtualJoinRoomRow";
@@ -451,85 +448,89 @@ const JoinRoomPanel = ({
               </span>
             </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--mc-text-muted)]/90">
-            <span className="inline-flex items-center gap-1.5">
-              <VisibilityRounded sx={{ fontSize: 15 }} />
-              <span>公布 {room.gameSettings?.revealDurationSec ?? "-"}s</span>
-            </span>
-            {room.gameSettings?.allowCollectionClipTiming ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--mc-text-muted)]/90">
               <span className="inline-flex items-center gap-1.5">
-                <ContentCutRounded sx={{ fontSize: 15 }} />
-                <span>沿用題庫片段</span>
+                <VisibilityRounded sx={{ fontSize: 15 }} />
+                <span>公布 {room.gameSettings?.revealDurationSec ?? "-"}s</span>
               </span>
-            ) : (
-              <>
+              {room.gameSettings?.allowCollectionClipTiming ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <AccessTimeRounded sx={{ fontSize: 15 }} />
-                  <span>作答 {room.gameSettings?.playDurationSec ?? "-"}s</span>
+                  <ContentCutRounded sx={{ fontSize: 15 }} />
+                  <span>沿用題庫片段</span>
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <FastForwardRounded sx={{ fontSize: 15 }} />
-                  <span>起始 {room.gameSettings?.startOffsetSec ?? "-"}s</span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-1.5">
+                    <AccessTimeRounded sx={{ fontSize: 15 }} />
+                    <span>
+                      作答 {room.gameSettings?.playDurationSec ?? "-"}s
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <FastForwardRounded sx={{ fontSize: 15 }} />
+                    <span>
+                      起始 {room.gameSettings?.startOffsetSec ?? "-"}s
+                    </span>
+                  </span>
+                </>
+              )}
+              <span className="inline-flex items-center gap-1.5">
+                <TipsAndUpdatesRounded sx={{ fontSize: 15 }} />
+                <span>
+                  {getPlaybackExtensionLabel(
+                    room.gameSettings?.playbackExtensionMode,
+                  )}
                 </span>
-              </>
-            )}
-            <span className="inline-flex items-center gap-1.5">
-              <TipsAndUpdatesRounded sx={{ fontSize: 15 }} />
-              <span>
-                {getPlaybackExtensionLabel(
-                  room.gameSettings?.playbackExtensionMode,
-                )}
               </span>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-xl bg-white/[0.03] px-3 py-2">
+              <LibraryMusicRounded
+                sx={{
+                  fontSize: 17,
+                  color: "rgba(250, 204, 21, 0.92)",
+                }}
+              />
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]/80">
+                  {getRoomSourceTypeLabel(room) ?? "題庫名稱"}
+                </p>
+                <p
+                  className="truncate text-sm font-medium leading-snug text-[var(--mc-text)]"
+                  title={getRoomPlaylistLabel(room)}
+                >
+                  {getRoomPlaylistLabel(room)}
+                </p>
+                <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]/80">
+                  題庫題數：{room.playlistCount ?? 0} 題
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-[var(--mc-text-muted)]/80">
+              房間代碼：{formatRoomCodeDisplay(room.roomCode)}
+            </p>
+          </div>
+        </div>
+        {requiresLogin ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/20 bg-slate-950/80 px-2.5 py-1 text-[11px] font-semibold text-cyan-50 shadow-[0_12px_26px_-22px_rgba(34,211,238,0.85)]">
+              <LoginRounded sx={{ fontSize: 14 }} />
+              點擊登入
             </span>
           </div>
-
-          <div className="flex items-start gap-2 rounded-xl bg-white/[0.03] px-3 py-2">
-            <LibraryMusicRounded
-              sx={{
-                fontSize: 17,
-                color: "rgba(250, 204, 21, 0.92)",
-              }}
-            />
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--mc-text-muted)]/80">
-                {getRoomSourceTypeLabel(room) ?? "題庫名稱"}
-              </p>
-              <p
-                className="truncate text-sm font-medium leading-snug text-[var(--mc-text)]"
-                title={getRoomPlaylistLabel(room)}
-              >
-                {getRoomPlaylistLabel(room)}
-              </p>
-              <p className="mt-1 text-[11px] text-[var(--mc-text-muted)]/80">
-                題庫題數：{room.playlistCount ?? 0} 題
-              </p>
-            </div>
-          </div>
-          <p className="text-[11px] text-[var(--mc-text-muted)]/80">
-            房間代碼：{formatRoomCodeDisplay(room.roomCode)}
-          </p>
-        </div>
+        ) : null}
+        {roomRequiresPin(room) ? (
+          <LockRounded
+            sx={{
+              fontSize: 18,
+              color: "rgba(250, 204, 21, 0.92)",
+            }}
+            className={`pointer-events-none absolute right-3 ${
+              requiresLogin ? "bottom-10" : "bottom-3"
+            }`}
+          />
+        ) : null}
       </div>
-      {requiresLogin ? (
-        <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/20 bg-slate-950/80 px-2.5 py-1 text-[11px] font-semibold text-cyan-50 shadow-[0_12px_26px_-22px_rgba(34,211,238,0.85)]">
-            <LoginRounded sx={{ fontSize: 14 }} />
-            點擊登入
-          </span>
-        </div>
-      ) : null}
-      {roomRequiresPin(room) ? (
-        <LockRounded
-          sx={{
-            fontSize: 18,
-            color: "rgba(250, 204, 21, 0.92)",
-          }}
-          className={`pointer-events-none absolute right-3 ${
-            requiresLogin ? "bottom-10" : "bottom-3"
-          }`}
-        />
-      ) : null}
-    </div>
     );
   };
 
@@ -656,7 +657,7 @@ const JoinRoomPanel = ({
                     <div
                       onClick={() => directRoomCodeInputRef.current?.focus()}
                       lang="en"
-                      className={`relative mx-auto w-full max-w-[34rem] cursor-text rounded-[26px] border bg-slate-950/35 px-4 py-4 outline-none transition ${
+                      className={`relative mx-auto w-full max-w-full cursor-text overflow-hidden rounded-[26px] border bg-slate-950/35 px-2.5 py-3 outline-none transition sm:max-w-[34rem] sm:px-4 sm:py-4 ${
                         directJoinError
                           ? "border-rose-300/70 shadow-[0_0_0_4px_rgba(251,113,133,0.16)]"
                           : isDirectRoomCodeFocused
@@ -696,11 +697,11 @@ const JoinRoomPanel = ({
                         // style={{ imeMode: "disabled" }}
                         className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
                       />
-                      <div className="pointer-events-none flex items-center justify-center gap-2.5 sm:gap-3">
+                      <div className="pointer-events-none flex min-w-0 items-center justify-center gap-1.5 min-[360px]:gap-2 sm:gap-3">
                         {directRoomCodeSlots.slice(0, 3).map((char, index) => (
                           <span
                             key={`room-code-left-${index}`}
-                            className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
+                            className={`relative flex h-11 w-8 shrink-0 items-center justify-center rounded-xl border text-base font-semibold tracking-[0.08em] min-[360px]:h-12 min-[360px]:w-9 min-[390px]:h-14 min-[390px]:w-11 min-[390px]:rounded-2xl min-[390px]:tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
                               directJoinError
                                 ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
                                 : isDirectRoomCodeFocused &&
@@ -715,7 +716,7 @@ const JoinRoomPanel = ({
                           </span>
                         ))}
                         <span
-                          className={`px-1 text-xl font-semibold sm:text-2xl ${
+                          className={`shrink-0 px-0.5 text-base font-semibold min-[390px]:px-1 min-[390px]:text-xl sm:text-2xl ${
                             directJoinError
                               ? "text-rose-200/90"
                               : "text-amber-200/80"
@@ -726,7 +727,7 @@ const JoinRoomPanel = ({
                         {directRoomCodeSlots.slice(3).map((char, index) => (
                           <span
                             key={`room-code-right-${index}`}
-                            className={`relative flex h-14 w-11 items-center justify-center rounded-2xl border text-lg font-semibold tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
+                            className={`relative flex h-11 w-8 shrink-0 items-center justify-center rounded-xl border text-base font-semibold tracking-[0.08em] min-[360px]:h-12 min-[360px]:w-9 min-[390px]:h-14 min-[390px]:w-11 min-[390px]:rounded-2xl min-[390px]:tracking-[0.14em] sm:h-16 sm:w-12 sm:text-xl ${
                               directJoinError
                                 ? "border-rose-300/35 bg-rose-400/8 text-rose-50"
                                 : isDirectRoomCodeFocused &&
@@ -767,7 +768,7 @@ const JoinRoomPanel = ({
               <div className="mt-3 rounded-2xl border border-[var(--mc-border)]/70 bg-slate-950/20 p-3 sm:p-4">
                 {resolvedDirectJoinRoom ? (
                   <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <p className="text-base font-semibold text-[var(--mc-text)]">
                           {resolvedDirectJoinRoom.name}
@@ -853,7 +854,7 @@ const JoinRoomPanel = ({
             <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] text-[var(--mc-text-muted)]">
                 目前共 {filteredJoinRooms.length} 間房，房內{" "}
-                {filteredJoinPlayerTotal} 人， 
+                {filteredJoinPlayerTotal} 人，
                 {siteOnlineCount ?? "--"} 人在線
               </p>
               <div className="inline-flex items-center gap-1 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/60 p-0.5">
@@ -1007,7 +1008,7 @@ const JoinRoomPanel = ({
               >
                 <span className="inline-flex items-center gap-1 text-[10px] text-[var(--mc-text-muted)]">
                   <SwapVertRounded sx={{ fontSize: 14 }} />
-                    <span>排序</span>
+                  <span>排序</span>
                 </span>
                 <span className="mt-1 flex w-full items-center justify-between gap-1 text-[11px] font-medium text-[var(--mc-text)]">
                   <span className="min-w-0 truncate">

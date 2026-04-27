@@ -602,7 +602,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                   <ListItemIcon sx={{ minWidth: 30, color: "#a7f3d0" }}>
                     <LibraryMusic fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText primary="收藏庫" secondary="管理你的題庫收藏" />
+                  <ListItemText
+                    primary="收藏庫"
+                    secondary="創建公開收藏庫 & 管理你的收藏庫"
+                  />
                 </MenuItem>
               )
             )}

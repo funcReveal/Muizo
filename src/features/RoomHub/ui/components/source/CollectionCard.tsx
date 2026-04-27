@@ -297,7 +297,7 @@ const CollectionCard = ({
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={handleCardKeyDown}
-      className={`w-full cursor-pointer border-b border-slate-700/55 px-3 py-3 text-left transition last:border-b-0 ${
+      className={`w-full cursor-pointer border-b border-slate-700/55 px-3 py-3 text-left transition ${
         selected
           ? "bg-cyan-500/10"
           : suppressCardHover

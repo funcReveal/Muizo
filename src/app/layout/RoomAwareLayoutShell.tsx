@@ -1,7 +1,4 @@
-import React, {
-  useEffect,
-  useState,
-} from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useMediaQuery } from "@mui/material";
 
@@ -27,10 +24,12 @@ const RoomAwareLayoutShell: React.FC = () => {
     displayUsername,
     username,
   } = useAuth();
+
   const { statusNotification, setStatusText, currentRoom } = useRoomSession();
   const { gameState } = useRoomGame();
   const [inRoomSettingsOpen, setInRoomSettingsOpen] = useState(false);
   const isMobileViewport = useMediaQuery("(max-width: 1023.95px)");
+
   const navigationGuards = useRoomAwareNavigationGuards({
     onOpenSettings: () => setInRoomSettingsOpen(true),
   });
@@ -42,7 +41,21 @@ const RoomAwareLayoutShell: React.FC = () => {
 
   const isGameMode = Boolean(currentRoom && gameState);
   const isRoomsHubPage = location.pathname === "/rooms";
+  const isRoomsEntryGatePage = isRoomsHubPage && !username;
   const shouldShowDesktopRoomFooter = !currentRoom || isMobileViewport;
+
+  const roomsOutletClassName = isRoomsEntryGatePage
+    ? [
+        "min-h-0 flex-1",
+        "overflow-y-auto overflow-x-hidden",
+        "pb-[calc(88px+env(safe-area-inset-bottom))]",
+        "[-webkit-overflow-scrolling:touch]",
+        "overscroll-y-contain",
+        "[&>*]:!h-auto",
+        "[&>*]:!min-h-full",
+        "[&>*]:!overflow-visible",
+      ].join(" ")
+    : "min-h-0 flex-1 overflow-hidden pb-2";
 
   return (
     <div
@@ -72,7 +85,7 @@ const RoomAwareLayoutShell: React.FC = () => {
         />
 
         {isRoomsHubPage ? (
-          <div className="min-h-0 flex-1 overflow-hidden pb-2">
+          <div className={roomsOutletClassName}>
             <Outlet />
           </div>
         ) : (
@@ -94,7 +107,9 @@ const RoomAwareLayoutShell: React.FC = () => {
             >
               隱私權政策
             </button>
+
             <span className="text-[var(--mc-border)]">‧</span>
+
             <button
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
@@ -106,10 +121,12 @@ const RoomAwareLayoutShell: React.FC = () => {
         ) : null}
 
         {navigationGuards.dialogs}
+
         <EmbeddedSettingsDialog
           open={inRoomSettingsOpen}
           onClose={() => setInRoomSettingsOpen(false)}
         />
+
         <IdentityProfileDialog
           needsNicknameConfirm={needsNicknameConfirm}
           isProfileEditorOpen={isProfileEditorOpen}

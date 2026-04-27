@@ -19,7 +19,7 @@ export const leaderboardModes: Array<{
   {
     key: "time_attack",
     label: "限時挑戰",
-    description: "固定時間內衝分，不限制完成題數。",
+    description: "固定時間內答題，不限制題數。",
   },
 ];
 
