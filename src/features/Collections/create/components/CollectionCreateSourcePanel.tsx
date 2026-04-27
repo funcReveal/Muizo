@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 
 import { MuizoSelect, type MuizoSelectOption } from "@shared/ui/select";
+import type { CollectionCreateImportSource } from "../hooks/useCollectionCreateImportSources";
 
 type YoutubePlaylistOption = {
   id: string;
@@ -49,6 +50,19 @@ type Props = {
   isImportingYoutubePlaylist: boolean;
   onEnsureYoutubePlaylists: () => void;
   onImportSelectedYoutubePlaylist: (playlistId: string) => Promise<void>;
+
+  importSources: CollectionCreateImportSource[];
+  totalImportedItemCount: number;
+  onRemoveImportSource: (sourceId: string) => void;
+  onClearImportSources: () => void;
+};
+
+const getSourceTypeLabelKey = (type: CollectionCreateImportSource["type"]) => {
+  if (type === "youtube_account_playlist") {
+    return "source.sourceTypeYoutubeAccount";
+  }
+
+  return "source.sourceTypeYoutubeUrl";
 };
 
 export default function CollectionCreateSourcePanel({
@@ -82,6 +96,11 @@ export default function CollectionCreateSourcePanel({
   isImportingYoutubePlaylist,
   onEnsureYoutubePlaylists,
   onImportSelectedYoutubePlaylist,
+
+  importSources,
+  totalImportedItemCount,
+  onRemoveImportSource,
+  onClearImportSources,
 }: Props) {
   const { t } = useTranslation("collectionCreate");
 
@@ -354,6 +373,91 @@ export default function CollectionCreateSourcePanel({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-[var(--mc-border)] bg-[rgba(2,6,23,0.22)] p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-[var(--mc-text)]">
+              {t("source.importedSourcesTitle")}
+            </div>
+            <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+              {importSources.length > 0
+                ? t("source.importedSourcesDescription", {
+                    sourceCount: importSources.length,
+                    itemCount: totalImportedItemCount,
+                  })
+                : t("source.importedSourcesEmpty")}
+            </div>
+          </div>
+
+          {importSources.length > 1 && (
+            <button
+              type="button"
+              onClick={onClearImportSources}
+              className="rounded-full border border-rose-300/25 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
+            >
+              {t("source.clearAllSources")}
+            </button>
+          )}
+        </div>
+
+        {importSources.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {importSources.map((source) => (
+              <div
+                key={source.id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/45 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-100">
+                      {t(getSourceTypeLabelKey(source.type))}
+                    </span>
+
+                    <span className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                      {source.title}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--mc-text-muted)]">
+                    <span>
+                      {t("source.importedSourceCount", {
+                        count: source.itemCount,
+                      })}
+                    </span>
+
+                    {source.skippedCount > 0 && (
+                      <span className="text-amber-200">
+                        {t("source.importedSourceSkipped", {
+                          count: source.skippedCount,
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <IconButton
+                  size="small"
+                  onClick={() => onRemoveImportSource(source.id)}
+                  aria-label={t("source.removeImportSource", {
+                    title: source.title,
+                  })}
+                  sx={{
+                    color: "rgba(248, 113, 113, 0.92)",
+                    border: "1px solid rgba(248, 113, 113, 0.22)",
+                    backgroundColor: "rgba(248, 113, 113, 0.08)",
+                    "&:hover": {
+                      backgroundColor: "rgba(248, 113, 113, 0.16)",
+                    },
+                  }}
+                >
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

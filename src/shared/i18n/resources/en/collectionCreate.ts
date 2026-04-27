@@ -30,7 +30,7 @@ const collectionCreate = {
     playlistUrlLabel: "YouTube playlist URL",
     playlistUrlPlaceholder: "https://www.youtube.com/playlist?list=...",
     playlistUrlHint:
-      "Paste a playlist URL. will automatically analyze available items and remove duplicates when possible.",
+      "Paste a playlist URL. We will automatically analyze available items and remove duplicates when possible.",
     invalidPlaylistUrl:
       "Please paste a valid YouTube playlist URL that contains a list parameter.",
     loading: "Loading...",
@@ -54,6 +54,17 @@ const collectionCreate = {
     clearPlaylistDialogConfirm: "Clear and reselect",
     playlistLockedHint:
       "The playlist has been parsed. To change it, click the X button and choose another playlist.",
+    importedSourcesTitle: "Imported sources",
+    importedSourcesDescription: "{{sourceCount}} sources · {{itemCount}} songs",
+    importedSourcesEmpty:
+      "No sources imported yet. Paste a playlist URL or choose one from YouTube.",
+    importedSourceCount: "{{count}} songs",
+    importedSourceSkipped: "{{count}} skipped",
+    removeImportSource: "Remove {{title}}",
+    clearAllSources: "Clear all sources",
+    sourceTypeYoutubeUrl: "URL",
+    sourceTypeYoutubeAccount: "YouTube",
+    untitledSource: "Untitled source",
   },
 
   review: {

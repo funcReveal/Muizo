@@ -52,6 +52,17 @@ const collectionCreate = {
     clearPlaylistDialogConfirm: "清除並重選",
     playlistLockedHint:
       "播放清單已解析完成。若要更換清單，請點擊右側的 X 清除後重新選擇。",
+    importedSourcesTitle: "已匯入來源",
+    importedSourcesDescription: "{{sourceCount}} 個來源 · {{itemCount}} 首歌曲",
+    importedSourcesEmpty:
+      "尚未匯入來源。你可以貼上播放清單連結，或從 YouTube 清單選擇匯入。",
+    importedSourceCount: "{{count}} 首",
+    importedSourceSkipped: "略過 {{count}} 首",
+    removeImportSource: "移除 {{title}}",
+    clearAllSources: "清除全部來源",
+    sourceTypeYoutubeUrl: "連結",
+    sourceTypeYoutubeAccount: "YouTube",
+    untitledSource: "未命名來源",
   },
 
   review: {

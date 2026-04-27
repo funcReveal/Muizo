@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "motion/react";
@@ -39,6 +39,7 @@ import CollectionCreateStepNav from "../components/CollectionCreateStepNav";
 import CollectionItemLimitDialog from "../components/CollectionItemLimitDialog";
 import { useCollectionCreateDraft } from "../hooks/useCollectionCreateDraft";
 import { useCollectionCreateSubmit } from "../hooks/useCollectionCreateSubmit";
+import { useCollectionCreateImportSources } from "../hooks/useCollectionCreateImportSources";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -148,6 +149,16 @@ const CollectionCreatePage = () => {
   });
 
   const {
+    importSources,
+    importedPlaylistItems,
+    totalImportedItemCount,
+    totalSkippedItemCount,
+    addImportSource,
+    removeImportSource,
+    resetImportSources,
+  } = useCollectionCreateImportSources();
+
+  const {
     draftPlaylistItems,
     removedDuplicateGroups,
     removedDuplicateCount,
@@ -167,7 +178,7 @@ const CollectionCreatePage = () => {
     handleSelectLongTracksOnly,
     handleClearRemovalSelection,
   } = useCollectionCreateDraft({
-    playlistItems,
+    playlistItems: importedPlaylistItems,
     collectionItemLimit,
     longDurationThresholdSec: LONG_DURATION_THRESHOLD_SEC,
   });
@@ -218,7 +229,7 @@ const CollectionCreatePage = () => {
   );
 
   const hasResolvedPlaylist = Boolean(
-    playlistLocked && lastFetchedPlaylistId && draftPlaylistItems.length > 0,
+    playlistLocked && lastFetchedPlaylistId && playlistItems.length > 0,
   );
 
   const playlistUrlReadOnly =
@@ -413,7 +424,7 @@ const CollectionCreatePage = () => {
     };
   }, [playlistPreviewMeta]);
 
-  const playlistIssueTotal =
+  const activePlaylistIssueTotal =
     playlistIssueSummary.removed.length +
     playlistIssueSummary.duplicate.length +
     playlistIssueSummary.privateRestricted.length +
@@ -421,6 +432,9 @@ const CollectionCreatePage = () => {
     playlistIssueSummary.unavailable.length +
     playlistIssueSummary.unknown.length +
     playlistIssueSummary.unknownCount;
+
+  const playlistIssueTotal =
+    importSources.length > 0 ? totalSkippedItemCount : activePlaylistIssueTotal;
 
   const playlistIssueGroups = useMemo(
     () => [
@@ -596,12 +610,12 @@ const CollectionCreatePage = () => {
     setIsTitleEditing(false);
   };
 
-  const resetPlaylistSelection = () => {
+  const resetPlaylistSelection = useCallback(() => {
     handleResetPlaylist();
     lastAutoImportUrlRef.current = "";
     setSelectedYoutubePlaylistId("");
     setYoutubeActionError(null);
-  };
+  }, [handleResetPlaylist]);
 
   const handleRequestClearPlaylistUrl = () => {
     if (hasResolvedPlaylist) {
@@ -619,6 +633,55 @@ const CollectionCreatePage = () => {
     setCreateStep("source");
     setClearPlaylistDialogOpen(false);
   };
+
+  useEffect(() => {
+    if (!hasResolvedPlaylist || !lastFetchedPlaylistId) return;
+    if (playlistItems.length === 0) return;
+
+    const matchedYoutubePlaylist = youtubePlaylists.find(
+      (playlist) => playlist.id === lastFetchedPlaylistId,
+    );
+
+    const sourceTitle =
+      lastFetchedPlaylistTitle?.trim() ||
+      matchedYoutubePlaylist?.title?.trim() ||
+      (playlistSource === "url" ? trimmedPlaylistUrl : "") ||
+      t("source.untitledSource");
+
+    addImportSource({
+      type:
+        playlistSource === "youtube"
+          ? "youtube_account_playlist"
+          : "youtube_url",
+      title: sourceTitle,
+      sourceId: lastFetchedPlaylistId,
+      url: playlistSource === "url" ? trimmedPlaylistUrl : undefined,
+      expectedCount: playlistPreviewMeta?.expectedCount ?? playlistItems.length,
+      skippedCount: playlistPreviewMeta?.skippedCount ?? 0,
+      items: playlistItems,
+    });
+
+    resetPlaylistSelection();
+
+    if (!collectionTitle.trim()) {
+      setCollectionTitle(sourceTitle);
+      setTitleDraft(sourceTitle);
+    }
+  }, [
+    addImportSource,
+    collectionTitle,
+    hasResolvedPlaylist,
+    lastFetchedPlaylistId,
+    lastFetchedPlaylistTitle,
+    playlistItems,
+    playlistPreviewMeta?.expectedCount,
+    playlistPreviewMeta?.skippedCount,
+    playlistSource,
+    resetPlaylistSelection,
+    t,
+    trimmedPlaylistUrl,
+    youtubePlaylists,
+  ]);
 
   const handleVisibilityChange = (nextVisibility: "private" | "public") => {
     if (nextVisibility === "private" && reachedPrivateCollectionLimit) {
@@ -765,6 +828,10 @@ const CollectionCreatePage = () => {
                     onImportSelectedYoutubePlaylist={
                       handleImportSelectedYoutubePlaylist
                     }
+                    importSources={importSources}
+                    totalImportedItemCount={totalImportedItemCount}
+                    onRemoveImportSource={removeImportSource}
+                    onClearImportSources={resetImportSources}
                   />
                 )}
 
@@ -830,7 +897,7 @@ const CollectionCreatePage = () => {
               </div>
 
               <CollectionCreateInspectorPanel
-                totalItems={playlistItems.length}
+                totalItems={importedPlaylistItems.length}
                 readyItems={draftPlaylistItems.length}
                 longItems={longDraftPlaylistItems.length}
                 removedDuplicateCount={removedDuplicateCount}
