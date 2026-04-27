@@ -3,7 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
-import { Box } from "@mui/material";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+} from "@mui/material";
 import { useAuth } from "../../../../shared/auth/AuthContext";
 import { isAdminRole } from "../../../../shared/auth/roles";
 import { isGoogleReauthRequired } from "../../../../shared/auth/providerAuth";
@@ -35,6 +42,10 @@ import {
   useCollectionCreateReadiness,
   type CollectionCreateStep,
 } from "../hooks/useCollectionCreateReadiness";
+import {
+  dedupePlaylistItems,
+  type DraftPlaylistItem,
+} from "../utils/createCollectionImport";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -101,6 +112,8 @@ const CollectionCreatePage = () => {
   const [playlistIssueDrawerOpen, setPlaylistIssueDrawerOpen] = useState(false);
   const [duplicateDrawerOpen, setDuplicateDrawerOpen] = useState(false);
   const [clearPlaylistDialogOpen, setClearPlaylistDialogOpen] = useState(false);
+  const [pendingRemoveItem, setPendingRemoveItem] =
+    useState<DraftPlaylistItem | null>(null);
 
   const needsGoogleReauth = isGoogleReauthRequired({
     error: youtubePlaylistsError ?? youtubeActionError,
@@ -141,6 +154,11 @@ const CollectionCreatePage = () => {
     removeImportItem,
     restoreImportItem,
   } = useCollectionCreateImportSources();
+
+  const removedDraftPlaylistItems = useMemo(
+    () => dedupePlaylistItems(removedImportItems).items,
+    [removedImportItems],
+  );
 
   const {
     draftPlaylistItems,
@@ -486,6 +504,21 @@ const CollectionCreatePage = () => {
     setClearPlaylistDialogOpen(false);
   };
 
+  const handleRequestRemoveImportItem = (item: DraftPlaylistItem) => {
+    setPendingRemoveItem(item);
+  };
+
+  const handleCancelRemoveImportItem = () => {
+    setPendingRemoveItem(null);
+  };
+
+  const handleConfirmRemoveImportItem = () => {
+    if (!pendingRemoveItem) return;
+
+    removeImportItem(pendingRemoveItem.draftKey);
+    setPendingRemoveItem(null);
+  };
+
   const handleVisibilityChange = (nextVisibility: "private" | "public") => {
     if (nextVisibility === "private" && reachedPrivateCollectionLimit) {
       appToast.warning(
@@ -550,7 +583,13 @@ const CollectionCreatePage = () => {
               canOpenPublish={canGoPublish}
             />
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div
+              className={
+                createStep === "source"
+                  ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
+                  : "grid gap-4"
+              }
+            >
               <div className="min-w-0 space-y-3">
                 {createStep === "source" && (
                   <CollectionCreateSourcePanel
@@ -618,10 +657,10 @@ const CollectionCreatePage = () => {
                     importSources={importSources}
                     normalDraftPlaylistItems={normalDraftPlaylistItems}
                     longDraftPlaylistItems={longDraftPlaylistItems}
-                    removedImportItems={removedImportItems}
+                    removedImportItems={removedDraftPlaylistItems}
                     removedImportItemCount={removedImportItemCount}
                     onRemoveImportSource={removeImportSource}
-                    onRemoveImportItem={removeImportItem}
+                    onRequestRemoveImportItem={handleRequestRemoveImportItem}
                     onRestoreImportItem={restoreImportItem}
                     removedDuplicateCount={removedDuplicateCount}
                     onOpenDuplicateDialog={() => setDuplicateDrawerOpen(true)}
@@ -674,31 +713,35 @@ const CollectionCreatePage = () => {
                 />
               </div>
 
-              <CollectionCreateInspectorPanel
-                totalImportedItems={totalImportedItemCount}
-                selectedItems={importedPlaylistItems.length}
-                removedItems={removedImportItemCount}
-                readyItems={draftPlaylistItems.length}
-                longItems={longDraftPlaylistItems.length}
-                removedDuplicateCount={removedDuplicateCount}
-                skippedCount={playlistIssueTotal}
-                isDraftOverflow={isDraftOverflow}
-                draftOverflowCount={draftOverflowCount}
-                collectionItemLimit={collectionItemLimit}
-                collectionsCount={collections.length}
-                privateCollectionsCount={privateCollectionsCount}
-                remainingCollectionSlots={remainingCollectionSlots}
-                remainingPrivateCollectionSlots={
-                  remainingPrivateCollectionSlots
-                }
-                maxCollectionsPerUser={MAX_COLLECTIONS_PER_USER}
-                maxPrivateCollectionsPerUser={MAX_PRIVATE_COLLECTIONS_PER_USER}
-                reachedCollectionLimit={reachedCollectionLimit}
-                reachedPrivateCollectionLimit={reachedPrivateCollectionLimit}
-                isAdmin={isAdmin}
-                visibility={effectiveVisibility}
-                createError={createError}
-              />
+              {createStep === "source" && (
+                <CollectionCreateInspectorPanel
+                  totalImportedItems={totalImportedItemCount}
+                  selectedItems={importedPlaylistItems.length}
+                  removedItems={removedImportItemCount}
+                  readyItems={draftPlaylistItems.length}
+                  longItems={longDraftPlaylistItems.length}
+                  removedDuplicateCount={removedDuplicateCount}
+                  skippedCount={playlistIssueTotal}
+                  isDraftOverflow={isDraftOverflow}
+                  draftOverflowCount={draftOverflowCount}
+                  collectionItemLimit={collectionItemLimit}
+                  collectionsCount={collections.length}
+                  privateCollectionsCount={privateCollectionsCount}
+                  remainingCollectionSlots={remainingCollectionSlots}
+                  remainingPrivateCollectionSlots={
+                    remainingPrivateCollectionSlots
+                  }
+                  maxCollectionsPerUser={MAX_COLLECTIONS_PER_USER}
+                  maxPrivateCollectionsPerUser={
+                    MAX_PRIVATE_COLLECTIONS_PER_USER
+                  }
+                  reachedCollectionLimit={reachedCollectionLimit}
+                  reachedPrivateCollectionLimit={reachedPrivateCollectionLimit}
+                  isAdmin={isAdmin}
+                  visibility={effectiveVisibility}
+                  createError={createError}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -722,6 +765,64 @@ const CollectionCreatePage = () => {
           onClose={() => setClearPlaylistDialogOpen(false)}
           onConfirm={handleConfirmClearPlaylist}
         />
+
+        <Dialog
+          open={Boolean(pendingRemoveItem)}
+          onClose={handleCancelRemoveImportItem}
+          fullWidth
+          maxWidth="xs"
+          PaperProps={{
+            sx: {
+              m: { xs: 1.5, sm: 3 },
+              borderRadius: 3,
+              border: "1px solid rgba(148, 163, 184, 0.22)",
+              background:
+                "linear-gradient(180deg, rgba(8,13,24,0.98), rgba(2,6,23,0.98))",
+              color: "var(--mc-text)",
+            },
+          }}
+        >
+          <DialogTitle sx={{ pb: 1 }}>
+            <div className="text-base font-semibold">移除這首歌曲？</div>
+          </DialogTitle>
+
+          <DialogContent sx={{ pt: 1 }}>
+            <div className="text-sm leading-6 text-[var(--mc-text-muted)]">
+              這首歌會從本次建立收藏庫的清單中移除，但不會影響原本的 YouTube
+              播放清單。
+            </div>
+
+            {pendingRemoveItem && (
+              <div className="mt-3 rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/35 px-3 py-2">
+                <div className="overflow-hidden text-sm font-semibold leading-5 text-[var(--mc-text)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                  {pendingRemoveItem.title ||
+                    pendingRemoveItem.answerText ||
+                    "未命名歌曲"}
+                </div>
+
+                <div className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
+                  {pendingRemoveItem.uploader || "未知上傳者"}
+                  {pendingRemoveItem.duration
+                    ? ` ・ ${pendingRemoveItem.duration}`
+                    : ""}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={handleCancelRemoveImportItem} variant="outlined">
+              取消
+            </Button>
+            <Button
+              onClick={handleConfirmRemoveImportItem}
+              variant="contained"
+              color="error"
+            >
+              移除
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         <CollectionItemLimitDialog
           open={limitDialogOpen}

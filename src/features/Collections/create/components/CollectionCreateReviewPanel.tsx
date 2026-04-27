@@ -58,7 +58,7 @@ type Props = {
   removedImportItems: DraftPlaylistItem[];
   removedImportItemCount: number;
   onRemoveImportSource: (sourceKey: string) => void;
-  onRemoveImportItem: (draftKey: string) => void;
+  onRequestRemoveImportItem: (item: DraftPlaylistItem) => void;
   onRestoreImportItem: (draftKey: string) => void;
 
   removedDuplicateCount: number;
@@ -316,7 +316,7 @@ function SongRow({
 }: {
   item: DraftPlaylistItem;
   variant: "normal" | "long" | "removed";
-  onRemove?: (draftKey: string) => void;
+  onRemove?: (item: DraftPlaylistItem) => void;
   onRestore?: (draftKey: string) => void;
 }) {
   const { t } = useTranslation("collectionCreate");
@@ -358,7 +358,7 @@ function SongRow({
       {variant !== "removed" && onRemove && (
         <button
           type="button"
-          onClick={() => onRemove(item.draftKey)}
+          onClick={() => onRemove(item)}
           className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:bg-rose-400/10 hover:text-rose-200"
           aria-label={t("review.removeItem", { defaultValue: "移除曲目" })}
         >
@@ -387,7 +387,7 @@ function SongSection({
   emptyText,
   variant,
   maxHeightClassName = "max-h-[420px]",
-  onRemoveImportItem,
+  onRequestRemoveImportItem,
   onRestoreImportItem,
 }: {
   title: string;
@@ -396,7 +396,7 @@ function SongSection({
   emptyText: string;
   variant: "normal" | "long" | "removed";
   maxHeightClassName?: string;
-  onRemoveImportItem?: (draftKey: string) => void;
+  onRequestRemoveImportItem?: (item: DraftPlaylistItem) => void;
   onRestoreImportItem?: (draftKey: string) => void;
 }) {
   return (
@@ -422,7 +422,7 @@ function SongSection({
               key={item.draftKey}
               item={item}
               variant={variant}
-              onRemove={onRemoveImportItem}
+              onRemove={onRequestRemoveImportItem}
               onRestore={onRestoreImportItem}
             />
           ))}
@@ -464,7 +464,7 @@ export default function CollectionCreateReviewPanel({
   removedImportItems,
   removedImportItemCount,
   onRemoveImportSource,
-  onRemoveImportItem,
+  onRequestRemoveImportItem,
   onRestoreImportItem,
 
   removedDuplicateCount,
@@ -698,7 +698,7 @@ export default function CollectionCreateReviewPanel({
             })}
             variant="normal"
             maxHeightClassName="max-h-[460px] sm:max-h-[520px]"
-            onRemoveImportItem={onRemoveImportItem}
+            onRequestRemoveImportItem={onRequestRemoveImportItem}
           />
 
           <SongSection
@@ -712,7 +712,7 @@ export default function CollectionCreateReviewPanel({
             })}
             variant="long"
             maxHeightClassName="max-h-[320px]"
-            onRemoveImportItem={onRemoveImportItem}
+            onRequestRemoveImportItem={onRequestRemoveImportItem}
           />
 
           {removedImportItems.length > 0 && (
