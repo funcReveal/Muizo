@@ -1043,6 +1043,12 @@ const CollectionDetailDrawer = ({
     );
   };
 
+  const handleSetupRoomPlayModeChange = (value: RoomPlayMode) => {
+    setRoomPlayMode(value);
+    if (!isSetupView) return;
+    setDrawerView(value === "leaderboard" && isPublic ? "leaderboardSetup" : "casualSetup");
+  };
+
   const handleLeaderboardProfileSelect = (
     modeKey: LeaderboardModeKey,
     variantKey: LeaderboardVariantKey,
@@ -1564,8 +1570,14 @@ const CollectionDetailDrawer = ({
                   questionMin={questionMin}
                   questionMaxLimit={setupQuestionMaxLimit}
                   updateQuestionCount={updateQuestionCount}
-                  roomPlayMode={isSetupLeaderboardMode ? "leaderboard" : roomPlayMode}
-                  setRoomPlayMode={setRoomPlayMode}
+                  roomPlayMode={
+                    isSetupLeaderboardMode
+                      ? "leaderboard"
+                      : isCasualSetupView
+                        ? "casual"
+                        : roomPlayMode
+                  }
+                  setRoomPlayMode={handleSetupRoomPlayModeChange}
                   roomCreateSourceMode={setupRoomCreateSourceMode}
                   selectedLeaderboardMode={selectedLeaderboardMode}
                   selectedLeaderboardVariant={selectedLeaderboardVariant}
