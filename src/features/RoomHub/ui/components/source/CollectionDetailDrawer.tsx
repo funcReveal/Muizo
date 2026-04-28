@@ -787,27 +787,43 @@ const CollectionDetailDrawer = ({
       ? leaderboardOverview.activeProfile.totalPlayers
       : (activeLeaderboardProfileSummary?.totalPlayers ?? null);
 
-  const activeLeaderboardTotalPlayersLabel =
-    typeof activeLeaderboardTotalPlayers === "number"
-      ? `共 ${new Intl.NumberFormat("en-US").format(
-          activeLeaderboardTotalPlayers,
-        )} 人`
-      : leaderboardLoading
-        ? "讀取中"
-        : "尚無紀錄";
+  const formatLeaderboardTotalPlayers = (value: number | null | undefined) =>
+    new Intl.NumberFormat("en-US").format(value ?? 0);
 
-  const formatLeaderboardBestRank = (
+  const activeLeaderboardTotalPlayersLabel = leaderboardOverview
+    ? formatLeaderboardTotalPlayers(activeLeaderboardTotalPlayers)
+    : leaderboardLoading
+      ? "-"
+      : "0";
+
+  const getLeaderboardProfileSummary = (
     modeKey: LeaderboardModeKey,
     variantKey: LeaderboardVariantKey,
   ) => {
     const profileKey = getLeaderboardProfileKey(modeKey, variantKey);
-    const rank = profileKey
-      ? leaderboardOverview?.profiles.find(
-          (profile) => profile.profileKey === profileKey,
-        )?.myBestRank
-      : null;
-    if (leaderboardOverview) return rank ? `最佳 #${rank} ` : "尚無紀錄";
-    return leaderboardLoading ? "讀取中" : "尚無紀錄";
+
+    return leaderboardOverview?.profiles.find(
+      (profile) => profile.profileKey === profileKey,
+    );
+  };
+
+  const formatLeaderboardOptionMeta = (
+    modeKey: LeaderboardModeKey,
+    variantKey: LeaderboardVariantKey,
+  ) => {
+    if (!leaderboardOverview) {
+      return leaderboardLoading ? "讀取中" : "尚無紀錄 / 0";
+    }
+
+    const profile = getLeaderboardProfileSummary(modeKey, variantKey);
+    const bestRankLabel = profile?.myBestRank
+      ? `最佳 #${profile.myBestRank}`
+      : "尚無紀錄";
+    const totalPlayersLabel = formatLeaderboardTotalPlayers(
+      profile?.totalPlayers,
+    );
+
+    return `${bestRankLabel} / ${totalPlayersLabel}`;
   };
   const leaderboardProfileMenuWidth = leaderboardProfileAnchorEl
     ? Math.max(leaderboardProfileAnchorEl.clientWidth, isCompact ? 220 : 280)
@@ -1668,7 +1684,7 @@ const CollectionDetailDrawer = ({
                       <PublicRounded className="shrink-0 text-cyan-100" />
                       <span className="truncate">全球排行榜</span>
                       <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-400 md:inline">
-                        {activeLeaderboardTotalPlayersLabel}
+                        {activeLeaderboardTotalPlayersLabel} 人
                       </span>
                     </h3>
 
@@ -1768,7 +1784,7 @@ const CollectionDetailDrawer = ({
                                                     : "text-slate-500"
                                                 }`}
                                               >
-                                                {formatLeaderboardBestRank(
+                                                {formatLeaderboardOptionMeta(
                                                   option.modeKey,
                                                   option.variantKey,
                                                 )}
