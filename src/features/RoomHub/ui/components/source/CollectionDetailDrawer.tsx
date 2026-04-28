@@ -766,6 +766,7 @@ const CollectionDetailDrawer = ({
       label: variant.label,
     })),
   }));
+
   const leaderboardChallengeOptions = leaderboardChallengeGroups.flatMap(
     (group) => group.options,
   );
@@ -1301,16 +1302,22 @@ const CollectionDetailDrawer = ({
             </span>
           )}
 
-          <KeyboardArrowDownRounded
-            sx={{
-              fontSize: isMobile ? 16 : 20,
-              transform: isLeaderboardProfileMenuOpen
-                ? "rotate(180deg)"
-                : "rotate(0deg)",
-              transition: "transform 160ms ease",
-            }}
-            className="shrink-0 text-slate-300"
-          />
+          <div className="flex items-center gap-1">
+            <span className="ml-2 hidden shrink-0 rounded-full text-[20px] font-semibold text-slate-300 md:inline">
+              {activeLeaderboardVariant.label}
+            </span>
+
+            <KeyboardArrowDownRounded
+              sx={{
+                fontSize: isMobile ? 16 : 20,
+                transform: isLeaderboardProfileMenuOpen
+                  ? "rotate(180deg)"
+                  : "rotate(0deg)",
+                transition: "transform 160ms ease",
+              }}
+              className="shrink-0 text-slate-300"
+            />
+          </div>
         </button>
       </div>
     );
