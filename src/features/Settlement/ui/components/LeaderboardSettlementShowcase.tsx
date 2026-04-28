@@ -1,4 +1,11 @@
-﻿import React, { memo, useCallback, useMemo, useRef, useState, useEffect } from "react";
+﻿import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+} from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
@@ -23,7 +30,10 @@ import type {
   RoomParticipant,
   RoomState,
 } from "@features/RoomSession";
-import type { SettlementQuestionRecap, SettlementQuestionResult } from "../../model/types";
+import type {
+  SettlementQuestionRecap,
+  SettlementQuestionResult,
+} from "../../model/types";
 import { useSettingsModel } from "../../../Setting/model/settingsContext";
 import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 
@@ -40,8 +50,10 @@ type LeaderboardSettlementShowcaseProps = {
   rankChangeByClientId?: Record<string, number | null>;
   leaderboardSettlement?: LeaderboardSettlementResponse | null;
   leaderboardSettlementLoading?: boolean;
+  leaderboardSettlementLoadingMore?: boolean;
   leaderboardSettlementError?: string | null;
   onRefreshLeaderboardSettlement?: () => void | Promise<void>;
+  onLoadMoreLeaderboardSettlement?: () => void | Promise<void>;
   isFavorited?: boolean;
   onToggleFavorite?: () => void | Promise<void>;
   onRetry?: () => void;
@@ -95,6 +107,9 @@ type QuestionListRowProps = {
 type LeaderboardListRowProps = {
   rows: LeaderboardMetricRow[];
   playedQuestionCount: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
 };
 
 type QuestionFilterType = "correct" | "wrong" | "unanswered" | null;
@@ -120,7 +135,8 @@ const sortParticipants = (participants: RoomParticipant[]) =>
     return a.joinedAt - b.joinedAt;
   });
 
-const formatScore = (value: number) => scoreFormatter.format(Math.max(0, value));
+const formatScore = (value: number) =>
+  scoreFormatter.format(Math.max(0, value));
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
 const formatSeconds = (value: number | null | undefined) => {
@@ -145,7 +161,6 @@ const formatDurationSec = (value: number | null | undefined) => {
 
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 };
-
 
 const formatAnswerTime = (value: number | null | undefined) => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
@@ -213,15 +228,27 @@ const buildYouTubeUrl = ({
 };
 
 const isRowAheadOfCurrent = (
-  row: Pick<LeaderboardMetricRow, "score" | "combo" | "correctCount" | "avgCorrectMs">,
-  current: Pick<LeaderboardMetricRow, "score" | "combo" | "correctCount" | "avgCorrectMs">,
+  row: Pick<
+    LeaderboardMetricRow,
+    "score" | "combo" | "correctCount" | "avgCorrectMs"
+  >,
+  current: Pick<
+    LeaderboardMetricRow,
+    "score" | "combo" | "correctCount" | "avgCorrectMs"
+  >,
 ) => {
   if (row.score !== current.score) return row.score > current.score;
   if (row.combo !== current.combo) return row.combo > current.combo;
-  if (row.correctCount !== current.correctCount) return row.correctCount > current.correctCount;
-  const rowAvg = typeof row.avgCorrectMs === "number" ? row.avgCorrectMs : Number.POSITIVE_INFINITY;
+  if (row.correctCount !== current.correctCount)
+    return row.correctCount > current.correctCount;
+  const rowAvg =
+    typeof row.avgCorrectMs === "number"
+      ? row.avgCorrectMs
+      : Number.POSITIVE_INFINITY;
   const currentAvg =
-    typeof current.avgCorrectMs === "number" ? current.avgCorrectMs : Number.POSITIVE_INFINITY;
+    typeof current.avgCorrectMs === "number"
+      ? current.avgCorrectMs
+      : Number.POSITIVE_INFINITY;
   return rowAvg < currentAvg;
 };
 const getScoreGain = (breakdown: QuestionScoreBreakdown | null | undefined) => {
@@ -244,6 +271,39 @@ const getPercentileLabel = (
   ).length;
 
   return Math.round((compareCount / Math.max(1, values.length - 1)) * 100);
+};
+
+type MetricPercentileSummaryLike = {
+  surpassedPercent: number | null;
+  comparedPlayerCount: number;
+  tiedBest: boolean;
+};
+
+const formatMetricPercentileNote = ({
+  summary,
+  tiedLabel,
+  percentLabel,
+  fallback,
+}: {
+  summary?: MetricPercentileSummaryLike | null;
+  tiedLabel: string;
+  percentLabel: string;
+  fallback: string;
+}) => {
+  if (summary?.tiedBest) {
+    return tiedLabel;
+  }
+
+  if (
+    summary &&
+    summary.comparedPlayerCount > 0 &&
+    typeof summary.surpassedPercent === "number" &&
+    Number.isFinite(summary.surpassedPercent)
+  ) {
+    return `${percentLabel} ${summary.surpassedPercent}% 的玩家`;
+  }
+
+  return fallback;
 };
 
 const LEADERBOARD_DESKTOP_GRID_CLASS =
@@ -302,7 +362,10 @@ const OverflowLinkText = memo(function OverflowLinkText({
       <span
         ref={contentRef}
         className="inline-block min-w-full transition-transform duration-500 ease-out"
-        style={{ transform: translateX > 0 ? `translateX(-${translateX}px)` : undefined }}
+        style={{
+          transform:
+            translateX > 0 ? `translateX(-${translateX}px)` : undefined,
+        }}
       >
         {text}
       </span>
@@ -330,8 +393,7 @@ const badgeToneClass: Record<LeaderboardQuestionRow["badgeTone"], string> = {
     "border-amber-300/35 bg-amber-500/14 text-amber-100 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.04)]",
   danger:
     "border-rose-300/35 bg-rose-500/14 text-rose-100 shadow-[inset_0_0_0_1px_rgba(253,164,175,0.04)]",
-  neutral:
-    "border-slate-500/45 bg-slate-700/40 text-slate-100",
+  neutral: "border-slate-500/45 bg-slate-700/40 text-slate-100",
 };
 
 const SummaryMetric = memo(function SummaryMetric({
@@ -380,10 +442,11 @@ const MobileSettlementPanelSwitch = memo(function MobileSettlementPanelSwitch({
         <button
           type="button"
           onClick={() => onChange("leaderboard")}
-          className={`rounded-full px-3 py-2 text-sm font-black tracking-[0.08em] transition ${value === "leaderboard"
-            ? "bg-amber-400/18 text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
-            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
-            }`}
+          className={`rounded-full px-3 py-2 text-sm font-black tracking-[0.08em] transition ${
+            value === "leaderboard"
+              ? "bg-amber-400/18 text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+              : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+          }`}
         >
           排行榜
         </button>
@@ -391,10 +454,11 @@ const MobileSettlementPanelSwitch = memo(function MobileSettlementPanelSwitch({
         <button
           type="button"
           onClick={() => onChange("review")}
-          className={`rounded-full px-3 py-2 text-sm font-black tracking-[0.08em] transition ${value === "review"
-            ? "bg-amber-400/18 text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
-            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
-            }`}
+          className={`rounded-full px-3 py-2 text-sm font-black tracking-[0.08em] transition ${
+            value === "review"
+              ? "bg-amber-400/18 text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+              : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+          }`}
         >
           題目回顧
         </button>
@@ -516,16 +580,24 @@ function LeaderboardDesktopRow({
   style,
   rows,
   playedQuestionCount,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: RowComponentProps<LeaderboardListRowProps>) {
   const row = rows[index];
-  if (!row) {
-    return <div style={style} />;
-  }
+  const isLoaderRow = !row && (hasMore || isLoadingMore);
 
-  if (row.isSkeleton) {
+  useEffect(() => {
+    if (!isLoaderRow || !hasMore || isLoadingMore) return;
+    onLoadMore();
+  }, [hasMore, isLoaderRow, isLoadingMore, onLoadMore]);
+
+  if (isLoaderRow || row?.isSkeleton) {
     return (
       <div style={style} className="box-border pb-1.5">
-        <div className={`animate-pulse grid ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2`}>
+        <div
+          className={`animate-pulse grid ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 rounded-xl border border-white/6 bg-white/[0.02] px-3 py-2`}
+        >
           <div className="h-3.5 w-6 rounded bg-white/10" />
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 shrink-0 rounded-full bg-white/10" />
@@ -541,15 +613,20 @@ function LeaderboardDesktopRow({
     );
   }
 
+  if (!row) {
+    return <div style={style} />;
+  }
+
   const wrongCount = Math.max(playedQuestionCount - row.correctCount, 0);
 
   return (
     <div style={style} className="box-border pb-1.5">
       <div
-        className={`grid ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 rounded-xl border px-3 py-2 text-sm ${row.isMe
-          ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
-          : "border-white/6 bg-white/[0.02]"
-          }`}
+        className={`grid ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+          row.isMe
+            ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
+            : "border-white/6 bg-white/[0.02]"
+        }`}
       >
         <div className="text-base font-black text-amber-100">{row.rank}</div>
         <div className="flex min-w-0 items-center gap-2">
@@ -599,13 +676,19 @@ function LeaderboardMobileRow({
   style,
   rows,
   playedQuestionCount,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: RowComponentProps<LeaderboardListRowProps>) {
   const row = rows[index];
-  if (!row) {
-    return <div style={style} />;
-  }
+  const isLoaderRow = !row && (hasMore || isLoadingMore);
 
-  if (row.isSkeleton) {
+  useEffect(() => {
+    if (!isLoaderRow || !hasMore || isLoadingMore) return;
+    onLoadMore();
+  }, [hasMore, isLoaderRow, isLoadingMore, onLoadMore]);
+
+  if (isLoaderRow || row?.isSkeleton) {
     return (
       <div style={style} className="box-border pb-2">
         <div className="animate-pulse rounded-[18px] border border-white/6 bg-white/[0.02] px-3 py-3">
@@ -626,15 +709,20 @@ function LeaderboardMobileRow({
     );
   }
 
+  if (!row) {
+    return <div style={style} />;
+  }
+
   const wrongCount = Math.max(playedQuestionCount - row.correctCount, 0);
 
   return (
     <div style={style} className="box-border pb-2">
       <div
-        className={`rounded-[18px] border px-3 py-3 ${row.isMe
-          ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
-          : "border-white/6 bg-white/[0.02]"
-          }`}
+        className={`rounded-[18px] border px-3 py-3 ${
+          row.isMe
+            ? "border-amber-300/45 bg-amber-500/10 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.08)]"
+            : "border-white/6 bg-white/[0.02]"
+        }`}
       >
         <div className="flex items-center gap-2">
           <div className="w-8 shrink-0 text-base font-black text-amber-100">
@@ -664,9 +752,7 @@ function LeaderboardMobileRow({
                 {row.correctCount}/{wrongCount}
               </span>
 
-              <span className="tabular-nums text-violet-300">
-                x{row.combo}
-              </span>
+              <span className="tabular-nums text-violet-300">x{row.combo}</span>
 
               <span className="tabular-nums text-slate-300">
                 {formatAnswerTime(row.avgCorrectMs)}
@@ -699,364 +785,202 @@ const LeaderboardSettlementShowcase: React.FC<
   rankChangeByClientId,
   leaderboardSettlement = null,
   leaderboardSettlementLoading = false,
+  leaderboardSettlementLoadingMore = false,
   leaderboardSettlementError = null,
   onRefreshLeaderboardSettlement,
+  onLoadMoreLeaderboardSettlement,
   isFavorited,
   onToggleFavorite,
   onRetry,
   onBackToLobby,
 }) => {
-    const isCurrentClientHost = Boolean(
-      meClientId && room.hostClientId === meClientId,
-    );
+  const isCurrentClientHost = Boolean(
+    meClientId && room.hostClientId === meClientId,
+  );
 
-    const canRetryChallenge =
-      isCurrentClientHost && typeof onRetry === "function";
+  const canRetryChallenge =
+    isCurrentClientHost && typeof onRetry === "function";
 
-    const isDesktopLayout = useMediaQuery("(min-width: 1280px)");
-    const listRowHeight = 84;
-    const { ref: questionListRef } = useElementWidth();
-    const [questionFilter, setQuestionFilter] = useState<QuestionFilterType>(null);
-    const [mobileSettlementPanel, setMobileSettlementPanel] =
-      useState<MobileSettlementPanel>("leaderboard");
+  const isDesktopLayout = useMediaQuery("(min-width: 1280px)");
+  const listRowHeight = 84;
+  const { ref: questionListRef } = useElementWidth();
+  const [questionFilter, setQuestionFilter] =
+    useState<QuestionFilterType>(null);
+  const [mobileSettlementPanel, setMobileSettlementPanel] =
+    useState<MobileSettlementPanel>("leaderboard");
 
-    const { bgmVolume } = useSettingsModel();
-    const settlementBgmRef = useRef<HTMLAudioElement | null>(null);
+  const { bgmVolume } = useSettingsModel();
+  const settlementBgmRef = useRef<HTMLAudioElement | null>(null);
 
-    useEffect(() => {
-      if (typeof window === "undefined" || typeof Audio === "undefined") return;
-      const audio = new Audio(LEADERBOARD_SETTLEMENT_BGM_PATH);
-      audio.loop = true;
-      audio.preload = "auto";
-      audio.volume = 0;
-      settlementBgmRef.current = audio;
-      return () => {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.src = "";
-        settlementBgmRef.current = null;
-      };
-    }, []);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof Audio === "undefined") return;
+    const audio = new Audio(LEADERBOARD_SETTLEMENT_BGM_PATH);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0;
+    settlementBgmRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = "";
+      settlementBgmRef.current = null;
+    };
+  }, []);
 
-    useEffect(() => {
-      const audio = settlementBgmRef.current;
-      if (!audio) return;
-      audio.volume = Math.max(0, Math.min(1, bgmVolume / 100));
-    }, [bgmVolume]);
+  useEffect(() => {
+    const audio = settlementBgmRef.current;
+    if (!audio) return;
+    audio.volume = Math.max(0, Math.min(1, bgmVolume / 100));
+  }, [bgmVolume]);
 
-    useEffect(() => {
-      if (typeof window === "undefined" || typeof document === "undefined") return;
-      const audio = settlementBgmRef.current;
-      if (!audio) return;
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined")
+      return;
+    const audio = settlementBgmRef.current;
+    if (!audio) return;
 
-      const tryPlay = () => {
-        if (document.hidden) return;
-        void audio.play().catch(() => undefined);
-      };
-      const stopBgm = () => audio.pause();
+    const tryPlay = () => {
+      if (document.hidden) return;
+      void audio.play().catch(() => undefined);
+    };
+    const stopBgm = () => audio.pause();
 
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          stopBgm();
-        } else {
-          tryPlay();
-        }
-      };
-      const handleBlur = () => stopBgm();
-      const handleFocus = () => tryPlay();
-
-      tryPlay();
-      window.addEventListener("pointerdown", tryPlay, { passive: true });
-      window.addEventListener("keydown", tryPlay);
-      window.addEventListener("focus", handleFocus);
-      window.addEventListener("blur", handleBlur);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-
-      return () => {
-        window.removeEventListener("pointerdown", tryPlay);
-        window.removeEventListener("keydown", tryPlay);
-        window.removeEventListener("focus", handleFocus);
-        window.removeEventListener("blur", handleBlur);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-        audio.pause();
-        audio.currentTime = 0;
-      };
-    }, []);
-
-    const challengeVariantLabel = useMemo(
-      () => formatVariantLabel(room, playedQuestionCount),
-      [playedQuestionCount, room],
-    );
-
-    const sortedParticipants = useMemo(
-      () => sortParticipants(participants),
-      [participants],
-    );
-    const backendCurrentRun = leaderboardSettlement?.currentRun ?? null;
-    const personalBestComparison =
-      leaderboardSettlement?.personalBestComparison ?? null;
-    const backendTopEntries = leaderboardSettlement?.leaderboardTop;
-    const backendAroundMeEntries = leaderboardSettlement?.leaderboardAroundMe;
-    const localMyIndex = sortedParticipants.findIndex(
-      (participant) => participant.clientId === meClientId,
-    );
-    const localMe =
-      localMyIndex >= 0 ? sortedParticipants[localMyIndex] : sortedParticipants[0] ?? null;
-
-    const meSummary = useMemo<PersonalSummary>(() => {
-      if (!localMe && !backendCurrentRun) {
-        return {
-          me: null,
-          myRank: 0,
-          rankPercentile: 0,
-          scoreGapToPrev: null,
-          myRankChange: null,
-          accuracy: 0,
-          combo: 0,
-          avgCorrectMs: null,
-        };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopBgm();
+      } else {
+        tryPlay();
       }
+    };
+    const handleBlur = () => stopBgm();
+    const handleFocus = () => tryPlay();
 
-      const total = sortedParticipants.length;
-      const rank = localMyIndex >= 0 ? localMyIndex + 1 : 1;
-      const previous = localMyIndex > 0 ? sortedParticipants[localMyIndex - 1] : null;
-      const fallbackQuestionCount = Math.max(playedQuestionCount, 1);
-      const localAccuracy =
-        localMe && fallbackQuestionCount > 0
-          ? (((localMe.correctCount ?? 0) / fallbackQuestionCount) * 100)
-          : 0;
+    tryPlay();
+    window.addEventListener("pointerdown", tryPlay, { passive: true });
+    window.addEventListener("keydown", tryPlay);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    return () => {
+      window.removeEventListener("pointerdown", tryPlay);
+      window.removeEventListener("keydown", tryPlay);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
+
+  const challengeVariantLabel = useMemo(
+    () => formatVariantLabel(room, playedQuestionCount),
+    [playedQuestionCount, room],
+  );
+
+  const sortedParticipants = useMemo(
+    () => sortParticipants(participants),
+    [participants],
+  );
+  const backendCurrentRun = leaderboardSettlement?.currentRun ?? null;
+  const personalBestComparison =
+    leaderboardSettlement?.personalBestComparison ?? null;
+  const backendTopEntries = leaderboardSettlement?.leaderboardTop;
+  const backendAroundMeEntries = leaderboardSettlement?.leaderboardAroundMe;
+  const localMyIndex = sortedParticipants.findIndex(
+    (participant) => participant.clientId === meClientId,
+  );
+  const localMe =
+    localMyIndex >= 0
+      ? sortedParticipants[localMyIndex]
+      : (sortedParticipants[0] ?? null);
+
+  const meSummary = useMemo<PersonalSummary>(() => {
+    if (!localMe && !backendCurrentRun) {
       return {
-        me: localMe,
-        myRank: backendCurrentRun?.rank ?? rank,
-        rankPercentile:
-          backendCurrentRun?.percentile ??
-          (total <= 1 ? 100 : Math.round(((total - rank) / (total - 1)) * 100)),
-        scoreGapToPrev:
-          backendCurrentRun?.gapToPrevious ?? (previous && localMe ? previous.score - localMe.score : null),
-        myRankChange:
-          backendCurrentRun?.rankChange ??
-          (localMe && rankChangeByClientId
-            ? (rankChangeByClientId[localMe.clientId] ?? null)
-            : null),
-        accuracy:
-          backendCurrentRun && backendCurrentRun.questionCount > 0
-            ? (backendCurrentRun.correctCount / backendCurrentRun.questionCount) * 100
-            : localAccuracy,
-        combo:
-          backendCurrentRun?.maxCombo ??
-          Math.max(localMe?.maxCombo ?? 0, localMe?.combo ?? 0),
-        avgCorrectMs:
-          backendCurrentRun?.avgCorrectMs ??
-          (typeof localMe?.avgCorrectMs === "number" &&
-            Number.isFinite(localMe.avgCorrectMs)
-            ? localMe.avgCorrectMs
-            : null),
+        me: null,
+        myRank: 0,
+        rankPercentile: 0,
+        scoreGapToPrev: null,
+        myRankChange: null,
+        accuracy: 0,
+        combo: 0,
+        avgCorrectMs: null,
       };
-    }, [
-      backendCurrentRun,
-      localMe,
-      localMyIndex,
-      playedQuestionCount,
-      rankChangeByClientId,
-      sortedParticipants,
-    ]);
+    }
 
-    const effectiveLeaderboardRows = useMemo<LeaderboardMetricRow[]>(() => {
-      // While loading, show all placeholder skeletons — reveal real data only when ready.
-      if (leaderboardSettlementLoading) {
-        const expectedTotal = Math.max(participants.length, 6);
-        return Array.from({ length: Math.min(expectedTotal, 20) }, (_, i) => ({
-          clientId: `__skeleton__${i}`,
-          rank: i + 1,
-          username: "",
-          avatarUrl: null,
-          score: 0,
-          correctCount: 0,
-          combo: 0,
-          avgCorrectMs: null,
-          durationSec: null,
-          isMe: false,
-          rankChange: null,
-          isSkeleton: true,
-        }));
-      }
+    const total = sortedParticipants.length;
+    const rank = localMyIndex >= 0 ? localMyIndex + 1 : 1;
+    const previous =
+      localMyIndex > 0 ? sortedParticipants[localMyIndex - 1] : null;
+    const fallbackQuestionCount = Math.max(playedQuestionCount, 1);
+    const localAccuracy =
+      localMe && fallbackQuestionCount > 0
+        ? ((localMe.correctCount ?? 0) / fallbackQuestionCount) * 100
+        : 0;
 
-      const topEntries = backendTopEntries ?? [];
-      if (topEntries.length > 0) {
-        return topEntries.map((entry) => ({
-          clientId: entry.userId ?? `ranked-${entry.rank}-${entry.displayName}`,
-          rank: entry.rank,
-          username: entry.displayName,
-          avatarUrl: entry.avatarUrl ?? null,
-          score: entry.score,
-          correctCount: entry.correctCount,
-          combo: entry.maxCombo,
-          avgCorrectMs: entry.avgCorrectMs,
-          durationSec: entry.durationSec,
-          isMe: Boolean(entry.isMe),
-          rankChange:
-            entry.isMe && backendCurrentRun
-              ? backendCurrentRun.rankChange
-              : null,
-        }));
-      }
+    return {
+      me: localMe,
+      myRank: backendCurrentRun?.rank ?? rank,
+      rankPercentile:
+        backendCurrentRun?.percentile ??
+        (total <= 1 ? 100 : Math.round(((total - rank) / (total - 1)) * 100)),
+      scoreGapToPrev:
+        backendCurrentRun?.gapToPrevious ??
+        (previous && localMe ? previous.score - localMe.score : null),
+      myRankChange:
+        backendCurrentRun?.rankChange ??
+        (localMe && rankChangeByClientId
+          ? (rankChangeByClientId[localMe.clientId] ?? null)
+          : null),
+      accuracy:
+        backendCurrentRun && backendCurrentRun.questionCount > 0
+          ? (backendCurrentRun.correctCount / backendCurrentRun.questionCount) *
+            100
+          : localAccuracy,
+      combo:
+        backendCurrentRun?.maxCombo ??
+        Math.max(localMe?.maxCombo ?? 0, localMe?.combo ?? 0),
+      avgCorrectMs:
+        backendCurrentRun?.avgCorrectMs ??
+        (typeof localMe?.avgCorrectMs === "number" &&
+        Number.isFinite(localMe.avgCorrectMs)
+          ? localMe.avgCorrectMs
+          : null),
+    };
+  }, [
+    backendCurrentRun,
+    localMe,
+    localMyIndex,
+    playedQuestionCount,
+    rankChangeByClientId,
+    sortedParticipants,
+  ]);
 
-      return sortedParticipants.map((participant, index) => ({
-        clientId: participant.clientId,
-        rank: index + 1,
-        username: participant.username,
-        avatarUrl: participant.avatarUrl ?? participant.avatar_url ?? null,
-        score: participant.score,
-        correctCount: participant.correctCount ?? 0,
-        combo: Math.max(participant.maxCombo ?? 0, participant.combo ?? 0),
-        avgCorrectMs:
-          typeof participant.avgCorrectMs === "number" &&
-            Number.isFinite(participant.avgCorrectMs)
-            ? participant.avgCorrectMs
-            : null,
+  const effectiveLeaderboardRows = useMemo<LeaderboardMetricRow[]>(() => {
+    // While loading, show all placeholder skeletons — reveal real data only when ready.
+    if (leaderboardSettlementLoading) {
+      const expectedTotal = Math.max(participants.length, 6);
+      return Array.from({ length: Math.min(expectedTotal, 20) }, (_, i) => ({
+        clientId: `__skeleton__${i}`,
+        rank: i + 1,
+        username: "",
+        avatarUrl: null,
+        score: 0,
+        correctCount: 0,
+        combo: 0,
+        avgCorrectMs: null,
         durationSec: null,
-        isMe: participant.clientId === meClientId,
-        rankChange: rankChangeByClientId?.[participant.clientId] ?? null,
+        isMe: false,
+        rankChange: null,
+        isSkeleton: true,
       }));
-    }, [
-      backendCurrentRun,
-      backendTopEntries,
-      leaderboardSettlementLoading,
-      meClientId,
-      participants.length,
-      rankChangeByClientId,
-      sortedParticipants,
-    ]);
-    const leaderboardComparisonRows = useMemo(
-      () =>
-        effectiveLeaderboardRows
-          .filter((row) => !row.isSkeleton)
-          .slice()
-          .sort((a, b) => a.rank - b.rank),
-      [effectiveLeaderboardRows],
-    );
+    }
 
-    const currentLeaderboardRow = useMemo(() => {
-      const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? null;
-      const currentCorrectCount =
-        backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? null;
-      const currentCombo = backendCurrentRun?.maxCombo ?? meSummary.combo;
-
-      return (
-        leaderboardComparisonRows.find(
-          (row) =>
-            row.isMe &&
-            (currentScore === null || row.score === currentScore) &&
-            (currentCorrectCount === null ||
-              row.correctCount === currentCorrectCount) &&
-            row.combo === currentCombo,
-        ) ??
-        leaderboardComparisonRows.find((row) => row.isMe) ??
-        null
-      );
-    }, [
-      backendCurrentRun?.correctCount,
-      backendCurrentRun?.maxCombo,
-      backendCurrentRun?.score,
-      leaderboardComparisonRows,
-      meSummary.combo,
-      meSummary.me?.correctCount,
-      meSummary.me?.score,
-    ]);
-
-    const percentileMetrics = useMemo(() => {
-      const currentRunScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
-      const currentCorrectCount =
-        backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0;
-      const currentCombo = backendCurrentRun?.maxCombo ?? meSummary.combo;
-      const currentAvgCorrectMs =
-        backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs;
-
-      const currentAccuracy =
-        playedQuestionCount > 0
-          ? (currentCorrectCount / playedQuestionCount) * 100
-          : 0;
-
-      const metricRows = leaderboardComparisonRows;
-
-      const currentRunAlreadyInRows = metricRows.some((row) => {
-        const sameAvgCorrectMs =
-          row.avgCorrectMs === currentAvgCorrectMs ||
-          (row.avgCorrectMs === null && currentAvgCorrectMs === null);
-
-        return (
-          row.isMe &&
-          row.score === currentRunScore &&
-          row.correctCount === currentCorrectCount &&
-          row.combo === currentCombo &&
-          sameAvgCorrectMs
-        );
-      });
-
-      const accuracyValues = metricRows.map((row) =>
-        playedQuestionCount > 0
-          ? (row.correctCount / playedQuestionCount) * 100
-          : 0,
-      );
-
-      const comboValues = metricRows.map((row) => row.combo);
-
-      const speedValues = metricRows
-        .map((row) =>
-          typeof row.avgCorrectMs === "number" && Number.isFinite(row.avgCorrectMs)
-            ? row.avgCorrectMs
-            : null,
-        )
-        .filter((value): value is number => value !== null);
-
-      if (!currentRunAlreadyInRows) {
-        accuracyValues.push(currentAccuracy);
-        comboValues.push(currentCombo);
-
-        if (
-          typeof currentAvgCorrectMs === "number" &&
-          Number.isFinite(currentAvgCorrectMs)
-        ) {
-          speedValues.push(currentAvgCorrectMs);
-        }
-      }
-
-      return {
-        accuracyPercentile: getPercentileLabel(
-          accuracyValues,
-          currentAccuracy,
-          "higher",
-        ),
-        comboPercentile: getPercentileLabel(
-          comboValues,
-          currentCombo,
-          "higher",
-        ),
-        speedPercentile: getPercentileLabel(
-          speedValues,
-          currentAvgCorrectMs,
-          "lower",
-        ),
-      };
-    }, [
-      backendCurrentRun?.avgCorrectMs,
-      backendCurrentRun?.correctCount,
-      backendCurrentRun?.maxCombo,
-      backendCurrentRun?.score,
-      leaderboardComparisonRows,
-      meSummary.avgCorrectMs,
-      meSummary.combo,
-      meSummary.me?.correctCount,
-      meSummary.me?.score,
-      playedQuestionCount,
-    ]);
-
-    const aroundMeRows = useMemo<LeaderboardMetricRow[]>(() => {
-      const aroundEntries = backendAroundMeEntries ?? [];
-      if (aroundEntries.length === 0) return [];
-      return aroundEntries.map((entry) => ({
-        clientId: entry.userId ?? `around-${entry.rank}-${entry.displayName}`,
+    const topEntries = backendTopEntries ?? [];
+    if (topEntries.length > 0) {
+      return topEntries.map((entry) => ({
+        clientId: entry.userId ?? `ranked-${entry.rank}-${entry.displayName}`,
         rank: entry.rank,
         username: entry.displayName,
         avatarUrl: entry.avatarUrl ?? null,
@@ -1069,144 +993,324 @@ const LeaderboardSettlementShowcase: React.FC<
         rankChange:
           entry.isMe && backendCurrentRun ? backendCurrentRun.rankChange : null,
       }));
-    }, [backendAroundMeEntries, backendCurrentRun]);
+    }
 
-    const personalBestRow = useMemo<LeaderboardMetricRow | null>(() => {
-      const topMe = effectiveLeaderboardRows.find((row) => row.isMe) ?? null;
-      if (topMe) return topMe;
+    return sortedParticipants.map((participant, index) => ({
+      clientId: participant.clientId,
+      rank: index + 1,
+      username: participant.username,
+      avatarUrl: participant.avatarUrl ?? participant.avatar_url ?? null,
+      score: participant.score,
+      correctCount: participant.correctCount ?? 0,
+      combo: Math.max(participant.maxCombo ?? 0, participant.combo ?? 0),
+      avgCorrectMs:
+        typeof participant.avgCorrectMs === "number" &&
+        Number.isFinite(participant.avgCorrectMs)
+          ? participant.avgCorrectMs
+          : null,
+      durationSec: null,
+      isMe: participant.clientId === meClientId,
+      rankChange: rankChangeByClientId?.[participant.clientId] ?? null,
+    }));
+  }, [
+    backendCurrentRun,
+    backendTopEntries,
+    leaderboardSettlementLoading,
+    meClientId,
+    participants.length,
+    rankChangeByClientId,
+    sortedParticipants,
+  ]);
+  const leaderboardComparisonRows = useMemo(
+    () =>
+      effectiveLeaderboardRows
+        .filter((row) => !row.isSkeleton)
+        .slice()
+        .sort((a, b) => a.rank - b.rank),
+    [effectiveLeaderboardRows],
+  );
 
-      const aroundMe = aroundMeRows.find((row) => row.isMe) ?? null;
-      if (aroundMe) return aroundMe;
+  const currentLeaderboardRow = useMemo(() => {
+    const currentScore =
+      backendCurrentRun?.score ?? meSummary.me?.score ?? null;
+    const currentCorrectCount =
+      backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? null;
+    const currentCombo = backendCurrentRun?.maxCombo ?? meSummary.combo;
 
-      if (backendCurrentRun) {
-        return {
-          clientId: meClientId ?? `current-run-${backendCurrentRun.rank}`,
-          rank: backendCurrentRun.rank,
-          username: localMe?.username ?? "你",
-          avatarUrl: localMe?.avatarUrl ?? localMe?.avatar_url ?? null,
-          score: backendCurrentRun.score,
-          correctCount: backendCurrentRun.correctCount,
-          combo: backendCurrentRun.maxCombo,
-          avgCorrectMs: backendCurrentRun.avgCorrectMs,
-          durationSec: backendCurrentRun.durationSec ?? null,
-          isMe: true,
-          rankChange: backendCurrentRun.rankChange,
-        };
+    return (
+      leaderboardComparisonRows.find(
+        (row) =>
+          row.isMe &&
+          (currentScore === null || row.score === currentScore) &&
+          (currentCorrectCount === null ||
+            row.correctCount === currentCorrectCount) &&
+          row.combo === currentCombo,
+      ) ??
+      leaderboardComparisonRows.find((row) => row.isMe) ??
+      null
+    );
+  }, [
+    backendCurrentRun?.correctCount,
+    backendCurrentRun?.maxCombo,
+    backendCurrentRun?.score,
+    leaderboardComparisonRows,
+    meSummary.combo,
+    meSummary.me?.correctCount,
+    meSummary.me?.score,
+  ]);
+
+  const percentileMetrics = useMemo(() => {
+    const currentRunScore =
+      backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
+    const currentCorrectCount =
+      backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0;
+    const currentCombo = backendCurrentRun?.maxCombo ?? meSummary.combo;
+    const currentAvgCorrectMs =
+      backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs;
+
+    const currentAccuracy =
+      playedQuestionCount > 0
+        ? (currentCorrectCount / playedQuestionCount) * 100
+        : 0;
+
+    const metricRows = leaderboardComparisonRows;
+
+    const currentRunAlreadyInRows = metricRows.some((row) => {
+      const sameAvgCorrectMs =
+        row.avgCorrectMs === currentAvgCorrectMs ||
+        (row.avgCorrectMs === null && currentAvgCorrectMs === null);
+
+      return (
+        row.isMe &&
+        row.score === currentRunScore &&
+        row.correctCount === currentCorrectCount &&
+        row.combo === currentCombo &&
+        sameAvgCorrectMs
+      );
+    });
+
+    const accuracyValues = metricRows.map((row) =>
+      playedQuestionCount > 0
+        ? (row.correctCount / playedQuestionCount) * 100
+        : 0,
+    );
+
+    const comboValues = metricRows.map((row) => row.combo);
+
+    const speedValues = metricRows
+      .map((row) =>
+        typeof row.avgCorrectMs === "number" &&
+        Number.isFinite(row.avgCorrectMs)
+          ? row.avgCorrectMs
+          : null,
+      )
+      .filter((value): value is number => value !== null);
+
+    if (!currentRunAlreadyInRows) {
+      accuracyValues.push(currentAccuracy);
+      comboValues.push(currentCombo);
+
+      if (
+        typeof currentAvgCorrectMs === "number" &&
+        Number.isFinite(currentAvgCorrectMs)
+      ) {
+        speedValues.push(currentAvgCorrectMs);
       }
+    }
 
-      if (localMe) {
-        return {
-          clientId: localMe.clientId,
-          rank: meSummary.myRank,
-          username: localMe.username,
-          avatarUrl: localMe.avatarUrl ?? localMe.avatar_url ?? null,
-          score: localMe.score,
-          correctCount: localMe.correctCount ?? 0,
-          combo: Math.max(localMe.maxCombo ?? 0, localMe.combo ?? 0),
-          avgCorrectMs:
-            typeof localMe.avgCorrectMs === "number" && Number.isFinite(localMe.avgCorrectMs)
-              ? localMe.avgCorrectMs
-              : null,
-          durationSec: null,
-          isMe: true,
-          rankChange: rankChangeByClientId?.[localMe.clientId] ?? null,
-        };
-      }
+    return {
+      accuracyPercentile: getPercentileLabel(
+        accuracyValues,
+        currentAccuracy,
+        "higher",
+      ),
+      comboPercentile: getPercentileLabel(comboValues, currentCombo, "higher"),
+      speedPercentile: getPercentileLabel(
+        speedValues,
+        currentAvgCorrectMs,
+        "lower",
+      ),
+    };
+  }, [
+    backendCurrentRun?.avgCorrectMs,
+    backendCurrentRun?.correctCount,
+    backendCurrentRun?.maxCombo,
+    backendCurrentRun?.score,
+    leaderboardComparisonRows,
+    meSummary.avgCorrectMs,
+    meSummary.combo,
+    meSummary.me?.correctCount,
+    meSummary.me?.score,
+    playedQuestionCount,
+  ]);
 
-      return null;
-    }, [aroundMeRows, backendCurrentRun, effectiveLeaderboardRows, localMe, meClientId, meSummary.myRank, rankChangeByClientId]);
+  const metricPercentiles =
+    leaderboardSettlement?.currentRun.metricPercentiles ?? null;
+  const currentCorrectCount =
+    backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0;
+  const currentQuestionCount =
+    backendCurrentRun?.questionCount ?? playedQuestionCount;
 
+  const accuracyNote = formatMetricPercentileNote({
+    summary: metricPercentiles?.accuracy,
+    tiedLabel: meSummary.accuracy >= 100 ? "滿分答對" : "並列最高",
+    percentLabel: "高於",
+    fallback:
+      percentileMetrics.accuracyPercentile === null
+        ? currentQuestionCount > 0
+          ? `${currentCorrectCount} / ${currentQuestionCount} 題答對`
+          : "等待更多玩家資料"
+        : `高於 ${percentileMetrics.accuracyPercentile}% 的玩家`,
+  });
 
+  const comboNote = formatMetricPercentileNote({
+    summary: metricPercentiles?.maxCombo,
+    tiedLabel:
+      currentQuestionCount > 0 && meSummary.combo >= currentQuestionCount
+        ? "全程連擊"
+        : "並列最高",
+    percentLabel: "超越",
+    fallback:
+      percentileMetrics.comboPercentile === null
+        ? meSummary.combo > 0
+          ? `最高連續答對 ${meSummary.combo} 題`
+          : "等待更多玩家資料"
+        : `超越 ${percentileMetrics.comboPercentile}% 的玩家`,
+  });
 
-    const coverThumbnail =
-      leaderboardSettlement?.collection?.coverThumbnailUrl ??
-      questionRecaps.find((item) => item.thumbnail)?.thumbnail ??
-      playlistItems.find((item) => item.thumbnail)?.thumbnail ??
-      null;
+  const avgCorrectMsNote = formatMetricPercentileNote({
+    summary: metricPercentiles?.avgCorrectMs,
+    tiedLabel: "並列最快",
+    percentLabel: "快於",
+    fallback:
+      percentileMetrics.speedPercentile === null
+        ? "等待更多玩家資料"
+        : `快於 ${percentileMetrics.speedPercentile}% 的玩家`,
+  });
 
-    const playlistSummary = useMemo(() => {
+  const aroundMeRows = useMemo<LeaderboardMetricRow[]>(() => {
+    const aroundEntries = backendAroundMeEntries ?? [];
+    if (aroundEntries.length === 0) return [];
+    return aroundEntries.map((entry) => ({
+      clientId: entry.userId ?? `around-${entry.rank}-${entry.displayName}`,
+      rank: entry.rank,
+      username: entry.displayName,
+      avatarUrl: entry.avatarUrl ?? null,
+      score: entry.score,
+      correctCount: entry.correctCount,
+      combo: entry.maxCombo,
+      avgCorrectMs: entry.avgCorrectMs,
+      durationSec: entry.durationSec,
+      isMe: Boolean(entry.isMe),
+      rankChange:
+        entry.isMe && backendCurrentRun ? backendCurrentRun.rankChange : null,
+    }));
+  }, [backendAroundMeEntries, backendCurrentRun]);
+
+  const personalBestRow = useMemo<LeaderboardMetricRow | null>(() => {
+    const topMe = effectiveLeaderboardRows.find((row) => row.isMe) ?? null;
+    if (topMe) return topMe;
+
+    const aroundMe = aroundMeRows.find((row) => row.isMe) ?? null;
+    if (aroundMe) return aroundMe;
+
+    if (backendCurrentRun) {
       return {
-        title: room.playlist.title?.trim() || room.name || "排行榜歌單",
-        count:
-          room.gameSettings?.leaderboardTargetQuestionCount ??
-          room.gameSettings?.questionCount ??
-          playedQuestionCount,
+        clientId: meClientId ?? `current-run-${backendCurrentRun.rank}`,
+        rank: backendCurrentRun.rank,
+        username: localMe?.username ?? "你",
+        avatarUrl: localMe?.avatarUrl ?? localMe?.avatar_url ?? null,
+        score: backendCurrentRun.score,
+        correctCount: backendCurrentRun.correctCount,
+        combo: backendCurrentRun.maxCombo,
+        avgCorrectMs: backendCurrentRun.avgCorrectMs,
+        durationSec: backendCurrentRun.durationSec ?? null,
+        isMe: true,
+        rankChange: backendCurrentRun.rankChange,
       };
-    }, [playedQuestionCount, room]);
+    }
 
-    const questionRows = useMemo<LeaderboardQuestionRow[]>(() => {
-      if (questionRecaps.length === 0) {
-        return playlistItems.slice(0, playedQuestionCount).map((item, index) => ({
-          key: item.sourceId ?? item.videoId ?? item.url ?? `fallback-${index}`,
-          title: item.answerText?.trim() || item.title?.trim() || `第 ${index + 1} 題`,
-          artist: item.uploader?.trim() || "未知歌手",
-          thumbnail: item.thumbnail ?? null,
-          youtubeUrl: buildYouTubeUrl(item),
-          result: "unanswered",
-          badgeLabel: "未作答",
-          badgeTone: "neutral" as const,
-          answerTimeLabel: "--",
-          scoreGain: null,
-        }));
-      }
+    if (localMe) {
+      return {
+        clientId: localMe.clientId,
+        rank: meSummary.myRank,
+        username: localMe.username,
+        avatarUrl: localMe.avatarUrl ?? localMe.avatar_url ?? null,
+        score: localMe.score,
+        correctCount: localMe.correctCount ?? 0,
+        combo: Math.max(localMe.maxCombo ?? 0, localMe.combo ?? 0),
+        avgCorrectMs:
+          typeof localMe.avgCorrectMs === "number" &&
+          Number.isFinite(localMe.avgCorrectMs)
+            ? localMe.avgCorrectMs
+            : null,
+        durationSec: null,
+        isMe: true,
+        rankChange: rankChangeByClientId?.[localMe.clientId] ?? null,
+      };
+    }
 
-      return questionRecaps.map((recap) => {
-        const answer = meClientId ? recap.answersByClientId?.[meClientId] : null;
-        const result = answer?.result ?? recap.myResult ?? "unanswered";
-        const answerTime =
-          typeof answer?.answeredAtMs === "number" &&
-            Number.isFinite(answer.answeredAtMs)
-            ? answer.answeredAtMs
-            : result === "correct"
-              ? recap.fastestCorrectMs ?? null
-              : null;
-        const scoreGain = getScoreGain(answer?.scoreBreakdown);
+    return null;
+  }, [
+    aroundMeRows,
+    backendCurrentRun,
+    effectiveLeaderboardRows,
+    localMe,
+    meClientId,
+    meSummary.myRank,
+    rankChangeByClientId,
+  ]);
 
-        if (result === "correct" && typeof answerTime === "number" && answerTime < 2000) {
-          return {
-            key: recap.key,
-            title: recap.title,
-            artist: recap.uploader,
-            thumbnail: recap.thumbnail ?? null,
-            youtubeUrl: buildYouTubeUrl(recap),
-            result,
-            badgeLabel: "PERFECT!",
-            badgeTone: "warning" as const,
-            answerTimeLabel: formatAnswerTime(answerTime),
-            scoreGain,
-          };
-        }
+  const coverThumbnail =
+    leaderboardSettlement?.collection?.coverThumbnailUrl ??
+    questionRecaps.find((item) => item.thumbnail)?.thumbnail ??
+    playlistItems.find((item) => item.thumbnail)?.thumbnail ??
+    null;
 
-        if (result === "correct") {
-          return {
-            key: recap.key,
-            title: recap.title,
-            artist: recap.uploader,
-            thumbnail: recap.thumbnail ?? null,
-            youtubeUrl: buildYouTubeUrl(recap),
-            result,
-            badgeLabel: "答對",
-            badgeTone: "success" as const,
-            answerTimeLabel: formatAnswerTime(answerTime),
-            scoreGain,
-          };
-        }
+  const playlistSummary = useMemo(() => {
+    return {
+      title: room.playlist.title?.trim() || room.name || "排行榜歌單",
+      count:
+        room.gameSettings?.leaderboardTargetQuestionCount ??
+        room.gameSettings?.questionCount ??
+        playedQuestionCount,
+    };
+  }, [playedQuestionCount, room]);
 
-        if (result === "wrong") {
-          return {
-            key: recap.key,
-            title: recap.title,
-            artist: recap.uploader,
-            thumbnail: recap.thumbnail ?? null,
-            youtubeUrl: buildYouTubeUrl(recap),
-            result,
-            badgeLabel: "答錯",
-            badgeTone: "danger" as const,
-            answerTimeLabel: formatAnswerTime(answerTime),
-            scoreGain,
-          };
-        }
+  const questionRows = useMemo<LeaderboardQuestionRow[]>(() => {
+    if (questionRecaps.length === 0) {
+      return playlistItems.slice(0, playedQuestionCount).map((item, index) => ({
+        key: item.sourceId ?? item.videoId ?? item.url ?? `fallback-${index}`,
+        title:
+          item.answerText?.trim() || item.title?.trim() || `第 ${index + 1} 題`,
+        artist: item.uploader?.trim() || "未知歌手",
+        thumbnail: item.thumbnail ?? null,
+        youtubeUrl: buildYouTubeUrl(item),
+        result: "unanswered",
+        badgeLabel: "未作答",
+        badgeTone: "neutral" as const,
+        answerTimeLabel: "--",
+        scoreGain: null,
+      }));
+    }
 
+    return questionRecaps.map((recap) => {
+      const answer = meClientId ? recap.answersByClientId?.[meClientId] : null;
+      const result = answer?.result ?? recap.myResult ?? "unanswered";
+      const answerTime =
+        typeof answer?.answeredAtMs === "number" &&
+        Number.isFinite(answer.answeredAtMs)
+          ? answer.answeredAtMs
+          : result === "correct"
+            ? (recap.fastestCorrectMs ?? null)
+            : null;
+      const scoreGain = getScoreGain(answer?.scoreBreakdown);
+
+      if (
+        result === "correct" &&
+        typeof answerTime === "number" &&
+        answerTime < 2000
+      ) {
         return {
           key: recap.key,
           title: recap.title,
@@ -1214,403 +1318,478 @@ const LeaderboardSettlementShowcase: React.FC<
           thumbnail: recap.thumbnail ?? null,
           youtubeUrl: buildYouTubeUrl(recap),
           result,
-          badgeLabel: "未作答",
-          badgeTone: "neutral" as const,
-          answerTimeLabel: "--",
+          badgeLabel: "PERFECT!",
+          badgeTone: "warning" as const,
+          answerTimeLabel: formatAnswerTime(answerTime),
           scoreGain,
         };
-      });
-    }, [meClientId, playedQuestionCount, playlistItems, questionRecaps]);
+      }
 
-    const answerOverview = useMemo(
-      () =>
-        questionRows.reduce(
-          (acc, item) => {
-            if (item.result === "correct") acc.correct += 1;
-            else if (item.result === "wrong") acc.wrong += 1;
-            else acc.unanswered += 1;
-            return acc;
-          },
-          { correct: 0, wrong: 0, unanswered: 0 },
-        ),
-      [questionRows],
-    );
+      if (result === "correct") {
+        return {
+          key: recap.key,
+          title: recap.title,
+          artist: recap.uploader,
+          thumbnail: recap.thumbnail ?? null,
+          youtubeUrl: buildYouTubeUrl(recap),
+          result,
+          badgeLabel: "答對",
+          badgeTone: "success" as const,
+          answerTimeLabel: formatAnswerTime(answerTime),
+          scoreGain,
+        };
+      }
 
-    const filteredQuestionRows = useMemo(
-      () =>
-        questionFilter !== null
-          ? questionRows.filter((item) => item.result === questionFilter)
-          : questionRows,
-      [questionRows, questionFilter],
-    );
+      if (result === "wrong") {
+        return {
+          key: recap.key,
+          title: recap.title,
+          artist: recap.uploader,
+          thumbnail: recap.thumbnail ?? null,
+          youtubeUrl: buildYouTubeUrl(recap),
+          result,
+          badgeLabel: "答錯",
+          badgeTone: "danger" as const,
+          answerTimeLabel: formatAnswerTime(answerTime),
+          scoreGain,
+        };
+      }
 
-    const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
-    const scoreDelta =
-      personalBestComparison?.hasPreviousBest === true &&
-        typeof personalBestComparison.scoreDelta === "number" &&
-        Number.isFinite(personalBestComparison.scoreDelta) &&
-        personalBestComparison.scoreDelta !== 0
-        ? personalBestComparison.scoreDelta
-        : null;
-    const currentRunComparable = useMemo(
-      () => ({
-        score: currentScore,
-        combo: backendCurrentRun?.maxCombo ?? meSummary.combo,
-        correctCount: backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0,
-        avgCorrectMs: backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs,
-      }),
-      [
-        backendCurrentRun?.avgCorrectMs,
-        backendCurrentRun?.correctCount,
-        backendCurrentRun?.maxCombo,
-        currentScore,
-        meSummary.avgCorrectMs,
-        meSummary.combo,
-        meSummary.me?.correctCount,
-      ],
-    );
-    const selfBestAheadOfCurrent = useMemo(() => {
-      if (!personalBestRow?.isMe) return false;
-      return isRowAheadOfCurrent(personalBestRow, currentRunComparable);
-    }, [currentRunComparable, personalBestRow]);
-    const displayedCurrentRank = (() => {
-      const baseRank = backendCurrentRun?.rank ?? meSummary.myRank;
-      if (!baseRank) return 0;
-      return baseRank + (selfBestAheadOfCurrent ? 1 : 0);
-    })();
-    const displayedRankChange =
-      meSummary.myRankChange === null
-        ? null
-        : meSummary.myRankChange - (selfBestAheadOfCurrent ? 1 : 0);
-    const displayedTotalPlayers = Math.max(
-      1,
-      backendCurrentRun?.totalPlayers ?? leaderboardComparisonRows.length,
-    );
+      return {
+        key: recap.key,
+        title: recap.title,
+        artist: recap.uploader,
+        thumbnail: recap.thumbnail ?? null,
+        youtubeUrl: buildYouTubeUrl(recap),
+        result,
+        badgeLabel: "未作答",
+        badgeTone: "neutral" as const,
+        answerTimeLabel: "--",
+        scoreGain,
+      };
+    });
+  }, [meClientId, playedQuestionCount, playlistItems, questionRecaps]);
 
-    const displayedRankPercentile =
-      displayedCurrentRank > 0
-        ? Math.max(
+  const answerOverview = useMemo(
+    () =>
+      questionRows.reduce(
+        (acc, item) => {
+          if (item.result === "correct") acc.correct += 1;
+          else if (item.result === "wrong") acc.wrong += 1;
+          else acc.unanswered += 1;
+          return acc;
+        },
+        { correct: 0, wrong: 0, unanswered: 0 },
+      ),
+    [questionRows],
+  );
+
+  const filteredQuestionRows = useMemo(
+    () =>
+      questionFilter !== null
+        ? questionRows.filter((item) => item.result === questionFilter)
+        : questionRows,
+    [questionRows, questionFilter],
+  );
+
+  const currentScore = backendCurrentRun?.score ?? meSummary.me?.score ?? 0;
+  const scoreDelta =
+    personalBestComparison?.hasPreviousBest === true &&
+    typeof personalBestComparison.scoreDelta === "number" &&
+    Number.isFinite(personalBestComparison.scoreDelta) &&
+    personalBestComparison.scoreDelta !== 0
+      ? personalBestComparison.scoreDelta
+      : null;
+  const currentRunComparable = useMemo(
+    () => ({
+      score: currentScore,
+      combo: backendCurrentRun?.maxCombo ?? meSummary.combo,
+      correctCount:
+        backendCurrentRun?.correctCount ?? meSummary.me?.correctCount ?? 0,
+      avgCorrectMs: backendCurrentRun?.avgCorrectMs ?? meSummary.avgCorrectMs,
+    }),
+    [
+      backendCurrentRun?.avgCorrectMs,
+      backendCurrentRun?.correctCount,
+      backendCurrentRun?.maxCombo,
+      currentScore,
+      meSummary.avgCorrectMs,
+      meSummary.combo,
+      meSummary.me?.correctCount,
+    ],
+  );
+  const selfBestAheadOfCurrent = useMemo(() => {
+    if (!personalBestRow?.isMe) return false;
+    return isRowAheadOfCurrent(personalBestRow, currentRunComparable);
+  }, [currentRunComparable, personalBestRow]);
+  const displayedCurrentRank = (() => {
+    const baseRank = backendCurrentRun?.rank ?? meSummary.myRank;
+    if (!baseRank) return 0;
+    return baseRank + (selfBestAheadOfCurrent ? 1 : 0);
+  })();
+  const displayedRankChange =
+    meSummary.myRankChange === null
+      ? null
+      : meSummary.myRankChange - (selfBestAheadOfCurrent ? 1 : 0);
+  const displayedTotalPlayers = Math.max(
+    1,
+    backendCurrentRun?.totalPlayers ?? leaderboardComparisonRows.length,
+  );
+
+  const displayedRankPercentile =
+    displayedCurrentRank > 0
+      ? Math.max(
           0,
           Math.round(
             ((displayedTotalPlayers - displayedCurrentRank) /
               displayedTotalPlayers) *
-            100,
+              100,
           ),
         )
-        : meSummary.rankPercentile;
+      : meSummary.rankPercentile;
 
-    const previousLeaderboardGap = useMemo(() => {
-      if (!currentLeaderboardRow) return null;
+  const previousLeaderboardGap = useMemo(() => {
+    if (!currentLeaderboardRow) return null;
 
-      const currentIndex = leaderboardComparisonRows.findIndex(
-        (row) =>
-          row.clientId === currentLeaderboardRow.clientId &&
-          row.rank === currentLeaderboardRow.rank &&
-          row.score === currentLeaderboardRow.score &&
-          row.correctCount === currentLeaderboardRow.correctCount &&
-          row.combo === currentLeaderboardRow.combo,
-      );
-
-      if (currentIndex <= 0) return null;
-
-      const previousRow = leaderboardComparisonRows[currentIndex - 1];
-      if (!previousRow) return null;
-
-      return {
-        rank: previousRow.rank,
-        scoreGap: Math.max(0, previousRow.score - currentLeaderboardRow.score),
-      };
-    }, [currentLeaderboardRow, leaderboardComparisonRows]);
-
-    const rankingSummaryLabel = (() => {
-      if (displayedCurrentRank === 1) {
-        return "目前位居榜首";
-      }
-
-      if (previousLeaderboardGap) {
-        return `距離第 ${previousLeaderboardGap.rank} 名差 ${formatScore(
-          previousLeaderboardGap.scoreGap,
-        )} 分`;
-      }
-
-      if (
-        displayedCurrentRank > 1 &&
-        typeof backendCurrentRun?.gapToPrevious === "number" &&
-        Number.isFinite(backendCurrentRun.gapToPrevious)
-      ) {
-        return `距離第 ${Math.max(1, displayedCurrentRank - 1)} 名差 ${formatScore(
-          backendCurrentRun.gapToPrevious,
-        )} 分`;
-      }
-
-      if (effectiveLeaderboardRows.length === 0) {
-        return leaderboardSettlementLoading
-          ? "正在載入全球排行榜..."
-          : "顯示本場即時結算";
-      }
-
-      return `顯示前 ${Math.min(10, effectiveLeaderboardRows.length || 10)} 名`;
-    })();
-
-    const scoreSummaryLabel =
-      displayedCurrentRank === 1 ? "已經位居榜首" : rankingSummaryLabel;
-    const QUESTION_VISIBLE_ROWS = 6.5;
-    const questionListHeight = QUESTION_VISIBLE_ROWS * listRowHeight;
-    const LEADERBOARD_DESKTOP_ROW_HEIGHT = 60;
-    const LEADERBOARD_MOBILE_ROW_HEIGHT = 82;
-    const leaderboardCardHeight = Math.max(
-      questionListHeight - LEADERBOARD_DESKTOP_ROW_HEIGHT,
-      isDesktopLayout ? 300 : 360,
+    const currentIndex = leaderboardComparisonRows.findIndex(
+      (row) =>
+        row.clientId === currentLeaderboardRow.clientId &&
+        row.rank === currentLeaderboardRow.rank &&
+        row.score === currentLeaderboardRow.score &&
+        row.correctCount === currentLeaderboardRow.correctCount &&
+        row.combo === currentLeaderboardRow.combo,
     );
-    const leaderboardDesktopHeight = Math.max(
-      LEADERBOARD_DESKTOP_ROW_HEIGHT,
-      leaderboardCardHeight - 190,
-    );
-    const leaderboardMobileHeight = Math.max(
-      LEADERBOARD_MOBILE_ROW_HEIGHT,
-      leaderboardCardHeight - 170,
-    );
-    const handleLeaderboardRowsRendered = useCallback(() => { }, []);
 
-    const filterEmptyMessages: Record<Exclude<QuestionFilterType, null>, string> = {
-      correct: "沒有答對的題目",
-      wrong: "沒有答錯的題目",
-      unanswered: "沒有未作答的題目",
+    if (currentIndex <= 0) return null;
+
+    const previousRow = leaderboardComparisonRows[currentIndex - 1];
+    if (!previousRow) return null;
+
+    return {
+      rank: previousRow.rank,
+      scoreGap: Math.max(0, previousRow.score - currentLeaderboardRow.score),
     };
+  }, [currentLeaderboardRow, leaderboardComparisonRows]);
 
-    return (
-      <div className="mx-auto w-full max-w-[1820px] min-w-0 overflow-hidden pt-2 text-[var(--mc-text)]">
-        <section className="min-h-0">
-          <div className="min-h-0">
-            <div className="flex items-center justify-between gap-3 border-b border-amber-300/14 pb-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(120,53,15,0.1))] text-amber-100">
-                  <BarChartRoundedIcon sx={{ fontSize: 20 }} />
-                </div>
+  const leaderboardHasMore = Boolean(leaderboardSettlement?.leaderboardHasMore);
+  const rankingSummaryLabel = (() => {
+    if (displayedCurrentRank === 1) {
+      return "目前位居榜首";
+    }
 
-                <h1 className="min-w-0 truncate text-xl font-black tracking-[0.07em] text-amber-50 sm:text-[1.5rem]">
-                  排行挑戰（{challengeVariantLabel}）
-                </h1>
+    if (previousLeaderboardGap) {
+      return `距離第 ${previousLeaderboardGap.rank} 名差 ${formatScore(
+        previousLeaderboardGap.scoreGap,
+      )} 分`;
+    }
+
+    if (
+      displayedCurrentRank > 1 &&
+      typeof backendCurrentRun?.gapToPrevious === "number" &&
+      Number.isFinite(backendCurrentRun.gapToPrevious)
+    ) {
+      return `距離第 ${Math.max(1, displayedCurrentRank - 1)} 名差 ${formatScore(
+        backendCurrentRun.gapToPrevious,
+      )} 分`;
+    }
+
+    if (effectiveLeaderboardRows.length === 0) {
+      return leaderboardSettlementLoading
+        ? "正在載入全球排行榜..."
+        : "顯示本場即時結算";
+    }
+
+    if (leaderboardHasMore) {
+      return `已載入 ${effectiveLeaderboardRows.length} / ${displayedTotalPlayers} 名`;
+    }
+
+    return `顯示全部 ${effectiveLeaderboardRows.length} 名`;
+  })();
+
+  const scoreSummaryLabel =
+    displayedCurrentRank === 1 ? "已經位居榜首" : rankingSummaryLabel;
+  const QUESTION_VISIBLE_ROWS = 6.5;
+  const questionListHeight = QUESTION_VISIBLE_ROWS * listRowHeight;
+  const LEADERBOARD_DESKTOP_ROW_HEIGHT = 60;
+  const LEADERBOARD_MOBILE_ROW_HEIGHT = 82;
+  const leaderboardRowCount =
+    effectiveLeaderboardRows.length +
+    (leaderboardHasMore || leaderboardSettlementLoadingMore ? 1 : 0);
+  const handleLoadMoreLeaderboardSettlement = useCallback(() => {
+    void onLoadMoreLeaderboardSettlement?.();
+  }, [onLoadMoreLeaderboardSettlement]);
+  const leaderboardCardHeight = Math.max(
+    questionListHeight - LEADERBOARD_DESKTOP_ROW_HEIGHT,
+    isDesktopLayout ? 300 : 360,
+  );
+  const leaderboardDesktopHeight = Math.max(
+    LEADERBOARD_DESKTOP_ROW_HEIGHT,
+    leaderboardCardHeight - 190,
+  );
+  const leaderboardMobileHeight = Math.max(
+    LEADERBOARD_MOBILE_ROW_HEIGHT,
+    leaderboardCardHeight - 170,
+  );
+  const handleLeaderboardRowsRendered = useCallback(() => {}, []);
+
+  const filterEmptyMessages: Record<
+    Exclude<QuestionFilterType, null>,
+    string
+  > = {
+    correct: "沒有答對的題目",
+    wrong: "沒有答錯的題目",
+    unanswered: "沒有未作答的題目",
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[1820px] min-w-0 overflow-hidden pt-2 text-[var(--mc-text)]">
+      <section className="min-h-0">
+        <div className="min-h-0">
+          <div className="flex items-center justify-between gap-3 border-b border-amber-300/14 pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(120,53,15,0.1))] text-amber-100">
+                <BarChartRoundedIcon sx={{ fontSize: 20 }} />
               </div>
 
-              <div className="flex shrink-0 items-center gap-2">
-                {canRetryChallenge && onRetry ? (
-                  <button
-                    type="button"
-                    onClick={onRetry}
-                    aria-label="再挑戰一次"
-                    title="再挑戰一次"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/45 bg-amber-500/10 text-amber-50 transition hover:bg-amber-500/18 xl:h-auto xl:w-auto xl:min-w-[110px] xl:gap-1.5 xl:px-3 xl:py-1.5 xl:text-xs xl:font-semibold"
-                  >
-                    <RefreshRoundedIcon sx={{ fontSize: 22 }} />
-                    <span className="hidden xl:inline">再挑戰一次</span>
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={onBackToLobby}
-                  aria-label="返回大廳"
-                  title="返回大廳"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-amber-50 transition hover:border-white/20 hover:bg-white/[0.04] xl:h-auto xl:w-auto xl:min-w-[110px] xl:gap-1.5 xl:px-3 xl:py-1.5 xl:text-xs xl:font-semibold xl:text-[var(--mc-text)]"
-                >
-                  <HomeRoundedIcon sx={{ fontSize: 22 }} />
-                  <span className="hidden xl:inline">返回大廳</span>
-                </button>
-              </div>
+              <h1 className="min-w-0 truncate text-xl font-black tracking-[0.07em] text-amber-50 sm:text-[1.5rem]">
+                排行挑戰（{challengeVariantLabel}）
+              </h1>
             </div>
 
-            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.7fr)]">
-              <div className="min-w-0 space-y-3 overflow-hidden">
-                <article className="rounded-[18px] border border-amber-300/16 bg-[radial-gradient(circle_at_12%_8%,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(28,20,10,0.78),rgba(8,10,14,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                  <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(220px,0.9fr)_minmax(0,1.1fr)] lg:gap-3">
-                    <div className="min-w-0 border-r border-amber-300/14 pr-2 lg:pr-4">
-                      <div className="text-center text-sm font-semibold text-amber-50/92">
-                        本次排名
-                      </div>
-                      <div className="mt-3 flex items-center justify-center gap-4">
-                        <AutoAwesomeRoundedIcon className="hidden text-amber-300/65 sm:block" sx={{ fontSize: 22 }} />
-                        <div className="text-[2.35rem] font-black leading-none text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.3)] sm:text-[3rem] lg:text-[3.8rem]">
-                          #{displayedCurrentRank || "--"}
-                        </div>
-                        <AutoAwesomeRoundedIcon className="hidden rotate-180 text-amber-300/65 sm:block" sx={{ fontSize: 22 }} />
-                      </div>
-                      <div className="mt-2 flex justify-center">
-                        <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100 sm:px-2.5 sm:py-1 sm:text-xs">
-                          勝過 {displayedRankPercentile}% 的玩家
-                        </span>
-                      </div>
-                    </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {canRetryChallenge && onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  aria-label="再挑戰一次"
+                  title="再挑戰一次"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300/45 bg-amber-500/10 text-amber-50 transition hover:bg-amber-500/18 xl:h-auto xl:w-auto xl:min-w-[110px] xl:gap-1.5 xl:px-3 xl:py-1.5 xl:text-xs xl:font-semibold"
+                >
+                  <RefreshRoundedIcon sx={{ fontSize: 22 }} />
+                  <span className="hidden xl:inline">再挑戰一次</span>
+                </button>
+              ) : null}
 
-                    <div className="min-w-0">
-                      <div className="text-center text-lg font-semibold text-amber-50/92">
-                        本場得分
+              <button
+                type="button"
+                onClick={onBackToLobby}
+                aria-label="返回大廳"
+                title="返回大廳"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-amber-50 transition hover:border-white/20 hover:bg-white/[0.04] xl:h-auto xl:w-auto xl:min-w-[110px] xl:gap-1.5 xl:px-3 xl:py-1.5 xl:text-xs xl:font-semibold xl:text-[var(--mc-text)]"
+              >
+                <HomeRoundedIcon sx={{ fontSize: 22 }} />
+                <span className="hidden xl:inline">返回大廳</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.7fr)]">
+            <div className="min-w-0 space-y-3 overflow-hidden">
+              <article className="rounded-[18px] border border-amber-300/16 bg-[radial-gradient(circle_at_12%_8%,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(28,20,10,0.78),rgba(8,10,14,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(220px,0.9fr)_minmax(0,1.1fr)] lg:gap-3">
+                  <div className="min-w-0 border-r border-amber-300/14 pr-2 lg:pr-4">
+                    <div className="text-center text-sm font-semibold text-amber-50/92">
+                      本次排名
+                    </div>
+                    <div className="mt-3 flex items-center justify-center gap-4">
+                      <AutoAwesomeRoundedIcon
+                        className="hidden text-amber-300/65 sm:block"
+                        sx={{ fontSize: 22 }}
+                      />
+                      <div className="text-[2.35rem] font-black leading-none text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.3)] sm:text-[3rem] lg:text-[3.8rem]">
+                        #{displayedCurrentRank || "--"}
                       </div>
-                      <div className="mt-2 text-center text-[2.15rem] font-black leading-none tracking-tight text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.28)] sm:text-[2.6rem] lg:text-[3rem]">
-                        {formatScore(currentScore)}
-                      </div>
-                      {scoreDelta !== null && (
-                        <div className="mt-1 flex items-center justify-center gap-1">
-                          {scoreDelta > 0 ? (
-                            <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-emerald-400">
-                              <AddRoundedIcon sx={{ fontSize: 13 }} />
-                              {formatScore(scoreDelta)}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-rose-400">
-                              <RemoveRoundedIcon sx={{ fontSize: 13 }} />
-                              {formatScore(Math.abs(scoreDelta))}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-xs text-[var(--mc-text-muted)]">
-                        {displayedRankChange !== null && (
-                          <>
-                            {displayedRankChange > 0 ? (
-                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-400">
-                                <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
-                                升了 {displayedRankChange}
-                              </span>
-                            ) : displayedRankChange < 0 ? (
-                              <span className="inline-flex items-center gap-1 font-semibold text-rose-400">
-                                <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
-                                降了 {Math.abs(displayedRankChange)}
-                              </span>
-                            ) : (
-                              <span className="text-[var(--mc-text-muted)]">持平</span>
-                            )}
-                            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-                          </>
-                        )}
-                        <span>{scoreSummaryLabel}</span>
-                        {backendCurrentRun?.isPersonalBest && (
-                          <>
-                            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-                            <span className="font-semibold text-emerald-400">
-                              新個人最佳
-                            </span>
-                          </>
-                        )}
-                        {personalBestComparison &&
-                          !personalBestComparison.hasPreviousBest && (
-                            <>
-                              <span className="hidden h-4 w-px bg-white/10 sm:block" />
-                              <span className="font-semibold text-sky-300">
-                                首次紀錄
-                              </span>
-                            </>
-                          )}
-                      </div>
+                      <AutoAwesomeRoundedIcon
+                        className="hidden rotate-180 text-amber-300/65 sm:block"
+                        sx={{ fontSize: 22 }}
+                      />
+                    </div>
+                    <div className="mt-2 flex justify-center">
+                      <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-100 sm:px-2.5 sm:py-1 sm:text-xs">
+                        勝過 {displayedRankPercentile}% 的玩家
+                      </span>
                     </div>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-3 gap-1 sm:gap-2 lg:justify-items-center">
-                    <SummaryMetric
-                      icon={<TrackChangesRoundedIcon sx={{ fontSize: 22 }} />}
-                      label="答對率"
-                      value={formatPercent(meSummary.accuracy)}
-                      note={
-                        percentileMetrics.accuracyPercentile === null
-                          ? "等待更多玩家資料"
-                          : `高於 ${percentileMetrics.accuracyPercentile}% 的玩家`
-                      }
-                    />
-                    <SummaryMetric
-                      icon={<WorkspacePremiumRoundedIcon sx={{ fontSize: 22 }} />}
-                      label="最大 Combo"
-                      value={`x${meSummary.combo}`}
-                      note={
-                        percentileMetrics.comboPercentile === null
-                          ? "等待更多玩家資料"
-                          : `超越 ${percentileMetrics.comboPercentile}% 的玩家`
-                      }
-                    />
-                    <SummaryMetric
-                      icon={<BoltRoundedIcon sx={{ fontSize: 28 }} />}
-                      label="平均答題"
-                      value={formatSeconds(meSummary.avgCorrectMs)}
-                      note={
-                        percentileMetrics.speedPercentile === null
-                          ? "等待更多玩家資料"
-                          : `快於 ${percentileMetrics.speedPercentile}% 的玩家`
-                      }
-                    />
-                  </div>
-                  {!isDesktopLayout ? (
-                    <MobileSettlementPanelSwitch
-                      value={mobileSettlementPanel}
-                      onChange={setMobileSettlementPanel}
-                    />
-                  ) : null}
-                </article>
-                {(isDesktopLayout || mobileSettlementPanel === "leaderboard") ? (
-                  <article
-                    className={`rounded-[18px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-3 ${isDesktopLayout ? "overflow-hidden" : "overflow-visible"
-                      }`}
-                    style={isDesktopLayout ? { height: leaderboardCardHeight } : undefined}
-                  >
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="text-base font-black tracking-[0.06em] text-amber-100">
-                        排行榜
-                      </h2>
-                      <div className="rounded-full border border-amber-300/18 bg-amber-500/8 px-2.5 py-1 text-xs font-semibold text-amber-100/88">
-                        {rankingSummaryLabel}
-                      </div>
+                  <div className="min-w-0">
+                    <div className="text-center text-lg font-semibold text-amber-50/92">
+                      本場得分
                     </div>
-
-                    <div className={`mt-3 hidden ${LEADERBOARD_DESKTOP_GRID_CLASS} gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid`}>
-                      <div>名次</div>
-                      <div>玩家</div>
-                      <div className="text-center">答對 / 答錯</div>
-                      <div className="text-center">最大 Combo</div>
-                      <div className="text-center">平均答題</div>
-                      <div className="text-center">耗時</div>
-                      <div className="text-center">分數</div>
-                      {/* <div className="text-center">排名變化</div> */}
+                    <div className="mt-2 text-center text-[2.15rem] font-black leading-none tracking-tight text-amber-200 drop-shadow-[0_14px_32px_rgba(245,158,11,0.28)] sm:text-[2.6rem] lg:text-[3rem]">
+                      {formatScore(currentScore)}
                     </div>
-
-                    {effectiveLeaderboardRows.length > 0 ? (
-                      <>
-                        <div className="mt-2 hidden xl:block">
-                          <List
-                            rowComponent={LeaderboardDesktopRow}
-                            rowCount={effectiveLeaderboardRows.length}
-                            rowHeight={LEADERBOARD_DESKTOP_ROW_HEIGHT}
-                            rowProps={{
-                              rows: effectiveLeaderboardRows,
-                              playedQuestionCount,
-                            }}
-                            overscanCount={5}
-                            defaultHeight={leaderboardDesktopHeight}
-                            onRowsRendered={handleLeaderboardRowsRendered}
-                            style={{ height: leaderboardDesktopHeight, width: "100%" }}
-                          />
-                        </div>
-                        <div className="mt-2 xl:hidden">
-                          <List
-                            rowComponent={LeaderboardMobileRow}
-                            rowCount={effectiveLeaderboardRows.length}
-                            rowHeight={LEADERBOARD_MOBILE_ROW_HEIGHT}
-                            rowProps={{
-                              rows: effectiveLeaderboardRows,
-                              playedQuestionCount,
-                            }}
-                            overscanCount={5}
-                            defaultHeight={leaderboardMobileHeight}
-                            onRowsRendered={handleLeaderboardRowsRendered}
-                            style={{ height: leaderboardMobileHeight, width: "100%" }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="mt-3 rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--mc-text-muted)]">
-                        {leaderboardSettlementError
-                          ? "全球排行榜載入失敗，先顯示本場即時結果。"
-                          : "目前僅顯示本場即時結果。"}
+                    {scoreDelta !== null && (
+                      <div className="mt-1 flex items-center justify-center gap-1">
+                        {scoreDelta > 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-emerald-400">
+                            <AddRoundedIcon sx={{ fontSize: 13 }} />
+                            {formatScore(scoreDelta)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-sm font-semibold text-rose-400">
+                            <RemoveRoundedIcon sx={{ fontSize: 13 }} />
+                            {formatScore(Math.abs(scoreDelta))}
+                          </span>
+                        )}
                       </div>
                     )}
-                    {leaderboardSettlementError && onRefreshLeaderboardSettlement && (
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-xs text-[var(--mc-text-muted)]">
+                      {displayedRankChange !== null && (
+                        <>
+                          {displayedRankChange > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-400">
+                              <TrendingUpRoundedIcon sx={{ fontSize: 16 }} />
+                              升了 {displayedRankChange}
+                            </span>
+                          ) : displayedRankChange < 0 ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-rose-400">
+                              <TrendingDownRoundedIcon sx={{ fontSize: 16 }} />
+                              降了 {Math.abs(displayedRankChange)}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--mc-text-muted)]">
+                              持平
+                            </span>
+                          )}
+                          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                        </>
+                      )}
+                      <span>{scoreSummaryLabel}</span>
+                      {backendCurrentRun?.isPersonalBest && (
+                        <>
+                          <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                          <span className="font-semibold text-emerald-400">
+                            新個人最佳
+                          </span>
+                        </>
+                      )}
+                      {personalBestComparison &&
+                        !personalBestComparison.hasPreviousBest && (
+                          <>
+                            <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                            <span className="font-semibold text-sky-300">
+                              首次紀錄
+                            </span>
+                          </>
+                        )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-1 sm:gap-2 lg:justify-items-center">
+                  <SummaryMetric
+                    icon={<TrackChangesRoundedIcon sx={{ fontSize: 22 }} />}
+                    label="答對率"
+                    value={formatPercent(meSummary.accuracy)}
+                    note={accuracyNote}
+                  />
+                  <SummaryMetric
+                    icon={<WorkspacePremiumRoundedIcon sx={{ fontSize: 22 }} />}
+                    label="最大 Combo"
+                    value={`x${meSummary.combo}`}
+                    note={comboNote}
+                  />
+                  <SummaryMetric
+                    icon={<BoltRoundedIcon sx={{ fontSize: 28 }} />}
+                    label="平均答題"
+                    value={formatSeconds(meSummary.avgCorrectMs)}
+                    note={avgCorrectMsNote}
+                  />
+                </div>
+                {!isDesktopLayout ? (
+                  <MobileSettlementPanelSwitch
+                    value={mobileSettlementPanel}
+                    onChange={setMobileSettlementPanel}
+                  />
+                ) : null}
+              </article>
+              {isDesktopLayout || mobileSettlementPanel === "leaderboard" ? (
+                <article
+                  className={`rounded-[18px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-3 ${
+                    isDesktopLayout ? "overflow-hidden" : "overflow-visible"
+                  }`}
+                  style={
+                    isDesktopLayout
+                      ? { height: leaderboardCardHeight }
+                      : undefined
+                  }
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-base font-black tracking-[0.06em] text-amber-100">
+                      排行榜
+                    </h2>
+                    <div className="rounded-full border border-amber-300/18 bg-amber-500/8 px-2.5 py-1 text-xs font-semibold text-amber-100/88">
+                      {rankingSummaryLabel}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`mt-3 hidden ${LEADERBOARD_DESKTOP_GRID_CLASS} gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid`}
+                  >
+                    <div>名次</div>
+                    <div>玩家</div>
+                    <div className="text-center">答對 / 答錯</div>
+                    <div className="text-center">最大 Combo</div>
+                    <div className="text-center">平均答題</div>
+                    <div className="text-center">耗時</div>
+                    <div className="text-center">分數</div>
+                    {/* <div className="text-center">排名變化</div> */}
+                  </div>
+
+                  {effectiveLeaderboardRows.length > 0 ? (
+                    <>
+                      <div className="mt-2 hidden xl:block">
+                        <List
+                          rowComponent={LeaderboardDesktopRow}
+                          rowCount={leaderboardRowCount}
+                          rowHeight={LEADERBOARD_DESKTOP_ROW_HEIGHT}
+                          rowProps={{
+                            rows: effectiveLeaderboardRows,
+                            playedQuestionCount,
+                            hasMore: leaderboardHasMore,
+                            isLoadingMore: leaderboardSettlementLoadingMore,
+                            onLoadMore: handleLoadMoreLeaderboardSettlement,
+                          }}
+                          overscanCount={5}
+                          defaultHeight={leaderboardDesktopHeight}
+                          onRowsRendered={handleLeaderboardRowsRendered}
+                          style={{
+                            height: leaderboardDesktopHeight,
+                            width: "100%",
+                          }}
+                        />
+                      </div>
+                      <div className="mt-2 xl:hidden">
+                        <List
+                          rowComponent={LeaderboardMobileRow}
+                          rowCount={leaderboardRowCount}
+                          rowHeight={LEADERBOARD_MOBILE_ROW_HEIGHT}
+                          rowProps={{
+                            rows: effectiveLeaderboardRows,
+                            playedQuestionCount,
+                            hasMore: leaderboardHasMore,
+                            isLoadingMore: leaderboardSettlementLoadingMore,
+                            onLoadMore: handleLoadMoreLeaderboardSettlement,
+                          }}
+                          overscanCount={5}
+                          defaultHeight={leaderboardMobileHeight}
+                          onRowsRendered={handleLeaderboardRowsRendered}
+                          style={{
+                            height: leaderboardMobileHeight,
+                            width: "100%",
+                          }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-3 rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-[var(--mc-text-muted)]">
+                      {leaderboardSettlementError
+                        ? "全球排行榜載入失敗，先顯示本場即時結果。"
+                        : "目前僅顯示本場即時結果。"}
+                    </div>
+                  )}
+                  {leaderboardSettlementError &&
+                    onRefreshLeaderboardSettlement && (
                       <div className="mt-2.5 flex justify-center">
                         <button
                           type="button"
@@ -1622,223 +1801,258 @@ const LeaderboardSettlementShowcase: React.FC<
                         </button>
                       </div>
                     )}
-                    {personalBestRow && (
-                      <div className="mt-3 rounded-[20px] border border-sky-300/20 bg-sky-500/8 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.04)]">
-                        <div className="mb-2 flex items-center justify-between gap-3 text-xs text-sky-100/80">
-                          <span className="font-semibold tracking-[0.08em]">個人最佳</span>
-                          <span>
-                            第 {personalBestRow.rank} 名
-                            {personalBestComparison?.hasPreviousBest === false ? " · 首次紀錄" : ""}
-                          </span>
+                  {personalBestRow && (
+                    <div className="mt-3 rounded-[20px] border border-sky-300/20 bg-sky-500/8 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.04)]">
+                      <div className="mb-2 flex items-center justify-between gap-3 text-xs text-sky-100/80">
+                        <span className="font-semibold tracking-[0.08em]">
+                          個人最佳
+                        </span>
+                        <span>
+                          第 {personalBestRow.rank} 名
+                          {personalBestComparison?.hasPreviousBest === false
+                            ? " · 首次紀錄"
+                            : ""}
+                        </span>
+                      </div>
+                      <div
+                        className={`hidden ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 xl:grid`}
+                      >
+                        <div className="text-base font-black text-sky-100">
+                          #{personalBestRow.rank}
                         </div>
-                        <div className={`hidden ${LEADERBOARD_DESKTOP_GRID_CLASS} items-center gap-2 xl:grid`}>
-                          <div className="text-base font-black text-sky-100">#{personalBestRow.rank}</div>
-                          <div className="flex min-w-0 items-center gap-2">
-                            <PlayerAvatar
-                              username={personalBestRow.username}
-                              clientId={personalBestRow.clientId}
-                              avatarUrl={personalBestRow.avatarUrl}
-                              size={32}
-                              rank={personalBestRow.rank}
-                              combo={personalBestRow.combo}
-                              isMe
-                              hideRankMark
-                              loading="lazy"
-                            />
+                        <div className="flex min-w-0 items-center gap-2">
+                          <PlayerAvatar
+                            username={personalBestRow.username}
+                            clientId={personalBestRow.clientId}
+                            avatarUrl={personalBestRow.avatarUrl}
+                            size={32}
+                            rank={personalBestRow.rank}
+                            combo={personalBestRow.combo}
+                            isMe
+                            hideRankMark
+                            loading="lazy"
+                          />
+                          <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+                            {personalBestRow.username}（你）
+                          </div>
+                        </div>
+                        <div className="text-center text-xs text-[var(--mc-text-muted)]">
+                          {personalBestRow.correctCount} /{" "}
+                          {Math.max(
+                            playedQuestionCount - personalBestRow.correctCount,
+                            0,
+                          )}
+                        </div>
+                        <div className="text-center text-xs font-semibold text-violet-300">
+                          x{personalBestRow.combo}
+                        </div>
+                        <div className="text-center text-xs text-[var(--mc-text-muted)]">
+                          {formatSeconds(personalBestRow.avgCorrectMs)}
+                        </div>
+                        <div className="text-center text-xs font-semibold text-slate-300">
+                          {formatDurationSec(personalBestRow.durationSec)}
+                        </div>
+                        <div className="text-center text-base font-black text-sky-100">
+                          {formatScore(personalBestRow.score)}
+                        </div>
+                      </div>
+                      <div className="xl:hidden">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 shrink-0 text-base font-black text-sky-100">
+                            #{personalBestRow.rank}
+                          </div>
+
+                          <PlayerAvatar
+                            username={personalBestRow.username}
+                            clientId={personalBestRow.clientId}
+                            avatarUrl={personalBestRow.avatarUrl}
+                            size={30}
+                            rank={personalBestRow.rank}
+                            combo={personalBestRow.combo}
+                            isMe
+                            hideRankMark
+                            loading="lazy"
+                          />
+
+                          <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
                               {personalBestRow.username}（你）
                             </div>
-                          </div>
-                          <div className="text-center text-xs text-[var(--mc-text-muted)]">
-                            {personalBestRow.correctCount} / {Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
-                          </div>
-                          <div className="text-center text-xs font-semibold text-violet-300">
-                            x{personalBestRow.combo}
-                          </div>
-                          <div className="text-center text-xs text-[var(--mc-text-muted)]">
-                            {formatSeconds(personalBestRow.avgCorrectMs)}
-                          </div>
-                          <div className="text-center text-xs font-semibold text-slate-300">
-                            {formatDurationSec(personalBestRow.durationSec)}
-                          </div>
-                          <div className="text-center text-base font-black text-sky-100">
-                            {formatScore(personalBestRow.score)}
-                          </div>
-                        </div>
-                        <div className="xl:hidden">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 shrink-0 text-base font-black text-sky-100">
-                              #{personalBestRow.rank}
+
+                            <div className="mt-1 grid grid-cols-[minmax(42px,0.9fr)_minmax(36px,0.75fr)_minmax(48px,0.95fr)_minmax(42px,0.8fr)_minmax(54px,1fr)] items-center gap-1 text-[11px] font-semibold text-[var(--mc-text-muted)]">
+                              <span className="tabular-nums text-sky-50/90">
+                                {personalBestRow.correctCount}/
+                                {Math.max(
+                                  playedQuestionCount -
+                                    personalBestRow.correctCount,
+                                  0,
+                                )}
+                              </span>
+
+                              <span className="tabular-nums text-violet-300">
+                                x{personalBestRow.combo}
+                              </span>
+
+                              <span className="tabular-nums text-slate-300">
+                                {formatAnswerTime(personalBestRow.avgCorrectMs)}
+                              </span>
+
+                              <span className="tabular-nums text-slate-300">
+                                {formatDurationSec(personalBestRow.durationSec)}
+                              </span>
+
+                              <span className="truncate text-right tabular-nums font-black text-sky-100">
+                                {formatScore(personalBestRow.score)}
+                              </span>
                             </div>
-
-                            <PlayerAvatar
-                              username={personalBestRow.username}
-                              clientId={personalBestRow.clientId}
-                              avatarUrl={personalBestRow.avatarUrl}
-                              size={30}
-                              rank={personalBestRow.rank}
-                              combo={personalBestRow.combo}
-                              isMe
-                              hideRankMark
-                              loading="lazy"
-                            />
-
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                                {personalBestRow.username}（你）
-                              </div>
-
-                              <div className="mt-1 grid grid-cols-[minmax(42px,0.9fr)_minmax(36px,0.75fr)_minmax(48px,0.95fr)_minmax(42px,0.8fr)_minmax(54px,1fr)] items-center gap-1 text-[11px] font-semibold text-[var(--mc-text-muted)]">
-                                <span className="tabular-nums text-sky-50/90">
-                                  {personalBestRow.correctCount}/{Math.max(playedQuestionCount - personalBestRow.correctCount, 0)}
-                                </span>
-
-                                <span className="tabular-nums text-violet-300">
-                                  x{personalBestRow.combo}
-                                </span>
-
-                                <span className="tabular-nums text-slate-300">
-                                  {formatAnswerTime(personalBestRow.avgCorrectMs)}
-                                </span>
-
-                                <span className="tabular-nums text-slate-300">
-                                  {formatDurationSec(personalBestRow.durationSec)}
-                                </span>
-
-                                <span className="truncate text-right tabular-nums font-black text-sky-100">
-                                  {formatScore(personalBestRow.score)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </article>
-                ) : null}
-
-              </div>
-              {(isDesktopLayout || mobileSettlementPanel === "review") ? (
-                <aside className="min-w-0">
-                  <article className="rounded-[24px] bg-transparent p-0 shadow-none">
-                    <div className="overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
-                      <div className="relative h-[100px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
-                        {coverThumbnail ? (
-                          <img
-                            src={coverThumbnail}
-                            alt={playlistSummary.title}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-amber-100/80">
-                            <BarChartRoundedIcon sx={{ fontSize: 30 }} />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-black tracking-[0.04em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
-                              {playlistSummary.title}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={onToggleFavorite}
-                            disabled={!onToggleFavorite}
-                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${isFavorited
-                              ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
-                              : "border-white/30 bg-black/40 text-white hover:bg-black/60"
-                              }`}
-                            aria-label={isFavorited ? "取消收藏" : "加入收藏"}
-                            aria-pressed={isFavorited ?? false}
-                          >
-                            {isFavorited ? <StarRoundedIcon sx={{ fontSize: 18 }} /> : <StarBorderRoundedIcon sx={{ fontSize: 18 }} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-3 sm:p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] bg-white/[0.02] px-3 py-3">
-                          <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => setQuestionFilter(
-                                questionFilter === "correct" ? null : "correct",
-                              )}
-                              className={`rounded-full border px-2.5 py-1 font-semibold transition ${questionFilter === "correct"
-                                ? "border-emerald-300/55 bg-emerald-500/18 text-emerald-100"
-                                : "border-emerald-300/30 bg-emerald-500/10 text-emerald-100/70 hover:bg-emerald-500/14"
-                                }`}
-                              aria-pressed={questionFilter === "correct"}
-                            >
-                              答對 {answerOverview.correct}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setQuestionFilter(
-                                questionFilter === "wrong" ? null : "wrong",
-                              )}
-                              className={`rounded-full border px-2.5 py-1 font-semibold transition ${questionFilter === "wrong"
-                                ? "border-rose-300/55 bg-rose-500/18 text-rose-100"
-                                : "border-rose-300/30 bg-rose-500/10 text-rose-100/70 hover:bg-rose-500/14"
-                                }`}
-                              aria-pressed={questionFilter === "wrong"}
-                            >
-                              答錯 {answerOverview.wrong}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setQuestionFilter(
-                                questionFilter === "unanswered" ? null : "unanswered",
-                              )}
-                              className={`rounded-full border px-2.5 py-1 font-semibold transition ${questionFilter === "unanswered"
-                                ? "border-slate-500/55 bg-slate-700/50 text-slate-100"
-                                : "border-slate-500/35 bg-slate-700/25 text-slate-100/70 hover:bg-slate-700/35"
-                                }`}
-                              aria-pressed={questionFilter === "unanswered"}
-                            >
-                              未作答 {answerOverview.unanswered}
-                            </button>
-                          </div>
-                          <div className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-xs text-[var(--mc-text-muted)]">
-                            共 {questionRows.length} 題
                           </div>
                         </div>
                       </div>
                     </div>
-
-                    <div ref={questionListRef} className="mt-3 min-h-0">
-                      {filteredQuestionRows.length > 0 ? (
-                        <List
-                          key={`${questionFilter ?? "all"}-${filteredQuestionRows.length}`}
-                          rowComponent={QuestionListRow}
-                          rowCount={filteredQuestionRows.length}
-                          rowHeight={listRowHeight}
-                          rowProps={{ items: filteredQuestionRows, isDesktopLayout }}
-                          overscanCount={5}
-                          defaultHeight={questionListHeight}
-                          style={{ height: questionListHeight, width: "100%" }}
-                        />
-                      ) : (
-                        <div
-                          className="flex items-center justify-center rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] text-center text-sm text-[var(--mc-text-muted)]"
-                          style={{ height: questionListHeight }}
-                        >
-                          {questionFilter !== null
-                            ? filterEmptyMessages[questionFilter]
-                            : "目前沒有任何題目資訊"}
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                </aside>
+                  )}
+                </article>
               ) : null}
             </div>
+            {isDesktopLayout || mobileSettlementPanel === "review" ? (
+              <aside className="min-w-0">
+                <article className="rounded-[24px] bg-transparent p-0 shadow-none">
+                  <div className="overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
+                    <div className="relative h-[100px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
+                      {coverThumbnail ? (
+                        <img
+                          src={coverThumbnail}
+                          alt={playlistSummary.title}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-amber-100/80">
+                          <BarChartRoundedIcon sx={{ fontSize: 30 }} />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+                      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black tracking-[0.04em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
+                            {playlistSummary.title}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onToggleFavorite}
+                          disabled={!onToggleFavorite}
+                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            isFavorited
+                              ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
+                              : "border-white/30 bg-black/40 text-white hover:bg-black/60"
+                          }`}
+                          aria-label={isFavorited ? "取消收藏" : "加入收藏"}
+                          aria-pressed={isFavorited ?? false}
+                        >
+                          {isFavorited ? (
+                            <StarRoundedIcon sx={{ fontSize: 18 }} />
+                          ) : (
+                            <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-3 sm:p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] bg-white/[0.02] px-3 py-3">
+                        <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setQuestionFilter(
+                                questionFilter === "correct" ? null : "correct",
+                              )
+                            }
+                            className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                              questionFilter === "correct"
+                                ? "border-emerald-300/55 bg-emerald-500/18 text-emerald-100"
+                                : "border-emerald-300/30 bg-emerald-500/10 text-emerald-100/70 hover:bg-emerald-500/14"
+                            }`}
+                            aria-pressed={questionFilter === "correct"}
+                          >
+                            答對 {answerOverview.correct}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setQuestionFilter(
+                                questionFilter === "wrong" ? null : "wrong",
+                              )
+                            }
+                            className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                              questionFilter === "wrong"
+                                ? "border-rose-300/55 bg-rose-500/18 text-rose-100"
+                                : "border-rose-300/30 bg-rose-500/10 text-rose-100/70 hover:bg-rose-500/14"
+                            }`}
+                            aria-pressed={questionFilter === "wrong"}
+                          >
+                            答錯 {answerOverview.wrong}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setQuestionFilter(
+                                questionFilter === "unanswered"
+                                  ? null
+                                  : "unanswered",
+                              )
+                            }
+                            className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                              questionFilter === "unanswered"
+                                ? "border-slate-500/55 bg-slate-700/50 text-slate-100"
+                                : "border-slate-500/35 bg-slate-700/25 text-slate-100/70 hover:bg-slate-700/35"
+                            }`}
+                            aria-pressed={questionFilter === "unanswered"}
+                          >
+                            未作答 {answerOverview.unanswered}
+                          </button>
+                        </div>
+                        <div className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-xs text-[var(--mc-text-muted)]">
+                          共 {questionRows.length} 題
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div ref={questionListRef} className="mt-3 min-h-0">
+                    {filteredQuestionRows.length > 0 ? (
+                      <List
+                        key={`${questionFilter ?? "all"}-${filteredQuestionRows.length}`}
+                        rowComponent={QuestionListRow}
+                        rowCount={filteredQuestionRows.length}
+                        rowHeight={listRowHeight}
+                        rowProps={{
+                          items: filteredQuestionRows,
+                          isDesktopLayout,
+                        }}
+                        overscanCount={5}
+                        defaultHeight={questionListHeight}
+                        style={{ height: questionListHeight, width: "100%" }}
+                      />
+                    ) : (
+                      <div
+                        className="flex items-center justify-center rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] text-center text-sm text-[var(--mc-text-muted)]"
+                        style={{ height: questionListHeight }}
+                      >
+                        {questionFilter !== null
+                          ? filterEmptyMessages[questionFilter]
+                          : "目前沒有任何題目資訊"}
+                      </div>
+                    )}
+                  </div>
+                </article>
+              </aside>
+            ) : null}
           </div>
-        </section>
-      </div>
-    );
-  };
+        </div>
+      </section>
+    </div>
+  );
+};
 
 export default memo(LeaderboardSettlementShowcase);

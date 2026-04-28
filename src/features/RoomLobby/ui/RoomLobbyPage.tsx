@@ -75,6 +75,14 @@ const SETTLEMENT_SUMMARY_CACHE_LIMIT = 80;
 const SETTLEMENT_REPLAY_CACHE_LIMIT = 1;
 const SETTLEMENT_RECAP_CACHE_LIMIT = 1;
 const HISTORY_DRAWER_PAGE_SIZE = 24;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const normalizeLeaderboardMatchId = (matchId?: string | null) => {
+  const trimmed = matchId?.trim();
+  return trimmed && UUID_PATTERN.test(trimmed) ? trimmed : null;
+};
+
 type RoomHistoryLocationState = {
   roomHistoryDrawerKey?: number;
 };
@@ -1992,12 +2000,11 @@ const RoomLobbyPage: React.FC = () => {
       ? leaderboardSettlementReadyByRoundKey[activeSettlementSnapshot.roundKey]
       : null;
 
-  // For the active settlement page, prefer the realtime event matchId and
-  // fall back to the live snapshot matchId. History replay uses its own hook.
+  // The leaderboard settlement API only accepts persisted match UUIDs.
+  // Live snapshots can temporarily carry a local fallback id like "room:round".
   const activeMatchId =
-    activeLeaderboardSettlementReady?.matchId ??
-    activeSettlementSnapshot?.matchId ??
-    null;
+    normalizeLeaderboardMatchId(activeLeaderboardSettlementReady?.matchId) ??
+    normalizeLeaderboardMatchId(activeSettlementSnapshot?.matchId);
 
   const leaderboardSettlement = useLeaderboardSettlement({
     matchId: activeMatchId,
@@ -2507,7 +2514,9 @@ const RoomLobbyPage: React.FC = () => {
   const isHistoryReplayLeaderboardView = Boolean(
     historyReplaySnapshot?.room.gameSettings?.leaderboardProfileKey,
   );
-  const historyReplayMatchId = historyReplaySummary?.matchId ?? null;
+  const historyReplayMatchId = normalizeLeaderboardMatchId(
+    historyReplaySummary?.matchId,
+  );
   const historyReplayLeaderboardSettlement = useLeaderboardSettlement({
     matchId: historyReplayMatchId,
     roomId: historyReplaySnapshot?.room.id ?? currentRoom?.id ?? null,
@@ -3246,11 +3255,17 @@ const RoomLobbyPage: React.FC = () => {
             leaderboardSettlementLoading={
               historyReplayLeaderboardSettlement.isLoading
             }
+            leaderboardSettlementLoadingMore={
+              historyReplayLeaderboardSettlement.isLoadingMore
+            }
             leaderboardSettlementError={
               historyReplayLeaderboardSettlement.error
             }
             onRefreshLeaderboardSettlement={
               historyReplayLeaderboardSettlement.refresh
+            }
+            onLoadMoreLeaderboardSettlement={
+              historyReplayLeaderboardSettlement.loadMore
             }
           />
         ) : (
@@ -3627,8 +3642,12 @@ const RoomLobbyPage: React.FC = () => {
                 }
                 leaderboardSettlement={safeLeaderboardSettlement}
                 leaderboardSettlementLoading={effectiveLeaderboardSettlementLoading}
+                leaderboardSettlementLoadingMore={
+                  leaderboardSettlement.isLoadingMore
+                }
                 leaderboardSettlementError={leaderboardSettlement.error}
                 onRefreshLeaderboardSettlement={leaderboardSettlement.refresh}
+                onLoadMoreLeaderboardSettlement={leaderboardSettlement.loadMore}
                 isFavorited={settlementFavorited}
                 onToggleFavorite={
                   activeSettlementSnapshot.room.playlist.id && authToken

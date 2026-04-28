@@ -5,6 +5,8 @@ type FetchLeaderboardSettlementParams = {
   matchId: string;
   authToken?: string | null;
   clientId?: string | null;
+  limit?: number;
+  offset?: number;
   signal?: AbortSignal;
 };
 
@@ -18,6 +20,8 @@ export const fetchLeaderboardSettlement = async ({
   matchId,
   authToken,
   clientId,
+  limit,
+  offset,
   signal,
 }: FetchLeaderboardSettlementParams): Promise<LeaderboardSettlementResponse> => {
   if (!API_URL) {
@@ -28,8 +32,14 @@ export const fetchLeaderboardSettlement = async ({
   }
 
   const params = new URLSearchParams();
-  if (!authToken && clientId?.trim()) {
+  if (clientId?.trim()) {
     params.set("clientId", clientId.trim());
+  }
+  if (typeof limit === "number" && Number.isFinite(limit)) {
+    params.set("limit", String(Math.trunc(limit)));
+  }
+  if (typeof offset === "number" && Number.isFinite(offset)) {
+    params.set("offset", String(Math.trunc(offset)));
   }
 
   const response = await fetch(

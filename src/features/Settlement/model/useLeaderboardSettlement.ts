@@ -16,8 +16,10 @@ type UseLeaderboardSettlementInput = {
 type UseLeaderboardSettlementResult = {
   data: LeaderboardSettlementResponse | null;
   isLoading: boolean;
+  isLoadingMore: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  loadMore: () => Promise<void>;
 };
 
 type InflightRequest = {
@@ -28,6 +30,8 @@ type InflightRequest = {
 
 const settlementCache = new Map<string, LeaderboardSettlementResponse>();
 const inflightRequests = new Map<string, InflightRequest>();
+const LEADERBOARD_SETTLEMENT_INITIAL_LIMIT = 100;
+const LEADERBOARD_SETTLEMENT_PAGE_SIZE = 100;
 
 const getCacheKey = (
   matchId?: string | null,
@@ -83,6 +87,28 @@ const releaseInflightRequest = (
   }
 };
 
+const mergeLeaderboardSettlementPage = (
+  current: LeaderboardSettlementResponse,
+  next: LeaderboardSettlementResponse,
+): LeaderboardSettlementResponse => {
+  const existingKeys = new Set(
+    current.leaderboardTop.map(
+      (item) => `${item.rank}:${item.userId ?? item.displayName}`,
+    ),
+  );
+  const appended = next.leaderboardTop.filter(
+    (item) => !existingKeys.has(`${item.rank}:${item.userId ?? item.displayName}`),
+  );
+
+  return {
+    ...next,
+    leaderboardTop: [...current.leaderboardTop, ...appended],
+    leaderboardLoadedCount:
+      next.leaderboardLoadedCount ??
+      current.leaderboardTop.length + appended.length,
+  };
+};
+
 export const useLeaderboardSettlement = ({
   matchId,
   roomId,
@@ -96,6 +122,7 @@ export const useLeaderboardSettlement = ({
     [matchId, roomId, roundKey],
   );
   const requestKeyRef = useRef(0);
+  const loadMoreRequestKeyRef = useRef(0);
   const subscriptionRef = useRef<{
     key: string | null;
     entry: InflightRequest | null;
@@ -108,11 +135,13 @@ export const useLeaderboardSettlement = ({
     key: string | null;
     data: LeaderboardSettlementResponse | null;
     isLoading: boolean;
+    isLoadingMore: boolean;
     error: string | null;
   }>(() => ({
     key: cacheKey,
     data: cacheKey ? (settlementCache.get(cacheKey) ?? null) : null,
     isLoading: false,
+    isLoadingMore: false,
     error: null,
   }));
 
@@ -123,6 +152,7 @@ export const useLeaderboardSettlement = ({
           key: cacheKey,
           data: null,
           isLoading: false,
+          isLoadingMore: false,
           error: null,
         });
         return;
@@ -135,6 +165,7 @@ export const useLeaderboardSettlement = ({
             key: cacheKey,
             data: cached,
             isLoading: false,
+            isLoadingMore: false,
             error: null,
           });
           return;
@@ -158,6 +189,7 @@ export const useLeaderboardSettlement = ({
         key: cacheKey,
         data: cachedForKey,
         isLoading: true,
+        isLoadingMore: false,
         error: null,
       });
 
@@ -174,6 +206,8 @@ export const useLeaderboardSettlement = ({
             matchId: matchId.trim(),
             authToken: nextAuthToken,
             clientId,
+            limit: LEADERBOARD_SETTLEMENT_INITIAL_LIMIT,
+            offset: 0,
             signal: controller.signal,
           });
         })();
@@ -199,6 +233,7 @@ export const useLeaderboardSettlement = ({
           key: cacheKey,
           data,
           isLoading: false,
+          isLoadingMore: false,
           error: null,
         });
       } catch (error) {
@@ -216,6 +251,7 @@ export const useLeaderboardSettlement = ({
             key: cacheKey,
             data: current.data,
             isLoading: false,
+            isLoadingMore: false,
             error:
               error instanceof Error ? error.message : "載入排行榜結算失敗",
           };
@@ -233,6 +269,7 @@ export const useLeaderboardSettlement = ({
     return () => {
       window.clearTimeout(timer);
       requestKeyRef.current += 1;
+      loadMoreRequestKeyRef.current += 1;
       releaseInflightRequest(
         subscriptionRef.current.key,
         subscriptionRef.current.entry,
@@ -245,6 +282,84 @@ export const useLeaderboardSettlement = ({
     await runFetch(true);
   }, [runFetch]);
 
+  const loadMore = useCallback(async () => {
+    if (!enabled || !matchId?.trim() || !cacheKey) return;
+
+    const currentData = state.key === cacheKey ? state.data : null;
+    if (
+      !currentData ||
+      !currentData.leaderboardHasMore ||
+      currentData.leaderboardNextOffset === null ||
+      state.isLoadingMore
+    ) {
+      return;
+    }
+
+    loadMoreRequestKeyRef.current += 1;
+    const requestKey = loadMoreRequestKeyRef.current;
+
+    setState((current) => {
+      if (current.key !== cacheKey) return current;
+      return { ...current, isLoadingMore: true, error: null };
+    });
+
+    try {
+      const nextAuthToken = authToken
+        ? await ensureFreshAuthToken({
+            token: authToken,
+            refreshAuthToken,
+          })
+        : null;
+      const nextPage = await fetchLeaderboardSettlement({
+        matchId: matchId.trim(),
+        authToken: nextAuthToken,
+        clientId,
+        limit: LEADERBOARD_SETTLEMENT_PAGE_SIZE,
+        offset: currentData.leaderboardNextOffset,
+      });
+
+      if (
+        loadMoreRequestKeyRef.current !== requestKey ||
+        nextPage.match.matchId !== matchId.trim()
+      ) {
+        return;
+      }
+
+      setState((current) => {
+        if (current.key !== cacheKey || !current.data) return current;
+        const merged = mergeLeaderboardSettlementPage(current.data, nextPage);
+        settlementCache.set(cacheKey, merged);
+        return {
+          key: cacheKey,
+          data: merged,
+          isLoading: false,
+          isLoadingMore: false,
+          error: null,
+        };
+      });
+    } catch (error) {
+      if (loadMoreRequestKeyRef.current !== requestKey) return;
+      setState((current) => {
+        if (current.key !== cacheKey) return current;
+        return {
+          ...current,
+          isLoadingMore: false,
+          error: error instanceof Error ? error.message : "載入排行榜結算失敗",
+        };
+      });
+    }
+  }, [
+    authToken,
+    cacheKey,
+    clientId,
+    enabled,
+    matchId,
+    refreshAuthToken,
+    state.data,
+    state.isLoadingMore,
+    state.key,
+  ]);
+
   const stateMatchesCurrentRequest = state.key === cacheKey;
 
   return {
@@ -252,7 +367,9 @@ export const useLeaderboardSettlement = ({
     isLoading: stateMatchesCurrentRequest
       ? state.isLoading
       : Boolean(enabled && matchId?.trim() && cacheKey),
+    isLoadingMore: stateMatchesCurrentRequest ? state.isLoadingMore : false,
     error: stateMatchesCurrentRequest ? state.error : null,
     refresh,
+    loadMore,
   };
 };

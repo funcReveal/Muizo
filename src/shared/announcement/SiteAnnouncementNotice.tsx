@@ -18,6 +18,7 @@ import {
 type SiteAnnouncementNoticeProps = {
   announcement?: SiteAnnouncement;
   className?: string;
+  compact?: boolean;
 };
 
 const severityConfig: Record<
@@ -118,6 +119,7 @@ const BulletList = ({ title, items }: { title: string; items?: string[] }) => {
 const SiteAnnouncementNotice = ({
   announcement = SITE_ANNOUNCEMENT,
   className = "",
+  compact = false,
 }: SiteAnnouncementNoticeProps) => {
   const [open, setOpen] = useState(false);
 
@@ -132,7 +134,8 @@ const SiteAnnouncementNotice = ({
         type="button"
         onClick={() => setOpen(true)}
         className={[
-          "group relative flex h-9 min-w-0 max-w-[520px] items-center gap-2 overflow-hidden rounded-full border px-3",
+          "group relative flex min-w-0 max-w-[520px] items-center overflow-hidden rounded-full border",
+          compact ? "h-8 gap-1.5 px-2" : "h-9 gap-2 px-3",
           "shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md transition",
           "hover:border-amber-100/34 hover:bg-white/[0.055]",
           config.borderClassName,
@@ -144,18 +147,32 @@ const SiteAnnouncementNotice = ({
         <span
           className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dotClassName}`}
         />
-        <Icon
-          className={`${config.iconClassName} shrink-0`}
-          sx={{ fontSize: 17 }}
-        />
+        {!compact && (
+          <Icon
+            className={`${config.iconClassName} shrink-0`}
+            sx={{ fontSize: 17 }}
+          />
+        )}
 
-        <span className="shrink-0 text-[11px] font-semibold tracking-[0.14em] text-slate-300">
+        <span
+          className={[
+            "shrink-0 font-semibold text-slate-300",
+            compact
+              ? "text-[10px] tracking-[0.08em]"
+              : "text-[11px] tracking-[0.14em]",
+          ].join(" ")}
+        >
           {config.label}
         </span>
 
-        <span className="h-3 w-px shrink-0 bg-white/10" />
+        {!compact && <span className="h-3 w-px shrink-0 bg-white/10" />}
 
-        <span className="min-w-0 truncate text-xs font-medium text-slate-300">
+        <span
+          className={[
+            "min-w-0 truncate font-medium text-slate-300",
+            compact ? "text-[11px]" : "text-xs",
+          ].join(" ")}
+        >
           {announcement.shortMessage}
         </span>
 

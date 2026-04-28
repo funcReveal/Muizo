@@ -101,6 +101,18 @@ export interface PersonalBestComparison {
   rankDelta: number | null;
 }
 
+export interface LeaderboardMetricPercentileSummary {
+  surpassedPercent: number | null;
+  comparedPlayerCount: number;
+  tiedBest: boolean;
+}
+
+export interface LeaderboardMetricPercentiles {
+  accuracy: LeaderboardMetricPercentileSummary;
+  maxCombo: LeaderboardMetricPercentileSummary;
+  avgCorrectMs: LeaderboardMetricPercentileSummary;
+}
+
 export interface LeaderboardSettlementReadyPayload {
   roomId: string;
   roundKey: string;
@@ -146,8 +158,12 @@ export interface LeaderboardSettlementResponse {
     gapToFirst: number | null;
     gapToPrevious: number | null;
     isPersonalBest: boolean;
+    metricPercentiles: LeaderboardMetricPercentiles | null;
   };
   personalBestComparison: PersonalBestComparison | null;
+  leaderboardHasMore: boolean;
+  leaderboardNextOffset: number | null;
+  leaderboardLoadedCount: number;
   leaderboardTop: LeaderboardSettlementEntry[];
   leaderboardAroundMe: LeaderboardSettlementEntry[];
 }
