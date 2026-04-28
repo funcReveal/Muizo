@@ -342,6 +342,37 @@ const leaderboardPreviewByVariant: Record<
   },
 };
 
+const getLeaderboardPodiumTone = (rank: number | null) => {
+  if (rank === 1) {
+    return {
+      row: "border-amber-200/38 bg-[linear-gradient(90deg,rgba(251,191,36,0.2),rgba(120,53,15,0.12)_28%,rgba(15,23,42,0.48)_56%,rgba(15,23,42,0.26))] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_46px_-32px_rgba(251,191,36,0.95)]",
+      accent: "bg-amber-200/72",
+      rank: "text-amber-50",
+      score: "text-amber-50",
+    };
+  }
+
+  if (rank === 2) {
+    return {
+      row: "border-slate-100/32 bg-[linear-gradient(90deg,rgba(226,232,240,0.18),rgba(100,116,139,0.11)_30%,rgba(15,23,42,0.48)_56%,rgba(15,23,42,0.26))] shadow-[inset_0_1px_0_rgba(255,255,255,0.095),0_18px_44px_-32px_rgba(226,232,240,0.82)]",
+      accent: "bg-slate-100/64",
+      rank: "text-slate-50",
+      score: "text-slate-50",
+    };
+  }
+
+  if (rank === 3) {
+    return {
+      row: "border-orange-200/32 bg-[linear-gradient(90deg,rgba(251,146,60,0.17),rgba(154,52,18,0.11)_30%,rgba(15,23,42,0.48)_56%,rgba(15,23,42,0.26))] shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_18px_44px_-32px_rgba(251,146,60,0.82)]",
+      accent: "bg-orange-200/62",
+      rank: "text-orange-50",
+      score: "text-orange-50",
+    };
+  }
+
+  return null;
+};
+
 const LeaderboardPlayerRow = ({
   player,
   variant = "list",
@@ -349,37 +380,47 @@ const LeaderboardPlayerRow = ({
   player: LeaderboardPreviewPlayer;
   variant?: "list" | "current";
 }) => {
+  const numericRank = typeof player.rank === "number" ? player.rank : null;
+  const podiumTone = getLeaderboardPodiumTone(numericRank);
   const rankLabel =
     typeof player.rank === "number" ? `#${player.rank}` : `#${player.rank}`;
   const isCurrent = Boolean(player.isCurrentUser);
 
+  const rowTone =
+    podiumTone?.row ??
+    (isCurrent
+      ? "border-cyan-100/22 bg-[linear-gradient(90deg,rgba(34,211,238,0.1),rgba(15,23,42,0.34)_42%,rgba(15,23,42,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_16px_34px_-30px_rgba(34,211,238,0.8)]"
+      : variant === "current"
+        ? "border-cyan-100/16 bg-[linear-gradient(90deg,rgba(34,211,238,0.07),rgba(15,23,42,0.36)_46%,rgba(15,23,42,0.24))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+        : "border-white/8 bg-[linear-gradient(90deg,rgba(148,163,184,0.045),rgba(15,23,42,0.32)_46%,rgba(15,23,42,0.2))] hover:border-white/12 hover:bg-slate-950/42");
+
+  const accentTone =
+    podiumTone?.accent ??
+    (isCurrent || variant === "current"
+      ? "bg-cyan-200/45"
+      : "bg-slate-500/22 group-hover:bg-slate-300/34");
+
+  const rankTone =
+    podiumTone?.rank ??
+    (isCurrent || variant === "current" ? "text-cyan-100" : "text-slate-300");
+
+  const scoreTone = podiumTone?.score ?? "text-slate-50";
+
   return (
     <div
-      className={`group relative flex min-h-[70px] items-center gap-2.5 overflow-hidden rounded-xl border px-3 py-2.5 transition duration-200 sm:min-h-[68px] sm:gap-3 sm:px-3.5 sm:py-2 ${
-        isCurrent
-          ? "border-cyan-100/22 bg-[linear-gradient(90deg,rgba(34,211,238,0.1),rgba(15,23,42,0.34)_42%,rgba(15,23,42,0.22))] shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_16px_34px_-30px_rgba(34,211,238,0.8)]"
-          : variant === "current"
-            ? "border-cyan-100/16 bg-[linear-gradient(90deg,rgba(34,211,238,0.07),rgba(15,23,42,0.36)_46%,rgba(15,23,42,0.24))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
-            : "border-white/8 bg-[linear-gradient(90deg,rgba(148,163,184,0.045),rgba(15,23,42,0.32)_46%,rgba(15,23,42,0.2))] hover:border-white/12 hover:bg-slate-950/42"
-      }`}
+      className={`group relative flex min-h-[70px] items-center gap-2.5 overflow-hidden rounded-xl border px-3 py-2.5 transition duration-200 sm:min-h-[68px] sm:gap-3 sm:px-3.5 sm:py-2 ${rowTone}`}
     >
       <span
         aria-hidden="true"
-        className={`absolute inset-y-3 left-0 w-px ${
-          isCurrent || variant === "current"
-            ? "bg-cyan-200/45"
-            : "bg-slate-500/22 group-hover:bg-slate-300/34"
-        }`}
+        className={`absolute inset-y-3 left-0 w-px ${accentTone}`}
       />
+
       <span
-        className={`w-6 shrink-0 text-left text-[13px] font-semibold tabular-nums tracking-normal sm:w-8 sm:text-sm ${
-          isCurrent || variant === "current"
-            ? "text-cyan-100"
-            : "text-slate-300"
-        }`}
+        className={`w-6 shrink-0 text-left text-[13px] font-semibold tabular-nums tracking-normal sm:w-8 sm:text-sm ${rankTone}`}
       >
         {rankLabel}
       </span>
+
       <PlayerAvatar
         username={player.name}
         clientId={player.clientId}
@@ -390,10 +431,12 @@ const LeaderboardPlayerRow = ({
         effectLevel="simple"
         hideRankMark
       />
+
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-slate-100">
           <span className="truncate">{player.name}</span>
         </p>
+
         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-slate-400 sm:gap-x-2 sm:text-xs">
           <span className="min-w-0 truncate">{player.meta}</span>
           <span className="shrink-0 text-slate-600">/</span>
@@ -402,8 +445,11 @@ const LeaderboardPlayerRow = ({
           </span>
         </div>
       </div>
+
       <div className="shrink-0 text-right">
-        <p className="text-[13px] font-semibold tabular-nums text-slate-50 sm:text-sm">
+        <p
+          className={`text-[13px] font-semibold tabular-nums sm:text-sm ${scoreTone}`}
+        >
           {player.score}
         </p>
       </div>
