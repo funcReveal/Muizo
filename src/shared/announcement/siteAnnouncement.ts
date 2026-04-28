@@ -32,7 +32,7 @@ export const SITE_ANNOUNCEMENT: SiteAnnouncement = {
     "我們會在該時段短暫重啟服務，以套用最新更新並改善排行榜與收藏庫體驗。",
   startsAt: null,
   endsAt: null,
-  maintenanceWindowLabel: "4/29 03:30",
+  maintenanceWindowLabel: "4/29 02:00",
   expectedDurationLabel: "約 1～3 分鐘",
   impactItems: [
     "重啟期間可能會短暫無法進入房間",
