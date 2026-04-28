@@ -774,6 +774,28 @@ const CollectionDetailDrawer = ({
     leaderboardChallengeOptions.find(
       (option) => option.variantKey === selectedLeaderboardVariant,
     ) ?? leaderboardChallengeOptions[0];
+
+  const activeLeaderboardProfileSummary = activeLeaderboardProfileKey
+    ? leaderboardOverview?.profiles.find(
+        (profile) => profile.profileKey === activeLeaderboardProfileKey,
+      )
+    : null;
+
+  const activeLeaderboardTotalPlayers =
+    leaderboardOverview?.activeProfile.profile.profileKey ===
+    activeLeaderboardProfileKey
+      ? leaderboardOverview.activeProfile.totalPlayers
+      : (activeLeaderboardProfileSummary?.totalPlayers ?? null);
+
+  const activeLeaderboardTotalPlayersLabel =
+    typeof activeLeaderboardTotalPlayers === "number"
+      ? `共 ${new Intl.NumberFormat("en-US").format(
+          activeLeaderboardTotalPlayers,
+        )} 人`
+      : leaderboardLoading
+        ? "讀取中"
+        : "尚無紀錄";
+
   const formatLeaderboardBestRank = (
     modeKey: LeaderboardModeKey,
     variantKey: LeaderboardVariantKey,
@@ -784,7 +806,7 @@ const CollectionDetailDrawer = ({
           (profile) => profile.profileKey === profileKey,
         )?.myBestRank
       : null;
-    if (leaderboardOverview) return rank ? `最佳 #${rank}` : "尚無紀錄";
+    if (leaderboardOverview) return rank ? `最佳 #${rank} ` : "尚無紀錄";
     return leaderboardLoading ? "讀取中" : "尚無紀錄";
   };
   const leaderboardProfileMenuWidth = leaderboardProfileAnchorEl
@@ -1645,6 +1667,9 @@ const CollectionDetailDrawer = ({
                     <h3 className="min-w-0 flex items-center gap-2 truncate text-base font-semibold text-slate-50 sm:mt-1 sm:text-lg">
                       <PublicRounded className="shrink-0 text-cyan-100" />
                       <span className="truncate">全球排行榜</span>
+                      <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-400 md:inline">
+                        {activeLeaderboardTotalPlayersLabel}
+                      </span>
                     </h3>
 
                     {isPublic && isCompact
