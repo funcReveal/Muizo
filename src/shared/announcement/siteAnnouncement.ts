@@ -23,7 +23,7 @@ export type SiteAnnouncement = {
 
 export const SITE_ANNOUNCEMENT: SiteAnnouncement = {
   id: "maintenance-2026-04-29",
-  enabled: true,
+  enabled: false,
   severity: "maintenance",
   title: "維護公告",
   shortMessage: "4/29 02:00 短暫重啟",

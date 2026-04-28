@@ -1,5 +1,6 @@
 import React from "react";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import { isImeComposingKeyboardEvent } from "../utils/ime";
 
 interface ChatComposerProps {
     inputRef: React.RefObject<HTMLInputElement | null>;
@@ -36,6 +37,7 @@ const ChatComposer: React.FC<ChatComposerProps> = ({
                         }}
                         onKeyDown={(event) => {
                             if (event.key === "Enter") {
+                                if (isImeComposingKeyboardEvent(event)) return;
                                 event.preventDefault();
                                 handleSend();
                             }

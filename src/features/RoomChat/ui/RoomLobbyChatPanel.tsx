@@ -13,6 +13,7 @@ import {
 import { useChatInput, type ChatMessage } from "@features/RoomSession";
 import useAutoHideScrollbar from "@shared/hooks/useAutoHideScrollbar";
 import { normalizeRoomDisplayText } from "@shared/utils/text";
+import { isImeComposingKeyboardEvent } from "./utils/ime";
 
 const SETTLEMENT_REVIEW_MESSAGE_ID_PREFIX = "settlement-review:";
 
@@ -260,6 +261,7 @@ const RoomLobbyChatPanel: React.FC<RoomLobbyChatPanelProps> = ({
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                if (isImeComposingKeyboardEvent(e)) return;
                 e.preventDefault();
                 handleSendMessage();
               }

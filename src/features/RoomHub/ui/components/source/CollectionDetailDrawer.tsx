@@ -34,7 +34,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { List, type RowComponentProps } from "react-window";
 
-import { API_URL } from "@domain/room/constants";
+import { API_URL, PLAYER_MAX, PLAYER_MIN } from "@domain/room/constants";
 import type { RoomCreateSourceMode } from "@domain/room/types";
 import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
@@ -773,8 +773,7 @@ const CollectionDetailDrawer = ({
   const isLeaderboardSetupView = drawerView === "leaderboardSetup" && isPublic;
   const isCasualSetupView = drawerView === "casualSetup";
   const isSetupView = isLeaderboardSetupView || isCasualSetupView;
-  const isSetupLeaderboardMode =
-    isSetupView && isPublic && roomPlayMode === "leaderboard";
+  const isSetupLeaderboardMode = isLeaderboardSetupView;
   const setupRoomCreateSourceMode: RoomCreateSourceMode = isPublic
     ? "publicCollection"
     : "privateCollection";
@@ -785,6 +784,38 @@ const CollectionDetailDrawer = ({
     selectedLeaderboardMode,
     selectedLeaderboardVariant,
   );
+  const collectionQuestionCount = Math.max(0, collection?.item_count ?? 0);
+  const setupQuestionMaxLimit =
+    isSetupView && collection ? collectionQuestionCount : questionMaxLimit;
+  const activeLeaderboardMinimumQuestionCount =
+    activeLeaderboardVariant.minQuestionCount;
+  const isActiveLeaderboardQuestionCountInsufficient =
+    collectionQuestionCount < activeLeaderboardMinimumQuestionCount;
+  const setupMaxPlayersInvalid =
+    parsedMaxPlayers !== null &&
+    (!Number.isInteger(parsedMaxPlayers) ||
+      parsedMaxPlayers < PLAYER_MIN ||
+      parsedMaxPlayers > PLAYER_MAX);
+  const setupCanCreateRoom =
+    (isSetupView && collection
+      ? Boolean(roomNameInput.trim()) &&
+        collectionQuestionCount >= questionMin &&
+        !setupMaxPlayersInvalid &&
+        !isCreatingRoom
+      : canCreateRoom) &&
+    (!isSetupLeaderboardMode || !isActiveLeaderboardQuestionCountInsufficient);
+  const setupCreateRequirementsHintText =
+    isSetupView && collection
+      ? !roomNameInput.trim()
+        ? "請先輸入房間名稱。"
+        : collectionQuestionCount < questionMin
+          ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
+          : isSetupLeaderboardMode && isActiveLeaderboardQuestionCountInsufficient
+            ? `這個排行規格至少需要 ${activeLeaderboardMinimumQuestionCount} 題，目前只有 ${collectionQuestionCount} 題。`
+            : setupMaxPlayersInvalid
+              ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
+              : null
+      : createRequirementsHintText;
   const activeLeaderboardProfileKey = getLeaderboardProfileKey(
     selectedLeaderboardMode,
     selectedLeaderboardVariant,
@@ -810,6 +841,7 @@ const CollectionDetailDrawer = ({
       modeKey: mode.key,
       variantKey: variant.key,
       label: variant.label,
+      minQuestionCount: variant.minQuestionCount,
     })),
   }));
 
@@ -911,6 +943,8 @@ const CollectionDetailDrawer = ({
       : "登入後挑戰"
     : isPreparingLeaderboardChallenge
       ? leaderboardStartLabel
+      : isActiveLeaderboardQuestionCountInsufficient
+        ? `需要 ${activeLeaderboardMinimumQuestionCount} 題`
       : "進行排行挑戰";
   const customRoomStartLabel = isCreatingRoom
     ? "建立房間中..."
@@ -980,6 +1014,7 @@ const CollectionDetailDrawer = ({
       onLoginRequired?.();
       return;
     }
+    if (isActiveLeaderboardQuestionCountInsufficient) return;
     setRoomPlayMode("leaderboard");
     setDrawerView("leaderboardSetup");
   };
@@ -987,10 +1022,12 @@ const CollectionDetailDrawer = ({
   const handleConfirmLeaderboardChallenge = () => {
     if (!collection) return;
     if (!isPublic) return;
+    if (!setupCanCreateRoom) return;
     if (!isAuthenticated) {
       onLoginRequired?.();
       return;
     }
+    if (isActiveLeaderboardQuestionCountInsufficient) return;
     void (
       onConfirmLeaderboardChallenge ??
       onStartLeaderboardChallenge ??
@@ -1000,6 +1037,7 @@ const CollectionDetailDrawer = ({
 
   const handleConfirmCustomRoom = () => {
     if (!collection) return;
+    if (!setupCanCreateRoom) return;
     void (onConfirmCustomRoom ?? onStartCustomRoom ?? onUseCollection)(
       collection.id,
     );
@@ -1009,6 +1047,10 @@ const CollectionDetailDrawer = ({
     modeKey: LeaderboardModeKey,
     variantKey: LeaderboardVariantKey,
   ) => {
+    const variant = leaderboardVariants[modeKey].find(
+      (item) => item.key === variantKey,
+    );
+    if (variant && collectionQuestionCount < variant.minQuestionCount) return;
     if (selectedLeaderboardMode !== modeKey) {
       onLeaderboardModeChange(modeKey);
     }
@@ -1520,9 +1562,9 @@ const CollectionDetailDrawer = ({
                   parsedMaxPlayers={parsedMaxPlayers}
                   questionCount={questionCount}
                   questionMin={questionMin}
-                  questionMaxLimit={questionMaxLimit}
+                  questionMaxLimit={setupQuestionMaxLimit}
                   updateQuestionCount={updateQuestionCount}
-                  roomPlayMode={roomPlayMode}
+                  roomPlayMode={isSetupLeaderboardMode ? "leaderboard" : roomPlayMode}
                   setRoomPlayMode={setRoomPlayMode}
                   roomCreateSourceMode={setupRoomCreateSourceMode}
                   selectedLeaderboardMode={selectedLeaderboardMode}
@@ -1549,9 +1591,9 @@ const CollectionDetailDrawer = ({
                   selectedCreateSourceSummary={setupSourceSummary}
                   isSourceSummaryLoading={isSourceSummaryLoading}
                   createSettingsCards={createSettingsCards}
-                  createRequirementsHintText={createRequirementsHintText}
+                  createRequirementsHintText={setupCreateRequirementsHintText}
                   createRecommendationHintText={createRecommendationHintText}
-                  canCreateRoom={canCreateRoom}
+                  canCreateRoom={setupCanCreateRoom}
                   isCreatingRoom={isCreatingRoom}
                   onCreateRoom={
                     isSetupLeaderboardMode
@@ -1800,20 +1842,24 @@ const CollectionDetailDrawer = ({
                                           const selected =
                                             option.variantKey ===
                                             selectedLeaderboardVariant;
+                                          const disabled =
+                                            collectionQuestionCount <
+                                            option.minQuestionCount;
                                           return (
                                             <button
                                               key={option.variantKey}
                                               type="button"
                                               role="option"
                                               aria-selected={selected}
+                                              disabled={disabled}
                                               onClick={() =>
                                                 handleLeaderboardProfileSelect(
                                                   option.modeKey,
                                                   option.variantKey,
                                                 )
                                               }
-                                              className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
-                                                selected
+                                              className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                                                selected && !disabled
                                                   ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
                                                   : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
                                               }`}
@@ -1822,10 +1868,16 @@ const CollectionDetailDrawer = ({
                                                 <span className="block truncate text-sm font-semibold">
                                                   {option.label}
                                                 </span>
+                                                {disabled ? (
+                                                  <span className="mt-0.5 block text-[11px] font-medium text-amber-100/58">
+                                                    需要 {option.minQuestionCount} 題，目前{" "}
+                                                    {collectionQuestionCount} 題
+                                                  </span>
+                                                ) : null}
                                               </span>
                                               <span
                                                 className={`shrink-0 text-xs font-semibold tabular-nums ${
-                                                  selected
+                                                  selected && !disabled
                                                     ? "text-amber-100"
                                                     : "text-slate-500"
                                                 }`}
@@ -1985,7 +2037,10 @@ const CollectionDetailDrawer = ({
                     }
                     disabled={
                       isPreparingSetup ||
-                      (isSetupLeaderboardMode && isAuthLoading)
+                      !setupCanCreateRoom ||
+                      (isSetupLeaderboardMode &&
+                        (isAuthLoading ||
+                          isActiveLeaderboardQuestionCountInsufficient))
                     }
                     onClick={
                       isSetupLeaderboardMode
@@ -2064,7 +2119,10 @@ const CollectionDetailDrawer = ({
                         )
                       }
                       disabled={
-                        isPreparingLeaderboardChallenge || isAuthLoading
+                        isPreparingLeaderboardChallenge ||
+                        isAuthLoading ||
+                        (isAuthenticated &&
+                          isActiveLeaderboardQuestionCountInsufficient)
                       }
                       onClick={handleStartLeaderboardChallenge}
                       className="!min-w-[9.5rem] !rounded-xl !bg-[linear-gradient(135deg,#22d3ee,#fbbf24)] !px-4 !py-2 !font-semibold !text-slate-950 !normal-case !shadow-[0_16px_34px_-22px_rgba(34,211,238,0.95)] hover:!shadow-[0_18px_42px_-22px_rgba(251,191,36,0.75)] disabled:!bg-slate-700 disabled:!text-slate-400 disabled:!shadow-none"

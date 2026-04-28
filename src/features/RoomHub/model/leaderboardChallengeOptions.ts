@@ -29,19 +29,33 @@ export const leaderboardVariants: Record<
     key: LeaderboardVariantKey;
     label: string;
     profileKey: string;
+    minQuestionCount: number;
     questionCount?: number;
     timeLimitSec?: number;
   }>
 > = {
   classic: [
-    { key: "30q", label: "30 題", profileKey: "classic_30", questionCount: 30 },
-    { key: "50q", label: "50 題", profileKey: "classic_50", questionCount: 50 },
+    {
+      key: "30q",
+      label: "30 題",
+      profileKey: "classic_30",
+      minQuestionCount: 30,
+      questionCount: 30,
+    },
+    {
+      key: "50q",
+      label: "50 題",
+      profileKey: "classic_50",
+      minQuestionCount: 50,
+      questionCount: 50,
+    },
   ],
   time_attack: [
     {
       key: "15m",
       label: "15 分鐘",
       profileKey: "time_attack_15m",
+      minQuestionCount: 50,
       timeLimitSec: 15 * 60,
     },
   ],
