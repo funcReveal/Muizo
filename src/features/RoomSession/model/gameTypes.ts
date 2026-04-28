@@ -70,6 +70,9 @@ export interface GameState {
   revealDurationMs: number;
   clipStartSec?: number;
   clipEndSec?: number;
+  clipReplayStartSec?: number;
+  clipReplayEndSec?: number;
+  trackDurationSec?: number | null;
   clipSource?: "room_settings" | "track_clip";
   choices: GameChoice[];
   answerTitle?: string;
@@ -78,6 +81,8 @@ export interface GameState {
   trackCursor: number;
   playbackExtensionMs?: number;
   playbackExtensionVote?: PlaybackExtensionVoteState | null;
+  restartGameVote?: RestartGameVoteState | null;
+  restartVoteInitiatedClientIds?: string[];
   lockedClientIds?: string[];
   lockedOrder?: string[];
   questionStats?: GameQuestionStats;
@@ -97,6 +102,20 @@ export interface PlaybackExtensionVoteState {
   approveClientIds: string[];
   rejectClientIds: string[];
   status: "active" | "approved" | "rejected";
+  resolvedAt?: number;
+}
+
+export type RestartGameVoteAction = "return_to_lobby" | "restart_now";
+
+export interface RestartGameVoteState {
+  requestedByClientId: string;
+  requestedByUsername: string;
+  startedAt: number;
+  eligibleClientIds: string[];
+  approveClientIds: string[];
+  rejectClientIds: string[];
+  status: "active" | "approved" | "rejected";
+  action: RestartGameVoteAction;
   resolvedAt?: number;
 }
 

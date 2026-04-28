@@ -9,12 +9,10 @@ interface UseGameRoomPlayerSyncParams {
   requiresAudioGesture: boolean;
   startedAt: number;
   phase: GameState["phase"];
-  revealEndsAt: number;
-  revealDurationMs: number;
   effectiveGuessDurationMs: number;
   fallbackDurationSec: number;
   isTimeAttackMode: boolean;
-  shouldLoopRoomSettingsClip: boolean;
+  shouldLoopCurrentClip: boolean;
   clipStartSec: number;
   clipEndSec: number;
   waitingToStart: boolean;
@@ -26,6 +24,8 @@ interface UseGameRoomPlayerSyncParams {
   videoId: string | null;
   currentTrackIndex: number;
   primeSfxAudio: () => void;
+  clipReplayStartSec: number;
+  clipReplayEndSec: number;
 }
 
 const PLAYER_ID = "mq-main-player";
@@ -71,12 +71,14 @@ const POST_START_DRIFT_CHECK_MS = 1500;
 // If YouTube reports state=3 (buffering), suppress drift-triggered seeks for
 // this window ??seeking mid-buffer just extends the stall.
 const BUFFERING_GRACE_MS = 1500;
-const RECENT_BUFFERING_WINDOW_MS = 1500;
 const LARGE_DRIFT_OVERRIDE_SEC = 1.5;
 
 // After coming back from background / focus event, force a resume at the
 // server-derived position, then do one delayed verification check.
 const RESUME_RESYNC_CHECK_MS = 700;
+const CLIP_END_REPLAY_GUARD_LEAD_MS = 250;
+const MIN_CLIP_END_REPLAY_GUARD_DELAY_MS = 120;
+const MIN_CLIP_REPLAY_INTERVAL_MS = 650;
 const SYNC_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 
 const useGameRoomPlayerSync = ({
@@ -86,12 +88,10 @@ const useGameRoomPlayerSync = ({
   requiresAudioGesture,
   startedAt,
   phase,
-  revealEndsAt,
-  revealDurationMs,
   effectiveGuessDurationMs,
   fallbackDurationSec,
   isTimeAttackMode,
-  shouldLoopRoomSettingsClip,
+  shouldLoopCurrentClip,
   clipStartSec,
   clipEndSec,
   waitingToStart,
@@ -103,6 +103,8 @@ const useGameRoomPlayerSync = ({
   videoId,
   currentTrackIndex,
   primeSfxAudio,
+  clipReplayStartSec,
+  clipReplayEndSec,
 }: UseGameRoomPlayerSyncParams) => {
   const [audioUnlockSessionKey, setAudioUnlockSessionKey] = useState<
     string | null
@@ -134,9 +136,13 @@ const useGameRoomPlayerSync = ({
   const lastPlayerTimeSecRef = useRef<number | null>(null);
   const lastPlayerTimeAtMsRef = useRef<number>(0);
   const lastTimeRequestReasonRef = useRef("init");
-  const guessLoopSpanRef = useRef<number | null>(null);
   const revealReplayRef = useRef(false);
   const lastRevealStartKeyRef = useRef<string | null>(null);
+  // Stays true from when reveal begins until trackSessionKey changes (new question).
+  // Lets the clip keep looping even after isReveal becomes false (phase cleared,
+  // game ended, etc.) so there is never a silence gap before navigation.
+  const keepRevealAliveRef = useRef(false);
+  const lastClipReplayAtMsRef = useRef(0);
   const bufferingStartedAtRef = useRef<number | null>(null);
   const lastBufferingAtMsRef = useRef<number>(0);
   const bufferingGraceUntilMsRef = useRef<number>(0);
@@ -146,7 +152,9 @@ const useGameRoomPlayerSync = ({
   const playbackWarmupStopTimerRef = useRef<number | null>(null);
   const bufferingRecoveryTimerRef = useRef<number | null>(null);
   const guessLoopRestartTimerRef = useRef<number | null>(null);
+  const clipEndGuardTimerRef = useRef<number | null>(null);
   const scheduleGuessLoopRestartRef = useRef<() => void>(() => undefined);
+  const scheduleRevealClipEndGuardRef = useRef<() => void>(() => undefined);
   const postStartDriftTimersRef = useRef<number[]>([]);
   const postStartDriftRetriedRef = useRef(false);
   const silentAudioStartTimerRef = useRef<number | null>(null);
@@ -220,6 +228,13 @@ const useGameRoomPlayerSync = ({
     }
   }, []);
 
+  const clearClipEndGuardTimer = useCallback(() => {
+    if (clipEndGuardTimerRef.current !== null) {
+      window.clearTimeout(clipEndGuardTimerRef.current);
+      clipEndGuardTimerRef.current = null;
+    }
+  }, []);
+
   const clearPostStartDriftTimers = useCallback(() => {
     postStartDriftTimersRef.current.forEach((timerId) =>
       window.clearTimeout(timerId),
@@ -277,12 +292,14 @@ const useGameRoomPlayerSync = ({
       clearPlaybackWarmupTimers();
       clearBufferingRecoveryTimer();
       clearGuessLoopRestartTimer();
+      clearClipEndGuardTimer();
       clearPostStartDriftTimers();
       clearSilentAudioStartTimer();
       clearMobileUnlockKickTimer();
     };
   }, [
     clearBufferingRecoveryTimer,
+    clearClipEndGuardTimer,
     clearGuessLoopRestartTimer,
     clearMobileUnlockKickTimer,
     clearPlaybackStartTimer,
@@ -327,50 +344,84 @@ const useGameRoomPlayerSync = ({
     [postPlayerMessage],
   );
 
-  const revealStartAt = revealEndsAt - revealDurationMs;
-  const revealDurationSec = Math.max(0, revealDurationMs / 1000);
-  const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
-
   const computeServerPositionSec = useCallback(() => {
     const elapsed = Math.max(0, (getServerNowMs() - startedAt) / 1000);
-    const loopSpan = guessLoopSpanRef.current;
-    if (phase === "guess" && loopSpan && loopSpan > 0.01) {
-      const offset = elapsed % loopSpan;
-      return Math.min(clipEndSec, clipStartSec + offset);
-    }
-    return Math.min(clipEndSec, clipStartSec + elapsed);
-  }, [clipEndSec, clipStartSec, getServerNowMs, phase, startedAt]);
 
-  const computeRevealPositionSec = useCallback(() => {
-    const elapsed = Math.max(0, (getServerNowMs() - revealStartAt) / 1000);
-    const effectiveElapsed =
-      revealDurationSec > 0 ? Math.min(elapsed, revealDurationSec) : elapsed;
-    const offset = clipLengthSec > 0 ? effectiveElapsed % clipLengthSec : 0;
-    return Math.min(clipEndSec, clipStartSec + offset);
+    const firstSpanSec = Math.max(0.01, clipEndSec - clipStartSec);
+
+    if (phase !== "guess") {
+      return Math.min(clipEndSec, clipStartSec + elapsed);
+    }
+
+    if (elapsed < firstSpanSec) {
+      return Math.min(clipEndSec, clipStartSec + elapsed);
+    }
+
+    const replaySpanSec = Math.max(0.01, clipReplayEndSec - clipReplayStartSec);
+
+    const replayElapsed = elapsed - firstSpanSec;
+    const replayOffset = replayElapsed % replaySpanSec;
+
+    return Math.min(clipReplayEndSec, clipReplayStartSec + replayOffset);
   }, [
     clipEndSec,
-    clipLengthSec,
+    clipReplayEndSec,
+    clipReplayStartSec,
     clipStartSec,
     getServerNowMs,
-    revealDurationSec,
-    revealStartAt,
+    phase,
+    startedAt,
   ]);
 
-  const getDesiredPositionSec = useCallback(() => {
-    if (revealReplayRef.current) {
-      return computeRevealPositionSec();
-    }
-    return computeServerPositionSec();
-  }, [computeRevealPositionSec, computeServerPositionSec]);
+  const clipLengthSec = Math.max(0.01, clipEndSec - clipStartSec);
 
   const getEstimatedLocalPositionSec = useCallback(() => {
     const elapsed = (getServerNowMs() - lastSyncMsRef.current) / 1000;
-    return Math.min(clipEndSec, Math.max(0, playerStartRef.current + elapsed));
-  }, [clipEndSec, getServerNowMs]);
+    const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+    const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
+    return Math.min(
+      maxPlayableSec,
+      Math.max(minPlayableSec, playerStartRef.current + elapsed),
+    );
+  }, [
+    clipEndSec,
+    clipReplayEndSec,
+    clipReplayStartSec,
+    clipStartSec,
+    getServerNowMs,
+  ]);
+
+  const getClipGuardPositionSec = useCallback(() => {
+    const estimated = getEstimatedLocalPositionSec();
+    const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+    const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
+    return Math.min(maxPlayableSec, Math.max(minPlayableSec, estimated));
+  }, [
+    clipEndSec,
+    clipStartSec,
+    getEstimatedLocalPositionSec,
+    clipReplayStartSec,
+    clipReplayEndSec,
+  ]);
+
+  const getDesiredPositionSec = useCallback(() => {
+    if (revealReplayRef.current || keepRevealAliveRef.current) {
+      return getClipGuardPositionSec();
+    }
+    return computeServerPositionSec();
+  }, [computeServerPositionSec, getClipGuardPositionSec]);
 
   useEffect(() => {
-    guessLoopSpanRef.current = null;
-  }, [trackLoadKey, trackSessionKey]);
+    clearClipEndGuardTimer();
+    lastClipReplayAtMsRef.current = 0;
+    revealReplayRef.current = false;
+    lastRevealStartKeyRef.current = null;
+
+    // keepRevealAliveRef is intentionally NOT cleared here.
+    // It is cleared when the new track actually starts playing.
+  }, [clearClipEndGuardTimer, trackLoadKey, trackSessionKey]);
 
   useEffect(() => {
     bufferingStartedAtRef.current = null;
@@ -425,11 +476,23 @@ const useGameRoomPlayerSync = ({
     (nowMs = getServerNowMs()) => {
       const measuredAt = lastPlayerTimeAtMsRef.current;
       const measuredTime = lastPlayerTimeSecRef.current;
+
       if (measuredTime === null) return null;
       if (nowMs - measuredAt > 10_000) return null;
-      return Math.min(clipEndSec, measuredTime + (nowMs - measuredAt) / 1000);
+
+      const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+      const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+      const estimated = measuredTime + (nowMs - measuredAt) / 1000;
+
+      return Math.min(maxPlayableSec, Math.max(minPlayableSec, estimated));
     },
-    [clipEndSec, getServerNowMs],
+    [
+      clipEndSec,
+      clipReplayEndSec,
+      clipReplayStartSec,
+      clipStartSec,
+      getServerNowMs,
+    ],
   );
 
   const isLikelyContinuousPlayback = useCallback(
@@ -476,12 +539,6 @@ const useGameRoomPlayerSync = ({
 
   const isBufferingGraceActive = useCallback(
     (nowMs = getServerNowMs()) => nowMs < bufferingGraceUntilMsRef.current,
-    [getServerNowMs],
-  );
-
-  const hasRecentBuffering = useCallback(
-    (windowMs = RECENT_BUFFERING_WINDOW_MS, nowMs = getServerNowMs()) =>
-      nowMs - lastBufferingAtMsRef.current <= windowMs,
     [getServerNowMs],
   );
 
@@ -654,9 +711,12 @@ const useGameRoomPlayerSync = ({
       const serverNowMs = getServerNowMs();
       if (serverNowMs < startedAt) return;
       const rawStartPos = forcedPosition ?? getDesiredPositionSec();
+      const minPlayableSec = Math.min(clipStartSec, clipReplayStartSec);
+      const maxPlayableSec = Math.max(clipEndSec, clipReplayEndSec);
+
       const startPos = Math.min(
-        clipEndSec,
-        Math.max(clipStartSec, rawStartPos),
+        maxPlayableSec,
+        Math.max(minPlayableSec, rawStartPos),
       );
       const estimated = getEstimatedLocalPositionSec();
       const bufferingGraceActive = isBufferingGraceActive(serverNowMs);
@@ -714,8 +774,6 @@ const useGameRoomPlayerSync = ({
     },
     [
       applyVolume,
-      clipEndSec,
-      clipStartSec,
       debugSync,
       gameVolume,
       getDesiredPositionSec,
@@ -727,8 +785,174 @@ const useGameRoomPlayerSync = ({
       scheduleInitialAudioHoldRelease,
       startSilentAudio,
       startedAt,
+      clipEndSec,
+      clipReplayEndSec,
+      clipReplayStartSec,
+      clipStartSec,
     ],
   );
+
+  const replayClipFromStart = useCallback(
+    (reason: "clip-end-guard" | "youtube-ended" | "reveal-ended-recovery") => {
+      const nowMs = getServerNowMs();
+
+      if (nowMs - lastClipReplayAtMsRef.current < MIN_CLIP_REPLAY_INTERVAL_MS) {
+        debugSync("skip-duplicate-clip-replay", {
+          reason,
+          lastReplayAgoMs: nowMs - lastClipReplayAtMsRef.current,
+        });
+        return;
+      }
+
+      lastClipReplayAtMsRef.current = nowMs;
+      revealReplayRef.current = true;
+      keepRevealAliveRef.current = true;
+
+      startPlayback(clipReplayStartSec, true, {
+        holdAudio: false,
+        reason: "reveal-replay",
+      });
+
+      scheduleRevealClipEndGuardRef.current();
+    },
+    [clipReplayStartSec, debugSync, getServerNowMs, startPlayback],
+  );
+
+  const computeNextGuessLoop = useCallback(() => {
+    if (phase !== "guess" || !shouldLoopCurrentClip) {
+      return null;
+    }
+
+    const nowMs = getServerNowMs();
+
+    if (nowMs < startedAt) {
+      return null;
+    }
+
+    if (!isTimeAttackMode) {
+      const guessEndsAt = startedAt + effectiveGuessDurationMs;
+      if (nowMs >= guessEndsAt) {
+        return null;
+      }
+    }
+
+    const elapsedSec = Math.max(0, (nowMs - startedAt) / 1000);
+    const firstSpanSec = Math.max(0.01, clipEndSec - clipStartSec);
+    const replaySpanSec = Math.max(0.01, clipReplayEndSec - clipReplayStartSec);
+
+    let remainingToBoundarySec: number;
+
+    if (elapsedSec < firstSpanSec) {
+      remainingToBoundarySec = firstSpanSec - elapsedSec;
+    } else {
+      const replayElapsedSec = elapsedSec - firstSpanSec;
+      const replayOffsetSec = replayElapsedSec % replaySpanSec;
+      remainingToBoundarySec = replaySpanSec - replayOffsetSec;
+    }
+
+    const delayMs = Math.max(
+      MIN_CLIP_END_REPLAY_GUARD_DELAY_MS,
+      Math.round(remainingToBoundarySec * 1000) - CLIP_END_REPLAY_GUARD_LEAD_MS,
+    );
+
+    if (!isTimeAttackMode) {
+      const guessEndsAt = startedAt + effectiveGuessDurationMs;
+      const remainingGuessMs = guessEndsAt - nowMs;
+
+      if (remainingGuessMs <= delayMs + 120) {
+        return null;
+      }
+    }
+
+    return {
+      delayMs,
+      targetSec: clipReplayStartSec,
+    };
+  }, [
+    clipEndSec,
+    clipReplayEndSec,
+    clipReplayStartSec,
+    clipStartSec,
+    effectiveGuessDurationMs,
+    getServerNowMs,
+    isTimeAttackMode,
+    phase,
+    shouldLoopCurrentClip,
+    startedAt,
+  ]);
+
+  const scheduleRevealClipEndGuard = useCallback(() => {
+    clearClipEndGuardTimer();
+
+    if (
+      !videoId ||
+      !audioUnlockedRef.current ||
+      !keepRevealAliveRef.current ||
+      clipEndSec <= clipStartSec ||
+      clipLengthSec <= 0.25
+    ) {
+      return;
+    }
+
+    const nowPositionSec = getClipGuardPositionSec();
+    const remainingMs = Math.round((clipEndSec - nowPositionSec) * 1000);
+
+    const guardLeadMs = Math.min(
+      CLIP_END_REPLAY_GUARD_LEAD_MS,
+      Math.max(80, Math.round(clipLengthSec * 1000 * 0.08)),
+    );
+
+    const guardDelayMs = Math.max(
+      MIN_CLIP_END_REPLAY_GUARD_DELAY_MS,
+      remainingMs - guardLeadMs,
+    );
+
+    debugSync("schedule-clip-end-guard", {
+      nowPositionSec,
+      clipStartSec,
+      clipEndSec,
+      remainingMs,
+      guardLeadMs,
+      guardDelayMs,
+    });
+
+    clipEndGuardTimerRef.current = window.setTimeout(() => {
+      clipEndGuardTimerRef.current = null;
+
+      if (
+        !videoId ||
+        !audioUnlockedRef.current ||
+        !keepRevealAliveRef.current
+      ) {
+        return;
+      }
+
+      const latestPositionSec = getClipGuardPositionSec();
+      const latestRemainingMs = Math.round(
+        (clipEndSec - latestPositionSec) * 1000,
+      );
+
+      if (latestRemainingMs > guardLeadMs + 120) {
+        scheduleRevealClipEndGuardRef.current();
+        return;
+      }
+
+      replayClipFromStart("clip-end-guard");
+    }, guardDelayMs);
+  }, [
+    clearClipEndGuardTimer,
+    clipEndSec,
+    clipLengthSec,
+    clipStartSec,
+    debugSync,
+    getClipGuardPositionSec,
+    replayClipFromStart,
+    videoId,
+  ]);
+
+  useEffect(() => {
+    scheduleRevealClipEndGuardRef.current = scheduleRevealClipEndGuard;
+  }, [scheduleRevealClipEndGuard]);
 
   const kickPlaybackAfterMobileUnlock = useCallback(() => {
     clearMobileUnlockKickTimer();
@@ -791,9 +1015,10 @@ const useGameRoomPlayerSync = ({
 
   const scheduleGuessLoopRestart = useCallback(() => {
     clearGuessLoopRestartTimer();
+
     if (
-      phase !== "guess" ||
-      !shouldLoopRoomSettingsClip ||
+      !videoId ||
+      !audioUnlockedRef.current ||
       waitingToStart ||
       isEnded ||
       !isStartedByServerTime()
@@ -801,33 +1026,19 @@ const useGameRoomPlayerSync = ({
       return;
     }
 
-    const serverNow = getServerNowMs();
-    const clipSpanSec = Math.max(0.25, clipEndSec - clipStartSec);
-    const estimatedPositionSec =
-      getRecentMeasuredEstimatedPositionSec(serverNow) ??
-      getFreshPlayerTimeSec() ??
-      getDesiredPositionSec();
-    const normalizedPositionSec = Math.min(
-      clipEndSec,
-      Math.max(clipStartSec, estimatedPositionSec),
-    );
-    const remainingLoopMs = Math.max(
-      120,
-      Math.ceil((clipEndSec - normalizedPositionSec) * 1000),
-    );
-    const guessEndsAt = startedAt + effectiveGuessDurationMs;
-    if (!isTimeAttackMode) {
-      const remainingGuessMs = Math.max(0, guessEndsAt - serverNow);
-      if (remainingGuessMs <= remainingLoopMs) {
-        return;
-      }
+    const nextLoop = computeNextGuessLoop();
+    if (nextLoop === null) {
+      return;
     }
 
     guessLoopRestartTimerRef.current = window.setTimeout(() => {
       guessLoopRestartTimerRef.current = null;
+
       if (
+        !videoId ||
+        !audioUnlockedRef.current ||
         phase !== "guess" ||
-        !shouldLoopRoomSettingsClip ||
+        !shouldLoopCurrentClip ||
         waitingToStart ||
         isEnded ||
         !isStartedByServerTime()
@@ -835,39 +1046,22 @@ const useGameRoomPlayerSync = ({
         return;
       }
 
-      const latestPositionSec = lastPlayerTimeSecRef.current;
-      const playerStillMidClip =
-        lastPlayerStateRef.current === 1 &&
-        typeof latestPositionSec === "number" &&
-        latestPositionSec < clipEndSec - 0.18;
-
-      if (playerStillMidClip) {
-        scheduleGuessLoopRestartRef.current();
-        return;
-      }
-
-      guessLoopSpanRef.current = clipSpanSec;
-      startPlayback(clipStartSec, true, {
+      startPlayback(nextLoop.targetSec, true, {
+        holdAudio: false,
         reason: "guess-loop",
       });
+
       scheduleGuessLoopRestartRef.current();
-    }, remainingLoopMs + 80);
+    }, nextLoop.delayMs);
   }, [
-    startedAt,
     clearGuessLoopRestartTimer,
-    clipEndSec,
-    clipStartSec,
-    effectiveGuessDurationMs,
-    getDesiredPositionSec,
-    getFreshPlayerTimeSec,
-    getRecentMeasuredEstimatedPositionSec,
-    getServerNowMs,
+    computeNextGuessLoop,
     isEnded,
     isStartedByServerTime,
-    isTimeAttackMode,
     phase,
-    shouldLoopRoomSettingsClip,
+    shouldLoopCurrentClip,
     startPlayback,
+    videoId,
     waitingToStart,
   ]);
 
@@ -1324,11 +1518,31 @@ const useGameRoomPlayerSync = ({
         ) {
           resumeNeedsSyncRef.current = true;
         }
+        if (isReveal || keepRevealAliveRef.current) {
+          debugSync("buffering-recovery-reveal-soft-resume", {
+            reason,
+            playerState: lastPlayerStateRef.current,
+            lastPlayerTimeSec: lastPlayerTimeSecRef.current,
+          });
+
+          startSilentAudio();
+
+          if (lastPlayerStateRef.current !== 1) {
+            postCommand("playVideo");
+          }
+
+          postCommand("unMute");
+          applyVolume(gameVolume);
+          scheduleRevealClipEndGuardRef.current();
+          return;
+        }
+
         debugSync("buffering-recovery-force-seek", {
           reason,
           playerState: lastPlayerStateRef.current,
           lastPlayerTimeSec: lastPlayerTimeSecRef.current,
         });
+
         startPlayback(undefined, true, {
           holdAudio: initialAudioSyncPendingRef.current,
           holdReleaseDelayMs: initialAudioSyncPendingRef.current
@@ -1340,12 +1554,17 @@ const useGameRoomPlayerSync = ({
       }, BUFFERING_GRACE_MS + 220);
     },
     [
+      applyVolume,
       clearBufferingRecoveryTimer,
       debugSync,
+      gameVolume,
       getServerNowMs,
       isEnded,
+      isReveal,
+      postCommand,
       scheduleResumeResync,
       startPlayback,
+      startSilentAudio,
       startedAt,
     ],
   );
@@ -1434,6 +1653,7 @@ const useGameRoomPlayerSync = ({
       clearBufferingRecoveryTimer();
       clearPlaybackStartTimer();
       clearPlaybackWarmupTimers();
+      clearClipEndGuardTimer();
       clearPostStartDriftTimers();
       clearMobileUnlockKickTimer();
       resyncTimersRef.current.forEach((timerId) =>
@@ -1443,6 +1663,7 @@ const useGameRoomPlayerSync = ({
     },
     [
       clearBufferingRecoveryTimer,
+      clearClipEndGuardTimer,
       clearInitialAudioHoldReleaseTimer,
       clearMobileUnlockKickTimer,
       clearPlaybackStartTimer,
@@ -1600,7 +1821,7 @@ const useGameRoomPlayerSync = ({
         loadTrack(
           currentId,
           startSec,
-          clipEndSec,
+          undefined,
           !beforeStart,
           beforeStart ? "loadTrack-cue" : "loadTrack-autoplay",
         );
@@ -1652,6 +1873,22 @@ const useGameRoomPlayerSync = ({
         }
         if (state === 1) {
           setLoadedTrackKey(trackLoadKey);
+          if (!hasStartedPlaybackRef.current) {
+            // The new track is playing for the first time. It is now safe to
+            // retire any carry-overs from the previous question's reveal phase:
+            //
+            // • keepRevealAliveRef keeps the old clip looping after reveal ends
+            //   so there is no silence gap between questions. We defer its reset
+            //   until the new track actually plays.
+            //
+            // • revealReplayRef may have been set by the keepRevealAlive branch
+            //   in the state=0 handler when the old clip last looped. If left
+            //   true, getDesiredPositionSec() would stay on the clip-guard timeline
+            //   instead of returning to normal server-position sync for the new question.
+            keepRevealAliveRef.current = false;
+            revealReplayRef.current = false;
+            clearClipEndGuardTimer();
+          }
           if (prestartWarmupActiveRef.current) {
             debugSync("player-state-playing-warmup");
           } else {
@@ -1735,36 +1972,42 @@ const useGameRoomPlayerSync = ({
           const guessEndsAt = startedAt + effectiveGuessDurationMs;
           if (
             phase === "guess" &&
-            shouldLoopRoomSettingsClip &&
+            shouldLoopCurrentClip &&
             !isEnded &&
             isStartedByServerTime() &&
             (isTimeAttackMode || serverNow < guessEndsAt)
           ) {
-            const latestPlayerTime = lastPlayerTimeSecRef.current;
-            if (
-              typeof latestPlayerTime === "number" &&
-              latestPlayerTime > clipStartSec + 0.05
-            ) {
-              guessLoopSpanRef.current = Math.max(
-                0.25,
-                latestPlayerTime - clipStartSec,
-              );
-            } else if (!guessLoopSpanRef.current) {
-              guessLoopSpanRef.current = Math.max(
-                0.5,
-                Math.min(5, fallbackDurationSec),
-              );
-            }
-            startPlayback(undefined, true, {
+            startPlayback(clipReplayStartSec, true, {
+              holdAudio: false,
               reason: "guess-loop",
             });
+
+            scheduleGuessLoopRestartRef.current();
             return;
           }
-          if (isReveal) {
-            revealReplayRef.current = true;
-            startPlayback(undefined, true, {
-              reason: "reveal-replay",
-            });
+          if (isReveal && isStartedByServerTime()) {
+            // Clip ended during the reveal window — loop back to clipStartSec.
+            // Uses the closure's isReveal value (always current) rather than
+            // keepRevealAliveRef alone, which avoids a race where the ref is
+            // set by the isReveal useEffect *after* this message fires.
+            replayClipFromStart("youtube-ended");
+            return;
+          } else if (
+            phase === "guess" &&
+            !isTimeAttackMode &&
+            !isEnded &&
+            isStartedByServerTime() &&
+            serverNow >= guessEndsAt
+          ) {
+            // Clip ended at/past the guess boundary before the reveal gameUpdated arrived.
+            // Use the single replay authority to avoid duplicate replay commands.
+            replayClipFromStart("youtube-ended");
+            return;
+          } else if (keepRevealAliveRef.current && isStartedByServerTime()) {
+            // Phase has transitioned away from reveal, but we still keep audio alive
+            // until the next track really starts.
+            replayClipFromStart("youtube-ended");
+            return;
           }
         }
       }
@@ -1836,9 +2079,9 @@ const useGameRoomPlayerSync = ({
     applyVolume,
     clearBufferingRecoveryTimer,
     clearInitialAudioHoldReleaseTimer,
+    clearClipEndGuardTimer,
     clipEndSec,
     clipStartSec,
-    computeRevealPositionSec,
     computeServerPositionSec,
     debugSync,
     effectiveGuessDurationMs,
@@ -1865,13 +2108,16 @@ const useGameRoomPlayerSync = ({
     schedulePlaybackStart,
     schedulePostStartDriftChecks,
     scheduleResumeResync,
-    shouldLoopRoomSettingsClip,
+    scheduleRevealClipEndGuard,
+    shouldLoopCurrentClip,
     startPlayback,
     startSilentAudio,
     startedAt,
     syncToServerPosition,
     trackLoadKey,
     videoId,
+    replayClipFromStart,
+    clipReplayStartSec,
   ]);
 
   useEffect(() => {
@@ -1892,7 +2138,7 @@ const useGameRoomPlayerSync = ({
     loadTrack(
       videoId,
       startSec,
-      clipEndSec,
+      undefined,
       autoplay,
       autoplay ? "loadTrack-autoplay" : "loadTrack-cue",
     );
@@ -1920,73 +2166,63 @@ const useGameRoomPlayerSync = ({
 
   useEffect(() => {
     if (!isReveal) {
-      revealReplayRef.current = false;
       lastRevealStartKeyRef.current = null;
-      return;
-    }
-    const revealKey = `${trackSessionKey}:${revealEndsAt}:reveal`;
-    if (lastRevealStartKeyRef.current === revealKey) return;
-    lastRevealStartKeyRef.current = revealKey;
-    const latestPlayerTimeSec = lastPlayerTimeSecRef.current;
-    const playerEnded =
-      lastPlayerStateRef.current === 0 ||
-      (typeof latestPlayerTimeSec === "number" &&
-        latestPlayerTimeSec >= clipEndSec - 0.12);
 
-    if (playerEnded) {
-      if (hasRecentBuffering()) {
-        const timerId = window.setTimeout(() => {
-          revealReplayRef.current = true;
-          startPlayback(undefined, false, {
-            reason: "reveal-replay",
-          });
-        }, 260);
-        return () => window.clearTimeout(timerId);
+      if (isEnded && keepRevealAliveRef.current) {
+        revealReplayRef.current = true;
+        scheduleRevealClipEndGuard();
+        return;
       }
-      revealReplayRef.current = true;
-      startPlayback(undefined, true, {
-        reason: "reveal-replay",
-      });
+
+      revealReplayRef.current = false;
+      clearClipEndGuardTimer();
       return;
     }
 
-    revealReplayRef.current = false;
-    const state = lastPlayerStateRef.current;
-    const recentBuffering = hasRecentBuffering();
-    startSilentAudio();
-    if (!recentBuffering) {
-      postCommand("playVideo");
-      postCommand("unMute");
-      applyVolume(gameVolume);
-    }
-    if (state === 1 || (state === 3 && recentBuffering)) {
+    if (!videoId || waitingToStart) {
       return;
     }
-    const fallbackTimer = window.setTimeout(
-      () => {
-        if (lastPlayerStateRef.current !== 1 && !hasRecentBuffering()) {
-          postCommand("playVideo");
-          postCommand("unMute");
-          applyVolume(gameVolume);
-          startSilentAudio();
-        }
-      },
-      recentBuffering ? 780 : 420,
-    );
-    return () => window.clearTimeout(fallbackTimer);
+
+    const revealKey = `${trackSessionKey}:${clipStartSec}:${clipEndSec}`;
+
+    if (lastRevealStartKeyRef.current === revealKey) {
+      return;
+    }
+
+    lastRevealStartKeyRef.current = revealKey;
+
+    // Reveal should continue current playback. Do not seek to clipStartSec here.
+    keepRevealAliveRef.current = true;
+    revealReplayRef.current = false;
+
+    clearGuessLoopRestartTimer();
+    clearClipEndGuardTimer();
+
+    const state = lastPlayerStateRef.current;
+    const positionSec = getClipGuardPositionSec();
+    const isAlreadyEnded = state === 0 || positionSec >= clipEndSec - 0.05;
+
+    if (isAlreadyEnded) {
+      replayClipFromStart("reveal-ended-recovery");
+      return;
+    }
+
+    scheduleRevealClipEndGuard();
+    requestPlayerTime("reveal-continue-current-playback");
   }, [
-    applyVolume,
-    clipEndSec,
-    computeRevealPositionSec,
-    gameVolume,
-    hasRecentBuffering,
-    getFreshPlayerTimeSec,
     isReveal,
-    postCommand,
-    revealEndsAt,
-    startSilentAudio,
-    startPlayback,
+    isEnded,
+    videoId,
+    waitingToStart,
     trackSessionKey,
+    clipStartSec,
+    clipEndSec,
+    clearGuessLoopRestartTimer,
+    clearClipEndGuardTimer,
+    getClipGuardPositionSec,
+    replayClipFromStart,
+    scheduleRevealClipEndGuard,
+    requestPlayerTime,
   ]);
 
   useEffect(() => {

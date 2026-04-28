@@ -18,6 +18,7 @@ import type {
   GameLiveUpdatePayload,
   GameState,
   PlaylistItem,
+  RestartGameVoteAction,
   RoomState,
   SubmitAnswerResult,
 } from "./types";
@@ -214,29 +215,35 @@ export const useRoomGameActions = ({
   const handleRequestPlaybackExtensionVote = useCallback(
     async (remainingMs?: number): Promise<boolean> => {
       const socket = getSocket();
+
       if (!socket || !currentRoom) {
         setStatusText("目前不在房間內");
         return false;
       }
+
       const normalizedRemainingMs =
         typeof remainingMs === "number" && Number.isFinite(remainingMs)
           ? Math.max(0, Math.floor(remainingMs))
           : undefined;
+
+      const payload = {
+        roomId: currentRoom.id,
+        ...(typeof normalizedRemainingMs === "number"
+          ? { remainingMs: normalizedRemainingMs }
+          : {}),
+      };
+
       return await new Promise<boolean>((resolve) => {
         socket.emit(
           "requestPlaybackExtensionVote",
-          {
-            roomId: currentRoom.id,
-            ...(typeof normalizedRemainingMs === "number"
-              ? { remainingMs: normalizedRemainingMs }
-              : {}),
-          },
+          payload,
           (ack: Ack<GameLiveUpdatePayload>) => {
             if (!ack) {
               setStatusText("發起延長投票失敗，請稍後再試");
               resolve(false);
               return;
             }
+
             if (!ack.ok) {
               if (handleRoomGoneAck(currentRoom.id, ack)) {
                 resolve(false);
@@ -246,6 +253,7 @@ export const useRoomGameActions = ({
               resolve(false);
               return;
             }
+
             syncServerOffset(ack.data.serverNow);
             applyGameLiveUpdate(ack.data);
             resolve(true);
@@ -327,11 +335,169 @@ export const useRoomGameActions = ({
     [pendingAnswerSubmitRef],
   );
 
+  const handleRestartGame = useCallback(() => {
+    const socket = getSocket();
+    if (!socket || !currentRoom) {
+      setStatusText("尚未加入房間");
+      return;
+    }
+    const guessDurationMs =
+      clampPlayDurationSec(
+        currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC,
+      ) * 1000;
+    const revealDurationMs =
+      clampRevealDurationSec(
+        currentRoom.gameSettings?.revealDurationSec ??
+          DEFAULT_REVEAL_DURATION_SEC,
+      ) * 1000;
+
+    socket.emit(
+      "startGame",
+      {
+        roomId: currentRoom.id,
+        guessDurationMs,
+        revealDurationMs,
+        forceRestart: true,
+      },
+      (ack: Ack<GameLiveUpdatePayload>) => {
+        if (!ack) return;
+        if (ack.ok) {
+          syncServerOffset(ack.data.serverNow);
+          // Do NOT call setGamePlaylist([]) here.  Clearing the playlist
+          // immediately creates a videoId=null gap: the iframe fires a load
+          // event with no video, handlePlaybackIframeLoad skips the
+          // setPlayerVideoId call (videoId is null), and the stale playerVideoId
+          // is then used for all subsequent tracks — causing clients to appear
+          // stuck on the first track even though the visual state advances.
+          // The old playlist is safe to keep; fetchCompletePlaylist will
+          // replace it atomically once the fetch resolves.
+          applyGameLiveUpdate(ack.data);
+          setIsGameView(true);
+          void fetchCompletePlaylist(currentRoom.id).then(setGamePlaylist);
+        } else {
+          if (handleRoomGoneAck(currentRoom.id, ack)) return;
+          setStatusText(formatAckError("重新開始失敗", ack.error));
+        }
+      },
+    );
+  }, [
+    currentRoom,
+    fetchCompletePlaylist,
+    getSocket,
+    handleRoomGoneAck,
+    setGamePlaylist,
+    setIsGameView,
+    setStatusText,
+    syncServerOffset,
+    applyGameLiveUpdate,
+  ]);
+
+  const handleRequestRestartGameVote = useCallback(
+    async (action: RestartGameVoteAction): Promise<boolean> => {
+      const socket = getSocket();
+      if (!socket || !currentRoom) {
+        setStatusText("目前不在房間內");
+        return false;
+      }
+
+      const normalizedAction: RestartGameVoteAction =
+        action === "return_to_lobby" || action === "restart_now"
+          ? action
+          : "restart_now";
+
+      return await new Promise<boolean>((resolve) => {
+        socket.emit(
+          "requestRestartGameVote",
+          {
+            roomId: currentRoom.id,
+            action: normalizedAction,
+          },
+          (ack: Ack<GameLiveUpdatePayload>) => {
+            if (!ack) {
+              setStatusText("發起重新投票失敗，請稍後再試");
+              resolve(false);
+              return;
+            }
+            if (!ack.ok) {
+              console.warn("[requestPlaybackExtensionVote] failed", ack.error);
+
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
+              setStatusText(formatAckError("發起延長投票失敗", ack.error));
+              resolve(false);
+              return;
+            }
+
+            syncServerOffset(ack.data.serverNow);
+            applyGameLiveUpdate(ack.data);
+            resolve(true);
+          },
+        );
+      });
+    },
+    [
+      currentRoom,
+      getSocket,
+      setStatusText,
+      syncServerOffset,
+      applyGameLiveUpdate,
+      handleRoomGoneAck,
+    ],
+  );
+
+  const handleCastRestartGameVote = useCallback(
+    async (vote: "approve" | "reject"): Promise<boolean> => {
+      const socket = getSocket();
+      if (!socket || !currentRoom) {
+        setStatusText("目前不在房間內");
+        return false;
+      }
+      return await new Promise<boolean>((resolve) => {
+        socket.emit(
+          "castRestartGameVote",
+          { roomId: currentRoom.id, vote },
+          (ack: Ack<GameLiveUpdatePayload>) => {
+            if (!ack) {
+              setStatusText("送出投票失敗，請稍後再試");
+              resolve(false);
+              return;
+            }
+            if (!ack.ok) {
+              if (handleRoomGoneAck(currentRoom.id, ack)) {
+                resolve(false);
+                return;
+              }
+              setStatusText(formatAckError("送出投票失敗", ack.error));
+              resolve(false);
+              return;
+            }
+            syncServerOffset(ack.data.serverNow);
+            applyGameLiveUpdate(ack.data);
+            resolve(true);
+          },
+        );
+      });
+    },
+    [
+      currentRoom,
+      getSocket,
+      setStatusText,
+      syncServerOffset,
+      applyGameLiveUpdate,
+      handleRoomGoneAck,
+    ],
+  );
+
   return {
     handleStartGame,
+    handleRestartGame,
     handleSubmitChoice,
     handleRequestPlaybackExtensionVote,
     handleCastPlaybackExtensionVote,
+    handleRequestRestartGameVote,
+    handleCastRestartGameVote,
   };
 };
 

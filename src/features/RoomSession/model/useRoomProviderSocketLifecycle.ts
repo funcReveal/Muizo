@@ -78,7 +78,10 @@ interface SocketLifecycleSetters {
   setParticipants: Dispatch<SetStateAction<RoomParticipant[]>>;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   setSettlementHistory: Dispatch<SetStateAction<RoomSettlementSnapshot[]>>;
-  mergeRankChange: (roundKey: string, changes: Record<string, number | null>) => void;
+  mergeRankChange: (
+    roundKey: string,
+    changes: Record<string, number | null>,
+  ) => void;
   mergeLeaderboardSettlementReady: (
     payload: import("./types").LeaderboardSettlementReadyPayload,
   ) => void;
@@ -816,7 +819,9 @@ export const useRoomProviderSocketLifecycle = ({
             prev
               ? {
                   ...prev,
-                  ...(playlist.id !== undefined ? { playlistId: playlist.id } : {}),
+                  ...(playlist.id !== undefined
+                    ? { playlistId: playlist.id }
+                    : {}),
                   ...(playlist.title !== undefined
                     ? { playlistTitle: playlist.title }
                     : {}),
@@ -871,7 +876,13 @@ export const useRoomProviderSocketLifecycle = ({
           ) {
             return;
           }
-          setGamePlaylist([]);
+          // Do NOT call setGamePlaylist([]) here.  Clearing the playlist
+          // immediately creates a videoId=null gap that causes the YouTube
+          // iframe to fire a load event with no video — handlePlaybackIframeLoad
+          // then skips setPlayerVideoId (videoId is null), leaving playerVideoId
+          // stale, so effectivePlayerVideoId resolves to the wrong (first) track
+          // on every subsequent question.  The old playlist is harmless to keep;
+          // fetchCompletePlaylist replaces it atomically once the fetch resolves.
           const preStartRemainingSec = Math.max(
             0,
             Math.ceil((gameState.startedAt - serverNow) / 1000),
@@ -921,6 +932,23 @@ export const useRoomProviderSocketLifecycle = ({
             return gate;
           });
         },
+        onGameReturnedToLobby: ({ roomId, serverNow }) => {
+          if (roomId !== currentRoomIdRef.current) return;
+
+          syncServerOffset(serverNow);
+          debugSync("gameReturnedToLobby", {
+            roomId,
+            serverNow,
+            nextServerOffsetMs: serverNow - Date.now(),
+          });
+
+          resetGameSyncVersion();
+          setGameState(null);
+          setIsGameView(false);
+          setGamePlaylist([]);
+          setPostResumeGate(null);
+          setStatusText("已回到房間");
+        },
         onRoomUpdated: ({ room }) => {
           applyIncomingRoomSummary(room);
         },
@@ -960,7 +988,11 @@ export const useRoomProviderSocketLifecycle = ({
           if (roomId !== currentRoomIdRef.current) return;
           setSettlementHistory(settlementHistory);
         },
-        onSettlementRankChange: ({ roomId, roundKey, rankChangeByClientId }) => {
+        onSettlementRankChange: ({
+          roomId,
+          roundKey,
+          rankChangeByClientId,
+        }) => {
           if (roomId !== currentRoomIdRef.current) return;
           mergeRankChange(roundKey, rankChangeByClientId);
         },

@@ -104,6 +104,7 @@ export interface ClientToServerEvents {
       guessDurationMs?: number;
       revealDurationMs?: number;
       showVideo?: boolean;
+      forceRestart?: boolean;
     },
     callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
   ) => void;
@@ -116,6 +117,17 @@ export interface ClientToServerEvents {
     callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
   ) => void;
   castPlaybackExtensionVote: (
+    payload: { roomId: string; vote: "approve" | "reject" },
+    callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
+  ) => void;
+  requestRestartGameVote: (
+    payload: {
+      roomId: string;
+      action?: "return_to_lobby" | "restart_now";
+    },
+    callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
+  ) => void;
+  castRestartGameVote: (
     payload: { roomId: string; vote: "approve" | "reject" },
     callback?: (ack: Ack<GameLiveUpdatePayload>) => void,
   ) => void;
@@ -269,6 +281,7 @@ export interface ServerToClientEvents {
   messageAdded: (payload: { roomId: string; message: ChatMessage }) => void;
   gameStarted: (payload: GameLiveUpdatePayload) => void;
   gameUpdated: (payload: GameLiveUpdatePayload) => void;
+  gameReturnedToLobby: (payload: { roomId: string; serverNow: number }) => void;
   roomUpdated: (payload: { room: RoomSummary }) => void;
   kicked: (payload: {
     roomId: string;

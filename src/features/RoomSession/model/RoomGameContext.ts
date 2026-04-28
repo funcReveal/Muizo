@@ -5,6 +5,7 @@ import type {
   GameSyncVersion,
   PlaybackExtensionMode,
   PlaylistItem,
+  RestartGameVoteAction,
   SubmitAnswerResult,
 } from "./types";
 
@@ -26,6 +27,7 @@ export interface RoomGameContextValue {
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
   // 遊戲操作
   handleStartGame: () => void;
+  handleRestartGame: () => void;
   handleSubmitChoice: (choiceIndex: number) => Promise<SubmitAnswerResult>;
   handleRequestPlaybackExtensionVote: (
     remainingMs?: number,
@@ -33,6 +35,10 @@ export interface RoomGameContextValue {
   handleCastPlaybackExtensionVote: (
     vote: "approve" | "reject",
   ) => Promise<boolean>;
+  handleRequestRestartGameVote: (
+    action: RestartGameVoteAction,
+  ) => Promise<boolean>;
+  handleCastRestartGameVote: (vote: "approve" | "reject") => Promise<boolean>;
   handleUpdateRoomSettings: (payload: {
     name?: string;
     visibility?: "public" | "private";
