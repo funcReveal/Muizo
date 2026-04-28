@@ -25849,3 +25849,39 @@
     animation: none;
   }
 }
+
+.game-room-mobile-toggle-chip--request-locked {
+  position: relative;
+  color: rgba(226, 232, 240, 0.68);
+  border-color: rgba(51, 65, 85, 0.95);
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.game-room-mobile-toggle-chip--request-locked::after {
+  content: none;
+}
+
+.game-room-mobile-toggle-chip--request-locked .game-room-mobile-action-icon {
+  color: rgba(251, 191, 36, 0.78);
+}
+
+.game-room-mobile-toggle-chip--request-locked:disabled {
+  opacity: 1;
+}
+
+.game-room-mobile-toggle-chip__lock-corner {
+  position: absolute;
+  top: -5px;
+  right: 0.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.85rem;
+  height: 0.85rem;
+  font-size: 0.68rem;
+  color: rgba(251, 191, 36, 0.82);
+  pointer-events: none;
+}
