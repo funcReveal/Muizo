@@ -164,7 +164,7 @@ const JoinRoomPanel = ({
   handleConfirmJoinWithPassword,
 }: JoinRoomPanelProps) => {
   const JOIN_ROOM_BATCH_SIZE = 12;
-  const JOIN_ROOM_LIST_ROW_HEIGHT = 204;
+  const JOIN_ROOM_LIST_ROW_HEIGHT = 148;
   const joinStatusOptions: Array<{
     key: JoinStatusFilter;
     label: string;
@@ -367,37 +367,149 @@ const JoinRoomPanel = ({
   ) => {
     const isLeaderboardRoom = roomIsLeaderboardChallenge(room);
     const requiresLogin = isLeaderboardRoom && !isAuthenticated;
+    const maxPlayers =
+      typeof room.maxPlayers === "number" && room.maxPlayers > 0
+        ? room.maxPlayers
+        : null;
+    const isRoomFull = maxPlayers !== null && room.playerCount >= maxPlayers;
+    const roomProgressLabel = getRoomProgressLabel(room);
+    const playerCapacityLabel = `${room.playerCount}${maxPlayers ? `/${maxPlayers}` : ""}`;
+    const handleRoomAction = () => {
+      if (isRoomFull) return;
+      handleJoinRoomEntry(room);
+    };
+    const statusPillClass = isRoomFull
+      ? "border-rose-300/45 bg-rose-400/12 text-rose-100"
+      : isRoomCurrentlyPlaying(room)
+        ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+        : "border-slate-300/20 bg-slate-400/10 text-slate-200";
+
+    if (view === "list") {
+      return (
+        <div
+          key={room.id}
+          role="button"
+          tabIndex={isRoomFull ? -1 : 0}
+          aria-disabled={isRoomFull}
+          onClick={handleRoomAction}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              handleRoomAction();
+            }
+          }}
+          className={`relative h-[140px] rounded-2xl border px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 ${
+            isRoomFull
+              ? "cursor-not-allowed border-rose-300/35 bg-[linear-gradient(180deg,rgba(127,29,29,0.18),rgba(15,23,42,0.28))] text-slate-300"
+              : isLeaderboardRoom
+                ? "cursor-pointer border-amber-300/22 bg-[linear-gradient(180deg,rgba(31,22,8,0.34),rgba(15,23,42,0.25))] hover:border-amber-300/42 hover:bg-slate-900/34 focus-visible:border-amber-300/60 focus-visible:ring-amber-300/25"
+                : "cursor-pointer border-[var(--mc-border)] bg-slate-950/25 hover:border-amber-300/35 hover:bg-slate-900/30 focus-visible:border-amber-300/55 focus-visible:ring-amber-300/25"
+          }`}
+        >
+          <div className="flex h-full min-w-0 items-stretch gap-3">
+            <div
+              className={`flex w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-xl border ${
+                isRoomFull
+                  ? "border-rose-300/35 bg-rose-400/10 text-rose-50"
+                  : "border-white/10 bg-white/[0.04] text-amber-50"
+              }`}
+            >
+              <GroupsRounded sx={{ fontSize: 18 }} />
+              <span className="mt-1 text-sm font-semibold leading-none">
+                {playerCapacityLabel}
+              </span>
+              <span className="mt-1 text-[10px] font-semibold text-[var(--mc-text-muted)]/85">
+                {isRoomFull ? "滿房" : "玩家"}
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold leading-5 text-[var(--mc-text)]">
+                    {room.name}
+                  </p>
+                  <p
+                    className="mt-0.5 truncate text-[11px] text-[var(--mc-text-muted)]/82"
+                    title={getRoomPlaylistLabel(room)}
+                  >
+                    {getRoomPlaylistLabel(room)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${statusPillClass}`}
+                >
+                  {getRoomStatusLabel(room)}
+                </span>
+              </div>
+
+              <div className="mt-2 flex min-h-6 flex-wrap items-center gap-1.5 text-[11px]">
+                {isLeaderboardRoom ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/24 bg-amber-300/10 px-2 py-0.5 font-semibold text-amber-100">
+                    <EmojiEventsRounded sx={{ fontSize: 13 }} />
+                    排行
+                  </span>
+                ) : null}
+                {requiresLogin && !isRoomFull ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200/22 bg-cyan-300/8 px-2 py-0.5 font-semibold text-cyan-100">
+                    <LoginRounded sx={{ fontSize: 13 }} />
+                    需登入
+                  </span>
+                ) : null}
+                {roomRequiresPin(room) ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/20 bg-amber-300/8 px-2 py-0.5 font-semibold text-amber-100">
+                    <LockRounded sx={{ fontSize: 13 }} />
+                    PIN
+                  </span>
+                ) : null}
+                {roomProgressLabel ? (
+                  <span className="truncate text-emerald-200/85">
+                    {roomProgressLabel}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-[var(--mc-text-muted)]">
+                <span className="truncate">
+                  {room.gameSettings?.questionCount ?? "-"} 題
+                </span>
+                <span className="truncate">
+                  公布 {room.gameSettings?.revealDurationSec ?? "-"}s
+                </span>
+                <span className="truncate text-right">
+                  {formatRoomCodeDisplay(room.roomCode)}
+                </span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div
         key={room.id}
         role="button"
-        tabIndex={0}
-        onClick={() => handleJoinRoomEntry(room)}
+        tabIndex={isRoomFull ? -1 : 0}
+        aria-disabled={isRoomFull}
+        onClick={handleRoomAction}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            handleJoinRoomEntry(room);
+            handleRoomAction();
           }
         }}
-        className={`relative cursor-pointer rounded-2xl border text-left transition focus:outline-none focus-visible:ring-2 ${
-          isLeaderboardRoom
+        className={`relative rounded-2xl border p-4 text-left transition focus:outline-none focus-visible:ring-2 ${
+          isRoomFull
+            ? "cursor-not-allowed border-rose-300/35 bg-[linear-gradient(180deg,rgba(127,29,29,0.18),rgba(15,23,42,0.28))] text-slate-300"
+            : isLeaderboardRoom
             ? "border-amber-300/22 bg-[linear-gradient(180deg,rgba(31,22,8,0.34),rgba(15,23,42,0.25))] hover:border-amber-300/42 hover:bg-slate-900/34 focus-visible:border-amber-300/60 focus-visible:ring-amber-300/25"
             : "border-[var(--mc-border)] bg-slate-950/25 hover:border-amber-300/35 hover:bg-slate-900/30 focus-visible:border-amber-300/55 focus-visible:ring-amber-300/25"
-        } ${view === "grid" ? "p-4" : "h-[204px] px-4 py-3"}`}
+        }`}
       >
-        <div
-          className={`${
-            view === "grid"
-              ? "space-y-3"
-              : "flex h-full flex-wrap items-center gap-4"
-          }`}
-        >
-          <div
-            className={`${
-              view === "grid" ? "space-y-3" : "min-w-0 flex-1 space-y-2.5"
-            }`}
-          >
+        <div className="space-y-3">
+          <div className="space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[var(--mc-text)] sm:text-[15px]">
@@ -410,42 +522,48 @@ const JoinRoomPanel = ({
                       排行挑戰
                     </span>
                   ) : null}
-                  {requiresLogin ? (
+                  {requiresLogin && !isRoomFull ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200/22 bg-cyan-300/8 px-2 py-0.5 font-semibold text-cyan-100">
                       <LoginRounded sx={{ fontSize: 13 }} />
                       登入後可加入
                     </span>
                   ) : null}
-                  {getRoomProgressLabel(room) ? (
+                  {roomProgressLabel ? (
                     <span className="text-emerald-200/85">
-                      {getRoomProgressLabel(room)}
+                      {roomProgressLabel}
                     </span>
                   ) : null}
                 </div>
               </div>
               <span
-                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
-                  isRoomCurrentlyPlaying(room)
-                    ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
-                    : "border-slate-300/20 bg-slate-400/10 text-slate-200"
-                }`}
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${statusPillClass}`}
               >
                 {getRoomStatusLabel(room)}
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--mc-text-muted)]">
-              <span className="inline-flex items-center gap-1.5">
-                <GroupsRounded sx={{ fontSize: 15 }} />
-                <span>
-                  {room.playerCount}
-                  {room.maxPlayers ? `/${room.maxPlayers}` : ""} 人
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--mc-text-muted)]">
+                <span className="inline-flex items-center gap-1.5">
+                  <GroupsRounded
+                    sx={{
+                      fontSize: 15,
+                      color: isRoomFull ? "rgba(254, 202, 202, 0.95)" : undefined,
+                    }}
+                  />
+                  <span
+                    className={
+                      isRoomFull ? "font-semibold text-rose-100" : undefined
+                    }
+                  >
+                    {playerCapacityLabel} 人{isRoomFull ? "，已滿" : ""}
+                  </span>
                 </span>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <QuizRounded sx={{ fontSize: 15 }} />
-                <span>{room.gameSettings?.questionCount ?? "-"} 題</span>
-              </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <QuizRounded sx={{ fontSize: 15 }} />
+                  <span>{room.gameSettings?.questionCount ?? "-"} 題</span>
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-[var(--mc-text-muted)]/90">
@@ -511,7 +629,7 @@ const JoinRoomPanel = ({
             </p>
           </div>
         </div>
-        {requiresLogin ? (
+        {requiresLogin && !isRoomFull ? (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 flex justify-end">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/20 bg-slate-950/80 px-2.5 py-1 text-[11px] font-semibold text-cyan-50 shadow-[0_12px_26px_-22px_rgba(34,211,238,0.85)]">
               <LoginRounded sx={{ fontSize: 14 }} />
@@ -526,7 +644,7 @@ const JoinRoomPanel = ({
               color: "rgba(250, 204, 21, 0.92)",
             }}
             className={`pointer-events-none absolute right-3 ${
-              requiresLogin ? "bottom-10" : "bottom-3"
+              requiresLogin || isRoomFull ? "bottom-10" : "bottom-3"
             }`}
           />
         ) : null}

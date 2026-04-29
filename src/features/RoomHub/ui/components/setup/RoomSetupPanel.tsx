@@ -176,6 +176,7 @@ const RoomSetupPanel = ({
       modeKey: mode.key,
       variantKey: variant.key,
       label: variant.label,
+      minQuestionCount: variant.minQuestionCount,
     })),
   }));
   const leaderboardChallengeOptions = leaderboardChallengeGroups.flatMap(
@@ -188,6 +189,8 @@ const RoomSetupPanel = ({
   const activeLeaderboardModeDescription = getLeaderboardModeDescription(
     selectedLeaderboardMode,
   );
+  const activeLeaderboardMinimumQuestionCount =
+    activeLeaderboardOption.minQuestionCount;
   const isLeaderboardSourceAvailable =
     roomCreateSourceMode === "publicCollection";
   const isLeaderboardChallengeAvailable =
@@ -207,6 +210,11 @@ const RoomSetupPanel = ({
   const isMaxPlayersLocked = isTimeAttackLeaderboardRoom;
   const isLeaderboardSettingsLocked = isLeaderboardRoom;
   const isQuestionCountLocked = isLeaderboardSettingsLocked;
+  const activeLeaderboardQuestionCountShortage =
+    isLeaderboardRoom &&
+    questionMaxLimit < activeLeaderboardMinimumQuestionCount
+      ? activeLeaderboardMinimumQuestionCount - questionMaxLimit
+      : 0;
   const hasPinLengthError =
     pinValidationAttempted &&
     isPinProtectionOpen &&
@@ -289,6 +297,10 @@ const RoomSetupPanel = ({
     modeKey: LeaderboardModeKey,
     variantKey: LeaderboardVariantKey,
   ) => {
+    const variant = leaderboardVariants[modeKey].find(
+      (item) => item.key === variantKey,
+    );
+    if (variant && questionMaxLimit < variant.minQuestionCount) return;
     setRoomPlayMode("leaderboard");
     onLeaderboardSelectionChange(modeKey, variantKey);
     setIsLeaderboardSpecMenuOpen(false);
@@ -709,20 +721,23 @@ const RoomSetupPanel = ({
                           {group.options.map((option) => {
                             const selected =
                               option.variantKey === selectedLeaderboardVariant;
+                            const disabled =
+                              questionMaxLimit < option.minQuestionCount;
                             return (
                               <button
                                 key={option.variantKey}
                                 type="button"
                                 role="option"
                                 aria-selected={selected}
+                                disabled={disabled}
                                 onClick={() =>
                                   handleLeaderboardOptionSelect(
                                     option.modeKey,
                                     option.variantKey,
                                   )
                                 }
-                                className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
-                                  selected
+                                className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                                  selected && !disabled
                                     ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
                                     : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
                                 }`}
@@ -731,8 +746,14 @@ const RoomSetupPanel = ({
                                   <span className="block truncate text-sm font-semibold">
                                     {option.label}
                                   </span>
+                                  {disabled ? (
+                                    <span className="mt-0.5 block text-[11px] font-medium text-amber-100/58">
+                                      需要 {option.minQuestionCount} 題，目前{" "}
+                                      {questionMaxLimit} 題
+                                    </span>
+                                  ) : null}
                                 </span>
-                                {selected ? (
+                                {selected && !disabled ? (
                                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
                                 ) : null}
                               </button>
@@ -769,6 +790,13 @@ const RoomSetupPanel = ({
                 不使用延長投票
               </span>
             </div>
+          </div>
+        ) : null}
+        {activeLeaderboardQuestionCountShortage > 0 ? (
+          <div className="mb-4 rounded-2xl border border-rose-300/22 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100">
+            這個排行規格至少需要 {activeLeaderboardMinimumQuestionCount} 題，目前
+            只有 {questionMaxLimit} 題，還差{" "}
+            {activeLeaderboardQuestionCountShortage} 題。
           </div>
         ) : null}
         <div className="grid gap-5 lg:grid-cols-2">

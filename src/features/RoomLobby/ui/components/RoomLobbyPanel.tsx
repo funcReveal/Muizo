@@ -615,7 +615,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const leaderboardCollectionOnlyReason = "排行挑戰僅支援收藏庫";
   const canUseLeaderboard30 = questionMaxLimit >= 30;
   const canUseLeaderboard50 = questionMaxLimit >= 50;
-  const canUseLeaderboard15m = participants.length <= 1;
+  const canUseLeaderboard15m = questionMaxLimit >= 50 && participants.length <= 1;
   const canUseAnyLeaderboardVariant =
     canUseLeaderboard30 || canUseLeaderboard50 || canUseLeaderboard15m;
   const selfParticipant = participants.find(
@@ -630,7 +630,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     : roomHasGuest
       ? "房內有訪客時，不能切換成排行挑戰。"
       : !canUseAnyLeaderboardVariant
-        ? "多人排行至少需要 30 首收藏庫曲目；15 分鐘限時僅能單人進行。"
+        ? "排行挑戰需要足夠題數；30 題至少 30 首，50 題與 15 分鐘至少 50 首。"
         : null;
   const leaderboardQuestionHelpText = !canUseLeaderboard30
     ? "目前歌單少於 30 首，因此排行榜預設模式會受到限制。"
@@ -1533,53 +1533,67 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       ? roomPassword
       : maskedRoomPassword
     : "****";
-  const roomMetaItems: RoomMetaItem[] = [
-    {
-      key: "mode",
-      label: "遊戲模式",
-      value: isLeaderboardRoom ? "排行挑戰" : "休閒派對",
-      icon: isLeaderboardRoom ? (
-        <EmojiEventsRoundedIcon fontSize="small" />
-      ) : (
-        <ChairRoundedIcon fontSize="small" />
-      ),
-      tone: isLeaderboardRoom ? "amber" : "cyan",
-    },
-    {
-      key: "questions",
-      label: "題數",
-      value: String(currentRoom?.gameSettings?.questionCount ?? "-"),
-      icon: <QuizRoundedIcon fontSize="small" />,
-      tone: "amber",
-    },
-    {
-      key: "timing",
-      label: "作答時間",
-      value:
-        isLeaderboardRoom || roomAllowCollectionClipTiming
-          ? "依收藏庫設定"
-          : `${roomPlayDurationSec}s`,
-      icon: <HourglassTopRoundedIcon fontSize="small" />,
-      tone: "cyan",
-    },
-    {
-      key: "start-offset",
-      label: "起始時間",
-      value:
-        isLeaderboardRoom || roomAllowCollectionClipTiming
-          ? "依收藏庫設定"
-          : `${roomStartOffsetSec}s`,
-      icon: <FastForwardRoundedIcon fontSize="small" />,
-      tone: "cyan",
-    },
-    {
-      key: "reveal",
-      label: "公布時間",
-      value: `${roomRevealDurationSec}s`,
-      icon: <TimerRoundedIcon fontSize="small" />,
-      tone: "cyan",
-    },
-  ];
+  const leaderboardModeLabel =
+    currentRoomLeaderboardVariant === "15m" ? "限時挑戰" : "經典排行";
+  const leaderboardVariantLabel =
+    currentRoomLeaderboardVariant === "15m"
+      ? "15 分鐘"
+      : currentRoomLeaderboardVariant === "50q"
+        ? "50 題"
+        : currentRoomLeaderboardVariant === "30q"
+          ? "30 題"
+          : "固定規格";
+  const roomMetaItems: RoomMetaItem[] = isLeaderboardRoom
+    ? [
+        {
+          key: "mode",
+          label: "排行挑戰",
+          value: `${leaderboardModeLabel} · ${leaderboardVariantLabel}`,
+          icon: <EmojiEventsRoundedIcon fontSize="small" />,
+          tone: "amber",
+        },
+      ]
+    : [
+        {
+          key: "mode",
+          label: "遊戲模式",
+          value: "休閒派對",
+          icon: <ChairRoundedIcon fontSize="small" />,
+          tone: "cyan",
+        },
+        {
+          key: "questions",
+          label: "題數",
+          value: String(currentRoom?.gameSettings?.questionCount ?? "-"),
+          icon: <QuizRoundedIcon fontSize="small" />,
+          tone: "amber",
+        },
+        {
+          key: "timing",
+          label: "作答時間",
+          value: roomAllowCollectionClipTiming
+            ? "依收藏庫設定"
+            : `${roomPlayDurationSec}s`,
+          icon: <HourglassTopRoundedIcon fontSize="small" />,
+          tone: "cyan",
+        },
+        {
+          key: "start-offset",
+          label: "起始時間",
+          value: roomAllowCollectionClipTiming
+            ? "依收藏庫設定"
+            : `${roomStartOffsetSec}s`,
+          icon: <FastForwardRoundedIcon fontSize="small" />,
+          tone: "cyan",
+        },
+        {
+          key: "reveal",
+          label: "公布時間",
+          value: `${roomRevealDurationSec}s`,
+          icon: <TimerRoundedIcon fontSize="small" />,
+          tone: "cyan",
+        },
+      ];
   if (hasRoomPassword) {
     roomMetaItems.push({
       key: "password",
@@ -2490,7 +2504,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         }}
         canUseLeaderboard30={canUseLeaderboard30}
         canUseLeaderboard50={canUseLeaderboard50}
-        canUseLeaderboard15m={participants.length <= 1}
+        canUseLeaderboard15m={canUseLeaderboard15m}
         leaderboardModeLockedReason={leaderboardModeLockedReason}
         leaderboardQuestionHelpText={leaderboardQuestionHelpText}
         settingsError={settingsError}

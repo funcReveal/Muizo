@@ -228,10 +228,11 @@ const challengeOptions: Array<{
   key: LeaderboardVariantKey;
   label: string;
   summary: string;
+  minQuestionCount: number;
 }> = [
-  { key: "30q", label: "30 題", summary: "固定 30 題" },
-  { key: "50q", label: "50 題", summary: "固定 50 題" },
-  { key: "15m", label: "15 分鐘", summary: "限時模式" },
+  { key: "30q", label: "30 題", summary: "固定 30 題", minQuestionCount: 30 },
+  { key: "50q", label: "50 題", summary: "固定 50 題", minQuestionCount: 50 },
+  { key: "15m", label: "15 分鐘", summary: "限時模式", minQuestionCount: 50 },
 ];
 
 const playbackExtensionOptions: Array<{
@@ -1115,10 +1116,17 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                       >
                         {challengeOptions.map((option) => {
                           const selected = option.key === leaderboardVariant;
+                          const hasEnoughQuestions =
+                            questionMaxLimit >= option.minQuestionCount;
                           const disabled =
                             (option.key === "30q" && !canUseLeaderboard30) ||
                             (option.key === "50q" && !canUseLeaderboard50) ||
                             (option.key === "15m" && !canUseLeaderboard15m);
+                          const disabledHint = !hasEnoughQuestions
+                            ? `需要 ${option.minQuestionCount} 題，目前 ${questionMaxLimit} 題`
+                            : option.key === "15m"
+                              ? "15 分鐘限時僅能單人進行"
+                              : option.summary;
 
                           return (
                             <button
@@ -1145,13 +1153,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
                                   {option.label}
                                 </span>
                                 <span className="mt-0.5 block truncate text-xs text-slate-400">
-                                  {disabled
-                                    ? option.key === "30q"
-                                      ? "目前歌單不足 30 首"
-                                      : option.key === "50q"
-                                        ? "目前歌單不足 50 首"
-                                        : "限時挑戰僅能單人進行"
-                                    : option.summary}
+                                  {disabled ? disabledHint : option.summary}
                                 </span>
                               </span>
                               {selected ? (

@@ -23,7 +23,7 @@ export type SiteAnnouncement = {
 
 export const SITE_ANNOUNCEMENT: SiteAnnouncement = {
   id: "maintenance-2026-04-29",
-  enabled: true,
+  enabled: false,
   severity: "maintenance",
   title: "維護公告",
   shortMessage: "4/29 02:00 短暫重啟",
@@ -32,7 +32,7 @@ export const SITE_ANNOUNCEMENT: SiteAnnouncement = {
     "我們會在該時段短暫重啟服務，以套用最新更新並改善排行榜與收藏庫體驗。",
   startsAt: null,
   endsAt: null,
-  maintenanceWindowLabel: "4/29 03:30",
+  maintenanceWindowLabel: "4/29 02:00",
   expectedDurationLabel: "約 1～3 分鐘",
   impactItems: [
     "重啟期間可能會短暫無法進入房間",
@@ -40,8 +40,8 @@ export const SITE_ANNOUNCEMENT: SiteAnnouncement = {
     "建議避開這段時間開始排行榜挑戰",
   ],
   updateItems: [
-    "排行榜顯示最佳排名與總參與數",
-    "排行榜前三名增加更清楚的視覺標示",
+    "排行榜顯示最佳排名與總人數",
+    "添加返回房間和重新開始",
     "優化收藏庫與排行榜 Drawer 的資訊呈現",
   ],
   note: "如果重啟後頁面沒有自動恢復，請重新整理頁面。",

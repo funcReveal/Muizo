@@ -69,6 +69,7 @@ import {
   DEFAULT_LEADERBOARD_VARIANT,
   DEFAULT_ROOM_PLAY_MODE,
   getLeaderboardProfileKey,
+  getLeaderboardVariant,
   leaderboardVariants,
   type LeaderboardModeKey,
   type LeaderboardVariantKey,
@@ -806,9 +807,17 @@ const RoomsHubPage: React.FC = () => {
       parsedMaxPlayers > PLAYER_MAX);
   const pinInvalid =
     isPinProtectionEnabled && !/^\d{4}$/.test(roomPasswordInput.trim());
+  const selectedLeaderboardMinimumQuestionCount = getLeaderboardVariant(
+    selectedLeaderboardMode,
+    selectedLeaderboardVariant,
+  ).minQuestionCount;
+  const leaderboardQuestionCountInvalid =
+    roomPlayMode === "leaderboard" &&
+    playlistItems.length < selectedLeaderboardMinimumQuestionCount;
   const canCreateRoom =
     Boolean(roomNameInput.trim()) &&
     playlistItems.length >= questionMin &&
+    !leaderboardQuestionCountInvalid &&
     !playlistLoading &&
     !maxPlayersInvalid &&
     !isCreatingRoom;
@@ -995,9 +1004,11 @@ const RoomsHubPage: React.FC = () => {
       ? "請先準備題庫內容，才能建立房間。"
       : playlistItems.length < questionMin
         ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
-        : maxPlayersInvalid
-          ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
-          : null;
+        : leaderboardQuestionCountInvalid
+          ? `這個排行規格至少需要 ${selectedLeaderboardMinimumQuestionCount} 題，目前只有 ${playlistItems.length} 題。`
+          : maxPlayersInvalid
+            ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
+            : null;
   const createRecommendationHintText =
     !createRequirementsHintText &&
     playlistItems.length >= questionMin &&
