@@ -718,6 +718,11 @@ const RoomsHubPage: React.FC = () => {
     [playlistPreviewMeta],
   );
   const sharedCollectionId = searchParams.get("sharedCollection");
+  const sharedCollectionFromList = useMemo(() => {
+    if (!sharedCollectionId) return null;
+
+    return collections.find((item) => item.id === sharedCollectionId) ?? null;
+  }, [collections, sharedCollectionId]);
   const { handledSharedCollectionRef } = useSharedCollectionEntry({
     sharedCollectionId,
     roomCreateSourceMode,
@@ -738,6 +743,18 @@ const RoomsHubPage: React.FC = () => {
     fetchCollectionById,
     openCollectionDrawer: handleOpenCollectionDetailDrawer,
   });
+  useEffect(() => {
+    if (!sharedCollectionId) return;
+    if (!sharedCollectionFromList) return;
+    if (detailCollectionId === sharedCollectionId) return;
+
+    handleOpenCollectionDetailDrawer(sharedCollectionFromList);
+  }, [
+    detailCollectionId,
+    handleOpenCollectionDetailDrawer,
+    sharedCollectionFromList,
+    sharedCollectionId,
+  ]);
   const {
     isLinkSourceActive,
     trimmedPlaylistUrlDraft,
@@ -2077,7 +2094,7 @@ const RoomsHubPage: React.FC = () => {
         </section>
       )}
       <CollectionDetailDrawer
-        open={Boolean(detailCollection)}
+        open={Boolean(detailCollectionId)}
         collection={detailCollection}
         isPublicLibraryTab={createLibraryTab === "public"}
         isApplying={collectionItemsLoading}
