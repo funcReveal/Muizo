@@ -44,22 +44,11 @@ type UseSharedCollectionEntryArgs = {
 
 export const useSharedCollectionEntry = ({
   sharedCollectionId,
-  roomCreateSourceMode,
-  selectedCreateCollectionId,
-  playlistItemsLength,
-  playlistLoading,
-  collectionItemsError,
   setGuideMode,
   setCreateLibraryTab,
   setCreateLeftTab,
-  setRoomCreateSourceMode,
-  updateAllowCollectionClipTiming,
-  setSelectedCreateYoutubeId,
-  setSelectedCreateCollectionId,
   setSharedCollectionMeta,
-  handleResetPlaylist,
   fetchCollectionById,
-  loadCollectionItems,
   openCollectionDrawer,
 }: UseSharedCollectionEntryArgs) => {
   const handledSharedCollectionRef = useRef<string | null>(null);
@@ -70,14 +59,8 @@ export const useSharedCollectionEntry = ({
     setGuideMode,
     setCreateLibraryTab,
     setCreateLeftTab,
-    setRoomCreateSourceMode,
-    updateAllowCollectionClipTiming,
-    setSelectedCreateYoutubeId,
-    setSelectedCreateCollectionId,
     setSharedCollectionMeta,
-    handleResetPlaylist,
     fetchCollectionById,
-    loadCollectionItems,
     openCollectionDrawer,
   });
 
@@ -86,29 +69,17 @@ export const useSharedCollectionEntry = ({
       setGuideMode,
       setCreateLibraryTab,
       setCreateLeftTab,
-      setRoomCreateSourceMode,
-      updateAllowCollectionClipTiming,
-      setSelectedCreateYoutubeId,
-      setSelectedCreateCollectionId,
       setSharedCollectionMeta,
-      handleResetPlaylist,
       fetchCollectionById,
-      loadCollectionItems,
       openCollectionDrawer,
     };
   }, [
     fetchCollectionById,
-    handleResetPlaylist,
-    loadCollectionItems,
     openCollectionDrawer,
     setCreateLeftTab,
     setCreateLibraryTab,
     setGuideMode,
-    setRoomCreateSourceMode,
-    setSelectedCreateCollectionId,
-    setSelectedCreateYoutubeId,
     setSharedCollectionMeta,
-    updateAllowCollectionClipTiming,
   ]);
 
   useEffect(() => {
@@ -135,16 +106,11 @@ export const useSharedCollectionEntry = ({
     handlers.setGuideMode("create");
     handlers.setCreateLibraryTab("public");
     handlers.setCreateLeftTab("library");
-    handlers.updateAllowCollectionClipTiming(true);
-    handlers.setRoomCreateSourceMode("publicCollection");
-    handlers.setSelectedCreateYoutubeId(null);
-    handlers.setSelectedCreateCollectionId(signature);
     handlers.setSharedCollectionMeta({
       id: signature,
       title: "分享收藏庫",
       scope: "public",
     });
-    handlers.handleResetPlaylist();
 
     void (async () => {
       const collection =
@@ -175,10 +141,6 @@ export const useSharedCollectionEntry = ({
 
       handledSharedCollectionRef.current = signature;
       inFlightSharedCollectionRef.current = null;
-
-      void latestHandlersRef.current.loadCollectionItems(collection.id, {
-        force: true,
-      });
     })();
 
     return () => {
@@ -189,25 +151,6 @@ export const useSharedCollectionEntry = ({
       }
     };
   }, [sharedCollectionId]);
-
-  useEffect(() => {
-    if (!sharedCollectionId) return;
-    if (roomCreateSourceMode !== "publicCollection") return;
-    if (selectedCreateCollectionId !== sharedCollectionId) return;
-    if (playlistItemsLength > 0 || playlistLoading) return;
-    if (collectionItemsError) return;
-
-    void latestHandlersRef.current.loadCollectionItems(sharedCollectionId, {
-      force: true,
-    });
-  }, [
-    collectionItemsError,
-    playlistItemsLength,
-    playlistLoading,
-    roomCreateSourceMode,
-    selectedCreateCollectionId,
-    sharedCollectionId,
-  ]);
 
   return {
     handledSharedCollectionRef,
