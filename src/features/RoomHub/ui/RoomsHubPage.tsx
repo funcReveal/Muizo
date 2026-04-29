@@ -225,6 +225,12 @@ type RoomHubSetupPreferences = {
   playbackExtensionMode?: PlaybackExtensionMode;
 };
 
+type CollectionDetailDrawerState = {
+  collectionId: string;
+  collection: CollectionEntry;
+  source: "manual" | "sharedLink";
+} | null;
+
 const isRoomPlayMode = (value: unknown): value is RoomPlayMode =>
   value === "casual" || value === "leaderboard";
 
@@ -356,32 +362,32 @@ const RoomsHubPage: React.FC = () => {
     return stored === "join" ? "join" : "create";
   });
   const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] = useState(false);
-  const [detailCollectionId, setDetailCollectionId] = useState<string | null>(
-    null,
-  );
-  const [detailCollectionOverride, setDetailCollectionOverride] =
-    useState<CollectionEntry | null>(null);
-  const [detailDrawerSource, setDetailDrawerSource] = useState<
-    "manual" | "sharedLink" | null
-  >(null);
+  const [detailDrawerState, setDetailDrawerState] =
+    useState<CollectionDetailDrawerState>(null);
+
+  const detailCollectionId = detailDrawerState?.collectionId ?? null;
+  const detailCollectionOverride = detailDrawerState?.collection ?? null;
+
   const handleOpenCollectionDetailDrawer = useCallback(
     (
       collection: CollectionEntry,
       source: "manual" | "sharedLink" = "manual",
     ) => {
-      setDetailCollectionOverride(collection);
-      handleOpenCollectionDetailDrawer(collection, "manual");
-      setDetailDrawerSource(source);
+      setDetailDrawerState({
+        collectionId: collection.id,
+        collection,
+        source,
+      });
     },
     [],
   );
   const handleCloseCollectionDetailDrawer = useCallback(() => {
     const closingSharedCollectionId =
-      detailDrawerSource === "sharedLink" ? detailCollectionId : null;
+      detailDrawerState?.source === "sharedLink"
+        ? detailDrawerState.collectionId
+        : null;
 
-    setDetailCollectionId(null);
-    setDetailCollectionOverride(null);
-    setDetailDrawerSource(null);
+    setDetailDrawerState(null);
 
     if (!closingSharedCollectionId) return;
 
@@ -398,7 +404,7 @@ const RoomsHubPage: React.FC = () => {
       },
       { replace: true },
     );
-  }, [detailCollectionId, detailDrawerSource, navigate, searchParams]);
+  }, [detailDrawerState, navigate, searchParams]);
   const [sourceSetupDrawer, setSourceSetupDrawer] = useState<{
     kind: "youtube" | "link";
     summary: NonNullable<SourceSummary>;
@@ -1276,7 +1282,7 @@ const RoomsHubPage: React.FC = () => {
         isPublicLibraryTab={createLibraryTab === "public"}
         isFavoriteUpdating={collectionFavoriteUpdatingId === collection.id}
         onSelect={() => {
-          setDetailCollectionId(collection.id);
+          handleOpenCollectionDetailDrawer(collection, "manual");
         }}
         onToggleFavorite={
           createLibraryTab === "public"
@@ -1334,7 +1340,7 @@ const RoomsHubPage: React.FC = () => {
   }, [authUser]);
 
   useEffect(() => {
-    setDetailCollectionId(null);
+    setDetailDrawerState(null);
     setSourceSetupDrawer(null);
   }, [createLibraryTab, guideMode]);
 
@@ -1392,7 +1398,7 @@ const RoomsHubPage: React.FC = () => {
     options?: { keepDetailDrawerOpen?: boolean },
   ) => {
     if (!options?.keepDetailDrawerOpen) {
-      setDetailCollectionId(null);
+      setDetailDrawerState(null);
     }
     setRoomCreateSourceMode(
       scope === "public" ? "publicCollection" : "privateCollection",

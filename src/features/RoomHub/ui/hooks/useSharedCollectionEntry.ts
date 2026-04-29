@@ -65,7 +65,10 @@ export const useSharedCollectionEntry = ({
   const handledSharedCollectionRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!sharedCollectionId) return;
+    if (!sharedCollectionId) {
+      handledSharedCollectionRef.current = null;
+      return;
+    }
 
     const signature = sharedCollectionId;
 
@@ -127,7 +130,10 @@ export const useSharedCollectionEntry = ({
   ]);
 
   useEffect(() => {
-    if (!sharedCollectionId) return;
+    if (!sharedCollectionId) {
+      handledSharedCollectionRef.current = null;
+      return;
+    }
     if (roomCreateSourceMode !== "publicCollection") return;
     if (selectedCreateCollectionId !== sharedCollectionId) return;
     if (playlistItemsLength > 0 || playlistLoading) return;
