@@ -19,7 +19,7 @@ import LockOutlined from "@mui/icons-material/LockOutlined";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import QuizRounded from "@mui/icons-material/QuizRounded";
 import ShareRounded from "@mui/icons-material/ShareRounded";
-import StarBorderRounded from "@mui/icons-material/StarBorderRounded";
+import FavoriteBorderRounded from "@mui/icons-material/FavoriteBorderRounded";
 import { useAuth } from "@/shared/auth/AuthContext";
 import { isAdminRole } from "@/shared/auth/roles";
 import { ensureFreshAuthToken } from "@/shared/auth/token";
@@ -604,10 +604,10 @@ const CollectionsPage = () => {
                             <span>{useCount}</span>
                           </span>
                           <span className="inline-flex items-center gap-1.5">
-                            <StarBorderRounded
+                            <FavoriteBorderRounded
                               sx={{
                                 fontSize: 17,
-                                color: "rgba(250, 204, 21, 0.9)",
+                                color: "rgba(251, 113, 133, 0.9)",
                               }}
                             />
                             <span>{favoriteCount}</span>

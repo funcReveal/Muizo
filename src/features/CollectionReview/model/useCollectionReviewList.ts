@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useAuth } from "@shared/auth/AuthContext";
 
 import { collectionReviewApi } from "./collectionReviewApi";
@@ -17,7 +17,7 @@ export const useCollectionReviewList = ({
   const { authToken, authUser, refreshAuthToken } = useAuth();
   const normalizedCollectionId = collectionId?.trim() ?? "";
 
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [
       "collection-review",
       "reviews",
@@ -27,13 +27,17 @@ export const useCollectionReviewList = ({
     ],
     enabled: enabled && normalizedCollectionId.length > 0,
     staleTime: 30_000,
-    queryFn: ({ signal }) =>
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
       collectionReviewApi.fetchReviews({
         collectionId: normalizedCollectionId,
         authToken,
         refreshAuthToken,
         limit,
+        offset: pageParam,
         signal,
       }),
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.nextOffset : undefined,
   });
 };

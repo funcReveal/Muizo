@@ -9,7 +9,11 @@ import {
 
 type CreateLibraryTab = "public" | "personal" | "youtube";
 type CreateLibraryView = "grid" | "list";
-type PublicCollectionsSort = "favorites_first" | "popular" | "updated";
+type PublicCollectionsSort =
+  | "favorites_first"
+  | "popular"
+  | "updated"
+  | "rating";
 
 type LibrarySourceToolbarProps = {
   createLibraryTab: CreateLibraryTab;
@@ -32,6 +36,7 @@ const publicSortOptions: Array<{
   label: string;
 }> = [
   { key: "popular", label: "最受歡迎" },
+  { key: "rating", label: "評分最高" },
   { key: "updated", label: "近期更新" },
 ];
 

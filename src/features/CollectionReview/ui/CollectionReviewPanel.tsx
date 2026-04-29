@@ -47,7 +47,7 @@ const formatInlineRating = (summary: CollectionReviewSummary | null) => {
 
 const formatCommentCount = (summary: CollectionReviewSummary | null) => {
   const count = summary?.ratingCount ?? 0;
-  return `${count.toLocaleString("zh-TW")} 則評論`;
+  return `${count.toLocaleString("zh-TW")} 則評分`;
 };
 
 const buildFormKey = (summary: CollectionReviewSummary | null) => {
@@ -201,7 +201,7 @@ export function CollectionReviewPanel({
                 onClick={() => handleRatingClick(rating)}
                 disabled={isLoading || Boolean(queryErrorMessage)}
                 tabIndex={myReview ? -1 : undefined}
-                aria-disabled={myReview || undefined}
+                aria-disabled={myReview ? true : undefined}
                 onPointerEnter={() => {
                   if (!myReview) setHoverRating(rating);
                 }}

@@ -19,6 +19,15 @@ export type CollectionReviewListItem = CollectionReview & {
   avatarUrl: string | null;
 };
 
+export type CollectionReviewListPage = {
+  items: CollectionReviewListItem[];
+  offset: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+  nextOffset: number | null;
+};
+
 export type CollectionReviewSummary = {
   collectionId: string;
   ratingCount: number;

@@ -14,6 +14,8 @@ export type CollectionEntry = {
   item_count?: number;
   use_count?: number;
   favorite_count?: number;
+  rating_count?: number;
+  rating_avg?: number;
   is_favorited?: boolean;
   created_at?: number;
   updated_at?: number;
@@ -28,9 +30,9 @@ export interface CollectionContentContextValue {
   collectionsHasMore: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
-  publicCollectionsSort: "updated" | "popular" | "favorites_first";
+  publicCollectionsSort: "updated" | "popular" | "favorites_first" | "rating";
   setPublicCollectionsSort: (
-    next: "updated" | "popular" | "favorites_first",
+    next: "updated" | "popular" | "favorites_first" | "rating",
   ) => void;
   collectionFavoriteUpdatingId: string | null;
   collectionsLastFetchedAt: number | null;

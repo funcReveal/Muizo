@@ -30,7 +30,7 @@ import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded";
 import GridViewRoundedIcon from "@mui/icons-material/GridViewRounded";
 import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
-import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
+import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import { List as VirtualList, type RowComponentProps } from "react-window";
 
 import type { CollectionEntry } from "@features/CollectionContent";
@@ -366,8 +366,8 @@ const Metrics = ({
     ) : null}
     {favoriteCount !== undefined ? (
       <span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-slate-200/92">
-        <StarBorderRoundedIcon
-          sx={{ fontSize: 17, color: "rgba(250,204,21,0.92)" }}
+        <FavoriteBorderRoundedIcon
+          sx={{ fontSize: 17, color: "rgba(251,113,133,0.92)" }}
         />
         <span>{Math.max(0, Number(favoriteCount ?? 0))}</span>
       </span>

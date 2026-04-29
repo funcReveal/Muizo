@@ -11,6 +11,8 @@ import {
   ChairRounded,
   ChevronLeftRounded,
   CloseRounded,
+  FavoriteBorderRounded,
+  FavoriteRounded,
   KeyboardArrowDownRounded,
   LoginRounded,
   LockOutlined,
@@ -18,8 +20,6 @@ import {
   PublicOutlined,
   PublicRounded,
   QuizRounded,
-  StarBorderRounded,
-  StarRounded,
   AutoAwesome,
   // TimelineRounded,
 } from "@mui/icons-material";
@@ -35,7 +35,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { List, type RowComponentProps } from "react-window";
 
 import { API_URL, PLAYER_MAX, PLAYER_MIN } from "@domain/room/constants";
-import { CollectionReviewList, CollectionReviewPanel } from "@features/CollectionReview";
+import {
+  CollectionReviewList,
+  CollectionReviewPanel,
+  useCollectionReview,
+} from "@features/CollectionReview";
 import type { RoomCreateSourceMode } from "@domain/room/types";
 import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
@@ -88,6 +92,7 @@ type CollectionDetail = {
 
 type CollectionDrawerView = "detail" | "leaderboardSetup" | "casualSetup";
 type MobileDetailTab = "collection" | "leaderboard";
+type CollectionContentTab = "reviews" | "playlist";
 
 type CollectionDetailDrawerProps = {
   open: boolean;
@@ -465,14 +470,6 @@ const COLLECTION_LEADERBOARD_PAGE_SIZE = 30;
 const COLLECTION_LEADERBOARD_ROW_HEIGHT = 80;
 const COLLECTION_MOBILE_LEADERBOARD_ROW_HEIGHT = 82;
 
-const COLLECTION_MOBILE_PREVIEW_VISIBLE_ROWS = 3;
-const COLLECTION_DESKTOP_PREVIEW_VISIBLE_ROWS = 4;
-
-const getCollectionPreviewListHeight = (isCompact: boolean) =>
-  (isCompact
-    ? COLLECTION_MOBILE_PREVIEW_VISIBLE_ROWS
-    : COLLECTION_DESKTOP_PREVIEW_VISIBLE_ROWS) * COLLECTION_PREVIEW_ROW_HEIGHT;
-
 const formatLeaderboardScore = (value: number) =>
   new Intl.NumberFormat("en-US").format(value);
 
@@ -493,6 +490,62 @@ const formatLeaderboardEntryMeta = (entry: CollectionLeaderboardEntry) => {
   return [correct, accuracy, `Combo x${entry.maxCombo}`]
     .filter(Boolean)
     .join(" · ");
+};
+
+const DrawerTitleMarquee = ({ text }: { text: string }) => {
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
+  const trackRef = useRef<HTMLSpanElement | null>(null);
+  const [shift, setShift] = useState(0);
+  const [hasRun, setHasRun] = useState(false);
+
+  useEffect(() => {
+    const measure = () => {
+      const wrap = wrapRef.current;
+      const track = trackRef.current;
+      if (!wrap || !track) return;
+      const overflow = track.scrollWidth - wrap.clientWidth;
+      setShift(overflow > 8 ? overflow + 18 : 0);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(measure);
+    if (wrapRef.current) observer.observe(wrapRef.current);
+    if (trackRef.current) observer.observe(trackRef.current);
+    return () => observer.disconnect();
+  }, [text]);
+
+  const shouldRun = shift > 8 && !hasRun;
+  const duration = Math.min(14, Math.max(7.5, shift / 34));
+
+  return (
+    <span
+      ref={wrapRef}
+      className="block max-w-full overflow-hidden whitespace-nowrap"
+      title={text}
+    >
+      <motion.span
+        ref={trackRef}
+        className="inline-block min-w-full"
+        animate={shouldRun ? { x: [0, -shift, -shift, 0] } : { x: 0 }}
+        transition={
+          shouldRun
+            ? {
+                duration,
+                ease: "easeInOut",
+                times: [0, 0.54, 0.76, 1],
+              }
+            : { duration: 0 }
+        }
+        onAnimationComplete={() => {
+          if (shouldRun) setHasRun(true);
+        }}
+      >
+        {text}
+      </motion.span>
+    </span>
+  );
 };
 
 const toLeaderboardPreviewPlayer = (
@@ -763,13 +816,21 @@ const CollectionDetailDrawer = ({
   const isPublic = (collection?.visibility ?? "private") === "public";
   const canStartLeaderboardChallenge = isPublic && isAuthenticated;
   const isFavorited = Boolean(collection?.is_favorited);
+  const { summary: reviewSummary } = useCollectionReview({
+    collectionId: collection?.id,
+    enabled: open,
+  });
+  const reviewCommentCount = reviewSummary?.reviewCommentCount ?? 0;
   const [drawerView, setDrawerView] = useState<CollectionDrawerView>("detail");
   const [mobileDetailTab, setMobileDetailTab] =
     useState<MobileDetailTab>("collection");
+  const [collectionContentTab, setCollectionContentTab] =
+    useState<CollectionContentTab>("playlist");
   const [isLeaderboardProfileMenuOpen, setIsLeaderboardProfileMenuOpen] =
     useState(false);
   const [leaderboardProfileAnchorEl, setLeaderboardProfileAnchorEl] =
     useState<HTMLDivElement | null>(null);
+  const [titleMarqueeRunKey, setTitleMarqueeRunKey] = useState(0);
   const leaderboardProfileMenuRef = useRef<HTMLDivElement | null>(null);
   const isLeaderboardSetupView = drawerView === "leaderboardSetup" && isPublic;
   const isCasualSetupView = drawerView === "casualSetup";
@@ -811,7 +872,8 @@ const CollectionDetailDrawer = ({
         ? "請先輸入房間名稱。"
         : collectionQuestionCount < questionMin
           ? `題庫至少需要 ${questionMin} 題，才能建立房間。`
-          : isSetupLeaderboardMode && isActiveLeaderboardQuestionCountInsufficient
+          : isSetupLeaderboardMode &&
+              isActiveLeaderboardQuestionCountInsufficient
             ? `這個排行規格至少需要 ${activeLeaderboardMinimumQuestionCount} 題，目前只有 ${collectionQuestionCount} 題。`
             : setupMaxPlayersInvalid
               ? `玩家上限需介於 ${PLAYER_MIN}-${PLAYER_MAX} 人之間。`
@@ -907,6 +969,12 @@ const CollectionDetailDrawer = ({
   const leaderboardProfileMenuWidth = leaderboardProfileAnchorEl
     ? Math.max(leaderboardProfileAnchorEl.clientWidth, isCompact ? 220 : 280)
     : 280;
+
+  useEffect(() => {
+    if (!open) return;
+    setTitleMarqueeRunKey((current) => current + 1);
+  }, [open, collection?.id]);
+
   const currentLeaderboardPlayer = activeLeaderboardMyBestEntry
     ? toLeaderboardPreviewPlayer(
         activeLeaderboardMyBestEntry,
@@ -946,7 +1014,7 @@ const CollectionDetailDrawer = ({
       ? leaderboardStartLabel
       : isActiveLeaderboardQuestionCountInsufficient
         ? `需要 ${activeLeaderboardMinimumQuestionCount} 題`
-      : "進行排行挑戰";
+        : "進行排行挑戰";
   const customRoomStartLabel = isCreatingRoom
     ? "建立房間中..."
     : isApplying || isCustomRoomStartPending
@@ -957,6 +1025,9 @@ const CollectionDetailDrawer = ({
     label: string;
     value: string;
     icon: ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    active?: boolean;
   }> = [
     {
       key: "questions",
@@ -984,10 +1055,17 @@ const CollectionDetailDrawer = ({
           ? `${Math.max(0, collection.favorite_count)}`
           : "尚無資料",
       icon: isFavorited ? (
-        <StarRounded sx={{ fontSize: 19 }} />
+        <FavoriteRounded sx={{ fontSize: 19 }} />
       ) : (
-        <StarBorderRounded sx={{ fontSize: 19 }} />
+        <FavoriteBorderRounded sx={{ fontSize: 19 }} />
       ),
+      onClick: onToggleFavorite
+        ? () => {
+            void onToggleFavorite();
+          }
+        : undefined,
+      disabled: isFavoriteUpdating || !onToggleFavorite,
+      active: isFavorited,
     },
   ];
   const setupSourceSummary: SourceSummary = collection
@@ -1047,7 +1125,9 @@ const CollectionDetailDrawer = ({
   const handleSetupRoomPlayModeChange = (value: RoomPlayMode) => {
     setRoomPlayMode(value);
     if (!isSetupView) return;
-    setDrawerView(value === "leaderboard" && isPublic ? "leaderboardSetup" : "casualSetup");
+    setDrawerView(
+      value === "leaderboard" && isPublic ? "leaderboardSetup" : "casualSetup",
+    );
   };
 
   const handleLeaderboardProfileSelect = (
@@ -1172,7 +1252,6 @@ const CollectionDetailDrawer = ({
 
   const previewRowCount =
     previewItems.length + (previewHasMore || previewLoadingMore ? 1 : 0);
-  const previewListHeight = getCollectionPreviewListHeight(true);
   const previewListRowProps = useMemo<CollectionPreviewListRowProps>(
     () => ({
       items: previewItems,
@@ -1378,6 +1457,7 @@ const CollectionDetailDrawer = ({
   useEffect(() => {
     setDrawerView("detail");
     setMobileDetailTab("collection");
+    setCollectionContentTab("playlist");
     setIsLeaderboardProfileMenuOpen(false);
   }, [collection?.id, open]);
 
@@ -1491,13 +1571,18 @@ const CollectionDetailDrawer = ({
                 <ChevronLeftRounded />
               </IconButton>
             ) : null}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h2 className="mt-1 truncate text-lg font-semibold text-slate-50 sm:text-xl">
-                {isSetupLeaderboardMode
-                  ? "排行挑戰設定"
-                  : isSetupView
-                    ? "休閒房設定"
-                    : (collection?.title ?? "收藏庫")}
+                <DrawerTitleMarquee
+                  key={titleMarqueeRunKey}
+                  text={
+                    isSetupLeaderboardMode
+                      ? "排行挑戰設定"
+                      : isSetupView
+                        ? "休閒房設定"
+                        : (collection?.title ?? "收藏庫")
+                  }
+                />
               </h2>
             </div>
           </div>
@@ -1617,12 +1702,12 @@ const CollectionDetailDrawer = ({
               </main>
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:grid md:grid-cols-[minmax(360px,0.82fr)_minmax(420px,1.18fr)] md:grid-rows-none md:gap-0">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden md:grid md:grid-cols-[minmax(360px,0.82fr)_minmax(420px,1.18fr)] md:grid-rows-none md:gap-0">
               {isCompact ? (
                 <div
                   role="tablist"
                   aria-label="收藏庫詳情分頁"
-                  className="shrink-0 px-3 pt-3"
+                  className="shrink-0 px-2 pt-2"
                 >
                   <div className="grid h-11 grid-cols-2 overflow-hidden rounded-2xl border border-cyan-100/14 bg-slate-950/42 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
                     <button
@@ -1661,7 +1746,7 @@ const CollectionDetailDrawer = ({
               ) : null}
 
               <main
-                className={`flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 py-2.5 sm:px-6 sm:py-5 ${
+                className={`flex min-h-0 flex-1 flex-col gap-1 overflow-hidden px-2 sm:px-6 sm:py-5 ${
                   isCompact && mobileDetailTab !== "collection" ? "hidden" : ""
                 }`}
               >
@@ -1679,48 +1764,6 @@ const CollectionDetailDrawer = ({
                       </div>
                     )}
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.18)_42%,rgba(2,6,23,0.88)_100%)]" />
-                    <div className="absolute left-3 right-3 top-2.5 sm:left-4 sm:right-4 sm:top-3">
-                      <div className="mb-1.5 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-slate-950/56 px-2 py-0.5 text-[11px] font-medium text-slate-100 backdrop-blur sm:px-2.5 sm:py-1 sm:text-xs">
-                          {isPublic ? (
-                            <PublicOutlined sx={{ fontSize: 14 }} />
-                          ) : (
-                            <LockOutlined sx={{ fontSize: 14 }} />
-                          )}
-                          {isPublic ? "公開收藏庫" : "私人收藏庫"}
-                        </span>
-                        {/* {collection.has_ai_edited ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-teal-200/16 bg-teal-400/10 px-2.5 py-1 text-xs font-medium text-teal-100">
-                          <TimelineRounded sx={{ fontSize: 14 }} />
-                          已調整片段
-                        </span>
-                      ) : null} */}
-                      </div>
-                      <div className="flex min-w-0 items-start justify-between gap-2">
-                        <p className="line-clamp-1 min-w-0 flex-1 text-base font-semibold leading-tight text-white sm:line-clamp-2 sm:text-2xl">
-                          {collection.title}
-                        </p>
-                        {isPublic ? (
-                          <IconButton
-                            size="small"
-                            aria-label={isFavorited ? "取消收藏" : "收藏"}
-                            disabled={isFavoriteUpdating || !onToggleFavorite}
-                            onClick={() => {
-                              void onToggleFavorite?.();
-                            }}
-                            className={`!h-9 !w-9 !shrink-0 !rounded-xl !bg-slate-950/56 !text-slate-100 !backdrop-blur transition hover:!bg-amber-300/14 disabled:!opacity-45 ${
-                              isFavorited ? "!text-amber-300" : ""
-                            }`}
-                          >
-                            {isFavorited ? (
-                              <StarRounded sx={{ fontSize: 18 }} />
-                            ) : (
-                              <StarBorderRounded sx={{ fontSize: 18 }} />
-                            )}
-                          </IconButton>
-                        ) : null}
-                      </div>
-                    </div>
                     <div className="absolute bottom-2.5 left-3 right-3 sm:bottom-3 sm:left-4 sm:right-4">
                       <CollectionReviewPanel
                         collectionId={collection.id}
@@ -1732,22 +1775,46 @@ const CollectionDetailDrawer = ({
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5 border-b border-white/8 px-2.5 py-2 sm:flex sm:flex-wrap sm:gap-x-4 sm:gap-y-2 sm:px-4 sm:py-2.5">
-                    {stats.map((item) => (
-                      <div
-                        key={item.key}
-                        className="flex min-w-0 items-center gap-1.5 rounded-xl border border-white/8 bg-white/[0.03] px-2 py-1.5 text-xs sm:gap-2 sm:px-2.5 sm:py-2 sm:text-sm"
-                      >
-                        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-cyan-300/8 text-cyan-100 sm:h-6 sm:w-6">
-                          {item.icon}
-                        </span>
-                        <span className="hidden shrink-0 text-[11px] text-slate-400 sm:inline sm:text-xs">
-                          {item.label}
-                        </span>
-                        <span className="truncate font-semibold text-slate-50">
-                          {item.value}
-                        </span>
-                      </div>
-                    ))}
+                    {stats.map((item) => {
+                      const StatTag = item.onClick ? "button" : "div";
+                      return (
+                        <StatTag
+                          key={item.key}
+                          type={item.onClick ? "button" : undefined}
+                          disabled={item.onClick ? item.disabled : undefined}
+                          onClick={item.onClick}
+                          aria-pressed={item.onClick ? item.active : undefined}
+                          className={[
+                            "flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs transition sm:gap-2 sm:px-2.5 sm:py-2 sm:text-sm",
+                            item.onClick
+                              ? "cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              : "",
+                            item.active
+                              ? "border-white/8 bg-white/[0.03] hover:border-amber-300/26 hover:bg-white/[0.055]"
+                              : item.onClick
+                                ? "border-white/8 bg-white/[0.03] hover:border-amber-300/26 hover:bg-white/[0.055]"
+                                : "border-white/8 bg-white/[0.03]",
+                          ].join(" ")}
+                        >
+                          <span
+                            className={[
+                              "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-lg sm:h-6 sm:w-6",
+                              item.active
+                                ? "bg-transparent text-amber-300"
+                                : "bg-cyan-300/8 text-cyan-100",
+                            ].join(" ")}
+                          >
+                            {item.icon}
+                          </span>
+                          <span className="hidden shrink-0 text-[11px] text-slate-400 sm:inline sm:text-xs">
+                            {item.label}
+                          </span>
+                          <span className="truncate font-semibold text-slate-50">
+                            {item.value}
+                          </span>
+                        </StatTag>
+                      );
+                    })}
                   </div>
 
                   <div className="px-3 py-2 sm:px-4 sm:py-3">
@@ -1763,50 +1830,79 @@ const CollectionDetailDrawer = ({
                   </div>
                 </section>
 
-                <section className="shrink-0">
-                  <CollectionReviewList
-                    collectionId={collection.id}
-                    enabled={open}
-                    limit={4}
-                  />
-                </section>
-
                 <section className="min-h-0 flex-1 px-0.5 sm:mt-1 sm:px-1">
-                  <div className="h-full min-h-0 overflow-hidden rounded-xl bg-slate-950/22">
-                    {previewLoading ? (
-                      <div>
-                        {Array.from({ length: isCompact ? 3 : 5 }).map(
-                          (_, index) => (
-                            <CollectionPreviewLoadingRow
-                              key={`collection-preview-loading-${index}`}
-                              index={index}
-                            />
-                          ),
-                        )}
-                      </div>
-                    ) : previewError ? (
-                      <div className="px-2 py-6 text-sm text-rose-200 sm:px-3">
-                        {previewError}
-                      </div>
-                    ) : previewItems.length === 0 ? (
-                      <div className="px-2 py-6 text-sm text-slate-400 sm:px-3">
-                        這個題庫目前沒有可預覽的題目。
-                      </div>
-                    ) : (
-                      <List<CollectionPreviewListRowProps>
-                        className={`transient-scrollbar ${previewScrollbarClassName}`}
-                        style={{
-                          height: isCompact ? previewListHeight : "100%",
-                          minHeight: isCompact ? undefined : 0,
-                          width: "100%",
-                        }}
-                        rowCount={previewRowCount}
-                        rowHeight={COLLECTION_PREVIEW_ROW_HEIGHT}
-                        rowProps={previewListRowProps}
-                        rowComponent={CollectionPreviewListRow}
-                        onScroll={handlePreviewListScroll}
-                      />
-                    )}
+                  <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-slate-950/22">
+                    <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-white/8 bg-slate-950/32 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setCollectionContentTab("playlist")}
+                        className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                          collectionContentTab === "playlist"
+                            ? "bg-cyan-200/12 text-cyan-50"
+                            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                        }`}
+                      >
+                        播放清單
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCollectionContentTab("reviews")}
+                        className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                          collectionContentTab === "reviews"
+                            ? "bg-cyan-200/12 text-cyan-50"
+                            : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                        }`}
+                      >
+                        玩家評論
+                        <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] leading-none text-slate-200">
+                          {reviewCommentCount.toLocaleString("zh-TW")}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-hidden">
+                      {collectionContentTab === "reviews" ? (
+                        <CollectionReviewList
+                          collectionId={collection.id}
+                          enabled={open}
+                          limit={10}
+                          className="h-full py-1"
+                        />
+                      ) : previewLoading ? (
+                        <div>
+                          {Array.from({ length: isCompact ? 3 : 5 }).map(
+                            (_, index) => (
+                              <CollectionPreviewLoadingRow
+                                key={`collection-preview-loading-${index}`}
+                                index={index}
+                              />
+                            ),
+                          )}
+                        </div>
+                      ) : previewError ? (
+                        <div className="px-2 py-6 text-sm text-rose-200 sm:px-3">
+                          {previewError}
+                        </div>
+                      ) : previewItems.length === 0 ? (
+                        <div className="px-2 py-6 text-sm text-slate-400 sm:px-3">
+                          這個題庫目前沒有可預覽的題目。
+                        </div>
+                      ) : (
+                        <List<CollectionPreviewListRowProps>
+                          className={`transient-scrollbar ${previewScrollbarClassName}`}
+                          style={{
+                            height: "100%",
+                            minHeight: 0,
+                            width: "100%",
+                          }}
+                          rowCount={previewRowCount}
+                          rowHeight={COLLECTION_PREVIEW_ROW_HEIGHT}
+                          rowProps={previewListRowProps}
+                          rowComponent={CollectionPreviewListRow}
+                          onScroll={handlePreviewListScroll}
+                        />
+                      )}
+                    </div>
                   </div>
                 </section>
               </main>
@@ -1920,7 +2016,9 @@ const CollectionDetailDrawer = ({
                                                 </span>
                                                 {disabled ? (
                                                   <span className="mt-0.5 block text-[11px] font-medium text-amber-100/58">
-                                                    需要 {option.minQuestionCount} 題，目前{" "}
+                                                    需要{" "}
+                                                    {option.minQuestionCount}{" "}
+                                                    題，目前{" "}
                                                     {collectionQuestionCount} 題
                                                   </span>
                                                 ) : null}

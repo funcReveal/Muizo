@@ -24,6 +24,8 @@ export type CollectionSummary = {
   item_count?: number;
   use_count: number;
   favorite_count?: number;
+  rating_count?: number;
+  rating_avg?: number;
   is_favorited?: number | boolean;
   counts_last_use_id: number;
   use_count_updated: number;
@@ -182,7 +184,7 @@ export const apiFetchCollections = (
     token?: string | null;
     ownerId?: string;
     visibility?: "public" | "private";
-    sort?: "updated" | "popular" | "favorites_first";
+    sort?: "updated" | "popular" | "favorites_first" | "rating";
     q?: string;
     page?: number;
     pageSize?: number;

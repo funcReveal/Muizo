@@ -25,7 +25,6 @@ import {
   GroupsRounded,
   HourglassTopRounded,
   KeyboardArrowDownRounded,
-  LoginRounded,
   LockRounded,
   LockOutlined,
   PinOutlined,
@@ -312,10 +311,7 @@ const RoomSetupPanel = ({
     ? "僅公開收藏庫可用"
     : isAuthLoading
       ? "正在確認登入狀態"
-      : "登入後可進行排行挑戰";
-  const leaderboardUnavailableHint = !isLeaderboardSourceAvailable
-    ? "排行榜挑戰目前只支援公開收藏庫。"
-    : "使用 Google 登入後，挑戰成績才會記錄到排行榜。";
+      : "點擊以登入解鎖排行挑戰";
 
   useEffect(() => {
     if (!isLeaderboardSpecMenuOpen) return;
@@ -642,31 +638,20 @@ const RoomSetupPanel = ({
                 ) : null}
               </div>
               {!isLeaderboardChallengeAvailable ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-end rounded-2xl bg-slate-950/66 px-3 backdrop-blur-[2px]">
-                  <div className="inline-flex max-w-[15rem] items-center gap-2 rounded-xl border border-amber-100/18 bg-slate-950/84 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
+                <div
+                  className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center rounded-2xl bg-slate-950/66 px-3 backdrop-blur-[2px]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!isAuthLoading && isLeaderboardSourceAvailable) {
+                      onLoginRequired?.();
+                    }
+                  }}
+                >
+                  <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-amber-200/22 bg-amber-300/12 px-3 py-2 text-xs font-semibold text-amber-50 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.72)]">
                     <LockOutlined sx={{ fontSize: 16 }} />
-                    <span className="min-w-0 leading-5">
-                      <span className="block">
-                        {leaderboardUnavailableTitle}
-                      </span>
-                      <span className="block text-[11px] font-medium text-amber-100/62">
-                        {leaderboardUnavailableHint}
-                      </span>
+                    <span className="min-w-0 truncate leading-5">
+                      {leaderboardUnavailableTitle}
                     </span>
-                    {isLeaderboardSourceAvailable ? (
-                      <button
-                        type="button"
-                        disabled={isAuthLoading}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onLoginRequired?.();
-                        }}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-100/18 bg-amber-200/10 px-2 py-1 text-[11px] font-semibold text-amber-50 transition hover:border-amber-100/30 hover:bg-amber-200/14 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <LoginRounded sx={{ fontSize: 14 }} />
-                        登入
-                      </button>
-                    ) : null}
                   </div>
                 </div>
               ) : null}

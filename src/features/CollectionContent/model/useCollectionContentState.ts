@@ -54,6 +54,8 @@ export type UseCollectionContentStateResult = {
     item_count?: number;
     use_count?: number;
     favorite_count?: number;
+    rating_count?: number;
+    rating_avg?: number;
     is_favorited?: boolean;
     created_at?: number;
     updated_at?: number;
@@ -65,9 +67,9 @@ export type UseCollectionContentStateResult = {
   collectionsHasMore: boolean;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
-  publicCollectionsSort: "updated" | "popular" | "favorites_first";
+  publicCollectionsSort: "updated" | "popular" | "favorites_first" | "rating";
   setPublicCollectionsSort: (
-    next: "updated" | "popular" | "favorites_first",
+    next: "updated" | "popular" | "favorites_first" | "rating",
   ) => void;
   collectionFavoriteUpdatingId: string | null;
   collectionsLastFetchedAt: number | null;
@@ -114,6 +116,8 @@ export const useCollectionContentState = ({
       item_count?: number;
       use_count?: number;
       favorite_count?: number;
+      rating_count?: number;
+      rating_avg?: number;
       is_favorited?: boolean;
       created_at?: number;
       updated_at?: number;
@@ -136,8 +140,8 @@ export const useCollectionContentState = ({
     "owner" | "public" | null
   >(null);
   const [publicCollectionsSort, setPublicCollectionsSort] = useState<
-    "updated" | "popular" | "favorites_first"
-  >("updated");
+    "updated" | "popular" | "favorites_first" | "rating"
+  >("rating");
   const [collectionFavoriteUpdatingId, setCollectionFavoriteUpdatingId] =
     useState<string | null>(null);
   const [collectionsLastFetchedAt, setCollectionsLastFetchedAt] = useState<
@@ -212,6 +216,8 @@ export const useCollectionContentState = ({
             item_count?: number;
             use_count?: number;
             favorite_count?: number;
+            rating_count?: number;
+            rating_avg?: number;
             is_favorited?: boolean | number;
             created_at?: number;
             updated_at?: number;
@@ -229,6 +235,8 @@ export const useCollectionContentState = ({
               item_count: Math.max(0, Number(item.item_count ?? 0)),
               use_count: Math.max(0, Number(item.use_count ?? 0)),
               favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
+              rating_count: Math.max(0, Number(item.rating_count ?? 0)),
+              rating_avg: Math.max(0, Number(item.rating_avg ?? 0)),
               is_favorited: Boolean(item.is_favorited),
               created_at: Math.max(0, Number(item.created_at ?? 0)),
               updated_at: Math.max(0, Number(item.updated_at ?? 0)),
@@ -348,6 +356,8 @@ export const useCollectionContentState = ({
         item_count?: number;
         use_count?: number;
         favorite_count?: number;
+        rating_count?: number;
+        rating_avg?: number;
         is_favorited?: boolean | number;
         created_at?: number;
         updated_at?: number;
@@ -360,6 +370,8 @@ export const useCollectionContentState = ({
         item_count: Math.max(0, Number(item.item_count ?? 0)),
         use_count: Math.max(0, Number(item.use_count ?? 0)),
         favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
+        rating_count: Math.max(0, Number(item.rating_count ?? 0)),
+        rating_avg: Math.max(0, Number(item.rating_avg ?? 0)),
         is_favorited: Boolean(item.is_favorited),
         created_at: Math.max(0, Number(item.created_at ?? 0)),
         updated_at: Math.max(0, Number(item.updated_at ?? 0)),

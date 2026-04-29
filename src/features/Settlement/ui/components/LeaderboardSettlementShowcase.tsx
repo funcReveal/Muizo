@@ -15,8 +15,8 @@ import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import RemoveRoundedIcon from "@mui/icons-material/RemoveRounded";
-import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
-import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
+import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import TrackChangesRoundedIcon from "@mui/icons-material/TrackChangesRounded";
 import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
@@ -1959,16 +1959,18 @@ const LeaderboardSettlementShowcase: React.FC<
                             disabled={!onToggleFavorite}
                             className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
                               isFavorited
-                                ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
+                                ? "border-rose-300/55 bg-rose-500/18 text-rose-200 hover:bg-rose-500/14"
                                 : "border-white/30 bg-black/40 text-white hover:bg-black/60"
                             }`}
                             aria-label={isFavorited ? "取消收藏" : "加入收藏"}
                             aria-pressed={isFavorited ?? false}
                           >
                             {isFavorited ? (
-                              <StarRoundedIcon sx={{ fontSize: 18 }} />
+                              <FavoriteRoundedIcon sx={{ fontSize: 18 }} />
                             ) : (
-                              <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
+                              <FavoriteBorderRoundedIcon
+                                sx={{ fontSize: 18 }}
+                              />
                             )}
                           </button>
                         </div>

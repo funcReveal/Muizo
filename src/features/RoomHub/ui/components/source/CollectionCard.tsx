@@ -6,11 +6,12 @@ import {
 } from "react";
 import {
   BarChartRounded,
+  FavoriteBorderRounded,
+  FavoriteRounded,
   LockOutlined,
   MoreHorizRounded,
   PublicOutlined,
   QuizRounded,
-  StarBorderRounded,
   StarRounded,
 } from "@mui/icons-material";
 import { IconButton, Menu, MenuItem } from "@mui/material";
@@ -27,6 +28,8 @@ type CollectionCardProps = {
     visibility?: string | null;
     use_count?: number | null;
     favorite_count?: number | null;
+    rating_count?: number | null;
+    rating_avg?: number | null;
     item_count?: number | null;
     is_favorited?: boolean | null;
   };
@@ -36,7 +39,6 @@ type CollectionCardProps = {
   isFavoriteUpdating?: boolean;
   onSelect: () => void;
   onToggleFavorite?: () => void | Promise<void | boolean>;
-  formatDurationLabel: (value: number) => string | null;
 };
 
 const menuPaperSx = {
@@ -62,7 +64,6 @@ const CollectionCard = ({
   isFavoriteUpdating = false,
   onSelect,
   onToggleFavorite,
-  formatDurationLabel,
 }: CollectionCardProps) => {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [isActionHovered, setIsActionHovered] = useState(false);
@@ -73,12 +74,14 @@ const CollectionCard = ({
       : "");
   const isPublic = (collection.visibility ?? "private") === "public";
   const visibilityLabel = isPublic ? "公開" : "私人";
-  const coverTitle =
-    collection.cover_title ||
-    (isPublicLibraryTab ? "公開收藏精選曲目" : "私人收藏精選曲目");
-  const coverDuration = collection.cover_duration_sec
-    ? formatDurationLabel(collection.cover_duration_sec)
-    : null;
+  const ratingCount = Math.max(0, Number(collection.rating_count ?? 0));
+  const ratingAvg =
+    ratingCount > 0 ? Math.max(0, Number(collection.rating_avg ?? 0)) : 0;
+  const ratingAvgLabel =
+    ratingCount > 0
+      ? `${ratingAvg.toFixed(ratingAvg % 1 === 0 ? 0 : 1)} / 5`
+      : "尚無評分";
+  const ratingCountLabel = ratingCount > 0 ? `${ratingCount} 則評分` : null;
   const canShowActions = isPublicLibraryTab;
   const isFavorited = Boolean(collection.is_favorited);
   const suppressCardHover = isActionHovered || Boolean(menuAnchor);
@@ -115,12 +118,12 @@ const CollectionCard = ({
       ? {
           key: "favorites",
           icon: isFavorited ? (
-            <StarRounded
-              sx={{ fontSize: 17, color: "rgba(250, 204, 21, 0.95)" }}
+            <FavoriteRounded
+              sx={{ fontSize: 17, color: "rgba(251, 113, 133, 0.95)" }}
             />
           ) : (
-            <StarBorderRounded
-              sx={{ fontSize: 17, color: "rgba(250, 204, 21, 0.9)" }}
+            <FavoriteBorderRounded
+              sx={{ fontSize: 17, color: "rgba(251, 113, 133, 0.9)" }}
             />
           ),
           label: `${collection.favorite_count}`,
@@ -192,12 +195,12 @@ const CollectionCard = ({
             disabled={isFavoriteUpdating || !onToggleFavorite}
           >
             {isFavorited ? (
-              <StarRounded
-                sx={{ fontSize: 18, color: "rgba(250,204,21,0.95)" }}
+              <FavoriteRounded
+                sx={{ fontSize: 18, color: "rgba(251,113,133,0.95)" }}
               />
             ) : (
-              <StarBorderRounded
-                sx={{ fontSize: 18, color: "rgba(250,204,21,0.9)" }}
+              <FavoriteBorderRounded
+                sx={{ fontSize: 18, color: "rgba(251,113,133,0.9)" }}
               />
             )}
             {isFavorited ? "取消收藏" : "加入收藏"}
@@ -258,10 +261,25 @@ const CollectionCard = ({
             <p className="truncate text-[15px] font-semibold leading-6 text-[var(--mc-text)]">
               {collection.title}
             </p>
-            <div className="flex items-center justify-between gap-3 text-[12px] leading-5 text-slate-300/88">
-              <p className="min-w-0 flex-1 truncate">{coverTitle}</p>
-              {coverDuration ? (
-                <span className="shrink-0 font-medium">{coverDuration}</span>
+            <div className="flex min-w-0 items-center gap-2 text-[12px] leading-5 text-slate-300/88">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <StarRounded
+                  sx={{
+                    fontSize: 15,
+                    color:
+                      ratingCount > 0
+                        ? "rgba(250, 204, 21, 0.95)"
+                        : "rgba(148, 163, 184, 0.56)",
+                  }}
+                />
+                <span className="shrink-0 font-semibold text-slate-100/92">
+                  {ratingAvgLabel}
+                </span>
+              </span>
+              {ratingCountLabel ? (
+                <span className="min-w-0 truncate text-slate-400">
+                  {ratingCountLabel}
+                </span>
               ) : null}
             </div>
           </div>
@@ -336,10 +354,27 @@ const CollectionCard = ({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
-            {coverTitle}
-            {coverDuration ? ` · ${coverDuration}` : ""}
-          </p>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-[var(--mc-text-muted)]">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <StarRounded
+                sx={{
+                  fontSize: 14,
+                  color:
+                    ratingCount > 0
+                      ? "rgba(250, 204, 21, 0.95)"
+                      : "rgba(148, 163, 184, 0.56)",
+                }}
+              />
+              <span className="shrink-0 font-semibold text-slate-100/90">
+                {ratingAvgLabel}
+              </span>
+            </span>
+            {ratingCountLabel ? (
+              <span className="min-w-0 truncate text-slate-400">
+                {ratingCountLabel}
+              </span>
+            ) : null}
+          </div>
           <div className="mt-2 flex flex-wrap gap-3">
             {statsMeta.map((meta) => (
               <span

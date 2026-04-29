@@ -1225,7 +1225,6 @@ const RoomsHubPage: React.FC = () => {
         selected={selectedCreateCollectionId === collection.id}
         isPublicLibraryTab={createLibraryTab === "public"}
         isFavoriteUpdating={collectionFavoriteUpdatingId === collection.id}
-        formatDurationLabel={formatDurationLabel}
         onSelect={() => {
           setDetailCollectionId(collection.id);
         }}

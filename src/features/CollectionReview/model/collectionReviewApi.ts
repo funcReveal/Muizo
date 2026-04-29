@@ -4,6 +4,7 @@ import { ensureFreshAuthToken } from "@shared/auth/token";
 import type {
   CollectionReview,
   CollectionReviewListItem,
+  CollectionReviewListPage,
   CollectionReviewSummary,
   CollectionReviewValue,
 } from "./types";
@@ -34,6 +35,7 @@ type FetchCollectionReviewListParams = {
   authToken: string | null;
   refreshAuthToken: () => Promise<string | null>;
   limit?: number;
+  offset?: number;
   signal?: AbortSignal;
 };
 
@@ -99,6 +101,40 @@ const normalizeReviewListItem = (
     ...review,
     displayName: normalizeString(value.displayName) ?? "玩家",
     avatarUrl: normalizeString(value.avatarUrl),
+  };
+};
+
+const normalizeReviewListPage = (value: unknown): CollectionReviewListPage => {
+  if (Array.isArray(value)) {
+    const items = value
+      .map(normalizeReviewListItem)
+      .filter((item): item is CollectionReviewListItem => Boolean(item));
+    return {
+      items,
+      offset: 0,
+      limit: items.length,
+      total: items.length,
+      hasMore: false,
+      nextOffset: null,
+    };
+  }
+
+  if (!isRecord(value) || !Array.isArray(value.items)) {
+    throw new Error("Invalid review list payload");
+  }
+
+  return {
+    items: value.items
+      .map(normalizeReviewListItem)
+      .filter((item): item is CollectionReviewListItem => Boolean(item)),
+    offset: Math.max(0, Math.trunc(normalizeNumber(value.offset))),
+    limit: Math.max(1, Math.trunc(normalizeNumber(value.limit, 10))),
+    total: Math.max(0, Math.trunc(normalizeNumber(value.total))),
+    hasMore: Boolean(value.hasMore),
+    nextOffset:
+      value.nextOffset === null || value.nextOffset === undefined
+        ? null
+        : Math.max(0, Math.trunc(normalizeNumber(value.nextOffset))),
   };
 };
 
@@ -203,9 +239,10 @@ export const collectionReviewApi = {
     collectionId,
     authToken,
     refreshAuthToken,
-    limit = 6,
+    limit = 10,
+    offset = 0,
     signal,
-  }: FetchCollectionReviewListParams): Promise<CollectionReviewListItem[]> {
+  }: FetchCollectionReviewListParams): Promise<CollectionReviewListPage> {
     const apiUrl = requireApiUrl();
     const trimmedCollectionId = collectionId.trim();
 
@@ -215,7 +252,8 @@ export const collectionReviewApi = {
 
     const headers = await buildHeaders(authToken, refreshAuthToken);
     const params = new URLSearchParams({
-      limit: String(Math.max(1, Math.min(20, Math.trunc(limit)))),
+      limit: String(Math.max(1, Math.min(30, Math.trunc(limit)))),
+      offset: String(Math.max(0, Math.trunc(offset))),
     });
 
     const response = await fetch(
@@ -229,9 +267,9 @@ export const collectionReviewApi = {
       },
     );
 
-    const payload = await parseApiPayload<CollectionReviewListItem[]>(response);
+    const payload = await parseApiPayload<CollectionReviewListPage>(response);
 
-    if (!response.ok || !payload?.ok || !Array.isArray(payload.data)) {
+    if (!response.ok || !payload?.ok || !payload.data) {
       throw new CollectionReviewApiError(
         payload?.error ?? "讀取題庫評論失敗",
         response.status,
@@ -239,9 +277,7 @@ export const collectionReviewApi = {
       );
     }
 
-    return payload.data
-      .map(normalizeReviewListItem)
-      .filter((item): item is CollectionReviewListItem => Boolean(item));
+    return normalizeReviewListPage(payload.data);
   },
 
   async upsertMyReview({
