@@ -31,7 +31,7 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
-import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
+// import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
 import ShareRoundedIcon from "@mui/icons-material/ShareRounded";
@@ -154,7 +154,7 @@ interface RoomLobbyPanelProps {
   onOpenLastSettlement?: () => void;
   onOpenHistoryDrawer?: () => void;
   onOpenSettlementByRoundKey?: (roundKey: string) => void;
-  onOpenTestSettlement?: () => void;
+  // onOpenTestSettlement?: () => void;
   onOpenGame?: () => void;
   onKickPlayer: (clientId: string, durationMs?: number | null) => void;
   onTransferHost: (clientId: string) => void;
@@ -250,7 +250,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onStartGame,
   onUpdateRoomSettings,
   onOpenHistoryDrawer,
-  onOpenTestSettlement,
+  // onOpenTestSettlement,
   onOpenGame,
   onKickPlayer,
   onTransferHost,
@@ -615,7 +615,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const leaderboardCollectionOnlyReason = "排行挑戰僅支援收藏庫";
   const canUseLeaderboard30 = questionMaxLimit >= 30;
   const canUseLeaderboard50 = questionMaxLimit >= 50;
-  const canUseLeaderboard15m = questionMaxLimit >= 50 && participants.length <= 1;
+  const canUseLeaderboard15m =
+    questionMaxLimit >= 50 && participants.length <= 1;
   const canUseAnyLeaderboardVariant =
     canUseLeaderboard30 || canUseLeaderboard50 || canUseLeaderboard15m;
   const selfParticipant = participants.find(
@@ -1346,20 +1347,20 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
             },
           ]
         : []),
-      ...(onOpenTestSettlement
-        ? [
-            {
-              key: "test-settlement",
-              label: "測試結算",
-              compactLabel: "測試",
-              icon: <ScienceRoundedIcon fontSize="small" />,
-              onClick: () => onOpenTestSettlement(),
-              disabled: false,
-              tone: "normal" as const,
-              title: "使用假資料直接開啟結算頁",
-            },
-          ]
-        : []),
+      // ...(onOpenTestSettlement
+      //   ? [
+      //       {
+      //         key: "test-settlement",
+      //         label: "測試結算",
+      //         compactLabel: "測試",
+      //         icon: <ScienceRoundedIcon fontSize="small" />,
+      //         onClick: () => onOpenTestSettlement(),
+      //         disabled: false,
+      //         tone: "normal" as const,
+      //         title: "使用假資料直接開啟結算頁",
+      //       },
+      //     ]
+      //   : []),
       {
         key: "leave",
         label: "離開",
@@ -1373,7 +1374,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     ],
     [
       openSettingsModal,
-      onOpenTestSettlement,
+      // onOpenTestSettlement,
       requestLeaveRoom,
       settingsActionDisabledReason,
       isHost,
@@ -1977,7 +1978,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       </span>
                     </Button>
                   )}
-                  {onOpenTestSettlement && (
+                  {/* {onOpenTestSettlement && (
                     <Button
                       variant="outlined"
                       color="inherit"
@@ -2000,7 +2001,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                         測試結算
                       </span>
                     </Button>
-                  )}
+                  )} */}
                   {gameState?.status !== "playing" && inviteToolbarButton}
                   {shareBlockedToast}
                 </div>
