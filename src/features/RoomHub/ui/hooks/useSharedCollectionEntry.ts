@@ -36,7 +36,10 @@ type UseSharedCollectionEntryArgs = {
     collectionId: string,
     options?: { force?: boolean; readToken?: string | null },
   ) => Promise<unknown>;
-  openCollectionDrawer: (collection: CollectionEntry) => void;
+  openCollectionDrawer: (
+    collection: CollectionEntry,
+    source: "manual" | "sharedLink",
+  ) => void;
 };
 
 export const useSharedCollectionEntry = ({
@@ -72,18 +75,6 @@ export const useSharedCollectionEntry = ({
 
     let cancelled = false;
 
-    const placeholderCollection: CollectionEntry = {
-      id: sharedCollectionId,
-      title: "分享收藏庫",
-      visibility: "public",
-      item_count: 0,
-      use_count: 0,
-      favorite_count: 0,
-      rating_count: 0,
-      rating_avg: 0,
-      is_favorited: false,
-    };
-
     setGuideMode("create");
     setCreateLibraryTab("public");
     setCreateLeftTab("library");
@@ -98,42 +89,22 @@ export const useSharedCollectionEntry = ({
     });
     handleResetPlaylist();
 
-    /**
-     * 先開 drawer。
-     * 不要等 fetchCollectionById 成功，否則 API 慢、失敗、或狀態 race 時，
-     * 使用者只會看到卡片被選取，但 drawer 不會開。
-     */
-    openCollectionDrawer(placeholderCollection);
-
     void (async () => {
       const collection = await fetchCollectionById(sharedCollectionId);
 
-      if (cancelled) return;
+      if (cancelled || !collection) return;
 
-      if (collection) {
-        const scope =
-          collection.visibility === "private" ? "private" : "public";
+      const scope = collection.visibility === "private" ? "private" : "public";
 
-        setSharedCollectionMeta({
-          id: collection.id,
-          title: collection.title,
-          scope,
-        });
+      setSharedCollectionMeta({
+        id: collection.id,
+        title: collection.title,
+        scope,
+      });
 
-        /**
-         * API 成功後，用真正的 collection 覆蓋 placeholder。
-         */
-        openCollectionDrawer(collection);
+      openCollectionDrawer(collection, "sharedLink");
 
-        void loadCollectionItems(collection.id, { force: true });
-        return;
-      }
-
-      /**
-       * 即使 collection summary API 失敗，也至少嘗試載入 items。
-       * 這可以幫你判斷問題是單筆 collection API，還是 drawer 本身。
-       */
-      void loadCollectionItems(sharedCollectionId, { force: true });
+      void loadCollectionItems(collection.id, { force: true });
     })();
 
     return () => {

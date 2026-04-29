@@ -361,13 +361,44 @@ const RoomsHubPage: React.FC = () => {
   );
   const [detailCollectionOverride, setDetailCollectionOverride] =
     useState<CollectionEntry | null>(null);
+  const [detailDrawerSource, setDetailDrawerSource] = useState<
+    "manual" | "sharedLink" | null
+  >(null);
   const handleOpenCollectionDetailDrawer = useCallback(
-    (collection: CollectionEntry) => {
+    (
+      collection: CollectionEntry,
+      source: "manual" | "sharedLink" = "manual",
+    ) => {
       setDetailCollectionOverride(collection);
-      setDetailCollectionId(collection.id);
+      handleOpenCollectionDetailDrawer(collection, "manual");
+      setDetailDrawerSource(source);
     },
     [],
   );
+  const handleCloseCollectionDetailDrawer = useCallback(() => {
+    const closingSharedCollectionId =
+      detailDrawerSource === "sharedLink" ? detailCollectionId : null;
+
+    setDetailCollectionId(null);
+    setDetailCollectionOverride(null);
+    setDetailDrawerSource(null);
+
+    if (!closingSharedCollectionId) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextParams.get("sharedCollection") !== closingSharedCollectionId)
+      return;
+
+    nextParams.delete("sharedCollection");
+
+    navigate(
+      {
+        pathname: "/rooms",
+        search: nextParams.toString() ? `?${nextParams.toString()}` : "",
+      },
+      { replace: true },
+    );
+  }, [detailCollectionId, detailDrawerSource, navigate, searchParams]);
   const [sourceSetupDrawer, setSourceSetupDrawer] = useState<{
     kind: "youtube" | "link";
     summary: NonNullable<SourceSummary>;
@@ -718,11 +749,7 @@ const RoomsHubPage: React.FC = () => {
     [playlistPreviewMeta],
   );
   const sharedCollectionId = searchParams.get("sharedCollection");
-  const sharedCollectionFromList = useMemo(() => {
-    if (!sharedCollectionId) return null;
 
-    return collections.find((item) => item.id === sharedCollectionId) ?? null;
-  }, [collections, sharedCollectionId]);
   const { handledSharedCollectionRef } = useSharedCollectionEntry({
     sharedCollectionId,
     roomCreateSourceMode,
@@ -743,18 +770,7 @@ const RoomsHubPage: React.FC = () => {
     fetchCollectionById,
     openCollectionDrawer: handleOpenCollectionDetailDrawer,
   });
-  useEffect(() => {
-    if (!sharedCollectionId) return;
-    if (!sharedCollectionFromList) return;
-    if (detailCollectionId === sharedCollectionId) return;
 
-    handleOpenCollectionDetailDrawer(sharedCollectionFromList);
-  }, [
-    detailCollectionId,
-    handleOpenCollectionDetailDrawer,
-    sharedCollectionFromList,
-    sharedCollectionId,
-  ]);
   const {
     isLinkSourceActive,
     trimmedPlaylistUrlDraft,
@@ -2094,8 +2110,10 @@ const RoomsHubPage: React.FC = () => {
         </section>
       )}
       <CollectionDetailDrawer
+        key={detailCollectionId ?? "collection-detail-drawer"}
         open={Boolean(detailCollectionId)}
         collection={detailCollection}
+        onClose={handleCloseCollectionDetailDrawer}
         isPublicLibraryTab={createLibraryTab === "public"}
         isApplying={collectionItemsLoading}
         isFavoriteUpdating={
@@ -2103,10 +2121,6 @@ const RoomsHubPage: React.FC = () => {
             ? collectionFavoriteUpdatingId === detailCollection.id
             : false
         }
-        onClose={() => {
-          setDetailCollectionId(null);
-          setDetailCollectionOverride(null);
-        }}
         onUseCollection={(collectionId) => {
           void handlePickCollectionSource(
             collectionId,

@@ -971,7 +971,30 @@ const CollectionDetailDrawer = ({
     : 280;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !collection?.id) {
+      setPreviewItems([]);
+      setPreviewError(null);
+      setPreviewPage(1);
+      setPreviewHasMore(false);
+
+      setLeaderboardOverview(null);
+      setLeaderboardEntries([]);
+      setLeaderboardError(null);
+      setLeaderboardNextOffset(null);
+      setLeaderboardHasMore(false);
+      return;
+    }
+
+    setPreviewItems([]);
+    setPreviewError(null);
+    setPreviewPage(1);
+    setPreviewHasMore(false);
+
+    setLeaderboardOverview(null);
+    setLeaderboardEntries([]);
+    setLeaderboardError(null);
+    setLeaderboardNextOffset(null);
+    setLeaderboardHasMore(false);
     setTitleMarqueeRunKey((current) => current + 1);
   }, [open, collection?.id]);
 
