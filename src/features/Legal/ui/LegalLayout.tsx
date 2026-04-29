@@ -31,6 +31,7 @@ const LegalLayout: React.FC = () => {
           onNavigateCollections={() => navigate("/collections")}
           onNavigateHistory={() => navigate("/history")}
           onNavigateSettings={() => navigate("/settings")}
+          onNavigatePrivacy={() => navigate("/privacy")}
         />
       </div>
 

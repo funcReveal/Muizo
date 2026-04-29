@@ -23,6 +23,7 @@ import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import WorkspacePremiumRoundedIcon from "@mui/icons-material/WorkspacePremiumRounded";
 import { List, type RowComponentProps } from "react-window";
 
+import { CollectionReviewPanel } from "@features/CollectionReview";
 import type {
   LeaderboardSettlementResponse,
   PlaylistItem,
@@ -38,6 +39,16 @@ import { useSettingsModel } from "../../../Setting/model/settingsContext";
 import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 
 const LEADERBOARD_SETTLEMENT_BGM_PATH = "/Muizo_result_bgm.mp3";
+const COLLECTION_SOURCE_TYPES = new Set([
+  "public_collection",
+  "private_collection",
+]);
+
+const resolveReviewableCollectionId = (room: RoomState["room"]) => {
+  const sourceType = room.playlist.sourceType ?? room.playlistSourceType ?? null;
+  if (!sourceType || !COLLECTION_SOURCE_TYPES.has(sourceType)) return null;
+  return room.playlist.id ?? room.playlistId ?? null;
+};
 
 type LeaderboardSettlementShowcaseProps = {
   room: RoomState["room"];
@@ -808,6 +819,10 @@ const LeaderboardSettlementShowcase: React.FC<
     useState<QuestionFilterType>(null);
   const [mobileSettlementPanel, setMobileSettlementPanel] =
     useState<MobileSettlementPanel>("leaderboard");
+  const reviewableCollectionId = useMemo(
+    () => resolveReviewableCollectionId(room),
+    [room],
+  );
 
   const { bgmVolume } = useSettingsModel();
   const settlementBgmRef = useRef<HTMLAudioElement | null>(null);
@@ -1917,44 +1932,55 @@ const LeaderboardSettlementShowcase: React.FC<
               <aside className="min-w-0">
                 <article className="rounded-[24px] bg-transparent p-0 shadow-none">
                   <div className="overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
-                    <div className="relative h-[100px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
+                    <div className="relative min-h-[132px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
                       {coverThumbnail ? (
                         <img
                           src={coverThumbnail}
                           alt={playlistSummary.title}
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-amber-100/80">
+                        <div className="absolute inset-0 flex items-center justify-center text-amber-100/80">
                           <BarChartRoundedIcon sx={{ fontSize: 30 }} />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
-                      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 px-3 pb-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-black tracking-[0.04em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
-                            {playlistSummary.title}
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/82 via-black/28 to-black/72" />
+                      <div className="relative flex min-h-[132px] flex-col justify-between gap-3 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 pt-0.5">
+                            <div className="truncate text-sm font-black tracking-[0.04em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
+                              {playlistSummary.title}
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={onToggleFavorite}
+                            disabled={!onToggleFavorite}
+                            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                              isFavorited
+                                ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
+                                : "border-white/30 bg-black/40 text-white hover:bg-black/60"
+                            }`}
+                            aria-label={isFavorited ? "取消收藏" : "加入收藏"}
+                            aria-pressed={isFavorited ?? false}
+                          >
+                            {isFavorited ? (
+                              <StarRoundedIcon sx={{ fontSize: 18 }} />
+                            ) : (
+                              <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
+                            )}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={onToggleFavorite}
-                          disabled={!onToggleFavorite}
-                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                            isFavorited
-                              ? "border-amber-300/60 bg-amber-500/22 text-amber-300 hover:bg-amber-500/16"
-                              : "border-white/30 bg-black/40 text-white hover:bg-black/60"
-                          }`}
-                          aria-label={isFavorited ? "取消收藏" : "加入收藏"}
-                          aria-pressed={isFavorited ?? false}
-                        >
-                          {isFavorited ? (
-                            <StarRoundedIcon sx={{ fontSize: 18 }} />
-                          ) : (
-                            <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
-                          )}
-                        </button>
+
+                        <CollectionReviewPanel
+                          collectionId={reviewableCollectionId}
+                          title="這份排行題庫好玩嗎？"
+                          description="留下排行挑戰後的評價，幫助其他玩家選擇值得挑戰的題庫。"
+                          compact
+                          embedded
+                          variant="inline"
+                        />
                       </div>
                     </div>
 

@@ -8,6 +8,7 @@
   ManageAccounts,
   Memory,
   MeetingRoom,
+  Policy,
   Refresh,
   Settings,
 } from "@mui/icons-material";
@@ -52,6 +53,7 @@ interface AppHeaderProps {
   onNavigateCollections?: () => void;
   onNavigateHistory?: () => void;
   onNavigateSettings?: () => void;
+  onNavigatePrivacy?: () => void;
   historyMenuLabel?: string;
   historyMenuDescription?: string;
 }
@@ -157,6 +159,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   onNavigateCollections,
   // onNavigateHistory,
   onNavigateSettings,
+  onNavigatePrivacy,
   historyMenuLabel,
   historyMenuDescription,
 }) => {
@@ -668,6 +671,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 }
               />
             </MenuItem>
+
           </MenuList>
 
           {!isAnonymousVisitor && (
@@ -709,6 +713,28 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               </MenuItem>
             </>
           )}
+
+          <Divider sx={{ borderColor: "rgba(148, 163, 184, 0.12)" }} />
+
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              if (onNavigatePrivacy) {
+                onNavigatePrivacy();
+                return;
+              }
+              navigate("/privacy");
+            }}
+            sx={menuItemSx}
+          >
+            <ListItemIcon sx={{ minWidth: 30, color: "#93c5fd" }}>
+              <Policy fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary="法律與政策"
+              secondary="隱私權政策與服務條款"
+            />
+          </MenuItem>
         </Popover>
 
         <Dialog

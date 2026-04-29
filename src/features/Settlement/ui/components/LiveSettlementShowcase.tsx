@@ -7,6 +7,7 @@
 } from "react";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
+import { CollectionReviewPanel } from "@features/CollectionReview";
 import { trackEvent } from "../../../../shared/analytics/track";
 import { useSettingsModel } from "../../../Setting/model/settingsContext";
 import { type SettlementTrackLink } from "../../model/settlementLinks";
@@ -109,6 +110,16 @@ const DESKTOP_TAB_HINTS: Record<LiveSettlementTab, string> = {
 };
 
 const SETTLEMENT_OVERVIEW_BGM_PATH = "/Muizo_result_bgm.mp3";
+const COLLECTION_SOURCE_TYPES = new Set([
+  "public_collection",
+  "private_collection",
+]);
+
+const resolveReviewableCollectionId = (room: RoomState["room"]) => {
+  const sourceType = room.playlist.sourceType ?? room.playlistSourceType ?? null;
+  if (!sourceType || !COLLECTION_SOURCE_TYPES.has(sourceType)) return null;
+  return room.playlist.id ?? room.playlistId ?? null;
+};
 
 const RECOMMEND_CATEGORY_LABELS: Record<RecommendCategory, string> = {
   quick: "全員速解",
@@ -359,6 +370,10 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
   const effectiveTabHints = isMobileSettlementViewport
     ? TAB_HINTS
     : DESKTOP_TAB_HINTS;
+  const reviewableCollectionId = useMemo(
+    () => resolveReviewableCollectionId(room),
+    [room],
+  );
   const rawStepIndex = effectiveTabOrder.indexOf(activeTab);
   const stepIndex =
     rawStepIndex === -1 ? effectiveTabOrder.length - 1 : rawStepIndex;
@@ -1315,26 +1330,33 @@ const LiveSettlementShowcase: React.FC<LiveSettlementShowcaseProps> = ({
               </div>
             )}
             {activeTab === "overview" && (
-              <OverviewSection
-                isMobileView={isMobileSettlementViewport}
-                winner={winner}
-                runnerUp={runnerUp}
-                thirdPlace={thirdPlace}
-                me={me}
-                myRank={myRank}
-                participantsLength={participants.length}
-                playedQuestionCount={playedQuestionCount}
-                sortedParticipants={sortedParticipants}
-                meClientId={meClientId}
-                topAccuracyEntry={topAccuracyEntry}
-                topComboEntry={topComboEntry}
-                fastestAverageAnswerEntry={fastestAverageAnswerEntry}
-                participantScoreMeta={participantScoreMeta}
-                rankedSettlement={rankedSettlement}
-                formatPercent={formatPercent}
-                formatMs={formatMs}
-                multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
-              />
+              <div className="space-y-3 lg:space-y-4">
+                <OverviewSection
+                  isMobileView={isMobileSettlementViewport}
+                  winner={winner}
+                  runnerUp={runnerUp}
+                  thirdPlace={thirdPlace}
+                  me={me}
+                  myRank={myRank}
+                  participantsLength={participants.length}
+                  playedQuestionCount={playedQuestionCount}
+                  sortedParticipants={sortedParticipants}
+                  meClientId={meClientId}
+                  topAccuracyEntry={topAccuracyEntry}
+                  topComboEntry={topComboEntry}
+                  fastestAverageAnswerEntry={fastestAverageAnswerEntry}
+                  participantScoreMeta={participantScoreMeta}
+                  rankedSettlement={rankedSettlement}
+                  formatPercent={formatPercent}
+                  formatMs={formatMs}
+                  multilineEllipsis2Style={MULTILINE_ELLIPSIS_2}
+                />
+                <CollectionReviewPanel
+                  collectionId={reviewableCollectionId}
+                  title="這份題庫好玩嗎？"
+                  description="留下本場遊玩後的感受，幫助其他玩家判斷這份題庫。"
+                />
+              </div>
             )}
 
             {activeTab === "recommend" && (

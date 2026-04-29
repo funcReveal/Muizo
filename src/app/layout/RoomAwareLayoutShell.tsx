@@ -42,7 +42,6 @@ const RoomAwareLayoutShell: React.FC = () => {
   const isGameMode = Boolean(currentRoom && gameState);
   const isRoomsHubPage = location.pathname === "/rooms";
   const isRoomsEntryGatePage = isRoomsHubPage && !username;
-  const shouldShowDesktopRoomFooter = !currentRoom || isMobileViewport;
 
   const roomsOutletClassName = isRoomsEntryGatePage
     ? [
@@ -82,6 +81,7 @@ const RoomAwareLayoutShell: React.FC = () => {
           onNavigateCollections={navigationGuards.handleNavigateCollections}
           onNavigateHistory={navigationGuards.handleNavigateHistory}
           onNavigateSettings={navigationGuards.handleNavigateSettings}
+          onNavigatePrivacy={navigationGuards.handlePrivacyRequest}
         />
 
         {isRoomsHubPage ? (
@@ -91,34 +91,6 @@ const RoomAwareLayoutShell: React.FC = () => {
         ) : (
           <Outlet />
         )}
-
-        {shouldShowDesktopRoomFooter ? (
-          <footer
-            className={`flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)] ${
-              currentRoom && isMobileViewport
-                ? "game-room-mobile-legal-footer"
-                : ""
-            }`}
-          >
-            <button
-              type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-              onClick={navigationGuards.handlePrivacyRequest}
-            >
-              隱私權政策
-            </button>
-
-            <span className="text-[var(--mc-border)]">‧</span>
-
-            <button
-              type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-              onClick={navigationGuards.handleTermsRequest}
-            >
-              服務條款
-            </button>
-          </footer>
-        ) : null}
 
         {navigationGuards.dialogs}
 

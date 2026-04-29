@@ -35,6 +35,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { List, type RowComponentProps } from "react-window";
 
 import { API_URL, PLAYER_MAX, PLAYER_MIN } from "@domain/room/constants";
+import { CollectionReviewList, CollectionReviewPanel } from "@features/CollectionReview";
 import type { RoomCreateSourceMode } from "@domain/room/types";
 import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
@@ -1678,7 +1679,7 @@ const CollectionDetailDrawer = ({
                       </div>
                     )}
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.18)_42%,rgba(2,6,23,0.88)_100%)]" />
-                    <div className="absolute bottom-2.5 left-3 right-3 sm:bottom-3 sm:left-4 sm:right-4">
+                    <div className="absolute left-3 right-3 top-2.5 sm:left-4 sm:right-4 sm:top-3">
                       <div className="mb-1.5 flex flex-wrap gap-1.5 sm:mb-2 sm:gap-2">
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-slate-950/56 px-2 py-0.5 text-[11px] font-medium text-slate-100 backdrop-blur sm:px-2.5 sm:py-1 sm:text-xs">
                           {isPublic ? (
@@ -1695,9 +1696,38 @@ const CollectionDetailDrawer = ({
                         </span>
                       ) : null} */}
                       </div>
-                      <p className="line-clamp-1 text-base font-semibold leading-tight text-white sm:line-clamp-2 sm:text-2xl">
-                        {collection.title}
-                      </p>
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <p className="line-clamp-1 min-w-0 flex-1 text-base font-semibold leading-tight text-white sm:line-clamp-2 sm:text-2xl">
+                          {collection.title}
+                        </p>
+                        {isPublic ? (
+                          <IconButton
+                            size="small"
+                            aria-label={isFavorited ? "取消收藏" : "收藏"}
+                            disabled={isFavoriteUpdating || !onToggleFavorite}
+                            onClick={() => {
+                              void onToggleFavorite?.();
+                            }}
+                            className={`!h-9 !w-9 !shrink-0 !rounded-xl !bg-slate-950/56 !text-slate-100 !backdrop-blur transition hover:!bg-amber-300/14 disabled:!opacity-45 ${
+                              isFavorited ? "!text-amber-300" : ""
+                            }`}
+                          >
+                            {isFavorited ? (
+                              <StarRounded sx={{ fontSize: 18 }} />
+                            ) : (
+                              <StarBorderRounded sx={{ fontSize: 18 }} />
+                            )}
+                          </IconButton>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="absolute bottom-2.5 left-3 right-3 sm:bottom-3 sm:left-4 sm:right-4">
+                      <CollectionReviewPanel
+                        collectionId={collection.id}
+                        compact
+                        embedded
+                        variant="inline"
+                      />
                     </div>
                   </div>
 
@@ -1731,6 +1761,14 @@ const CollectionDetailDrawer = ({
                       {collection.description || "題庫未提供說明。"}
                     </p>
                   </div>
+                </section>
+
+                <section className="shrink-0">
+                  <CollectionReviewList
+                    collectionId={collection.id}
+                    enabled={open}
+                    limit={4}
+                  />
                 </section>
 
                 <section className="min-h-0 flex-1 px-0.5 sm:mt-1 sm:px-1">
@@ -2073,7 +2111,7 @@ const CollectionDetailDrawer = ({
               </>
             ) : (
               <>
-                <div className="flex min-w-0 items-center justify-between gap-3">
+                <div className="hidden min-w-0 items-center justify-between gap-3 md:flex">
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
                       {isPublic ? "挑戰模式" : "房間模式"}
@@ -2084,22 +2122,6 @@ const CollectionDetailDrawer = ({
                         : "私人收藏庫僅可建立休閒房"}
                     </p>
                   </div>
-                  {isPublic ? (
-                    <Button
-                      variant="text"
-                      size="small"
-                      startIcon={
-                        isFavorited ? <StarRounded /> : <StarBorderRounded />
-                      }
-                      disabled={isFavoriteUpdating || !onToggleFavorite}
-                      onClick={() => {
-                        void onToggleFavorite?.();
-                      }}
-                      className="!shrink-0"
-                    >
-                      {isFavorited ? "取消收藏" : "收藏"}
-                    </Button>
-                  ) : null}
                 </div>
 
                 <div

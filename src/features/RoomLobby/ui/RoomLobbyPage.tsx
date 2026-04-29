@@ -42,6 +42,9 @@ import {
   type SettlementIdentity,
 } from "./lib/roomLobbySettlementOrchestration";
 import type {
+  PlaylistItem,
+  QuestionScoreBreakdown,
+  RoomParticipant,
   RoomSettlementQuestionRecap,
   RoomSettlementHistorySummary,
   RoomSettlementSnapshot,
@@ -572,8 +575,8 @@ const appendDismissedSettlementRoundKey = (
   return [...current, roundKey];
 };
 
-/*
 const MOCK_LEADERBOARD_QUESTION_COUNT = 30;
+const MOCK_CASUAL_QUESTION_COUNT = 10;
 const MOCK_LEADERBOARD_PLAYER_COUNT = 10;
 const MOCK_PLAYER_NAMES = [
   "Kenshi",
@@ -675,18 +678,24 @@ const buildMockLeaderboardSettlement = ({
   participants,
   meClientId,
   playlistItems,
+  mode,
 }: {
   room: RoomSettlementSnapshot["room"];
   participants: RoomParticipant[];
   meClientId?: string | null;
   playlistItems: PlaylistItem[];
+  mode: "casual" | "leaderboard";
 }) => {
+  const isLeaderboardMode = mode === "leaderboard";
+  const questionCount = isLeaderboardMode
+    ? MOCK_LEADERBOARD_QUESTION_COUNT
+    : MOCK_CASUAL_QUESTION_COUNT;
   const endedAt = Date.now();
   const startedAt = endedAt - 12 * 60 * 1000;
-  const roundKey = `${room.id}:mock-leaderboard:${endedAt}`;
+  const roundKey = `${room.id}:mock-${mode}:${endedAt}`;
   const mockPlaylistItems = buildMockPlaylistItems(
     playlistItems,
-    MOCK_LEADERBOARD_QUESTION_COUNT,
+    questionCount,
   );
   const meParticipant =
     participants.find((item) => item.clientId === meClientId) ??
@@ -974,14 +983,22 @@ const buildMockLeaderboardSettlement = ({
         allowCollectionClipTiming:
           room.gameSettings?.allowCollectionClipTiming ?? true,
         leaderboardProfileKey:
-          room.gameSettings?.leaderboardProfileKey ?? "mock-leaderboard",
-        leaderboardRuleVersion: room.gameSettings?.leaderboardRuleVersion ?? 1,
-        leaderboardModeKey: room.gameSettings?.leaderboardModeKey ?? "standard",
-        leaderboardVariantKey: "30q",
-        leaderboardTargetQuestionCount: MOCK_LEADERBOARD_QUESTION_COUNT,
+          isLeaderboardMode
+            ? (room.gameSettings?.leaderboardProfileKey ?? "mock-leaderboard")
+            : null,
+        leaderboardRuleVersion: isLeaderboardMode
+          ? (room.gameSettings?.leaderboardRuleVersion ?? 1)
+          : null,
+        leaderboardModeKey: isLeaderboardMode
+          ? (room.gameSettings?.leaderboardModeKey ?? "classic")
+          : null,
+        leaderboardVariantKey: isLeaderboardMode ? "30q" : null,
+        leaderboardTargetQuestionCount: isLeaderboardMode ? questionCount : null,
         leaderboardTimeLimitSec: null,
         leaderboardRankingMetric:
-          room.gameSettings?.leaderboardRankingMetric ?? "score",
+          isLeaderboardMode
+            ? (room.gameSettings?.leaderboardRankingMetric ?? "score")
+            : null,
       },
       playlist: {
         ...room.playlist,
@@ -1014,7 +1031,6 @@ const buildMockLeaderboardSettlement = ({
     recaps,
   };
 };
-*/
 
 const RoomLobbyPage: React.FC = () => {
   const { roomId } = useParams<{ roomId?: string }>();
@@ -2868,6 +2884,54 @@ const RoomLobbyPage: React.FC = () => {
     openSettlementReviewByRoundKey,
   ]);
 
+  const handleOpenTestSettlement = useCallback(() => {
+    if (!currentRoom) return;
+
+    const { snapshot, recaps } = buildMockLeaderboardSettlement({
+      room: currentRoom,
+      participants,
+      meClientId: clientId,
+      playlistItems,
+      mode: roomIsLeaderboardChallenge(currentRoom) ? "leaderboard" : "casual",
+    });
+    const summary: RoomSettlementHistorySummary = {
+      matchId: `${snapshot.room.id}:${snapshot.roundNo}`,
+      roundKey: snapshot.roundKey,
+      roundNo: snapshot.roundNo,
+      roomId: snapshot.room.id,
+      roomName: snapshot.room.name,
+      playlistTitle: snapshot.room.playlist.title ?? null,
+      playlistSourceType: snapshot.room.playlist.sourceType ?? null,
+      playlistItemCount: snapshot.room.playlist.totalCount ?? null,
+      startedAt: snapshot.startedAt,
+      endedAt: snapshot.endedAt,
+      status: "ended",
+      playerCount: snapshot.participants.length,
+      questionCount: snapshot.playedQuestionCount,
+      summaryJson: null,
+    };
+
+    dismissedSettlementIdentityRef.current = null;
+    dismissedSettlementRoundKeysRef.current = [];
+    isOpeningExplicitSettlementRef.current = true;
+    pendingSettlementGameSessionIdRef.current = null;
+    setSettlementReplayByRoundKey((current) => ({
+      ...current,
+      [snapshot.roundKey]: snapshot,
+    }));
+    setSettlementHistorySummaries((current) =>
+      limitSettlementSummaries([summary, ...current]),
+    );
+    setSettlementRecapsByRoundKey((current) => ({
+      ...current,
+      [snapshot.roundKey]: recaps,
+    }));
+    setSettlementSummaryListLoaded(true);
+    setActiveSettlementRoundKey(snapshot.roundKey);
+    setRoomViewMode("settlement");
+    setIsGameView(false);
+  }, [clientId, currentRoom, participants, playlistItems, setIsGameView]);
+
   const loginConfirmText = useMemo(() => {
     if (gameState?.status === "playing") {
       return {
@@ -3733,6 +3797,7 @@ const RoomLobbyPage: React.FC = () => {
             onOpenLastSettlement={handleOpenLastSettlement}
             onOpenHistoryDrawer={openHistoryDrawer}
             onOpenSettlementByRoundKey={handleOpenSettlementByRoundKey}
+            onOpenTestSettlement={handleOpenTestSettlement}
             onOpenGame={handleOpenGame}
             onKickPlayer={handleKickPlayer}
             onTransferHost={handleTransferHost}

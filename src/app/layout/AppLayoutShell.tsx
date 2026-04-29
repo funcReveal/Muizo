@@ -108,6 +108,7 @@ const AppLayoutShell: React.FC = () => {
           onNavigateCollections={() => handleNavigateRequest("collections")}
           onNavigateHistory={() => handleNavigateRequest("history")}
           onNavigateSettings={() => handleNavigateRequest("settings")}
+          onNavigatePrivacy={() => navigate("/privacy")}
         />
 
         {isRoomsHubPage ? (
@@ -117,26 +118,6 @@ const AppLayoutShell: React.FC = () => {
         ) : (
           <Outlet />
         )}
-
-        <footer className="flex m-0 shrink-0 items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)] text-xs text-[var(--mc-text-muted)]">
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-            onClick={() => navigate("/privacy")}
-          >
-            隱私權政策
-          </button>
-
-          <span className="text-[var(--mc-border)]">‧</span>
-
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-            onClick={() => navigate("/terms")}
-          >
-            服務條款
-          </button>
-        </footer>
 
         <Dialog
           open={logoutConfirmOpen}
