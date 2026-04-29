@@ -22,7 +22,10 @@ import {
   useRoomGame,
   useSitePresence,
 } from "@features/RoomSession";
-import { useCollectionContent } from "@features/CollectionContent";
+import {
+  useCollectionContent,
+  type CollectionEntry,
+} from "@features/CollectionContent";
 import {
   buildPlaylistIssueSummary,
   getPlaylistIssueTotal,
@@ -355,6 +358,15 @@ const RoomsHubPage: React.FC = () => {
   const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] = useState(false);
   const [detailCollectionId, setDetailCollectionId] = useState<string | null>(
     null,
+  );
+  const [detailCollectionOverride, setDetailCollectionOverride] =
+    useState<CollectionEntry | null>(null);
+  const handleOpenCollectionDetailDrawer = useCallback(
+    (collection: CollectionEntry) => {
+      setDetailCollectionOverride(collection);
+      setDetailCollectionId(collection.id);
+    },
+    [],
   );
   const [sourceSetupDrawer, setSourceSetupDrawer] = useState<{
     kind: "youtube" | "link";
@@ -724,7 +736,7 @@ const RoomsHubPage: React.FC = () => {
     handleResetPlaylist,
     loadCollectionItems,
     fetchCollectionById,
-    openCollectionDrawer: setDetailCollectionId,
+    openCollectionDrawer: handleOpenCollectionDetailDrawer,
   });
   const {
     isLinkSourceActive,
@@ -949,13 +961,15 @@ const RoomsHubPage: React.FC = () => {
         : null,
     [collections, selectedCreateCollectionId],
   );
-  const detailCollection = useMemo(
-    () =>
-      detailCollectionId
-        ? (collections.find((item) => item.id === detailCollectionId) ?? null)
-        : null,
-    [collections, detailCollectionId],
-  );
+  const detailCollection = useMemo(() => {
+    if (!detailCollectionId) return null;
+
+    if (detailCollectionOverride?.id === detailCollectionId) {
+      return detailCollectionOverride;
+    }
+
+    return collections.find((item) => item.id === detailCollectionId) ?? null;
+  }, [collections, detailCollectionId, detailCollectionOverride]);
   const selectedSharedCollection =
     selectedCreateCollectionId &&
     sharedCollectionMeta?.id === selectedCreateCollectionId
@@ -2072,7 +2086,10 @@ const RoomsHubPage: React.FC = () => {
             ? collectionFavoriteUpdatingId === detailCollection.id
             : false
         }
-        onClose={() => setDetailCollectionId(null)}
+        onClose={() => {
+          setDetailCollectionId(null);
+          setDetailCollectionOverride(null);
+        }}
         onUseCollection={(collectionId) => {
           void handlePickCollectionSource(
             collectionId,

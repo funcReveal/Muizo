@@ -1,10 +1,5 @@
 import { useEffect, useRef } from "react";
-
-type SharedCollectionEntry = {
-  id: string;
-  title: string;
-  visibility?: "private" | "public";
-};
+import type { CollectionEntry } from "@features/CollectionContent";
 
 type UseSharedCollectionEntryArgs = {
   sharedCollectionId: string | null;
@@ -32,15 +27,15 @@ type UseSharedCollectionEntryArgs = {
     } | null,
   ) => void;
   handleResetPlaylist: () => void;
-  fetchCollectionById: (
-    collectionId: string,
-    options?: { readToken?: string | null },
-  ) => Promise<SharedCollectionEntry | null>;
   loadCollectionItems: (
     collectionId: string,
     options?: { force?: boolean; readToken?: string | null },
   ) => Promise<unknown>;
-  openCollectionDrawer: (collectionId: string) => void;
+  fetchCollectionById: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<CollectionEntry | null>;
+  openCollectionDrawer: (collection: CollectionEntry) => void;
 };
 
 export const useSharedCollectionEntry = ({
@@ -103,7 +98,7 @@ export const useSharedCollectionEntry = ({
         scope,
       });
 
-      openCollectionDrawer(collection.id);
+      openCollectionDrawer(collection);
 
       void loadCollectionItems(collection.id, { force: true });
     })();
