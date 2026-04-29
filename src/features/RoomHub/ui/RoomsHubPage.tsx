@@ -722,6 +722,7 @@ const RoomsHubPage: React.FC = () => {
     setSharedCollectionMeta,
     handleResetPlaylist,
     loadCollectionItems,
+    openCollectionDrawer: setDetailCollectionId,
   });
   const {
     isLinkSourceActive,

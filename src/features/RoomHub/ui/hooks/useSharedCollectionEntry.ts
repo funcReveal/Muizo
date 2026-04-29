@@ -8,19 +8,29 @@ type UseSharedCollectionEntryArgs = {
   playlistLoading: boolean;
   collectionItemsError: string | null;
   setGuideMode: (value: "create" | "join") => void;
-  setCreateLibraryTab: (value: "public" | "personal" | "youtube" | "link") => void;
+  setCreateLibraryTab: (
+    value: "public" | "personal" | "youtube" | "link",
+  ) => void;
   setCreateLeftTab: (value: "library" | "settings") => void;
-  setRoomCreateSourceMode: (value: "publicCollection" | "privateCollection" | "youtube" | "link") => void;
+  setRoomCreateSourceMode: (
+    value: "publicCollection" | "privateCollection" | "youtube" | "link",
+  ) => void;
   updateAllowCollectionClipTiming: (value: boolean) => boolean;
   setSelectedCreateYoutubeId: (value: string | null) => void;
   setSelectedCreateCollectionId: (value: string | null) => void;
-  setSharedCollectionMeta: (value: {
-    id: string;
-    title: string;
-    scope: "public" | "private";
-  } | null) => void;
+  setSharedCollectionMeta: (
+    value: {
+      id: string;
+      title: string;
+      scope: "public" | "private";
+    } | null,
+  ) => void;
   handleResetPlaylist: () => void;
-  loadCollectionItems: (collectionId: string, options?: { force?: boolean }) => Promise<unknown>;
+  loadCollectionItems: (
+    collectionId: string,
+    options?: { force?: boolean },
+  ) => Promise<unknown>;
+  openCollectionDrawer?: (collectionId: string) => void;
 };
 
 export const useSharedCollectionEntry = ({
@@ -52,11 +62,12 @@ export const useSharedCollectionEntry = ({
 
     setGuideMode("create");
     setCreateLibraryTab("public");
-    setCreateLeftTab("settings");
+    setCreateLeftTab("library");
     updateAllowCollectionClipTiming(true);
     setRoomCreateSourceMode("publicCollection");
     setSelectedCreateYoutubeId(null);
     setSelectedCreateCollectionId(sharedCollectionId);
+    openCollectionDrawer?.(sharedCollectionId);
     setSharedCollectionMeta({
       id: sharedCollectionId,
       title: "分享收藏庫",
@@ -73,6 +84,7 @@ export const useSharedCollectionEntry = ({
     setRoomCreateSourceMode,
     updateAllowCollectionClipTiming,
     setSelectedCreateCollectionId,
+    openCollectionDrawer,
     setSelectedCreateYoutubeId,
     setSharedCollectionMeta,
     sharedCollectionId,
