@@ -1158,7 +1158,7 @@ const JoinRoomPanel = ({
                 className="mt-4 min-h-0 flex-1 overflow-y-auto pb-4 pr-1"
                 onScroll={handleJoinRoomGridScroll}
               >
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {visibleJoinRooms.map((room, index) =>
                     renderJoinRoomCard(room, index, "grid"),
                   )}
