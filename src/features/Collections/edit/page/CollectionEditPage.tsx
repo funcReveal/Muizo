@@ -27,7 +27,7 @@ import EditHeader from "../components/header/EditHeader";
 import PlaylistListPanel from "../components/playlist/PlaylistListPanel";
 import PlaylistSourceModal from "../components/playlist/PlaylistSourceModal";
 import PlayerPanel from "../components/player/PlayerPanel";
-import CollectionEditAiBatchDialog from "../components/ai/CollectionEditAiBatchDialog";
+import CollectionEditAiBatchDrawer from "../components/ai/CollectionEditAiBatchDrawer";
 import {
   createServerId,
   extractVideoId,
@@ -587,7 +587,6 @@ const CollectionEditPage = () => {
     setAiBatchPageIndex,
     aiJsonDrafts,
     aiAppliedPages,
-    aiHelperNotice,
     currentAiJsonDraft,
     setCurrentAiJsonDraft,
     aiBatchWriteState,
@@ -1445,7 +1444,7 @@ const CollectionEditPage = () => {
         </div>
       </div>
 
-      <CollectionEditAiBatchDialog
+      <CollectionEditAiBatchDrawer
         open={aiBatchModalOpen}
         onClose={closeAiBatchModal}
         aiProviderLabel={aiProviderLabel}
@@ -1457,7 +1456,6 @@ const CollectionEditPage = () => {
         aiAppliedPages={aiAppliedPages}
         currentAiJsonDraft={currentAiJsonDraft}
         onCurrentAiJsonDraftChange={setCurrentAiJsonDraft}
-        aiHelperNotice={aiHelperNotice}
         aiParsedResult={aiParsedResult}
         aiPreview={aiPreview}
         aiPageStatuses={aiPageStatuses}

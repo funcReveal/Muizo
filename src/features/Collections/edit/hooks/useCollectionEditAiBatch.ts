@@ -286,7 +286,6 @@ export function useCollectionEditAiBatch({
   const [aiAppliedPages, setAiAppliedPages] = useState<Record<number, boolean>>(
     {},
   );
-  const [aiHelperNotice, setAiHelperNotice] = useState<string | null>(null);
   const [aiPromptSettings, setAiPromptSettings] = useState<AiPromptSettings>(
     DEFAULT_AI_PROMPT_SETTINGS,
   );
@@ -518,7 +517,6 @@ export function useCollectionEditAiBatch({
             : "";
 
   const openAiBatchModal = useCallback(() => {
-    setAiHelperNotice(null);
     setAiBatchPageIndexState(0);
     setAiBatchModalOpen(true);
   }, []);
@@ -532,7 +530,6 @@ export function useCollectionEditAiBatch({
     (pageIndex: number) => {
       const maxIndex = Math.max(0, aiPromptPages.length - 1);
       const nextIndex = Math.min(Math.max(0, pageIndex), maxIndex);
-      setAiHelperNotice(null);
       setAiBatchPageIndexState(nextIndex);
     },
     [aiPromptPages.length],
@@ -540,7 +537,6 @@ export function useCollectionEditAiBatch({
 
   const setCurrentAiJsonDraft = useCallback(
     (value: string) => {
-      setAiHelperNotice(null);
       setAiJsonDrafts((prev) => ({
         ...prev,
         [effectiveAiBatchPageIndex]: value,
@@ -555,7 +551,6 @@ export function useCollectionEditAiBatch({
 
   const updateAiPromptSettings = useCallback(
     (patch: Partial<AiPromptSettings>) => {
-      setAiHelperNotice(null);
       setAiPromptSettings((prev) => ({
         ...prev,
         ...patch,
@@ -565,7 +560,6 @@ export function useCollectionEditAiBatch({
   );
 
   const updateAiSplitField = useCallback((index: number, value: string) => {
-    setAiHelperNotice(null);
     setAiPromptSettings((prev) => ({
       ...prev,
       splitFields: prev.splitFields.map((field, fieldIndex) =>
@@ -575,7 +569,6 @@ export function useCollectionEditAiBatch({
   }, []);
 
   const addAiSplitField = useCallback(() => {
-    setAiHelperNotice(null);
     setAiPromptSettings((prev) => ({
       ...prev,
       splitFields: [...prev.splitFields, `欄位 ${prev.splitFields.length + 1}`],
@@ -583,7 +576,6 @@ export function useCollectionEditAiBatch({
   }, []);
 
   const removeAiSplitField = useCallback((index: number) => {
-    setAiHelperNotice(null);
     setAiPromptSettings((prev) => {
       if (prev.splitFields.length <= 1) return prev;
       return {
@@ -600,46 +592,19 @@ export function useCollectionEditAiBatch({
   }, []);
 
   const handleCopyAiPrompt = useCallback(async () => {
-    const copied = await copyTextToClipboard(aiPromptText);
-
-    if (copied) {
-      setAiHelperNotice("Prompt 已複製，可以直接貼到 AI。");
-      return;
-    }
-
-    setAiHelperNotice("無法自動複製，請手動複製下方內容。");
+    await copyTextToClipboard(aiPromptText);
   }, [aiPromptText]);
 
   const handleOpenAiAssistant = useCallback(async () => {
     const copyPromise = copyTextToClipboard(aiPromptText);
 
-    const aiWindow = window.open(
+    window.open(
       AI_PROVIDER_BASE_URL,
       "_blank",
       "noopener,noreferrer",
     );
 
-    const copied = await copyPromise;
-
-    if (!aiWindow) {
-      setAiHelperNotice(
-        copied
-          ? `Prompt 已複製，但瀏覽器阻擋了開啟 ${AI_PROVIDER_LABEL}。請手動開啟 ${AI_PROVIDER_LABEL} 後貼上。`
-          : `無法自動複製，且瀏覽器阻擋了開啟 ${AI_PROVIDER_LABEL}。請手動複製下方內容。`,
-      );
-      return;
-    }
-
-    if (copied) {
-      setAiHelperNotice(
-        `Prompt 已複製，已開啟 ${AI_PROVIDER_LABEL}，請直接貼上。`,
-      );
-      return;
-    }
-
-    setAiHelperNotice(
-      `已開啟 ${AI_PROVIDER_LABEL}，但無法自動複製。請手動複製下方內容後貼上。`,
-    );
+    await copyPromise;
   }, [aiPromptText]);
 
   const handleApplyAiBatch = useCallback(async () => {
@@ -687,10 +652,6 @@ export function useCollectionEditAiBatch({
       ...prev,
       [appliedPageIndex]: true,
     }));
-    setAiHelperNotice(
-      `已套用第 ${appliedPageIndex + 1} 批的 ${changedCount} 筆答案，正在自動寫入。`,
-    );
-
     const totalPages = aiPromptPages.length;
 
     setAiBatchWriteState({
@@ -703,10 +664,6 @@ export function useCollectionEditAiBatch({
     const saved = await handleSaveCollection("auto", nextPlaylistItems);
 
     if (saved) {
-      setAiHelperNotice(
-        `已套用第 ${appliedPageIndex + 1} 批的 ${changedCount} 筆答案，已送出寫入。`,
-      );
-
       const hasNextPage = appliedPageIndex < aiPromptPages.length - 1;
 
       setAiBatchWriteState({
@@ -731,10 +688,6 @@ export function useCollectionEditAiBatch({
 
       return;
     }
-
-    setAiHelperNotice(
-      `已套用第 ${appliedPageIndex + 1} 批的 ${changedCount} 筆答案，但自動寫入失敗，請檢查右上角儲存錯誤後重試。`,
-    );
 
     setAiBatchWriteState({
       status: "error",
@@ -828,7 +781,6 @@ export function useCollectionEditAiBatch({
     setAiBatchPageIndex,
     aiJsonDrafts,
     aiAppliedPages,
-    aiHelperNotice,
     currentAiJsonDraft,
     setCurrentAiJsonDraft,
     aiBatchWriteState,
