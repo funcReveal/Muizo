@@ -57,6 +57,9 @@ export const mapCollectionItemsToPlaylist = (
       endSec: safeEnd,
       hasExplicitStartSec,
       hasExplicitEndSec,
+      timingSource: (hasExplicitStartSec || hasExplicitEndSec
+        ? "track_clip"
+        : "room_settings") as "track_clip" | "room_settings",
       collectionClipStartSec: startSec,
       collectionClipEndSec: explicitEndSec ?? undefined,
       collectionHasExplicitStartSec: hasExplicitStartSec,
