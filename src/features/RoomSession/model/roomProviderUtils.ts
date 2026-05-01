@@ -367,10 +367,11 @@ export const buildUploadPlaylistItems = (
             item.endSec > collectionClipStartSec
           ? item.endSec
           : undefined;
-    const isCollectionItem = item.provider === "collection";
+    // Timing decisions are based on collection metadata flags, not provider.
+    // provider identifies the media origin (youtube, spotify, …); a YouTube
+    // track imported from a collection still carries collection clip timing.
     const useTrackClip =
       options.allowCollectionClipTiming &&
-      isCollectionItem &&
       (collectionHasExplicitStartSec || collectionHasExplicitEndSec);
     const startSec = useTrackClip ? collectionClipStartSec : roomStartOffsetSec;
     const fallbackEndSec = startSec + roomPlayDurationSec;
