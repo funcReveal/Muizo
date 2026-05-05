@@ -576,7 +576,6 @@ export const useRoomProviderPlaylistActions = ({
             title: options?.title ?? selectedCollection?.title ?? null,
             totalCount:
               options?.totalCount ??
-              selectedCollection?.playable_item_count ??
               selectedCollection?.item_count ??
               0,
             sourceId: collectionId,

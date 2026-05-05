@@ -37,7 +37,6 @@ import {
   usePlaylistLiveSetters,
   usePlaylistSocketBridge,
   usePlaylistSource,
-  getQuestionMax,
   type PlaylistSourceContextValue,
 } from "@features/PlaylistSource";
 import {
@@ -79,6 +78,7 @@ import { useRoomSessionRecoveryState } from "../useRoomSessionRecoveryState";
 import { useRoomServerClockSync } from "../useRoomServerClockSync";
 import { useRoomSocketConnectionGate } from "../useRoomSocketConnectionGate";
 import { useRoomGameLiveSync } from "../useRoomGameLiveSync";
+import { resolveQuestionLimitFromCollection } from "../playlistAvailability";
 
 export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -148,16 +148,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     ? collections.find((item) => item.id === lastFetchedPlaylistId)
     : null;
   const effectiveQuestionMaxLimit = selectedCollectionForPlaylist
-    ? getQuestionMax(
-        Math.max(
-          0,
-          Number(
-            selectedCollectionForPlaylist.playable_item_count ??
-              selectedCollectionForPlaylist.item_count ??
-              playlistItems.length,
-          ),
-        ),
-      )
+    ? resolveQuestionLimitFromCollection(selectedCollectionForPlaylist).max
     : baseQuestionMaxLimit;
 
   const { pathname } = useLocation();

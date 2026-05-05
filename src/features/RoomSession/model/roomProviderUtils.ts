@@ -403,7 +403,18 @@ export const buildUploadPlaylistItems = (
 export const mergeRoomSummaryIntoCurrentRoom = (
   current: RoomState["room"],
   summary: RoomSummary,
-): RoomState["room"] => ({
+): RoomState["room"] => {
+  const summaryPlaylistTotalCount =
+    summary.playlistTotalCount ?? summary.playlistCount;
+  const summarySourceType =
+    summary.playlistSourceType ?? current.playlist.sourceType ?? null;
+  const summaryIsCommittedCollection =
+    (summarySourceType === "public_collection" ||
+      summarySourceType === "private_collection") &&
+    (typeof summary.playlistCount === "number" ||
+      typeof summary.playlistTotalCount === "number");
+
+  return {
   ...current,
   id: summary.id,
   roomCode: summary.roomCode,
@@ -468,10 +479,9 @@ export const mergeRoomSummaryIntoCurrentRoom = (
           summary.playlistPlayableCount !== null
             ? { playableCount: summary.playlistPlayableCount }
             : {}),
-          receivedCount: Math.min(
-            current.playlist.receivedCount,
-            summary.playlistTotalCount ?? summary.playlistCount,
-          ),
+          receivedCount: summaryIsCommittedCollection
+            ? summaryPlaylistTotalCount
+            : Math.min(current.playlist.receivedCount, summaryPlaylistTotalCount),
         }
       : {}),
   },
@@ -479,7 +489,8 @@ export const mergeRoomSummaryIntoCurrentRoom = (
     current.gameSettings,
     summary.gameSettings,
   ),
-});
+  };
+};
 
 export const capRoomMessages = (
   messages: ChatMessage[],

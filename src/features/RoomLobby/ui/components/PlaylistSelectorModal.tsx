@@ -865,7 +865,7 @@ const PlaylistSelectorModal = ({
       [...items]
         .filter(
           (item) =>
-            matchCount(item.item_count) &&
+            matchCount(resolveCollectionAvailabilityCounts(item).playable) &&
             matchText(
               item.title,
               item.description,

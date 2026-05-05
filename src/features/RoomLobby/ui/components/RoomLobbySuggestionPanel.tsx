@@ -18,7 +18,10 @@ import React, { useEffect, useRef, useState } from "react";
 
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
-import { resolveCollectionAvailabilityCounts } from "@features/RoomSession/model/playlistAvailability";
+import {
+  formatCollectionAvailabilityLabel,
+  resolveCollectionAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
@@ -496,18 +499,32 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                   <MenuItem value="">
                     {collectionScope === "public" ? "選擇公開收藏庫" : "選擇私人收藏庫"}
                   </MenuItem>
-                  {collections.map((collection) => (
-                    <MenuItem key={collection.id} value={collection.id}>
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate">
-                          {normalizeDisplayText(collection.title, "未命名收藏庫")}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
-                        </span>
-                      </div>
-                    </MenuItem>
-                  ))}
+                  {collections.map((collection) => {
+                    const counts =
+                      resolveCollectionAvailabilityCounts(collection);
+                    const disabledByAvailability = counts.playable <= 0;
+                    return (
+                      <MenuItem
+                        key={collection.id}
+                        value={collection.id}
+                        disabled={disabledByAvailability}
+                      >
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate">
+                            {normalizeDisplayText(
+                              collection.title,
+                              "未命名收藏庫",
+                            )}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {disabledByAvailability
+                              ? "目前沒有可播放題目"
+                              : formatCollectionAvailabilityLabel(collection)}
+                          </span>
+                        </div>
+                      </MenuItem>
+                    );
+                  })}
                 </TextField>
               )}
 

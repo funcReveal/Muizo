@@ -21,6 +21,7 @@ import {
   DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
+  QUESTION_MAX,
   QUESTION_MIN,
 } from "./roomConstants";
 import {
@@ -33,8 +34,8 @@ import {
   clampQuestionCount,
   clampRevealDurationSec,
   clampStartOffsetSec,
-  getQuestionMax,
 } from "./roomUtils";
+import { resolveQuestionLimitFromCollection } from "./playlistAvailability";
 import type {
   ClientSocket,
   GameState,
@@ -255,9 +256,25 @@ export const useRoomProviderCreateRoomAction = ({
     const trimmed = roomNameInput.trim();
     const trimmedPin = roomPasswordInput.trim();
     const trimmedMaxPlayers = roomMaxPlayersInput.trim();
+    const isCollectionSourceMode =
+      roomCreateSourceMode === "publicCollection" ||
+      roomCreateSourceMode === "privateCollection";
+    const selectedCollection = lastFetchedPlaylistId
+      ? collections.find((item) => item.id === lastFetchedPlaylistId)
+      : null;
+    const collectionQuestionLimit =
+      isCollectionSourceMode && selectedCollection
+        ? resolveQuestionLimitFromCollection(selectedCollection)
+        : null;
 
     if (!trimmed) {
       setStatusText("請先輸入房間名稱。");
+      finalizeCreate();
+      return;
+    }
+
+    if (collectionQuestionLimit && !collectionQuestionLimit.canStart) {
+      setStatusText("這個收藏庫目前沒有可播放題目。");
       finalizeCreate();
       return;
     }
@@ -309,25 +326,9 @@ export const useRoomProviderCreateRoomAction = ({
     const desiredVisibility = roomVisibilityInput;
     const desiredPin = trimmedPin || null;
 
-    const selectedCollection = lastFetchedPlaylistId
-      ? collections.find((item) => item.id === lastFetchedPlaylistId)
-      : null;
-    const availablePlaylistCount =
-      selectedCollection &&
-      (roomCreateSourceMode === "publicCollection" ||
-        roomCreateSourceMode === "privateCollection")
-        ? Math.max(
-            0,
-            Number(
-              selectedCollection.playable_item_count ??
-                selectedCollection.item_count ??
-                playlistItems.length,
-            ),
-          )
-        : playlistItems.length;
     const nextQuestionCount = clampQuestionCount(
       questionCount,
-      getQuestionMax(availablePlaylistCount),
+      collectionQuestionLimit?.max ?? Math.min(QUESTION_MAX, playlistItems.length),
     );
     const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
     const nextRevealDurationSec = clampRevealDurationSec(revealDurationSec);

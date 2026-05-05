@@ -1,3 +1,5 @@
+import { QUESTION_MAX } from "@domain/room/constants";
+
 export type PlaylistAvailabilityInput = {
   playlistCount?: number | null;
   playlistTotalCount?: number | null;
@@ -55,6 +57,28 @@ export const formatPlaylistAvailabilityLabel = (
   return `${counts.playable} 題`;
 };
 
+export const resolveQuestionLimitFromAvailability = (
+  source: PlaylistAvailabilityInput | null | undefined,
+) => {
+  const counts = resolvePlaylistAvailabilityCounts(source);
+
+  if (counts.playable <= 0) {
+    return {
+      ...counts,
+      max: 0,
+      canStart: false,
+      reason: "目前沒有可播放題目",
+    };
+  }
+
+  return {
+    ...counts,
+    max: Math.min(QUESTION_MAX, counts.playable),
+    canStart: true,
+    reason: null,
+  };
+};
+
 export type CollectionAvailabilityInput = {
   item_count?: number | null;
   playable_item_count?: number | null;
@@ -84,4 +108,26 @@ export const formatCollectionAvailabilityLabel = (
   }
 
   return `${counts.playable} 題`;
+};
+
+export const resolveQuestionLimitFromCollection = (
+  collection: CollectionAvailabilityInput | null | undefined,
+) => {
+  const counts = resolveCollectionAvailabilityCounts(collection);
+
+  if (counts.playable <= 0) {
+    return {
+      ...counts,
+      max: 0,
+      canStart: false,
+      reason: "目前沒有可播放題目",
+    };
+  }
+
+  return {
+    ...counts,
+    max: Math.min(QUESTION_MAX, counts.playable),
+    canStart: true,
+    reason: null,
+  };
 };

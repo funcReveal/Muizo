@@ -54,10 +54,9 @@ import {
   clampQuestionCount,
   clampRevealDurationSec,
   clampStartOffsetSec,
-  getQuestionMax,
 } from "@features/RoomSession";
 import { normalizePlaybackExtensionMode } from "@features/RoomSession";
-import { resolvePlaylistAvailabilityCounts } from "@features/RoomSession/model/playlistAvailability";
+import { resolveQuestionLimitFromAvailability } from "@features/RoomSession/model/playlistAvailability";
 import { resolveSettlementTrackLink } from "@features/Settlement/model/settlementLinks";
 import {
   DEFAULT_PLAYBACK_EXTENSION_MODE,
@@ -571,8 +570,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     lobbyBgmRef.current.volume = nextVolume;
   }, [bgmVolume]);
 
-  const playlistAvailability = resolvePlaylistAvailabilityCounts(currentRoom);
-  const questionMaxLimit = getQuestionMax(playlistAvailability.playable);
+  const playlistAvailability = resolveQuestionLimitFromAvailability(currentRoom);
+  const questionMaxLimit = playlistAvailability.max;
   const questionMinLimit = Math.min(QUESTION_MIN, questionMaxLimit);
   const settingsDisabled = gameState?.status === "playing" || !isHost;
   const settingsSourceItems =
@@ -1220,8 +1219,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     ? "只有房主可以開始遊戲"
     : gameState?.status === "playing"
       ? "遊戲進行中"
-      : playlistAvailability.playable <= 0
-        ? "目前沒有可播放題目"
+      : !playlistAvailability.canStart
+        ? playlistAvailability.reason
       : !canStartGame
         ? "歌單尚未同步完成"
         : undefined;
