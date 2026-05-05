@@ -15,6 +15,11 @@ import {
   formatAckError,
   mergeRoomSummaryIntoCurrentRoom,
 } from "./roomProviderUtils";
+import {
+  extractCollectionAvailabilityPatchFromPlaylist,
+  extractCollectionAvailabilityPatchFromRoom,
+  type CollectionAvailabilityPatch,
+} from "./playlistAvailability";
 import type {
   Ack,
   ChatMessage,
@@ -137,6 +142,7 @@ interface SocketLifecycleHandlers {
     reason?: string,
     kind?: "closed" | "left",
   ) => void;
+  patchCollectionAvailability: (input: CollectionAvailabilityPatch) => void;
 }
 
 interface UseRoomProviderSocketLifecycleParams {
@@ -249,6 +255,7 @@ export const useRoomProviderSocketLifecycle = ({
     resetGameSyncVersion,
     applyGameLiveUpdate,
     clearRoomAfterClosure,
+    patchCollectionAvailability,
   } = handlers;
   const upsertRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -269,6 +276,20 @@ export const useRoomProviderSocketLifecycle = ({
       setRooms((prev) => prev.filter((room) => room.id !== roomId));
     },
     [setRooms],
+  );
+  const patchCollectionFromRoom = useCallback(
+    (room: RoomState["room"] | RoomSummary | null | undefined) => {
+      const patch = extractCollectionAvailabilityPatchFromRoom(room);
+      if (patch) patchCollectionAvailability(patch);
+    },
+    [patchCollectionAvailability],
+  );
+  const patchCollectionFromPlaylist = useCallback(
+    (playlist: RoomState["room"]["playlist"] | null | undefined) => {
+      const patch = extractCollectionAvailabilityPatchFromPlaylist(playlist);
+      if (patch) patchCollectionAvailability(patch);
+    },
+    [patchCollectionAvailability],
   );
   const clearActiveRoomState = useCallback(
     ({
@@ -337,6 +358,7 @@ export const useRoomProviderSocketLifecycle = ({
   );
   const applyIncomingRoomSummary = useCallback(
     (room: RoomSummary) => {
+      patchCollectionFromRoom(room);
       if (room.visibility === "public") {
         upsertRoomSummary(room);
       } else {
@@ -365,6 +387,7 @@ export const useRoomProviderSocketLifecycle = ({
     [
       clientId,
       currentRoomIdRef,
+      patchCollectionFromRoom,
       removeRoomSummary,
       saveRoomPassword,
       setCurrentRoom,
@@ -443,6 +466,7 @@ export const useRoomProviderSocketLifecycle = ({
                 (ack: Ack<RoomState>) => {
                   if (ack?.ok) {
                     const state = ack.data;
+                    patchCollectionFromRoom(state.room);
                     setKickedNotice(null);
                     setClosedRoomNotice(null);
                     syncServerOffset(state.serverNow);
@@ -668,6 +692,7 @@ export const useRoomProviderSocketLifecycle = ({
           // 所以如果現在仍在 createRoom in-flight，就先忽略這次 joinedRoom，
           // 由 useRoomProviderCreateRoomAction.ts 在完整同步完成後自行套用最終狀態。
           if (createRoomInFlightRef.current) {
+            patchCollectionFromRoom(state.room);
             syncServerOffset(state.serverNow);
             setPlaylistProgress({
               received: state.room.playlist.receivedCount,
@@ -678,6 +703,7 @@ export const useRoomProviderSocketLifecycle = ({
           }
 
           setSessionProgress(null);
+          patchCollectionFromRoom(state.room);
           setKickedNotice(null);
           setClosedRoomNotice(null);
           releaseCreateRoomLockRef.current?.();
@@ -815,6 +841,7 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onPlaylistUpdated: ({ roomId, playlist }) => {
           if (roomId !== currentRoomIdRef.current) return;
+          patchCollectionFromPlaylist(playlist);
           setCurrentRoom((prev) =>
             prev
               ? {
@@ -1075,6 +1102,8 @@ export const useRoomProviderSocketLifecycle = ({
     applyIncomingRoomSummary,
     clearActiveRoomState,
     clearRoomAfterClosure,
+    patchCollectionFromPlaylist,
+    patchCollectionFromRoom,
     removeRoomSummary,
     setPostResumeGate,
     setClosedRoomNotice,

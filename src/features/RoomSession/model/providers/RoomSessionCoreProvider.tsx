@@ -57,6 +57,7 @@ import {
 import { API_URL, SOCKET_URL } from "../roomConstants";
 import { getStoredRoomId } from "../roomStorage";
 import { formatAckError } from "../roomProviderUtils";
+import { extractCollectionAvailabilityPatchFromRoom } from "../playlistAvailability";
 import { useHostRoomPasswordCache } from "../useHostRoomPasswordCache";
 import { useRoomClosureActions } from "../useRoomClosureActions";
 import { useRoomProviderPresence } from "../useRoomProviderPresence";
@@ -125,7 +126,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const { getSocketRef, loadMorePlaylistRef, handleTerminalRoomAckRef } =
     usePlaylistSocketBridge();
 
-  const { collections } = useCollectionContent();
+  const { collections, patchCollectionAvailability } = useCollectionContent();
   const { createCollectionReadToken } = useCollectionAccess();
 
   // Base playlist context re-provided below with real socket handlers
@@ -304,6 +305,16 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   });
 
+  const syncCollectionAvailabilityFromRoom = useCallback(
+    (room: RoomState["room"] | RoomSummary | null | undefined) => {
+      const patch = extractCollectionAvailabilityPatchFromRoom(room);
+      if (patch) {
+        patchCollectionAvailability(patch);
+      }
+    },
+    [patchCollectionAvailability],
+  );
+
   const { fetchRooms, fetchRoomById, fetchSitePresence } =
     useRoomDirectoryActions({
       apiUrl: API_URL,
@@ -436,6 +447,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       resetGameSyncVersion,
       applyGameLiveUpdate,
       clearRoomAfterClosure,
+      patchCollectionAvailability,
     },
   });
 
@@ -479,6 +491,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistHasMore,
     setPlaylistLoadingMore,
     setPlaylistSuggestions,
+    syncCollectionAvailabilityFromRoom,
     persistRoomSessionToken,
     resetGameSyncVersion,
     handleRoomGoneAck,
@@ -558,6 +571,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistUrl,
     setPlaylistProgress,
     setCurrentRoom,
+    syncCollectionAvailabilityFromRoom,
     fetchPlaylistPage,
     handleRoomGoneAck,
   });
@@ -822,6 +836,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setRooms,
       setHostRoomPassword,
       setRouteRoomResolved,
+      syncCollectionAvailabilityFromRoom,
       joinPasswordInput,
       setJoinPasswordInput,
       handleJoinRoom,
@@ -848,6 +863,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       resetGameSettingsDefaults,
       persistRoomSessionToken,
       applyGameLiveUpdate,
+      syncCollectionAvailabilityFromRoom,
       resetGameSyncVersion,
     ],
   );

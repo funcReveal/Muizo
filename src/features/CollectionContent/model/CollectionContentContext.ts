@@ -56,6 +56,11 @@ export interface CollectionContentContextValue {
     collectionId: string,
     options?: { readToken?: string | null; force?: boolean },
   ) => Promise<void>;
+  patchCollectionAvailability: (input: {
+    collectionId: string;
+    itemCount?: number | null;
+    playableItemCount?: number | null;
+  }) => void;
 }
 
 export const CollectionContentContext =

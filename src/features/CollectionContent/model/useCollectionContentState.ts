@@ -126,6 +126,11 @@ export type UseCollectionContentStateResult = {
     collectionId: string,
     options?: { readToken?: string | null; force?: boolean },
   ) => Promise<void>;
+  patchCollectionAvailability: (input: {
+    collectionId: string;
+    itemCount?: number | null;
+    playableItemCount?: number | null;
+  }) => void;
   resetCollectionsState: () => void;
   resetCollectionSelection: () => void;
   clearCollectionsError: () => void;
@@ -202,6 +207,83 @@ export const useCollectionContentState = ({
     setSelectedCollectionId(collectionId);
     setCollectionItemsError(null);
   }, []);
+
+  const patchCollectionAvailability = useCallback(
+    ({
+      collectionId,
+      itemCount,
+      playableItemCount,
+    }: {
+      collectionId: string;
+      itemCount?: number | null;
+      playableItemCount?: number | null;
+    }) => {
+      const normalizedCollectionId = collectionId.trim();
+      if (!normalizedCollectionId) return;
+
+      const normalizedItemCount =
+        typeof itemCount === "number" && Number.isFinite(itemCount)
+          ? Math.max(0, Math.floor(itemCount))
+          : undefined;
+      const normalizedPlayableCount =
+        playableItemCount === null
+          ? null
+          : typeof playableItemCount === "number" &&
+              Number.isFinite(playableItemCount)
+            ? Math.max(0, Math.floor(playableItemCount))
+            : undefined;
+
+      if (
+        normalizedItemCount === undefined &&
+        normalizedPlayableCount === undefined
+      ) {
+        return;
+      }
+
+      setCollections((prev) => {
+        let changed = false;
+        const next = prev.map((item) => {
+          if (item.id !== normalizedCollectionId) return item;
+
+          const nextItemCount = normalizedItemCount ?? item.item_count;
+          const nextPlayableCount =
+            normalizedPlayableCount === null
+              ? null
+              : normalizedPlayableCount !== undefined
+                ? nextItemCount !== undefined
+                  ? Math.min(normalizedPlayableCount, nextItemCount)
+                  : normalizedPlayableCount
+                : item.playable_item_count !== undefined &&
+                    item.playable_item_count !== null &&
+                    nextItemCount !== undefined
+                  ? Math.min(item.playable_item_count, nextItemCount)
+                  : item.playable_item_count;
+
+          const patched = {
+            ...item,
+            ...(normalizedItemCount !== undefined
+              ? { item_count: normalizedItemCount }
+              : {}),
+            ...(normalizedPlayableCount !== undefined
+              ? { playable_item_count: nextPlayableCount }
+              : {}),
+          };
+
+          if (
+            patched.item_count !== item.item_count ||
+            patched.playable_item_count !== item.playable_item_count
+          ) {
+            changed = true;
+          }
+
+          return patched;
+        });
+
+        return changed ? next : prev;
+      });
+    },
+    [],
+  );
 
   const fetchCollections = useCallback(
     async (scope?: "owner" | "public", options?: { query?: string }) => {
@@ -977,6 +1059,7 @@ export const useCollectionContentState = ({
     loadMoreCollections,
     toggleCollectionFavorite,
     loadCollectionItems,
+    patchCollectionAvailability,
     resetCollectionsState,
     resetCollectionSelection,
     clearCollectionsError,

@@ -120,6 +120,9 @@ interface UseRoomProviderCreateRoomActionParams {
   setRoomNameInput: Dispatch<SetStateAction<string>>;
   setRoomMaxPlayersInput: Dispatch<SetStateAction<string>>;
   resetPlaylistState: () => void;
+  syncCollectionAvailabilityFromRoom: (
+    room: RoomState["room"] | RoomSummary | null | undefined,
+  ) => void;
   onLeaderboardAuthRequired?: () => void;
 }
 
@@ -167,6 +170,7 @@ export const useRoomProviderCreateRoomAction = ({
   setRoomNameInput,
   setRoomMaxPlayersInput,
   resetPlaylistState,
+  syncCollectionAvailabilityFromRoom,
   onLeaderboardAuthRequired,
 }: UseRoomProviderCreateRoomActionParams) => {
   const questionMin = QUESTION_MIN;
@@ -439,7 +443,11 @@ export const useRoomProviderCreateRoomAction = ({
       },
       onUploadStart: (progress) => {
         setPlaylistProgress(progress);
-        setStatusText(`正在同步題庫到房間（0/${uploadItems.length}）...`);
+        setStatusText(
+          isCollectionSourceMode
+            ? "正在檢查可播放題目..."
+            : `正在同步題庫到房間（0/${uploadItems.length}）...`,
+        );
       },
       onChunkUploaded: (progress) => {
         setPlaylistProgress(progress);
@@ -489,6 +497,7 @@ export const useRoomProviderCreateRoomAction = ({
     });
 
     syncServerOffset(finalizedState.serverNow);
+    syncCollectionAvailabilityFromRoom(finalizedRoom);
     setCurrentRoom(finalizedRoom);
     setParticipants((prev) =>
       mergeCachedParticipantPing(finalizedState.participants, prev),
@@ -581,6 +590,7 @@ export const useRoomProviderCreateRoomAction = ({
     setStatusText,
     startOffsetSec,
     syncServerOffset,
+    syncCollectionAvailabilityFromRoom,
     username,
     runWithTimeout,
     onLeaderboardAuthRequired,

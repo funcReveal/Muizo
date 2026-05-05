@@ -106,6 +106,7 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
     setRooms,
     setHostRoomPassword,
     setRouteRoomResolved,
+    syncCollectionAvailabilityFromRoom,
     joinPasswordInput,
     setJoinPasswordInput,
     handleJoinRoom,
@@ -204,6 +205,7 @@ export const RoomCreateSubProvider: React.FC<{ children: ReactNode }> = ({
     setRoomNameInput,
     setRoomMaxPlayersInput,
     resetPlaylistState,
+    syncCollectionAvailabilityFromRoom,
     onLeaderboardAuthRequired: loginWithGoogle,
   });
 

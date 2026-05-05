@@ -58,6 +58,7 @@ export const CollectionContentProvider: React.FC<
     loadMoreCollections,
     toggleCollectionFavorite,
     loadCollectionItems,
+    patchCollectionAvailability,
     resetCollectionsState,
     resetCollectionSelection,
     clearCollectionsError,
@@ -114,6 +115,7 @@ export const CollectionContentProvider: React.FC<
       toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
+      patchCollectionAvailability,
     }),
     [
       collections,
@@ -135,6 +137,7 @@ export const CollectionContentProvider: React.FC<
       toggleCollectionFavorite,
       selectCollection,
       loadCollectionItems,
+      patchCollectionAvailability,
     ],
   );
 

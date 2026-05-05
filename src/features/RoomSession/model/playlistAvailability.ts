@@ -1,19 +1,35 @@
 import { QUESTION_MAX } from "@domain/room/constants";
+import type { PlaylistSourceType } from "./types";
 
 export type PlaylistAvailabilityInput = {
   playlistCount?: number | null;
   playlistTotalCount?: number | null;
   playlistPlayableCount?: number | null;
+  playlistId?: string | null;
+  playlistSourceType?: PlaylistSourceType | null;
   playlist?: {
+    id?: string | null;
+    sourceType?: PlaylistSourceType | null;
     totalCount?: number | null;
     playableCount?: number | null;
   } | null;
+};
+
+export type CollectionAvailabilityPatch = {
+  collectionId: string;
+  itemCount?: number | null;
+  playableItemCount?: number | null;
 };
 
 const toSafeCount = (value: unknown): number | null => {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return Math.max(0, Math.floor(value));
 };
+
+export const isCollectionSourceType = (
+  sourceType: PlaylistSourceType | null | undefined,
+): sourceType is "public_collection" | "private_collection" =>
+  sourceType === "public_collection" || sourceType === "private_collection";
 
 export const resolvePlaylistAvailabilityCounts = (
   source: PlaylistAvailabilityInput | null | undefined,
@@ -129,5 +145,50 @@ export const resolveQuestionLimitFromCollection = (
     max: Math.min(QUESTION_MAX, counts.playable),
     canStart: true,
     reason: null,
+  };
+};
+
+export const extractCollectionAvailabilityPatchFromPlaylist = (
+  playlist: PlaylistAvailabilityInput["playlist"] | null | undefined,
+): CollectionAvailabilityPatch | null => {
+  if (!isCollectionSourceType(playlist?.sourceType ?? null)) return null;
+  const collectionId = playlist?.id?.trim();
+  if (!collectionId) return null;
+
+  const itemCount = toSafeCount(playlist?.totalCount);
+  const playableItemCount = toSafeCount(playlist?.playableCount);
+  if (itemCount === null && playableItemCount === null) return null;
+
+  return {
+    collectionId,
+    ...(itemCount !== null ? { itemCount } : {}),
+    ...(playableItemCount !== null ? { playableItemCount } : {}),
+  };
+};
+
+export const extractCollectionAvailabilityPatchFromRoom = (
+  room: PlaylistAvailabilityInput | null | undefined,
+): CollectionAvailabilityPatch | null => {
+  const playlistPatch = extractCollectionAvailabilityPatchFromPlaylist(
+    room?.playlist,
+  );
+  if (playlistPatch) return playlistPatch;
+
+  const sourceType = room?.playlistSourceType ?? null;
+  if (!isCollectionSourceType(sourceType)) return null;
+
+  const collectionId = room?.playlistId?.trim();
+  if (!collectionId) return null;
+
+  const itemCount =
+    toSafeCount(room?.playlistTotalCount) ?? toSafeCount(room?.playlistCount);
+  const playableItemCount =
+    toSafeCount(room?.playlistPlayableCount) ?? toSafeCount(room?.playlistCount);
+  if (itemCount === null && playableItemCount === null) return null;
+
+  return {
+    collectionId,
+    ...(itemCount !== null ? { itemCount } : {}),
+    ...(playableItemCount !== null ? { playableItemCount } : {}),
   };
 };
