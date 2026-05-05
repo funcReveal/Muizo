@@ -126,8 +126,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     usePlaylistSocketBridge();
 
   const { collections } = useCollectionContent();
-  const { fetchCollectionSnapshot, createCollectionReadToken } =
-    useCollectionAccess();
+  const { createCollectionReadToken } = useCollectionAccess();
 
   // Base playlist context re-provided below with real socket handlers
   const basePlaylistCtx = usePlaylistSource();
@@ -548,7 +547,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     authUserId: authUser?.id ?? null,
     authToken,
     createCollectionReadToken,
-    fetchCollectionSnapshot,
     fetchYoutubeSnapshot,
     fetchPublicPlaylistSnapshot,
     playlistItems,

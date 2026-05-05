@@ -16,6 +16,7 @@ import {
   normalizePlaylistItems,
 } from "./playlistSourceUtils";
 import {
+  QUESTION_MAX,
   QUESTION_MIN,
   QUESTION_STEP,
 } from "@domain/room/constants";
@@ -168,7 +169,7 @@ export const usePlaylistSourceState = ({
     const saved = getStoredQuestionCount();
     const initial =
       typeof saved === "number" && Number.isFinite(saved) ? saved : 10;
-    return clampQuestionCount(initial, getQuestionMax(0));
+    return clampQuestionCount(initial, QUESTION_MAX);
   });
 
   const [youtubePlaylists, setYoutubePlaylists] = useState<YoutubePlaylist[]>(

@@ -181,7 +181,7 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
         cooldownTimerRef.current = null;
       }
       if (cooldownIntervalRef.current) {
-        window.clearInterval(cooldownIntervalRef.current);
+        window.clearTimeout(cooldownIntervalRef.current);
         cooldownIntervalRef.current = null;
       }
     };
@@ -518,7 +518,7 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                           </span>
                           <span className="text-xs text-slate-400">
                             {disabledByAvailability
-                              ? "目前沒有可播放題目"
+                              ? `${formatCollectionAvailabilityLabel(collection)} · 目前沒有可播放題目`
                               : formatCollectionAvailabilityLabel(collection)}
                           </span>
                         </div>

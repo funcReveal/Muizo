@@ -77,6 +77,7 @@ interface UseRoomProviderCreateRoomActionParams {
   lastFetchedPlaylistTitle: string | null;
   collections: Array<{
     id: string;
+    title?: string | null;
     visibility?: "private" | "public";
     readToken?: string | null;
     item_count?: number | null;
@@ -279,13 +280,13 @@ export const useRoomProviderCreateRoomAction = ({
       return;
     }
 
-    if (playlistItems.length === 0) {
+    if (!isCollectionSourceMode && playlistItems.length === 0) {
       setStatusText("請先準備題庫內容，才能建立房間。");
       finalizeCreate();
       return;
     }
 
-    if (playlistItems.length < questionMin) {
+    if (!isCollectionSourceMode && playlistItems.length < questionMin) {
       setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
       finalizeCreate();
       return;
@@ -369,16 +370,21 @@ export const useRoomProviderCreateRoomAction = ({
       player_limit: desiredMaxPlayers,
       question_count: nextQuestionCount,
       reveal_duration_sec: effectiveRevealDurationSec,
-      playlist_count: playlistItems.length,
+      playlist_count: collectionQuestionLimit?.total ?? playlistItems.length,
       leaderboard_profile_key: leaderboardProfileKey,
     });
 
-    const uploadItems = buildUploadPlaylistItems(playlistItems, {
-      playDurationSec: effectivePlayDurationSec,
-      startOffsetSec: effectiveStartOffsetSec,
-      allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
-    });
+    const uploadItems = isCollectionSourceMode
+      ? []
+      : buildUploadPlaylistItems(playlistItems, {
+          playDurationSec: effectivePlayDurationSec,
+          startOffsetSec: effectiveStartOffsetSec,
+          allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
+        });
     const resolvedSourceType = resolvePlaylistSourceType(roomCreateSourceMode);
+    const manifestTotalCount = isCollectionSourceMode
+      ? Math.max(0, Number(selectedCollection?.item_count ?? 0))
+      : uploadItems.length;
     let readToken: string | null = null;
 
     if (
@@ -429,6 +435,7 @@ export const useRoomProviderCreateRoomAction = ({
         sourceId: lastFetchedPlaylistId,
         title: lastFetchedPlaylistTitle ?? null,
         readToken,
+        totalCount: manifestTotalCount,
       },
       onUploadStart: (progress) => {
         setPlaylistProgress(progress);
