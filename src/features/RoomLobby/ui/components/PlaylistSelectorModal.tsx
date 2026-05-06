@@ -41,8 +41,8 @@ import type {
   PlaylistSuggestion,
 } from "@features/RoomSession";
 import {
-  formatCollectionAvailabilityLabel,
-  formatPlaylistAvailabilityLabel,
+  formatCollectionAvailabilityMetricLabel,
+  formatPlaylistAvailabilityMetricLabel,
   resolveCollectionAvailabilityCounts,
   resolvePlaylistAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
@@ -219,7 +219,7 @@ const sourceType = (visibility?: "private" | "public") =>
   visibility === "private" ? "private_collection" : "public_collection";
 
 const questionChip = (min: number, max: number) =>
-  min <= 5 && max >= 500
+  min <= 0 && max >= 500
     ? "題數：全部"
     : max >= 500
       ? `題數：${min} 題以上`
@@ -404,12 +404,14 @@ const LockedSourceState = ({
 
 const Metrics = ({
   itemCount,
+  itemCountLabel,
   useCount,
   favoriteCount,
   ratingCount,
   ratingAvg,
 }: {
   itemCount?: number | null;
+  itemCountLabel?: string | null;
   useCount?: number | null;
   favoriteCount?: number | null;
   ratingCount?: number | null;
@@ -429,7 +431,7 @@ const Metrics = ({
         <QuizRoundedIcon
           sx={{ fontSize: 17, color: "rgba(103,232,249,0.94)" }}
         />
-        <span>{Math.max(0, Number(itemCount ?? 0))}</span>
+        <span>{itemCountLabel ?? Math.max(0, Number(itemCount ?? 0))}</span>
       </span>
 
       {ratingCount !== undefined || ratingAvg !== undefined ? (
@@ -633,7 +635,7 @@ const PlaylistSelectorModal = ({
   const [toolAnchorEl, setToolAnchorEl] = useState<HTMLButtonElement | null>(
     null,
   );
-  const [questionRange, setQuestionRange] = useState<number[]>([5, 500]);
+  const [questionRange, setQuestionRange] = useState<number[]>([0, 500]);
   const [createdWindow, setCreatedWindow] = useState<ToolDateMode>("all");
   const [playWindow, setPlayWindow] = useState<ToolPlayMode>("all");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
@@ -900,12 +902,17 @@ const PlaylistSelectorModal = ({
 
   const suggestions = useMemo(
     () =>
-      playlistSuggestions.filter(
-        (item) =>
-          (typeof item.totalCount !== "number" ||
-            matchCount(item.totalCount)) &&
-          matchText(item.username, item.title, item.value),
-      ),
+      playlistSuggestions.filter((item) => {
+        const counts = resolvePlaylistAvailabilityCounts({
+          playlistCount: item.totalCount,
+          playlistTotalCount: item.totalCount,
+          playlistPlayableCount: item.playableCount ?? null,
+        });
+        return (
+          matchCount(counts.playable) &&
+          matchText(item.username, item.title, item.value)
+        );
+      }),
     [playlistSuggestions, matchCount, matchText],
   );
 
@@ -1163,7 +1170,6 @@ const PlaylistSelectorModal = ({
       const alreadySuggested =
         isSuggestionMode && hasSuggestedSource("collection", item.id, item.id);
       const counts = resolveCollectionAvailabilityCounts(item);
-      const countLabel = formatCollectionAvailabilityLabel(item);
       const disabledByAvailability = counts.playable <= 0;
       const disabled = isCurrent || alreadySuggested || disabledByAvailability;
       return (
@@ -1179,10 +1185,12 @@ const PlaylistSelectorModal = ({
               />
               <div
                 className={`text-[12px] leading-5 ${
-                  disabled ? "text-slate-400/70" : "text-slate-300/88"
+                  disabledByAvailability
+                    ? "text-slate-400/70"
+                    : "hidden"
                 }`}
               >
-                {disabledByAvailability ? "目前沒有可播放題目" : countLabel}
+                {disabledByAvailability ? "目前沒有可播放題目" : null}
               </div>
             </div>
           }
@@ -1195,6 +1203,7 @@ const PlaylistSelectorModal = ({
           metrics={
             <Metrics
               itemCount={item.item_count}
+              itemCountLabel={formatCollectionAvailabilityMetricLabel(item)}
               useCount={item.use_count}
               favoriteCount={item.favorite_count}
             />
@@ -1329,7 +1338,7 @@ const PlaylistSelectorModal = ({
         playlistTotalCount: item.totalCount,
         playlistPlayableCount: item.playableCount ?? null,
       });
-      const suggestionAvailabilityLabel = formatPlaylistAvailabilityLabel({
+      const suggestionAvailabilityLabel = formatPlaylistAvailabilityMetricLabel({
         playlistCount: item.totalCount,
         playlistTotalCount: item.totalCount,
         playlistPlayableCount: item.playableCount ?? null,
@@ -1491,11 +1500,16 @@ const PlaylistSelectorModal = ({
                       group.usernames.length > 2 ? " 等" : ""
                     }`
                   : `推薦者 ${item.username}`,
-                suggestionAvailabilityLabel,
                 item.type === "collection" ? "題庫推薦" : "播放清單推薦",
               ]
                 .filter(Boolean)
                 .join(" · ")}
+            </div>
+            <div className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-200/92">
+              <QuizRoundedIcon
+                sx={{ fontSize: 16, color: "rgba(103,232,249,0.94)" }}
+              />
+              <span>{suggestionAvailabilityLabel}</span>
             </div>
           </div>
           <div className="absolute right-4 top-4 flex items-center gap-2">
@@ -2232,7 +2246,7 @@ const PlaylistSelectorModal = ({
                     <div className="mt-2 px-2">
                       <Slider
                         value={questionRange}
-                        min={5}
+                        min={0}
                         max={500}
                         step={5}
                         onChange={(_, value) =>

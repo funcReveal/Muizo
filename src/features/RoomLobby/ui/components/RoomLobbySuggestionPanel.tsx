@@ -14,12 +14,13 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import BookmarkBorderRoundedIcon from "@mui/icons-material/BookmarkBorderRounded";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import TipsAndUpdatesRoundedIcon from "@mui/icons-material/TipsAndUpdatesRounded";
+import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
 import {
-  formatCollectionAvailabilityLabel,
+  formatCollectionAvailabilityMetricLabel,
   resolveCollectionAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
@@ -503,6 +504,8 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                     const counts =
                       resolveCollectionAvailabilityCounts(collection);
                     const disabledByAvailability = counts.playable <= 0;
+                    const availabilityMetric =
+                      formatCollectionAvailabilityMetricLabel(collection);
                     return (
                       <MenuItem
                         key={collection.id}
@@ -516,10 +519,17 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                               "未命名收藏庫",
                             )}
                           </span>
-                          <span className="text-xs text-slate-400">
-                            {disabledByAvailability
-                              ? `${formatCollectionAvailabilityLabel(collection)} · 目前沒有可播放題目`
-                              : formatCollectionAvailabilityLabel(collection)}
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                            <QuizRoundedIcon
+                              sx={{
+                                fontSize: 15,
+                                color: "rgba(103,232,249,0.88)",
+                              }}
+                            />
+                            <span>{availabilityMetric}</span>
+                            {disabledByAvailability ? (
+                              <span>· 目前沒有可播放題目</span>
+                            ) : null}
                           </span>
                         </div>
                       </MenuItem>

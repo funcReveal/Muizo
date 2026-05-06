@@ -95,6 +95,15 @@ export const resolveQuestionLimitFromAvailability = (
   };
 };
 
+export const formatPlaylistAvailabilityMetricLabel = (
+  source: PlaylistAvailabilityInput | null | undefined,
+): string => {
+  const counts = resolvePlaylistAvailabilityCounts(source);
+  return counts.total > 0
+    ? `${counts.playable}/${counts.total}`
+    : `${counts.playable}`;
+};
+
 export type CollectionAvailabilityInput = {
   item_count?: number | null;
   playable_item_count?: number | null;
@@ -146,6 +155,15 @@ export const resolveQuestionLimitFromCollection = (
     canStart: true,
     reason: null,
   };
+};
+
+export const formatCollectionAvailabilityMetricLabel = (
+  collection: CollectionAvailabilityInput | null | undefined,
+): string => {
+  const counts = resolveCollectionAvailabilityCounts(collection);
+  return counts.total > 0
+    ? `${counts.playable}/${counts.total}`
+    : `${counts.playable}`;
 };
 
 export const extractCollectionAvailabilityPatchFromPlaylist = (
