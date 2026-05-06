@@ -15,11 +15,6 @@ import {
   formatAckError,
   mergeRoomSummaryIntoCurrentRoom,
 } from "./roomProviderUtils";
-import {
-  extractCollectionAvailabilityPatchFromPlaylist,
-  extractCollectionAvailabilityPatchFromRoom,
-  type CollectionAvailabilityPatch,
-} from "./playlistAvailability";
 import type {
   Ack,
   ChatMessage,
@@ -142,7 +137,16 @@ interface SocketLifecycleHandlers {
     reason?: string,
     kind?: "closed" | "left",
   ) => void;
-  patchCollectionAvailability: (input: CollectionAvailabilityPatch) => void;
+  syncCollectionAvailabilityFromRoom: (
+    room: RoomState["room"] | RoomSummary | null | undefined,
+    source?: "room" | "summary",
+  ) => void;
+  syncCollectionAvailabilityFromPlaylist: (
+    playlist: RoomState["room"]["playlist"] | null | undefined,
+  ) => void;
+  syncCollectionAvailabilityFromRooms: (
+    rooms: RoomSummary[] | null | undefined,
+  ) => void;
 }
 
 interface UseRoomProviderSocketLifecycleParams {
@@ -255,7 +259,9 @@ export const useRoomProviderSocketLifecycle = ({
     resetGameSyncVersion,
     applyGameLiveUpdate,
     clearRoomAfterClosure,
-    patchCollectionAvailability,
+    syncCollectionAvailabilityFromRoom,
+    syncCollectionAvailabilityFromPlaylist,
+    syncCollectionAvailabilityFromRooms,
   } = handlers;
   const upsertRoomSummary = useCallback(
     (room: RoomSummary) => {
@@ -276,20 +282,6 @@ export const useRoomProviderSocketLifecycle = ({
       setRooms((prev) => prev.filter((room) => room.id !== roomId));
     },
     [setRooms],
-  );
-  const patchCollectionFromRoom = useCallback(
-    (room: RoomState["room"] | RoomSummary | null | undefined) => {
-      const patch = extractCollectionAvailabilityPatchFromRoom(room);
-      if (patch) patchCollectionAvailability(patch);
-    },
-    [patchCollectionAvailability],
-  );
-  const patchCollectionFromPlaylist = useCallback(
-    (playlist: RoomState["room"]["playlist"] | null | undefined) => {
-      const patch = extractCollectionAvailabilityPatchFromPlaylist(playlist);
-      if (patch) patchCollectionAvailability(patch);
-    },
-    [patchCollectionAvailability],
   );
   const clearActiveRoomState = useCallback(
     ({
@@ -358,7 +350,7 @@ export const useRoomProviderSocketLifecycle = ({
   );
   const applyIncomingRoomSummary = useCallback(
     (room: RoomSummary) => {
-      patchCollectionFromRoom(room);
+      syncCollectionAvailabilityFromRoom(room, "summary");
       if (room.visibility === "public") {
         upsertRoomSummary(room);
       } else {
@@ -387,7 +379,7 @@ export const useRoomProviderSocketLifecycle = ({
     [
       clientId,
       currentRoomIdRef,
-      patchCollectionFromRoom,
+      syncCollectionAvailabilityFromRoom,
       removeRoomSummary,
       saveRoomPassword,
       setCurrentRoom,
@@ -466,7 +458,7 @@ export const useRoomProviderSocketLifecycle = ({
                 (ack: Ack<RoomState>) => {
                   if (ack?.ok) {
                     const state = ack.data;
-                    patchCollectionFromRoom(state.room);
+                    syncCollectionAvailabilityFromRoom(state.room);
                     setKickedNotice(null);
                     setClosedRoomNotice(null);
                     syncServerOffset(state.serverNow);
@@ -492,7 +484,7 @@ export const useRoomProviderSocketLifecycle = ({
                       );
                       // ── Post-resume recovery gate ─────────────────────────────
                       // Only hold the gate when the current phase has already
-                      // expired (remainingMs ≤ 0). In that situation the client
+                      // expired (remainingMs <= 0). In that situation the client
                       // would paint a frozen "0 s" countdown, so we keep
                       // isRecoveringConnection=true until onGameUpdated arrives
                       // with a NEW startedAt, meaning the server has pushed the
@@ -634,6 +626,7 @@ export const useRoomProviderSocketLifecycle = ({
           setPlaylistSuggestions([]);
         },
         onRoomsUpdated: (updatedRooms: RoomSummary[]) => {
+          syncCollectionAvailabilityFromRooms(updatedRooms);
           startTransition(() => {
             setRooms(updatedRooms);
           });
@@ -692,7 +685,7 @@ export const useRoomProviderSocketLifecycle = ({
           // 所以如果現在仍在 createRoom in-flight，就先忽略這次 joinedRoom，
           // 由 useRoomProviderCreateRoomAction.ts 在完整同步完成後自行套用最終狀態。
           if (createRoomInFlightRef.current) {
-            patchCollectionFromRoom(state.room);
+            syncCollectionAvailabilityFromRoom(state.room);
             syncServerOffset(state.serverNow);
             setPlaylistProgress({
               received: state.room.playlist.receivedCount,
@@ -703,7 +696,7 @@ export const useRoomProviderSocketLifecycle = ({
           }
 
           setSessionProgress(null);
-          patchCollectionFromRoom(state.room);
+          syncCollectionAvailabilityFromRoom(state.room);
           setKickedNotice(null);
           setClosedRoomNotice(null);
           releaseCreateRoomLockRef.current?.();
@@ -841,7 +834,7 @@ export const useRoomProviderSocketLifecycle = ({
         },
         onPlaylistUpdated: ({ roomId, playlist }) => {
           if (roomId !== currentRoomIdRef.current) return;
-          patchCollectionFromPlaylist(playlist);
+          syncCollectionAvailabilityFromPlaylist(playlist);
           setCurrentRoom((prev) =>
             prev
               ? {
@@ -1102,8 +1095,9 @@ export const useRoomProviderSocketLifecycle = ({
     applyIncomingRoomSummary,
     clearActiveRoomState,
     clearRoomAfterClosure,
-    patchCollectionFromPlaylist,
-    patchCollectionFromRoom,
+    syncCollectionAvailabilityFromPlaylist,
+    syncCollectionAvailabilityFromRoom,
+    syncCollectionAvailabilityFromRooms,
     removeRoomSummary,
     setPostResumeGate,
     setClosedRoomNotice,
@@ -1170,3 +1164,4 @@ export const useRoomProviderSocketLifecycle = ({
 };
 
 export default useRoomProviderSocketLifecycle;
+

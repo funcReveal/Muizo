@@ -100,8 +100,8 @@ export const formatPlaylistAvailabilityMetricLabel = (
 ): string => {
   const counts = resolvePlaylistAvailabilityCounts(source);
   return counts.total > 0
-    ? `${counts.playable}/${counts.total}`
-    : `${counts.playable}`;
+    ? `${counts.playable}/${counts.total}題`
+    : `${counts.playable}題`;
 };
 
 export type CollectionAvailabilityInput = {
@@ -162,8 +162,8 @@ export const formatCollectionAvailabilityMetricLabel = (
 ): string => {
   const counts = resolveCollectionAvailabilityCounts(collection);
   return counts.total > 0
-    ? `${counts.playable}/${counts.total}`
-    : `${counts.playable}`;
+    ? `${counts.playable}/${counts.total}題`
+    : `${counts.playable}題`;
 };
 
 export const extractCollectionAvailabilityPatchFromPlaylist = (

@@ -231,6 +231,19 @@ type CollectionDetailDrawerState = {
   source: "manual" | "sharedLink";
 } | null;
 
+const mergeCollectionDetailWithLiveCache = (
+  snapshot: CollectionEntry | null,
+  live: CollectionEntry | null,
+): CollectionEntry | null => {
+  if (!snapshot) return live;
+  if (!live || live.id !== snapshot.id) return snapshot;
+
+  return {
+    ...snapshot,
+    ...live,
+  };
+};
+
 const isRoomPlayMode = (value: unknown): value is RoomPlayMode =>
   value === "casual" || value === "leaderboard";
 
@@ -1003,11 +1016,15 @@ const RoomsHubPage: React.FC = () => {
   const detailCollection = useMemo(() => {
     if (!detailCollectionId) return null;
 
-    if (detailCollectionOverride?.id === detailCollectionId) {
-      return detailCollectionOverride;
-    }
+    const liveCollection =
+      collections.find((item) => item.id === detailCollectionId) ?? null;
 
-    return collections.find((item) => item.id === detailCollectionId) ?? null;
+    return mergeCollectionDetailWithLiveCache(
+      detailCollectionOverride?.id === detailCollectionId
+        ? detailCollectionOverride
+        : null,
+      liveCollection,
+    );
   }, [collections, detailCollectionId, detailCollectionOverride]);
   const selectedSharedCollection =
     selectedCreateCollectionId &&

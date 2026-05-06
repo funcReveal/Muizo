@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 
 import type { GameState, PlaylistSuggestion } from "@features/RoomSession";
 import {
-  formatPlaylistAvailabilityLabel,
+  formatPlaylistAvailabilityMetricLabel,
   resolvePlaylistAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
 import type { YoutubePlaylist } from "@features/PlaylistSource";
@@ -478,7 +478,7 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                           if (!selectedSuggestion) return "\u9078\u64C7\u5EFA\u8B70";
                           const label =
                             selectedSuggestion.title ?? selectedSuggestion.value;
-                          const countLabel = formatPlaylistAvailabilityLabel({
+                          const countLabel = formatPlaylistAvailabilityMetricLabel({
                             playlistCount: selectedSuggestion.totalCount,
                             playlistTotalCount: selectedSuggestion.totalCount,
                             playlistPlayableCount:
@@ -499,7 +499,7 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                             playlistPlayableCount:
                               suggestion.playableCount ?? null,
                           });
-                        const countLabel = formatPlaylistAvailabilityLabel({
+                        const countLabel = formatPlaylistAvailabilityMetricLabel({
                           playlistCount: suggestion.totalCount,
                           playlistTotalCount: suggestion.totalCount,
                           playlistPlayableCount: suggestion.playableCount ?? null,

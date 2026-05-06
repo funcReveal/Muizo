@@ -60,6 +60,7 @@ export interface CollectionContentContextValue {
     collectionId: string;
     itemCount?: number | null;
     playableItemCount?: number | null;
+    source?: "room" | "playlist" | "summary";
   }) => void;
 }
 

@@ -57,7 +57,7 @@ import {
 import { API_URL, SOCKET_URL } from "../roomConstants";
 import { getStoredRoomId } from "../roomStorage";
 import { formatAckError } from "../roomProviderUtils";
-import { extractCollectionAvailabilityPatchFromRoom } from "../playlistAvailability";
+import { useCollectionAvailabilitySync } from "../useCollectionAvailabilitySync";
 import { useHostRoomPasswordCache } from "../useHostRoomPasswordCache";
 import { useRoomClosureActions } from "../useRoomClosureActions";
 import { useRoomProviderPresence } from "../useRoomProviderPresence";
@@ -305,15 +305,11 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   });
 
-  const syncCollectionAvailabilityFromRoom = useCallback(
-    (room: RoomState["room"] | RoomSummary | null | undefined) => {
-      const patch = extractCollectionAvailabilityPatchFromRoom(room);
-      if (patch) {
-        patchCollectionAvailability(patch);
-      }
-    },
-    [patchCollectionAvailability],
-  );
+  const {
+    syncCollectionAvailabilityFromRoom,
+    syncCollectionAvailabilityFromPlaylist,
+    syncCollectionAvailabilityFromRooms,
+  } = useCollectionAvailabilitySync(patchCollectionAvailability);
 
   const { fetchRooms, fetchRoomById, fetchSitePresence } =
     useRoomDirectoryActions({
@@ -321,6 +317,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setRooms,
       setStatusText,
       setSitePresence,
+      syncCollectionAvailabilityFromRoom,
+      syncCollectionAvailabilityFromRooms,
     });
 
   const { fetchSettlementHistorySummaries, fetchSettlementReplay } =
@@ -447,7 +445,9 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       resetGameSyncVersion,
       applyGameLiveUpdate,
       clearRoomAfterClosure,
-      patchCollectionAvailability,
+      syncCollectionAvailabilityFromRoom,
+      syncCollectionAvailabilityFromPlaylist,
+      syncCollectionAvailabilityFromRooms,
     },
   });
 

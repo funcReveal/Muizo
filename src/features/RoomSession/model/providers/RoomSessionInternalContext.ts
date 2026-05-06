@@ -58,6 +58,7 @@ export interface RoomSessionInternalContextValue {
   setRouteRoomResolved: Dispatch<SetStateAction<boolean>>;
   syncCollectionAvailabilityFromRoom: (
     room: RoomState["room"] | RoomSummary | null | undefined,
+    source?: "room" | "summary",
   ) => void;
   joinPasswordInput: string;
   setJoinPasswordInput: Dispatch<SetStateAction<string>>;

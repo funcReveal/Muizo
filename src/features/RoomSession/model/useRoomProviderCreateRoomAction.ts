@@ -122,6 +122,7 @@ interface UseRoomProviderCreateRoomActionParams {
   resetPlaylistState: () => void;
   syncCollectionAvailabilityFromRoom: (
     room: RoomState["room"] | RoomSummary | null | undefined,
+    source?: "room" | "summary",
   ) => void;
   onLeaderboardAuthRequired?: () => void;
 }

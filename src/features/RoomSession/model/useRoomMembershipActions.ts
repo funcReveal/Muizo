@@ -77,6 +77,7 @@ interface UseRoomMembershipActionsParams {
   setPlaylistSuggestions: Dispatch<SetStateAction<PlaylistSuggestion[]>>;
   syncCollectionAvailabilityFromRoom: (
     room: RoomState["room"] | null | undefined,
+    source?: "room" | "summary",
   ) => void;
   onLeaderboardAuthRequired?: () => void;
 }

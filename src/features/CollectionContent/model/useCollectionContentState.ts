@@ -24,6 +24,7 @@ import { DEFAULT_CLIP_SEC, DEFAULT_PAGE_SIZE } from "@domain/room/constants";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 const EMPTY_COLLECTION_RETRY_LIMIT = 2;
+export const COLLECTION_AVAILABILITY_PATCH_TTL_MS = 15 * 60 * 1000;
 
 type UseCollectionContentStateOptions = {
   apiUrl?: string;
@@ -81,21 +82,15 @@ type NormalizedAvailabilityPatch = {
   collectionId: string;
   itemCount?: number;
   playableItemCount?: number | null;
+  patchedAt: number;
+  source: "room" | "playlist" | "summary";
 };
 
-const patchCollectionSummary = (
+export const patchCollectionSummary = (
   item: CollectionEntry,
   patch: NormalizedAvailabilityPatch,
 ): CollectionEntry => {
   if (item.id !== patch.collectionId) return item;
-
-  if (
-    patch.itemCount !== undefined &&
-    item.item_count !== undefined &&
-    item.item_count !== patch.itemCount
-  ) {
-    return item;
-  }
 
   const nextItemCount = patch.itemCount ?? item.item_count;
   const nextPlayableCount =
@@ -121,13 +116,13 @@ const patchCollectionSummary = (
   return {
     ...item,
     ...(patch.itemCount !== undefined ? { item_count: patch.itemCount } : {}),
-    ...(patch.playableItemCount !== undefined
+    ...(nextPlayableCount !== item.playable_item_count
       ? { playable_item_count: nextPlayableCount }
       : {}),
   };
 };
 
-const patchCollectionAvailabilityIntoList = (
+export const patchCollectionAvailabilityIntoList = (
   items: CollectionEntry[],
   patch: NormalizedAvailabilityPatch,
 ): CollectionEntry[] => {
@@ -140,15 +135,38 @@ const patchCollectionAvailabilityIntoList = (
   return changed ? next : items;
 };
 
-const patchCollectionAvailabilityWithMap = (
+const isAvailabilityPatchFresh = (
+  patch: NormalizedAvailabilityPatch,
+  now = Date.now(),
+): boolean => now - patch.patchedAt <= COLLECTION_AVAILABILITY_PATCH_TTL_MS;
+
+const pruneAvailabilityPatches = (
+  patches: Record<string, NormalizedAvailabilityPatch>,
+  now = Date.now(),
+): Record<string, NormalizedAvailabilityPatch> => {
+  let changed = false;
+  const next: Record<string, NormalizedAvailabilityPatch> = {};
+  for (const [collectionId, patch] of Object.entries(patches)) {
+    if (isAvailabilityPatchFresh(patch, now)) {
+      next[collectionId] = patch;
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : patches;
+};
+
+export const patchCollectionAvailabilityWithMap = (
   item: CollectionEntry,
   patches: Record<string, NormalizedAvailabilityPatch>,
 ): CollectionEntry => {
   const patch = patches[item.id];
-  return patch ? patchCollectionSummary(item, patch) : item;
+  return patch && isAvailabilityPatchFresh(patch)
+    ? patchCollectionSummary(item, patch)
+    : item;
 };
 
-const patchCollectionAvailabilityListWithMap = (
+export const patchCollectionAvailabilityListWithMap = (
   items: CollectionEntry[],
   patches: Record<string, NormalizedAvailabilityPatch>,
 ): CollectionEntry[] => {
@@ -165,14 +183,18 @@ const patchCollectionAvailabilityListWithMap = (
   return changed ? next : items;
 };
 
-const normalizeAvailabilityPatchInput = ({
+export const normalizeAvailabilityPatchInput = ({
   collectionId,
   itemCount,
   playableItemCount,
+  source = "summary",
+  patchedAt = Date.now(),
 }: {
   collectionId: string;
   itemCount?: number | null;
   playableItemCount?: number | null;
+  source?: "room" | "playlist" | "summary";
+  patchedAt?: number;
 }): NormalizedAvailabilityPatch | null => {
   const normalizedCollectionId = collectionId.trim();
   if (!normalizedCollectionId) return null;
@@ -190,6 +212,8 @@ const normalizeAvailabilityPatchInput = ({
 
   return {
     collectionId: normalizedCollectionId,
+    patchedAt,
+    source,
     ...(normalizedItemCount !== undefined
       ? { itemCount: normalizedItemCount }
       : {}),
@@ -257,6 +281,7 @@ export type UseCollectionContentStateResult = {
     collectionId: string;
     itemCount?: number | null;
     playableItemCount?: number | null;
+    source?: "room" | "playlist" | "summary";
   }) => void;
   resetCollectionsState: () => void;
   resetCollectionSelection: () => void;
@@ -343,20 +368,23 @@ export const useCollectionContentState = ({
       collectionId,
       itemCount,
       playableItemCount,
+      source = "summary",
     }: {
       collectionId: string;
       itemCount?: number | null;
       playableItemCount?: number | null;
+      source?: "room" | "playlist" | "summary";
     }) => {
       const patch = normalizeAvailabilityPatchInput({
         collectionId,
         itemCount,
         playableItemCount,
+        source,
       });
       if (!patch) return;
 
       availabilityPatchRef.current = {
-        ...availabilityPatchRef.current,
+        ...pruneAvailabilityPatches(availabilityPatchRef.current),
         [patch.collectionId]: patch,
       };
       setCollections((prev) =>
@@ -435,6 +463,9 @@ export const useCollectionContentState = ({
             return;
           }
           collectionPageRef.current = 1;
+          availabilityPatchRef.current = pruneAvailabilityPatches(
+            availabilityPatchRef.current,
+          );
           const normalizedItems = items.map((item) => ({
               ...item,
               item_count: Math.max(0, Number(item.item_count ?? 0)),
@@ -596,6 +627,9 @@ export const useCollectionContentState = ({
 
         const collection = patchCollectionAvailabilityWithMap(
           await run(initialToken, Boolean(authToken)),
+          pruneAvailabilityPatches(availabilityPatchRef.current),
+        );
+        availabilityPatchRef.current = pruneAvailabilityPatches(
           availabilityPatchRef.current,
         );
 
@@ -676,6 +710,9 @@ export const useCollectionContentState = ({
         has_ai_edited?: boolean | number;
       }>,
     ) => {
+      availabilityPatchRef.current = pruneAvailabilityPatches(
+        availabilityPatchRef.current,
+      );
       const normalizedItems = patchCollectionAvailabilityListWithMap(
         items.map((item) => ({
           ...item,

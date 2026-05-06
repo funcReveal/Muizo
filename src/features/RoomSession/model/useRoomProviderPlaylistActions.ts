@@ -127,6 +127,7 @@ interface UseRoomProviderPlaylistActionsParams {
   setCurrentRoom: Dispatch<SetStateAction<RoomState["room"] | null>>;
   syncCollectionAvailabilityFromRoom: (
     room: RoomSummary | RoomState["room"] | null | undefined,
+    source?: "room" | "summary",
   ) => void;
   fetchPlaylistPage: (
     roomId: string,
@@ -262,7 +263,7 @@ export const useRoomProviderPlaylistActions = ({
 
   const applyRoomSummary = useCallback(
     (room: RoomSummary) => {
-      syncCollectionAvailabilityFromRoom(room);
+      syncCollectionAvailabilityFromRoom(room, "summary");
       setCurrentRoom((previous) =>
         previous ? mergeRoomSummaryIntoCurrentRoom(previous, room) : previous,
       );

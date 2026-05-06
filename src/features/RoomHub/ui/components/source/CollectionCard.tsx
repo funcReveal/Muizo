@@ -15,6 +15,7 @@ import {
   StarRounded,
 } from "@mui/icons-material";
 import { IconButton, Menu, MenuItem } from "@mui/material";
+import { formatCollectionAvailabilityMetricLabel } from "@features/RoomSession/model/playlistAvailability";
 
 type CollectionCardProps = {
   collection: {
@@ -31,6 +32,7 @@ type CollectionCardProps = {
     rating_count?: number | null;
     rating_avg?: number | null;
     item_count?: number | null;
+    playable_item_count?: number | null;
     is_favorited?: boolean | null;
   };
   view: "grid" | "list";
@@ -88,7 +90,7 @@ const CollectionCard = ({
 
   const itemCountLabel =
     typeof collection.item_count === "number"
-      ? `${Math.max(0, Number(collection.item_count ?? 0))}`
+      ? formatCollectionAvailabilityMetricLabel(collection)
       : null;
 
   const statsMeta = [
@@ -100,7 +102,7 @@ const CollectionCard = ({
               sx={{ fontSize: 17, color: "rgba(103, 232, 249, 0.94)" }}
             />
           ),
-          label: `${itemCountLabel} 題`,
+          label: itemCountLabel,
         }
       : null,
     typeof collection.use_count === "number"
