@@ -169,7 +169,7 @@ interface RoomLobbyPanelProps {
       totalCount?: number | null;
     },
   ) => Promise<{ ok: boolean; error?: string }>;
-  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
+  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<boolean>;
   onApplyPlaylistUrlDirect?: (url: string) => Promise<boolean>;
   onApplyCollectionDirect?: (
     collectionId: string,

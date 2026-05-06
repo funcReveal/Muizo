@@ -70,7 +70,7 @@ export interface PlaylistSourceContextValue {
       totalCount?: number | null;
     },
   ) => Promise<{ ok: boolean; error?: string }>;
-  handleApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
+  handleApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<boolean>;
 }
 
 export const PlaylistSourceContext =

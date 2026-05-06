@@ -115,7 +115,7 @@ type Props = {
     playlistId: string,
     title?: string | null,
   ) => Promise<boolean>;
-  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<void>;
+  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<boolean>;
   onFetchCollections: (
     scope?: "owner" | "public",
     options?: { query?: string },
@@ -1349,13 +1349,18 @@ const PlaylistSelectorModal = ({
         item.type === "collection"
           ? (matchedCollection?.cover_thumbnail_url ?? null)
           : (item.items?.[0]?.thumbnail ?? null);
+      const collectionSuggestionSourceType =
+        matchedCollection?.visibility === "private" ||
+        (!matchedCollection && item.readToken)
+          ? "private_collection"
+          : "public_collection";
       const suggestionSourceType =
         item.type === "collection"
-          ? sourceType(matchedCollection?.visibility)
+          ? collectionSuggestionSourceType
           : (currentSourceType ?? "youtube_pasted_link");
       const isPublicCollectionSuggestion =
         item.type === "collection" &&
-        matchedCollection?.visibility === "public";
+        collectionSuggestionSourceType === "public_collection";
 
       const isLeaderboardLockedSuggestion =
         leaderboardCollectionOnlyMode && !isPublicCollectionSuggestion;
@@ -1384,13 +1389,28 @@ const PlaylistSelectorModal = ({
               }
               if (isCurrent) return;
               if (actionRunning) return;
-              if (item.type !== "collection" && item.items?.length) {
+              if (item.type === "collection" || item.items?.length) {
                 setActionRunning(true);
                 setPendingActionKey(
                   `suggestion:${item.clientId}:${item.suggestedAt}`,
                 );
                 try {
-                  await onApplySuggestionSnapshot(item);
+                  const ok = await onApplySuggestionSnapshot(item);
+                  if (!ok) return;
+                  if (item.type === "collection") {
+                    onRecordSourceApplied({
+                      sourceType: collectionSuggestionSourceType,
+                      title:
+                        item.title ?? matchedCollection?.title ?? item.value,
+                      sourceId: collectionId,
+                      thumbnailUrl:
+                        matchedCollection?.cover_thumbnail_url ?? null,
+                      itemCount:
+                        item.totalCount ??
+                        matchedCollection?.item_count ??
+                        null,
+                    });
+                  }
                   onClose();
                 } finally {
                   setActionRunning(false);
@@ -1419,29 +1439,6 @@ const PlaylistSelectorModal = ({
                   setPendingActionKey(null);
                 }
                 return;
-              }
-              setActionRunning(true);
-              setPendingActionKey(
-                `suggestion:${item.clientId}:${item.suggestedAt}`,
-              );
-              try {
-                const ok = await onApplyCollectionDirect(
-                  collectionId,
-                  item.title ?? matchedCollection?.title ?? null,
-                );
-                if (!ok) return;
-                onRecordSourceApplied({
-                  sourceType: sourceType(matchedCollection?.visibility),
-                  title: item.title ?? matchedCollection?.title ?? item.value,
-                  sourceId: collectionId,
-                  thumbnailUrl: matchedCollection?.cover_thumbnail_url ?? null,
-                  itemCount:
-                    item.totalCount ?? matchedCollection?.item_count ?? null,
-                });
-                onClose();
-              } finally {
-                setActionRunning(false);
-                setPendingActionKey(null);
               }
             })();
           }}
@@ -1537,7 +1534,6 @@ const PlaylistSelectorModal = ({
       leaderboardCollectionOnlyReason,
       matchesCurrentSource,
       collections,
-      onApplyCollectionDirect,
       onApplyPlaylistUrlDirect,
       onApplySuggestionSnapshot,
       onClose,

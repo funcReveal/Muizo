@@ -295,6 +295,26 @@ export const useRoomProviderPlaylistActions = ({
     [authToken, collections, resolveCollectionSourceType],
   );
 
+  const resolveSuggestionCollectionSourceType = useCallback(
+    (suggestion: PlaylistSuggestion): PlaylistSourceType => {
+      const sourceId = suggestion.sourceId ?? suggestion.value;
+      const selectedCollection = collections.find(
+        (item) => item.id === sourceId,
+      );
+
+      if (selectedCollection?.visibility === "private") {
+        return "private_collection";
+      }
+
+      if (selectedCollection?.visibility === "public") {
+        return "public_collection";
+      }
+
+      return suggestion.readToken ? "private_collection" : "public_collection";
+    },
+    [collections],
+  );
+
   const resolveCollectionReadToken = useCallback(
     async (collectionId: string) => {
       const selectedCollection = collections.find(
@@ -599,9 +619,11 @@ export const useRoomProviderPlaylistActions = ({
             throw new Error("缺少播放清單 ID");
           }
 
-          const result = authToken
-            ? await fetchYoutubeSnapshot(playlistId)
-            : await fetchPublicPlaylistSnapshot(value, playlistId);
+          const isUrlSuggestion = Boolean(extractPlaylistIdFromUrl(value));
+          const result =
+            authToken && !isUrlSuggestion
+              ? await fetchYoutubeSnapshot(playlistId)
+              : await fetchPublicPlaylistSnapshot(value, playlistId);
 
           snapshot = {
             items: result.items,
@@ -796,32 +818,34 @@ export const useRoomProviderPlaylistActions = ({
       const sourceId = suggestion.sourceId ?? suggestion.value;
 
       if (suggestion.type === "collection") {
-        await uploadPlaylistSelection({
+        return await uploadPlaylistSelection({
           items: [],
           sourceId,
           title: suggestion.title ?? null,
-          sourceType: resolveCollectionSourceType(sourceId),
+          sourceType: resolveSuggestionCollectionSourceType(suggestion),
           readToken: suggestion.readToken ?? null,
           totalCount: suggestion.totalCount ?? 0,
         });
-        return;
       }
 
       if (!items.length) {
         setStatusText("這個建議沒有可套用的題目。");
-        return;
+        return false;
       }
 
-      await uploadPlaylistSelection({
+      return await uploadPlaylistSelection({
         items,
         sourceId,
         title: suggestion.title ?? null,
         sourceType: resolvePlaylistSourceType(sourceId),
+        playlistUrl: extractPlaylistIdFromUrl(suggestion.value)
+          ? suggestion.value
+          : undefined,
       });
     },
     [
-      resolveCollectionSourceType,
       resolvePlaylistSourceType,
+      resolveSuggestionCollectionSourceType,
       setStatusText,
       uploadPlaylistSelection,
     ],

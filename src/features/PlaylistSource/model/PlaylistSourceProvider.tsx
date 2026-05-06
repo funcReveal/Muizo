@@ -214,7 +214,7 @@ export const PlaylistSourceProvider: React.FC<PlaylistSourceProviderProps> = ({
       handleApplyCollectionDirect: noopBool,
       handleApplyYoutubePlaylistDirect: noopBool,
       handleSuggestPlaylist: noopSuggest as PlaylistSourceContextValue["handleSuggestPlaylist"],
-      handleApplySuggestionSnapshot: noop as PlaylistSourceContextValue["handleApplySuggestionSnapshot"],
+      handleApplySuggestionSnapshot: noopBool,
     }),
     [
       playlistUrl,
