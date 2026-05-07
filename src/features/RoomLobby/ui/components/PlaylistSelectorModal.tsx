@@ -3,9 +3,6 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogContent,
-  DialogTitle,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -61,6 +58,11 @@ import {
 } from "@domain/room/constants";
 // import { formatDurationLabel } from "../lib/roomsHubViewModels";
 import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
+import {
+  PlaylistSelectorDrawerContent,
+  PlaylistSelectorDrawerRoot,
+  PlaylistSelectorDrawerTitle,
+} from "./PlaylistSelectorDrawerShell";
 
 type SelectorTab = "suggestions" | "public" | "mine" | "youtube" | "link";
 type ToolDateMode = "all" | "7d" | "30d" | "earliest" | "latest";
@@ -114,7 +116,9 @@ type Props = {
     playlistId: string,
     title?: string | null,
   ) => Promise<boolean>;
-  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<boolean>;
+  onApplySuggestionSnapshot: (
+    suggestion: PlaylistSuggestion,
+  ) => Promise<boolean>;
   onFetchCollections: (
     scope?: "owner" | "public",
     options?: { query?: string },
@@ -672,12 +676,9 @@ const PlaylistSelectorModal = ({
         )
       : 0;
 
-  const triggerCooldownBlockedFeedback = useCallback(
-    (key: string) => {
-      setCooldownBlockedKey(`${key}:${Date.now()}`);
-    },
-    [],
-  );
+  const triggerCooldownBlockedFeedback = useCallback((key: string) => {
+    setCooldownBlockedKey(`${key}:${Date.now()}`);
+  }, []);
   useEffect(() => {
     if (
       open &&
@@ -912,8 +913,7 @@ const PlaylistSelectorModal = ({
   );
 
   const suggestionEntries = useMemo(
-    () =>
-      [...suggestions].sort((a, b) => b.suggestedAt - a.suggestedAt),
+    () => [...suggestions].sort((a, b) => b.suggestedAt - a.suggestedAt),
     [suggestions],
   );
   const suggestionBadgeCount = playlistSuggestions.length;
@@ -1143,9 +1143,10 @@ const PlaylistSelectorModal = ({
       const shakeVersion = cooldownBlockedKey?.startsWith(`${sourceKey}:`)
         ? Number(cooldownBlockedKeyParts[cooldownBlockedKeyParts.length - 1])
         : undefined;
-      const blockedMessage = shakeVersion && isCooldownActive
-        ? `還不能推薦，請稍候 ${Math.max(1, cooldownSeconds)} 秒`
-        : null;
+      const blockedMessage =
+        shakeVersion && isCooldownActive
+          ? `還不能推薦，請稍候 ${Math.max(1, cooldownSeconds)} 秒`
+          : null;
       return (
         <SourceCard
           key={item.id}
@@ -1340,9 +1341,10 @@ const PlaylistSelectorModal = ({
       const unavailableCollectionSuggestion =
         item.type === "collection" &&
         suggestionAvailability.playable < MIN_COLLECTION_PLAYABLE_COUNT;
-      const unavailableCollectionSuggestionReason = unavailableCollectionSuggestion
-        ? `至少需要 ${MIN_COLLECTION_PLAYABLE_COUNT} 題可遊玩，目前只有 ${suggestionAvailability.playable} 題`
-        : null;
+      const unavailableCollectionSuggestionReason =
+        unavailableCollectionSuggestion
+          ? `至少需要 ${MIN_COLLECTION_PLAYABLE_COUNT} 題可遊玩，目前只有 ${suggestionAvailability.playable} 題`
+          : null;
       const suggestionThumbnailUrl =
         item.type === "collection"
           ? (item.coverThumbnailUrl ??
@@ -2023,7 +2025,7 @@ const PlaylistSelectorModal = ({
 
   return (
     <>
-      <Dialog
+      <PlaylistSelectorDrawerRoot
         open={open}
         onClose={onClose}
         fullWidth
@@ -2056,7 +2058,7 @@ const PlaylistSelectorModal = ({
             72% { transform: translateX(3px); }
           }
         `}</style>
-        <DialogTitle className="!p-0">
+        <PlaylistSelectorDrawerTitle className="!p-0">
           <div className="border-b border-white/8 px-6 py-5 max-sm:px-6 max-sm:py-3.5">
             <div className="flex items-start justify-between gap-4">
               <Typography className="!text-[2rem] !font-semibold !tracking-[-0.03em] !text-slate-50 max-sm:!text-[1.75rem]">
@@ -2282,9 +2284,9 @@ const PlaylistSelectorModal = ({
                       selectorTabs.find((item) => item.key === value) ??
                       activeSelectorTab;
                     return (
-                    <span className="relative inline-flex items-center gap-2 pr-1">
-                      {tab.icon}
-                      <span>{tab.label}</span>
+                      <span className="relative inline-flex items-center gap-2 pr-1">
+                        {tab.icon}
+                        <span>{tab.label}</span>
                         {tab.key === "suggestions" &&
                         suggestionBadgeCount > 0 ? (
                           <span className="absolute -right-3 -top-2 inline-flex min-w-[18px] justify-center rounded-full bg-cyan-300/22 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-50 shadow-[0_8px_18px_-10px_rgba(34,211,238,0.8)]">
@@ -2400,8 +2402,8 @@ const PlaylistSelectorModal = ({
               </div>
             ) : null}
           </div>
-        </DialogTitle>
-        <DialogContent className="!flex !min-h-0 !flex-1 !flex-col !overflow-hidden !p-5 max-sm:!p-4 sm:!p-6">
+        </PlaylistSelectorDrawerTitle>
+        <PlaylistSelectorDrawerContent className="!flex !min-h-0 !flex-1 !flex-col !overflow-hidden !p-5 max-sm:!p-4 sm:!p-6">
           {activeTab !== "link" && statusBanner}
           <div
             className={`flex min-h-0 flex-1 flex-col ${
@@ -2412,7 +2414,7 @@ const PlaylistSelectorModal = ({
           >
             {content}
           </div>
-        </DialogContent>
+        </PlaylistSelectorDrawerContent>
         {modalInteractionLocked ? (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-[linear-gradient(180deg,rgba(8,12,22,0.08),rgba(8,12,22,0.18))] backdrop-blur-[1.5px]">
             <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-cyan-300/20 bg-[linear-gradient(180deg,rgba(16,27,46,0.84),rgba(8,18,34,0.92))] px-4 py-2 text-sm font-semibold text-cyan-50 shadow-[0_22px_44px_-30px_rgba(34,211,238,0.65)]">
@@ -2423,7 +2425,7 @@ const PlaylistSelectorModal = ({
             </div>
           </div>
         ) : null}
-      </Dialog>
+      </PlaylistSelectorDrawerRoot>
       <PlaylistIssueSummaryDialog
         open={playlistIssueDialogOpen}
         onClose={() => setPlaylistIssueDialogOpen(false)}
@@ -2436,4 +2438,3 @@ const PlaylistSelectorModal = ({
 };
 
 export default React.memo(PlaylistSelectorModal);
-

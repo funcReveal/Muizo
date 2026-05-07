@@ -10,13 +10,13 @@ import { useState } from "react";
 
 import {
   isSiteAnnouncementActive,
-  SITE_ANNOUNCEMENT,
   type SiteAnnouncement,
   type SiteAnnouncementSeverity,
 } from "./siteAnnouncement";
+import { useActiveSiteAnnouncementQuery } from "./useActiveSiteAnnouncementQuery";
 
 type SiteAnnouncementNoticeProps = {
-  announcement?: SiteAnnouncement;
+  announcement?: SiteAnnouncement | null;
   className?: string;
   compact?: boolean;
 };
@@ -117,13 +117,22 @@ const BulletList = ({ title, items }: { title: string; items?: string[] }) => {
 };
 
 const SiteAnnouncementNotice = ({
-  announcement = SITE_ANNOUNCEMENT,
+  announcement: announcementProp,
   className = "",
   compact = false,
 }: SiteAnnouncementNoticeProps) => {
   const [open, setOpen] = useState(false);
 
-  if (!isSiteAnnouncementActive(announcement)) return null;
+  const activeAnnouncementQuery = useActiveSiteAnnouncementQuery({
+    enabled: announcementProp === undefined,
+  });
+
+  const announcement =
+    announcementProp === undefined
+      ? activeAnnouncementQuery.data
+      : announcementProp;
+
+  if (!announcement || !isSiteAnnouncementActive(announcement)) return null;
 
   const config = severityConfig[announcement.severity];
   const Icon = config.icon;
