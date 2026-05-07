@@ -1148,7 +1148,6 @@ const RoomLobbyPage: React.FC = () => {
   const [historyDrawerLoading, setHistoryDrawerLoading] = useState(false);
   const [historyDrawerLoadingMore, setHistoryDrawerLoadingMore] =
     useState(false);
-  const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
   const [backNavigationConfirmOpen, setBackNavigationConfirmOpen] =
     useState(false);
   const backNavigationGuardActiveRef = useRef(false);
@@ -3067,59 +3066,13 @@ const RoomLobbyPage: React.FC = () => {
   //   setIsGameView(false);
   // }, [clientId, currentRoom, participants, playlistItems, setIsGameView]);
 
-  const loginConfirmText = useMemo(() => {
-    if (gameState?.status === "playing") {
-      return {
-        title: "離開對戰並登入？",
-        description:
-          "目前房間正在遊玩中。前往 Google 登入前會先離開房間，登入後可重新加入。",
-      };
-    }
-    return {
-      title: "離開房間並登入？",
-      description: "登入前會先離開目前房間，以避免保留舊的房間連線狀態。",
-    };
-  }, [gameState?.status]);
-
   const startGoogleLogin = useCallback(() => {
     loginWithGoogle();
   }, [loginWithGoogle]);
 
   const handleLoginRequest = useCallback(() => {
-    if (!currentRoom) {
-      startGoogleLogin();
-      return;
-    }
-    setLoginConfirmOpen(true);
-  }, [currentRoom, startGoogleLogin]);
-
-  const leaveRoomAndLogin = useCallback(() => {
-    setLoginConfirmOpen(false);
-    if (!currentRoom) {
-      startGoogleLogin();
-      return;
-    }
-    const targetRoomId =
-      currentRoom.id ?? roomId ?? lastJoinedRoomIdRef.current;
-    handleLeaveRoom(() => {
-      setActiveSettlementRoundKey(null);
-      if (clientId) {
-        clearSettlementSessionCacheForClient(clientId);
-      } else {
-        removeSettlementCacheForRoom(targetRoomId ?? null);
-      }
-      navigate("/rooms", { replace: true });
-      startGoogleLogin();
-    });
-  }, [
-    clientId,
-    currentRoom,
-    handleLeaveRoom,
-    navigate,
-    removeSettlementCacheForRoom,
-    roomId,
-    startGoogleLogin,
-  ]);
+    startGoogleLogin();
+  }, [startGoogleLogin]);
   const openHistoryDrawer = useCallback(() => {
     trackResultHistoryEvent({
       eventName: "match_history.opened",
@@ -3135,10 +3088,6 @@ const RoomLobbyPage: React.FC = () => {
   const closeHistoryDrawer = useCallback(() => {
     setHistoryDrawerOpen(false);
   }, []);
-  const handleCancelLoginConfirm = useCallback(
-    () => setLoginConfirmOpen(false),
-    [],
-  );
   const handleNavigateToRoomsList = useCallback(
     () => navigate("/rooms", { replace: true }),
     [navigate],
@@ -3979,15 +3928,6 @@ const RoomLobbyPage: React.FC = () => {
       {battleHistoryReplayDialog}
       {settlementReviewLoadingBanner}
       {sharedChatWindow}
-      <ConfirmDialog
-        open={loginConfirmOpen}
-        title={loginConfirmText.title}
-        description={loginConfirmText.description}
-        confirmLabel="離開並登入"
-        cancelLabel="取消"
-        onConfirm={leaveRoomAndLogin}
-        onCancel={handleCancelLoginConfirm}
-      />
       <ConfirmDialog
         open={backNavigationConfirmOpen}
         title={backNavigationConfirmText.title}

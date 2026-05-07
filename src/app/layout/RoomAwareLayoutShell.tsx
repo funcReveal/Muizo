@@ -40,6 +40,9 @@ const RoomAwareLayoutShell: React.FC = () => {
   }, [setStatusText, statusNotification]);
 
   const isGameMode = Boolean(currentRoom && gameState);
+  const shouldDeferNicknameConfirm = Boolean(
+    currentRoom && gameState?.status === "playing",
+  );
   const isRoomsHubPage = location.pathname === "/rooms";
   const isRoomsEntryGatePage = isRoomsHubPage && !username;
 
@@ -100,7 +103,9 @@ const RoomAwareLayoutShell: React.FC = () => {
         />
 
         <IdentityProfileDialog
-          needsNicknameConfirm={needsNicknameConfirm}
+          needsNicknameConfirm={
+            shouldDeferNicknameConfirm ? false : needsNicknameConfirm
+          }
           isProfileEditorOpen={isProfileEditorOpen}
           nicknameDraft={nicknameDraft}
           setNicknameDraft={setNicknameDraft}

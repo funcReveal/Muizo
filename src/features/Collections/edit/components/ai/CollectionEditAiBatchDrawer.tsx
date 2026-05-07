@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import {
   closestCenter,
   DragOverlay,
@@ -39,7 +39,11 @@ import {
   Switch,
   useMediaQuery,
 } from "@mui/material";
-import { MuizoSelectField, MuizoTextField } from "../../../../../shared/ui/form";
+import { List, type RowComponentProps } from "react-window";
+import {
+  MuizoSelectField,
+  MuizoTextField,
+} from "../../../../../shared/ui/form";
 import type {
   AiBatchWriteState,
   AiPromptSettings,
@@ -47,6 +51,7 @@ import type {
   AiPromptPage,
   AiAppliedBatchRecord,
   AiAppliedResultItem,
+  AiPreviewItem,
   NonIdleAiBatchWriteState,
 } from "../../hooks/useCollectionEditAiBatch";
 
@@ -223,6 +228,21 @@ const drawerFlowSteps = [
   },
 ] as const;
 
+const APPLIED_RESULT_ROW_HEIGHT = 88;
+
+type AiDrawerStep = "prompt" | "json" | "applied";
+type AppliedResultTab = "changed" | "unchanged";
+
+type AppliedVirtualItem =
+  | {
+      kind: "changed";
+      item: AiPreviewItem;
+    }
+  | {
+      kind: "unchanged";
+      item: AiAppliedResultItem;
+    };
+
 type SortableSplitFieldProps = {
   id: string;
   index: number;
@@ -287,9 +307,7 @@ function SortableSplitField({
       ref={setNodeRef}
       style={style}
       className={`flex w-full items-center gap-2 rounded-xl border bg-[#050b14]/70 px-2 py-2 ${
-        isDragging
-          ? "border-[var(--mc-accent)]"
-          : "border-[var(--mc-border)]"
+        isDragging ? "border-[var(--mc-accent)]" : "border-[var(--mc-border)]"
       }`}
     >
       <button
@@ -365,6 +383,443 @@ const getPageStatusMeta = ({
   };
 };
 
+function AiBatchDrawerHeader({
+  isCompact,
+  isIdle,
+  activePage,
+  playlistItemsCount,
+  aiBatchSaveProgressLabel,
+  canCloseAiBatchModal,
+  onClose,
+}: {
+  isCompact: boolean;
+  isIdle: boolean;
+  activePage: AiPromptPage | undefined;
+  playlistItemsCount: number;
+  aiBatchSaveProgressLabel: string;
+  canCloseAiBatchModal: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-700/70 bg-[#111821] px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-600/80 bg-slate-800 text-slate-200 sm:inline-flex">
+          <AutoAwesomeRounded sx={{ fontSize: 22 }} />
+        </span>
+
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-xl">
+              AI 批次修正答案
+            </h2>
+            <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-[var(--mc-text-muted)] sm:inline-flex">
+              {playlistItemsCount} 題
+            </span>
+          </div>
+
+          <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
+            {isIdle
+              ? activePage
+                ? `第 ${activePage.pageIndex + 1} 批 · ${activePage.start + 1}-${activePage.end}`
+                : "尚未建立批次"
+              : aiBatchSaveProgressLabel}
+          </p>
+        </div>
+      </div>
+
+      <IconButton
+        size={isCompact ? "small" : "medium"}
+        aria-label="關閉 AI 批次修正"
+        onClick={onClose}
+        disabled={!canCloseAiBatchModal}
+        className="!text-[var(--mc-text)] hover:!bg-white/8 disabled:!text-slate-600"
+      >
+        <CloseRounded />
+      </IconButton>
+    </header>
+  );
+}
+
+function AiBatchProgressSidebar({
+  aiPromptPages,
+  aiBatchPageIndex,
+  aiJsonDrafts,
+  aiAppliedPages,
+  aiAppliedBatchRecords,
+  aiPageStatuses,
+  totalAppliedPages,
+  disabled,
+  onSelectPage,
+}: {
+  aiPromptPages: AiPromptPage[];
+  aiBatchPageIndex: number;
+  aiJsonDrafts: Record<number, string>;
+  aiAppliedPages: Record<number, boolean>;
+  aiAppliedBatchRecords: Record<number, AiAppliedBatchRecord>;
+  aiPageStatuses: AiPageStatus[];
+  totalAppliedPages: number;
+  disabled: boolean;
+  onSelectPage: (pageIndex: number, step: AiDrawerStep) => void;
+}) {
+  return (
+    <aside className="min-w-0 max-w-full overflow-hidden border-b border-slate-700/70 bg-[#0d131b] px-3 py-2.5 lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
+          批次進度
+        </div>
+        <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-slate-200 sm:px-2.5 sm:py-1 sm:text-xs">
+          {totalAppliedPages} / {aiPromptPages.length}
+        </div>
+      </div>
+
+      <div className="mt-2 flex w-full min-w-0 max-w-full snap-x gap-2 overflow-x-auto overflow-y-hidden pb-1 [touch-action:pan-x] [-webkit-overflow-scrolling:touch] lg:mt-3 lg:max-h-[calc(100dvh-190px)] lg:snap-none lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
+        {aiPromptPages.map((page) => {
+          const active = page.pageIndex === aiBatchPageIndex;
+          const hasDraft = Boolean(aiJsonDrafts[page.pageIndex]?.trim());
+          const appliedRecord = aiAppliedBatchRecords[page.pageIndex] ?? null;
+          const isApplied =
+            aiAppliedPages[page.pageIndex] === true || appliedRecord !== null;
+          const pageStatus = aiPageStatuses[page.pageIndex];
+          const statusMeta = getPageStatusMeta({
+            page,
+            pageStatus,
+            hasDraft,
+            isApplied,
+          });
+
+          return (
+            <button
+              key={`${page.start}-${page.end}`}
+              type="button"
+              disabled={disabled}
+              onClick={() =>
+                onSelectPage(
+                  page.pageIndex,
+                  appliedRecord ? "applied" : "prompt",
+                )
+              }
+              className={`w-[148px] flex-none snap-start rounded-xl border px-2.5 py-2 text-left transition sm:w-[156px] sm:rounded-2xl sm:px-3 sm:py-2.5 lg:w-full lg:flex-none lg:snap-start ${
+                active
+                  ? "border-[var(--mc-accent)] bg-[var(--mc-accent)]/12 shadow-[0_18px_34px_-28px_rgba(34,211,238,0.9)]"
+                  : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 hover:border-[var(--mc-accent)]/45 hover:bg-white/[0.04]"
+              } disabled:cursor-not-allowed disabled:opacity-55`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-[var(--mc-text)] sm:text-sm">
+                  第 {page.pageIndex + 1} 批
+                </span>
+                {statusMeta.icon ? (
+                  <span
+                    className={`inline-flex items-center ${statusMeta.className}`}
+                  >
+                    {statusMeta.icon}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-1 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+                <span className="text-[var(--mc-text-muted)]">
+                  {page.start + 1}-{page.end}
+                </span>
+                <span className={statusMeta.className}>{statusMeta.label}</span>
+              </div>
+
+              {appliedRecord ? (
+                <div
+                  className={`mt-2 flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium ${
+                    appliedRecord.unchangedItems.length === 0
+                      ? "border-emerald-400/20 bg-emerald-400/8 text-emerald-100"
+                      : "border-amber-300/24 bg-amber-300/10 text-amber-100"
+                  }`}
+                >
+                  {appliedRecord.unchangedItems.length === 0 ? (
+                    <>
+                      <CheckCircleOutlineRounded sx={{ fontSize: 13 }} />
+                      全部完成
+                    </>
+                  ) : (
+                    <>
+                      <DifferenceRounded sx={{ fontSize: 13 }} />
+                      {appliedRecord.unchangedItems.length} 筆未修改
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function AppliedResultRow({
+  index,
+  style,
+  items,
+}: RowComponentProps<{ items: AppliedVirtualItem[] }>): ReactElement {
+  const virtualItem = items[index];
+  if (!virtualItem) return <div style={style} />;
+
+  if (virtualItem.kind === "changed") {
+    const item = virtualItem.item;
+
+    return (
+      <div style={style} className="py-1 pr-1">
+        <div className="flex h-20 min-w-0 overflow-hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30">
+          <div className="flex min-w-0 flex-1 items-center px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="truncate text-xs font-medium text-[var(--mc-text-muted)] sm:text-[13px]">
+                  {item.title}
+                </div>
+              </div>
+              <div className="mt-1.5 flex min-w-0 items-baseline gap-2">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-200/75">
+                  Answer
+                </span>
+                <div className="min-w-0 flex-1 truncate text-sm font-semibold text-emerald-50 sm:text-[15px]">
+                  {item.newAnswer}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const item = virtualItem.item;
+
+  return (
+    <div style={style} className="py-1 pr-1">
+      <div className="flex h-20 items-start justify-between gap-3 rounded-2xl border border-[var(--mc-border)] bg-slate-950/25 p-3">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
+            {item.title}
+          </div>
+          <div className="mt-1 truncate text-sm text-[var(--mc-text-muted)]">
+            {item.answerText || "未填寫"}
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-[var(--mc-text-muted)]">
+          未修改
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AppliedResultView({
+  activeAppliedRecord,
+  activeAppliedTimeLabel,
+  appliedResultTab,
+  onAppliedResultTabChange,
+  onReprocess,
+  disabled,
+}: {
+  activeAppliedRecord: AiAppliedBatchRecord;
+  activeAppliedTimeLabel: string;
+  appliedResultTab: AppliedResultTab;
+  onAppliedResultTabChange: (tab: AppliedResultTab) => void;
+  onReprocess: () => void;
+  disabled: boolean;
+}) {
+  const appliedChangedItems = activeAppliedRecord.changedItems;
+  const appliedUnchangedItems = activeAppliedRecord.unchangedItems;
+  const virtualItems = useMemo<AppliedVirtualItem[]>(
+    () =>
+      appliedResultTab === "changed"
+        ? appliedChangedItems.map((item) => ({ kind: "changed", item }))
+        : appliedUnchangedItems.map((item) => ({ kind: "unchanged", item })),
+    [appliedChangedItems, appliedResultTab, appliedUnchangedItems],
+  );
+  const emptyLabel =
+    appliedResultTab === "changed"
+      ? "這一批沒有更新任何答案。"
+      : "這一批沒有未修改的答案。";
+
+  return (
+    <section className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-200">
+              <CheckCircleOutlineRounded sx={{ fontSize: 22 }} />
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-[var(--mc-text)]">
+                第 {activeAppliedRecord.pageIndex + 1} 批已套用
+              </div>
+              <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                {activeAppliedTimeLabel}
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<EditRounded />}
+            onClick={onReprocess}
+            disabled={disabled}
+            className="!rounded-xl"
+          >
+            重新處理
+          </Button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mc-border)] bg-slate-950/25 p-1 sm:mt-4">
+          {[
+            {
+              key: "changed" as const,
+              label: "已更新",
+              count: appliedChangedItems.length,
+            },
+            {
+              key: "unchanged" as const,
+              label: "未修改",
+              count: appliedUnchangedItems.length,
+            },
+          ].map((tab) => {
+            const active = appliedResultTab === tab.key;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onAppliedResultTabChange(tab.key)}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "bg-emerald-400/12 text-emerald-100 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]"
+                    : "text-[var(--mc-text-muted)] hover:bg-white/[0.04] hover:text-[var(--mc-text)]"
+                }`}
+              >
+                {tab.label}
+                <span className="ml-2 text-xs opacity-80">{tab.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 min-h-0 flex-1 overflow-hidden sm:mt-4">
+        {virtualItems.length > 0 ? (
+          <List<{ items: AppliedVirtualItem[] }>
+            className="transient-scrollbar"
+            style={{ height: "100%", minHeight: 0, width: "100%" }}
+            rowCount={virtualItems.length}
+            rowHeight={APPLIED_RESULT_ROW_HEIGHT}
+            rowProps={{ items: virtualItems }}
+            rowComponent={AppliedResultRow}
+          />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--mc-border)] px-3 py-4 text-sm text-[var(--mc-text-muted)]">
+            {emptyLabel}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function AiBatchWriteStatus({
+  aiBatchWriteState,
+  pendingAiBatchSave,
+  aiBatchSaveProgressLabel,
+  aiBatchSaveStepLabel,
+}: {
+  aiBatchWriteState: AiBatchWriteState;
+  pendingAiBatchSave: NonIdleAiBatchWriteState | null;
+  aiBatchSaveProgressLabel: string;
+  aiBatchSaveStepLabel: string;
+}) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto px-3 py-6 sm:min-h-[520px] sm:px-4 sm:py-8">
+      <div className="w-full max-w-xl rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:rounded-3xl sm:p-6">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/50">
+          {aiBatchWriteState.status === "success" ? (
+            <CheckCircleOutlineRounded
+              className="text-emerald-300"
+              sx={{ fontSize: 34 }}
+            />
+          ) : aiBatchWriteState.status === "error" ? (
+            <MoreHorizRounded className="text-rose-200" sx={{ fontSize: 34 }} />
+          ) : (
+            <CircularProgress size={34} className="!text-[var(--mc-accent)]" />
+          )}
+        </div>
+
+        <div className="mt-5 text-lg font-semibold text-[var(--mc-text)]">
+          {aiBatchWriteState.status === "error"
+            ? "寫入失敗"
+            : aiBatchWriteState.status === "success"
+              ? aiBatchWriteState.hasNextPage
+                ? "本批寫入完成"
+                : "全部批次已完成"
+              : "正在套用並寫入變更"}
+        </div>
+
+        <div className="mt-2 text-sm text-[var(--mc-text-muted)]">
+          {aiBatchSaveProgressLabel}
+        </div>
+        <div className="mt-1 text-sm text-[var(--mc-text)]">
+          {aiBatchSaveStepLabel}
+        </div>
+
+        <div className="mt-5 grid gap-2 text-left text-sm">
+          <div
+            className={`rounded-xl border px-3 py-2 ${
+              aiBatchWriteState.status === "applying"
+                ? "border-[var(--mc-accent)]/45 bg-[var(--mc-accent)]/10 text-[var(--mc-text)]"
+                : "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
+            }`}
+          >
+            1. 套用答案到本地狀態
+          </div>
+
+          <div
+            className={`rounded-xl border px-3 py-2 ${
+              aiBatchWriteState.status === "saving"
+                ? "border-[var(--mc-accent)]/45 bg-[var(--mc-accent)]/10 text-[var(--mc-text)]"
+                : aiBatchWriteState.status === "success"
+                  ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
+                  : aiBatchWriteState.status === "error"
+                    ? "border-rose-500/35 bg-rose-950/25 text-rose-100"
+                    : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 text-[var(--mc-text-muted)]"
+            }`}
+          >
+            2. 寫入收藏庫
+          </div>
+
+          <div
+            className={`rounded-xl border px-3 py-2 ${
+              aiBatchWriteState.status === "success"
+                ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
+                : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 text-[var(--mc-text-muted)]"
+            }`}
+          >
+            3. 準備下一批
+          </div>
+        </div>
+
+        {pendingAiBatchSave ? (
+          <div className="mt-5 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 px-4 py-3 text-sm text-[var(--mc-text-muted)]">
+            本批共 {pendingAiBatchSave.count}{" "}
+            筆變更。完成前請勿關閉視窗或切換批次。
+          </div>
+        ) : null}
+
+        {aiBatchWriteState.status === "error" ? (
+          <div className="mt-4 rounded-2xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 text-left text-sm text-rose-100">
+            {aiBatchWriteState.message}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function CollectionEditAiBatchDrawer({
   open,
   onClose,
@@ -409,7 +864,7 @@ export default function CollectionEditAiBatchDrawer({
   const isCompact = useMediaQuery("(max-width:767px)");
   const [aiDrawerStepState, setAiDrawerStepState] = useState<{
     pageIndex: number;
-    step: "prompt" | "json" | "applied";
+    step: AiDrawerStep;
   }>({
     pageIndex: 0,
     step: "prompt",
@@ -422,9 +877,8 @@ export default function CollectionEditAiBatchDrawer({
   const [activeSplitFieldId, setActiveSplitFieldId] = useState<string | null>(
     null,
   );
-  const [appliedResultTab, setAppliedResultTab] = useState<
-    "changed" | "unchanged"
-  >("changed");
+  const [appliedResultTab, setAppliedResultTab] =
+    useState<AppliedResultTab>("changed");
   const splitFieldSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -443,13 +897,6 @@ export default function CollectionEditAiBatchDrawer({
       ? aiDrawerStepState.step
       : "prompt";
   const activeAppliedRecord = aiAppliedBatchRecords[aiBatchPageIndex] ?? null;
-  const appliedChangedItems = activeAppliedRecord?.changedItems ?? [];
-  const appliedUnchangedItems = activeAppliedRecord?.unchangedItems ?? [];
-  const comparisonItems =
-    aiDrawerStep === "applied"
-      ? appliedChangedItems
-      : aiPreview.changedItems;
-  const comparisonTitle = "即將更新";
   const jsonDraftMinRows = isCompact ? 6 : 8;
   const jsonDraftMaxRows = isCompact ? 8 : 14;
   const activeAppliedTimeLabel = activeAppliedRecord
@@ -609,276 +1056,62 @@ export default function CollectionEditAiBatchDrawer({
       }}
     >
       <div className="flex h-full min-h-0 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-700/70 bg-[#111821] px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-600/80 bg-slate-800 text-slate-200 sm:inline-flex">
-              <AutoAwesomeRounded sx={{ fontSize: 22 }} />
-            </span>
-
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <h2 className="truncate text-base font-semibold text-[var(--mc-text)] sm:text-xl">
-                  AI 批次修正答案
-                </h2>
-                <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-[var(--mc-text-muted)] sm:inline-flex">
-                  {playlistItemsCount} 題
-                </span>
-              </div>
-
-              <p className="mt-1 truncate text-xs text-[var(--mc-text-muted)]">
-                {isIdle
-                  ? activePage
-                    ? `第 ${activePage.pageIndex + 1} 批 · ${activePage.start + 1}-${activePage.end}`
-                    : "尚未建立批次"
-                  : aiBatchSaveProgressLabel}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <IconButton
-              size={isCompact ? "small" : "medium"}
-              aria-label="關閉 AI 批次修正"
-              onClick={handleRequestClose}
-              disabled={!canCloseAiBatchModal}
-              className="!text-[var(--mc-text)] hover:!bg-white/8 disabled:!text-slate-600"
-            >
-              <CloseRounded />
-            </IconButton>
-          </div>
-        </header>
+        <AiBatchDrawerHeader
+          isCompact={isCompact}
+          isIdle={isIdle}
+          activePage={activePage}
+          playlistItemsCount={playlistItemsCount}
+          aiBatchSaveProgressLabel={aiBatchSaveProgressLabel}
+          canCloseAiBatchModal={canCloseAiBatchModal}
+          onClose={handleRequestClose}
+        />
 
         <div className="min-h-0 flex-1 overflow-hidden">
           {isIdle ? (
             <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-none">
-              <aside className="min-w-0 max-w-full overflow-hidden border-b border-slate-700/70 bg-[#0d131b] px-3 py-2.5 lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-[var(--mc-text)] sm:text-base">
-                    批次進度
-                  </div>
-                  <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-semibold text-slate-200 sm:px-2.5 sm:py-1 sm:text-xs">
-                    {totalAppliedPages} / {aiPromptPages.length}
-                  </div>
-                </div>
+              <AiBatchProgressSidebar
+                aiPromptPages={aiPromptPages}
+                aiBatchPageIndex={aiBatchPageIndex}
+                aiJsonDrafts={aiJsonDrafts}
+                aiAppliedPages={aiAppliedPages}
+                aiAppliedBatchRecords={aiAppliedBatchRecords}
+                aiPageStatuses={aiPageStatuses}
+                totalAppliedPages={totalAppliedPages}
+                disabled={pendingAiBatchSave !== null}
+                onSelectPage={(pageIndex, step) => {
+                  setAiDrawerStepState({ pageIndex, step });
+                  onAiBatchPageChange(pageIndex);
+                }}
+              />
 
-                <div className="mt-2 flex w-full min-w-0 max-w-full snap-x gap-2 overflow-x-auto overflow-y-hidden pb-1 [touch-action:pan-x] [-webkit-overflow-scrolling:touch] lg:mt-3 lg:max-h-[calc(100dvh-190px)] lg:snap-none lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
-                  {aiPromptPages.map((page) => {
-                    const active = page.pageIndex === aiBatchPageIndex;
-                    const hasDraft = Boolean(
-                      aiJsonDrafts[page.pageIndex]?.trim(),
-                    );
-                    const appliedRecord =
-                      aiAppliedBatchRecords[page.pageIndex] ?? null;
-                    const isApplied =
-                      aiAppliedPages[page.pageIndex] === true ||
-                      appliedRecord !== null;
-                    const pageStatus = aiPageStatuses[page.pageIndex];
-                    const statusMeta = getPageStatusMeta({
-                      page,
-                      pageStatus,
-                      hasDraft,
-                      isApplied,
-                    });
-
-                    return (
-                      <button
-                        key={`${page.start}-${page.end}`}
-                        type="button"
-                        disabled={pendingAiBatchSave !== null}
-                        onClick={() => {
-                          setAiDrawerStepState({
-                            pageIndex: page.pageIndex,
-                            step: appliedRecord ? "applied" : "prompt",
-                          });
-                          onAiBatchPageChange(page.pageIndex);
-                        }}
-                        className={`w-[148px] flex-none snap-start rounded-xl border px-2.5 py-2 text-left transition sm:w-[156px] sm:rounded-2xl sm:px-3 sm:py-2.5 lg:w-full lg:flex-none lg:snap-start ${
-                          active
-                            ? "border-[var(--mc-accent)] bg-[var(--mc-accent)]/12 shadow-[0_18px_34px_-28px_rgba(34,211,238,0.9)]"
-                            : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/25 hover:border-[var(--mc-accent)]/45 hover:bg-white/[0.04]"
-                        } disabled:cursor-not-allowed disabled:opacity-55`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-[var(--mc-text)] sm:text-sm">
-                            第 {page.pageIndex + 1} 批
-                          </span>
-                          {statusMeta.icon ? (
-                            <span
-                              className={`inline-flex items-center ${statusMeta.className}`}
-                            >
-                              {statusMeta.icon}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
-                          <span className="text-[var(--mc-text-muted)]">
-                            {page.start + 1}-{page.end}
-                          </span>
-                          <span className={statusMeta.className}>
-                            {statusMeta.label}
-                          </span>
-                        </div>
-
-                        {appliedRecord ? (
-                          <div
-                            className={`mt-2 flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium ${
-                              appliedRecord.unchangedItems.length === 0
-                                ? "border-emerald-400/20 bg-emerald-400/8 text-emerald-100"
-                                : "border-amber-300/24 bg-amber-300/10 text-amber-100"
-                            }`}
-                          >
-                            {appliedRecord.unchangedItems.length === 0 ? (
-                              <>
-                                <CheckCircleOutlineRounded
-                                  sx={{ fontSize: 13 }}
-                                />
-                                全部完成
-                              </>
-                            ) : (
-                              <>
-                                <DifferenceRounded sx={{ fontSize: 13 }} />
-                                {appliedRecord.unchangedItems.length}{" "}
-                                筆未修改
-                              </>
-                            )}
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </aside>
-
-              <main className="min-h-0 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-5">
-                <div className="mx-auto max-w-5xl space-y-3 sm:space-y-4">
+              <main
+                className={`min-h-0 px-3 py-3 sm:px-6 sm:py-5 ${
+                  aiDrawerStep === "applied" && activeAppliedRecord
+                    ? "overflow-hidden"
+                    : "overflow-y-auto overscroll-contain"
+                }`}
+              >
+                <div
+                  className={`mx-auto max-w-5xl ${
+                    aiDrawerStep === "applied" && activeAppliedRecord
+                      ? "h-full min-h-0"
+                      : "space-y-3 sm:space-y-4"
+                  }`}
+                >
                   {aiDrawerStep === "applied" && activeAppliedRecord ? (
-                    <section>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-200">
-                            <CheckCircleOutlineRounded sx={{ fontSize: 22 }} />
-                          </span>
-                          <div>
-                            <div className="text-sm font-semibold text-[var(--mc-text)]">
-                              第 {activeAppliedRecord.pageIndex + 1} 批已套用
-                            </div>
-                            <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                              {activeAppliedTimeLabel}
-                            </div>
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<EditRounded />}
-                          onClick={() =>
-                            setAiDrawerStepState({
-                              pageIndex: aiBatchPageIndex,
-                              step: "prompt",
-                            })
-                          }
-                          disabled={pendingAiBatchSave !== null}
-                          className="!rounded-xl"
-                        >
-                          重新處理
-                        </Button>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl border border-[var(--mc-border)] bg-slate-950/25 p-1 sm:mt-4">
-                        {[
-                          {
-                            key: "changed" as const,
-                            label: "已更新",
-                            count: appliedChangedItems.length,
-                          },
-                          {
-                            key: "unchanged" as const,
-                            label: "未修改",
-                            count: appliedUnchangedItems.length,
-                          },
-                        ].map((tab) => {
-                          const active = appliedResultTab === tab.key;
-
-                          return (
-                            <button
-                              key={tab.key}
-                              type="button"
-                              onClick={() => setAppliedResultTab(tab.key)}
-                              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
-                                active
-                                  ? "bg-emerald-400/12 text-emerald-100 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.28)]"
-                                  : "text-[var(--mc-text-muted)] hover:bg-white/[0.04] hover:text-[var(--mc-text)]"
-                              }`}
-                            >
-                              {tab.label}
-                              <span className="ml-2 text-xs opacity-80">
-                                {tab.count}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="mt-3 space-y-2 sm:mt-4">
-                        {appliedResultTab === "changed" ? (
-                          appliedChangedItems.length > 0 ? (
-                            appliedChangedItems.map((item) => (
-                              <div
-                                key={item.id}
-                                className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-3"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                                      {item.title}
-                                    </div>
-                                    <div className="mt-1 text-sm font-medium text-emerald-50">
-                                      {item.newAnswer}
-                                    </div>
-                                  </div>
-                                  <span className="shrink-0 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-100">
-                                    已修改
-                                  </span>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="rounded-2xl border border-dashed border-[var(--mc-border)] px-3 py-4 text-sm text-[var(--mc-text-muted)]">
-                              這一批沒有更新任何答案。
-                            </div>
-                          )
-                        ) : appliedUnchangedItems.length > 0 ? (
-                          appliedUnchangedItems.map(
-                            (item: AiAppliedResultItem) => (
-                              <div
-                                key={item.id}
-                                className="rounded-2xl border border-[var(--mc-border)] bg-slate-950/25 p-3"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="truncate text-sm font-semibold text-[var(--mc-text)]">
-                                      {item.title}
-                                    </div>
-                                    <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
-                                      {item.answerText || "未填寫"}
-                                    </div>
-                                  </div>
-                                  <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-[var(--mc-text-muted)]">
-                                    未修改
-                                  </span>
-                                </div>
-                              </div>
-                            ),
-                          )
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-[var(--mc-border)] px-3 py-4 text-sm text-[var(--mc-text-muted)]">
-                            這一批沒有未修改的答案。
-                          </div>
-                        )}
-                      </div>
-                    </section>
+                    <AppliedResultView
+                      activeAppliedRecord={activeAppliedRecord}
+                      activeAppliedTimeLabel={activeAppliedTimeLabel}
+                      appliedResultTab={appliedResultTab}
+                      onAppliedResultTabChange={setAppliedResultTab}
+                      onReprocess={() =>
+                        setAiDrawerStepState({
+                          pageIndex: aiBatchPageIndex,
+                          step: "prompt",
+                        })
+                      }
+                      disabled={pendingAiBatchSave !== null}
+                    />
                   ) : aiDrawerStep === "prompt" ? (
                     <section>
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -989,9 +1222,7 @@ export default function CollectionEditAiBatchDrawer({
                               options={languageOptions}
                               disabled={controlsDisabled}
                               helper={
-                                languageModeHints[
-                                  aiPromptSettings.languageMode
-                                ]
+                                languageModeHints[aiPromptSettings.languageMode]
                               }
                               onChange={(languageMode) =>
                                 onAiPromptSettingsChange({
@@ -1064,8 +1295,7 @@ export default function CollectionEditAiBatchDrawer({
                                         className="inline-flex items-center gap-2"
                                       >
                                         <span className="rounded-lg bg-white/[0.06] px-2.5 py-1 text-sm font-medium text-[var(--mc-text)]">
-                                          {field.trim() ||
-                                            `第 ${index + 1} 格`}
+                                          {field.trim() || `第 ${index + 1} 格`}
                                         </span>
                                         {hasNext ? (
                                           <span className="font-mono text-sm text-cyan-100">
@@ -1321,7 +1551,7 @@ export default function CollectionEditAiBatchDrawer({
                             貼上有效 JSON 後，這裡會顯示即將更新的答案差異。
                           </div>
                         ) : (
-                          comparisonItems.map((item) => (
+                          aiPreview.changedItems.map((item) => (
                             <div
                               key={item.id}
                               className="rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 p-3 sm:rounded-2xl"
@@ -1331,7 +1561,7 @@ export default function CollectionEditAiBatchDrawer({
                                   {item.title}
                                 </div>
                                 <span className="shrink-0 rounded-full border border-[var(--mc-accent)]/25 bg-[var(--mc-accent)]/8 px-2 py-0.5 text-[10px] font-semibold text-[var(--mc-accent)]">
-                                  {comparisonTitle}
+                                  即將更新
                                 </span>
                               </div>
                               <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch">
@@ -1365,94 +1595,12 @@ export default function CollectionEditAiBatchDrawer({
               </main>
             </div>
           ) : (
-            <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto px-3 py-6 sm:min-h-[520px] sm:px-4 sm:py-8">
-              <div className="w-full max-w-xl rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/60 p-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:rounded-3xl sm:p-6">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/50">
-                  {aiBatchWriteState.status === "success" ? (
-                    <CheckCircleOutlineRounded
-                      className="text-emerald-300"
-                      sx={{ fontSize: 34 }}
-                    />
-                  ) : aiBatchWriteState.status === "error" ? (
-                    <MoreHorizRounded
-                      className="text-rose-200"
-                      sx={{ fontSize: 34 }}
-                    />
-                  ) : (
-                    <CircularProgress
-                      size={34}
-                      className="!text-[var(--mc-accent)]"
-                    />
-                  )}
-                </div>
-
-                <div className="mt-5 text-lg font-semibold text-[var(--mc-text)]">
-                  {aiBatchWriteState.status === "error"
-                    ? "寫入失敗"
-                    : aiBatchWriteState.status === "success"
-                      ? aiBatchWriteState.hasNextPage
-                        ? "本批寫入完成"
-                        : "全部批次已完成"
-                      : "正在套用並寫入變更"}
-                </div>
-
-                <div className="mt-2 text-sm text-[var(--mc-text-muted)]">
-                  {aiBatchSaveProgressLabel}
-                </div>
-                <div className="mt-1 text-sm text-[var(--mc-text)]">
-                  {aiBatchSaveStepLabel}
-                </div>
-
-                <div className="mt-5 grid gap-2 text-left text-sm">
-                  <div
-                    className={`rounded-xl border px-3 py-2 ${
-                      aiBatchWriteState.status === "applying"
-                        ? "border-[var(--mc-accent)]/45 bg-[var(--mc-accent)]/10 text-[var(--mc-text)]"
-                        : "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
-                    }`}
-                  >
-                    1. 套用答案到本地狀態
-                  </div>
-
-                  <div
-                    className={`rounded-xl border px-3 py-2 ${
-                      aiBatchWriteState.status === "saving"
-                        ? "border-[var(--mc-accent)]/45 bg-[var(--mc-accent)]/10 text-[var(--mc-text)]"
-                        : aiBatchWriteState.status === "success"
-                          ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
-                          : aiBatchWriteState.status === "error"
-                            ? "border-rose-500/35 bg-rose-950/25 text-rose-100"
-                            : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 text-[var(--mc-text-muted)]"
-                    }`}
-                  >
-                    2. 寫入收藏庫
-                  </div>
-
-                  <div
-                    className={`rounded-xl border px-3 py-2 ${
-                      aiBatchWriteState.status === "success"
-                        ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-100"
-                        : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 text-[var(--mc-text-muted)]"
-                    }`}
-                  >
-                    3. 準備下一批
-                  </div>
-                </div>
-
-                {pendingAiBatchSave ? (
-                  <div className="mt-5 rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/30 px-4 py-3 text-sm text-[var(--mc-text-muted)]">
-                    本批共 {pendingAiBatchSave.count}{" "}
-                    筆變更。完成前請勿關閉視窗或切換批次。
-                  </div>
-                ) : null}
-
-                {aiBatchWriteState.status === "error" ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 text-left text-sm text-rose-100">
-                    {aiBatchWriteState.message}
-                  </div>
-                ) : null}
-              </div>
-            </div>
+            <AiBatchWriteStatus
+              aiBatchWriteState={aiBatchWriteState}
+              pendingAiBatchSave={pendingAiBatchSave}
+              aiBatchSaveProgressLabel={aiBatchSaveProgressLabel}
+              aiBatchSaveStepLabel={aiBatchSaveStepLabel}
+            />
           )}
         </div>
 

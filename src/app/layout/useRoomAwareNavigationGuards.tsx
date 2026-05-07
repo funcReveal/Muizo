@@ -33,7 +33,6 @@ export function useRoomAwareNavigationGuards({
   const { authLoading, loginWithGoogle, logout } = useAuth();
   const { currentRoom, handleLeaveRoom } = useRoomSession();
   const { gameState } = useRoomGame();
-  const [loginConfirmOpen, setLoginConfirmOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [privacyConfirmOpen, setPrivacyConfirmOpen] = useState(false);
   const [termsConfirmOpen, setTermsConfirmOpen] = useState(false);
@@ -46,24 +45,8 @@ export function useRoomAwareNavigationGuards({
   }, [authLoading, loginWithGoogle]);
 
   const handleLoginRequest = useCallback(() => {
-    if (!currentRoom) {
-      startGoogleLogin();
-      return;
-    }
-    setLoginConfirmOpen(true);
-  }, [currentRoom, startGoogleLogin]);
-
-  const handleConfirmLogin = useCallback(() => {
-    setLoginConfirmOpen(false);
-    if (!currentRoom) {
-      startGoogleLogin();
-      return;
-    }
-    handleLeaveRoom(() => {
-      navigate("/rooms", { replace: true });
-      startGoogleLogin();
-    });
-  }, [currentRoom, handleLeaveRoom, navigate, startGoogleLogin]);
+    startGoogleLogin();
+  }, [startGoogleLogin]);
 
   const handleLogoutRequest = useCallback(() => {
     setLogoutConfirmOpen(true);
@@ -142,20 +125,6 @@ export function useRoomAwareNavigationGuards({
     });
   }, [currentRoom, handleLeaveRoom, navigate]);
 
-  const loginConfirmText = useMemo(() => {
-    if (gameState?.status === "playing") {
-      return {
-        title: "離開對戰並登入？",
-        description:
-          "目前房間正在遊玩中。前往 Google 登入前會先離開房間，登入後可重新加入。",
-      };
-    }
-    return {
-      title: "離開房間並登入？",
-      description: "登入前會先離開目前房間，以避免保留舊的房間連線狀態。",
-    };
-  }, [gameState?.status]);
-
   const logoutConfirmText = useMemo(() => {
     if (currentRoom) {
       return {
@@ -191,15 +160,6 @@ export function useRoomAwareNavigationGuards({
 
   const dialogs = (
     <>
-      <ConfirmDialog
-        open={loginConfirmOpen}
-        title={loginConfirmText.title}
-        description={loginConfirmText.description}
-        confirmLabel="確認登入"
-        cancelLabel="取消"
-        onConfirm={handleConfirmLogin}
-        onCancel={() => setLoginConfirmOpen(false)}
-      />
       <ConfirmDialog
         open={logoutConfirmOpen}
         title={logoutConfirmText.title}

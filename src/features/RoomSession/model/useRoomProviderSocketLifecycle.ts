@@ -513,9 +513,11 @@ export const useRoomProviderSocketLifecycle = ({
                     setStatusText(`已恢復房間：${state.room.name}`);
                     setRouteRoomResolved(true);
                   } else {
+                    const normalizedError =
+                      ack?.error?.trim().toLowerCase() ?? "";
                     if (
                       ack?.code === "ROOM_NOT_FOUND" ||
-                      ack?.error?.trim().toLowerCase() === "room not found"
+                      normalizedError === "room not found"
                     ) {
                       clearRoomAfterClosure(
                         storedRoomId,
@@ -526,14 +528,38 @@ export const useRoomProviderSocketLifecycle = ({
                     if (
                       ack?.code === "ROOM_SESSION_LOST" ||
                       ack?.code === "AUTH_CLIENT_MISSING" ||
-                      ack?.error?.trim().toLowerCase() === "not in room" ||
-                      ack?.error?.trim().toLowerCase() ===
-                        "you are not in any room" ||
-                      ack?.error?.trim().toLowerCase() === "missing clientid"
+                      normalizedError === "not in room" ||
+                      normalizedError === "you are not in any room" ||
+                      normalizedError === "missing clientid"
                     ) {
                       clearRoomAfterClosure(
                         storedRoomId,
                         "你已不在這個房間，請返回房間列表或重新加入。",
+                        "left",
+                      );
+                      return;
+                    }
+                    if (
+                      ack?.code === "ROOM_CONFLICT" ||
+                      ack?.code === "ROOM_SESSION_EXPIRED" ||
+                      ack?.code === "ROOM_SESSION_INVALID" ||
+                      ack?.code === "ROOM_SESSION_MISSING" ||
+                      ack?.code === "ROOM_SESSION_PARTICIPANT_NOT_FOUND" ||
+                      normalizedError ===
+                        "account already active in another room" ||
+                      normalizedError === "you are already in another room" ||
+                      normalizedError === "room session expired" ||
+                      normalizedError === "invalid room session" ||
+                      normalizedError === "invalid room session payload" ||
+                      normalizedError === "missing room session token" ||
+                      normalizedError === "session not found in room"
+                    ) {
+                      clearRoomAfterClosure(
+                        storedRoomId,
+                        formatAckError(
+                          "房間恢復失敗",
+                          ack?.error ?? "身分狀態已無法恢復",
+                        ),
                         "left",
                       );
                       return;
