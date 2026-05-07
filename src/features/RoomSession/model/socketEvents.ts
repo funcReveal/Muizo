@@ -198,6 +198,10 @@ export interface ClientToServerEvents {
         isLast?: boolean;
         pageSize?: number;
         readToken?: string | null;
+        appliedSuggestion?: {
+          clientId: string;
+          suggestedAt: number;
+        } | null;
       };
     },
     callback?: (

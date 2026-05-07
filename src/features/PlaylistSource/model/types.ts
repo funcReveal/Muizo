@@ -55,6 +55,7 @@ export interface PlaylistSuggestion {
   totalCount?: number;
   playableCount?: number;
   sourceId?: string | null;
+  coverThumbnailUrl?: string | null;
   items?: PlaylistItem[];
   readToken?: string | null;
 }

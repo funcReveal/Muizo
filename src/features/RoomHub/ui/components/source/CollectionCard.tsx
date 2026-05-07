@@ -407,6 +407,11 @@ const CollectionCard = ({
                 {ratingCountLabel}
               </span>
             ) : null}
+            {disabledReason ? (
+              <span className="min-w-0 truncate font-semibold text-amber-100">
+                {disabledReason}
+              </span>
+            ) : null}
           </div>
           <div className="mt-2 flex flex-wrap gap-3">
             {statsMeta.map((meta) => (

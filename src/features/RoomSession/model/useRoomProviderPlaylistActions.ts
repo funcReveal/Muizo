@@ -343,6 +343,7 @@ export const useRoomProviderPlaylistActions = ({
       playlistUrl,
       readToken,
       totalCount,
+      appliedSuggestion,
     }: {
       items: PlaylistItem[];
       sourceId: string;
@@ -351,6 +352,10 @@ export const useRoomProviderPlaylistActions = ({
       playlistUrl?: string | null;
       readToken?: string | null;
       totalCount?: number | null;
+      appliedSuggestion?: {
+        clientId: string;
+        suggestedAt: number;
+      } | null;
     }) => {
       const socket = getSocket();
 
@@ -424,6 +429,7 @@ export const useRoomProviderPlaylistActions = ({
               isLast,
               pageSize,
               readToken: readToken ?? null,
+              appliedSuggestion: appliedSuggestion ?? null,
             },
           },
           async (ack: Ack<PlaylistApplyAckData>) => {
@@ -837,6 +843,10 @@ export const useRoomProviderPlaylistActions = ({
           sourceType: resolveSuggestionCollectionSourceType(suggestion),
           readToken: suggestion.readToken ?? null,
           totalCount: suggestion.totalCount ?? 0,
+          appliedSuggestion: {
+            clientId: suggestion.clientId,
+            suggestedAt: suggestion.suggestedAt,
+          },
         });
       }
 
@@ -853,6 +863,10 @@ export const useRoomProviderPlaylistActions = ({
         playlistUrl: extractPlaylistIdFromUrl(suggestion.value)
           ? suggestion.value
           : undefined,
+        appliedSuggestion: {
+          clientId: suggestion.clientId,
+          suggestedAt: suggestion.suggestedAt,
+        },
       });
     },
     [

@@ -80,12 +80,6 @@ type GenericRowProps<T> = {
   items: T[];
   render: (item: T, index: number) => React.ReactNode;
 };
-type SuggestionGroup = {
-  key: string;
-  representative: PlaylistSuggestion;
-  count: number;
-  usernames: string[];
-};
 
 type Props = {
   open: boolean;
@@ -166,7 +160,6 @@ const MODAL_W = 1180;
 const MODAL_H = 820;
 const GRID_H = 372;
 const LIST_H = 132;
-const SUGGESTION_H = 116;
 const PREVIEW_H = 80;
 const RECOMMENDATION_COOLDOWN_MS = 5000;
 const VIEWPORT_SAFE_GAP = 14;
@@ -918,44 +911,12 @@ const PlaylistSelectorModal = ({
     [playlistSuggestions, matchCount, matchText],
   );
 
-  // Group duplicate suggestions so that when multiple players recommend the
-  // same collection/playlist, the host sees one card with a "×N" count badge
-  // instead of N separate cards. Keyed by `${type}:${sourceId ?? value}`.
-  // The representative is the newest suggestion (latest suggestedAt), which
-  // tends to carry the freshest snapshot (items/title).
-  const groupedSuggestions = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        key: string;
-        representative: PlaylistSuggestion;
-        count: number;
-        usernames: string[];
-      }
-    >();
-    for (const item of suggestions) {
-      const keySource = String(item.sourceId ?? item.value ?? "").trim();
-      const key = `${item.type}:${keySource}`;
-      const existing = map.get(key);
-      if (!existing) {
-        map.set(key, {
-          key,
-          representative: item,
-          count: 1,
-          usernames: [item.username],
-        });
-        continue;
-      }
-      existing.count += 1;
-      if (!existing.usernames.includes(item.username)) {
-        existing.usernames.push(item.username);
-      }
-      if (item.suggestedAt > existing.representative.suggestedAt) {
-        existing.representative = item;
-      }
-    }
-    return Array.from(map.values());
-  }, [suggestions]);
+  const suggestionEntries = useMemo(
+    () =>
+      [...suggestions].sort((a, b) => b.suggestedAt - a.suggestedAt),
+    [suggestions],
+  );
+  const suggestionBadgeCount = playlistSuggestions.length;
 
   const hasSuggestedSource = useCallback(
     (
@@ -1341,14 +1302,8 @@ const PlaylistSelectorModal = ({
     ],
   );
 
-  const renderSuggestion = useCallback(
-    (group: {
-      key: string;
-      representative: PlaylistSuggestion;
-      count: number;
-      usernames: string[];
-    }) => {
-      const item = group.representative;
+  const renderSuggestionCard = useCallback(
+    (item: PlaylistSuggestion) => {
       const collectionId = item.sourceId ?? item.value;
       const matchedCollection = collections.find(
         (entry) => entry.id === collectionId,
@@ -1358,6 +1313,30 @@ const PlaylistSelectorModal = ({
         playlistTotalCount: item.totalCount,
         playlistPlayableCount: item.playableCount ?? null,
       });
+      const collectionSuggestionSourceType =
+        matchedCollection?.visibility === "private" ||
+        (!matchedCollection && item.readToken)
+          ? "private_collection"
+          : "public_collection";
+      const isPublicCollectionSuggestion =
+        item.type === "collection" &&
+        collectionSuggestionSourceType === "public_collection";
+      const suggestionSourceType =
+        item.type === "collection"
+          ? collectionSuggestionSourceType
+          : (currentSourceType ?? "youtube_pasted_link");
+      const suggestionKindLabel =
+        item.type === "collection"
+          ? isPublicCollectionSuggestion
+            ? "公開題庫推薦"
+            : "私人題庫推薦"
+          : "播放清單推薦";
+      const isLeaderboardLockedSuggestion =
+        leaderboardCollectionOnlyMode && !isPublicCollectionSuggestion;
+      const isCurrent = matchesCurrentSource(
+        suggestionSourceType,
+        item.sourceId ?? item.value,
+      );
       const unavailableCollectionSuggestion =
         item.type === "collection" &&
         suggestionAvailability.playable < MIN_COLLECTION_PLAYABLE_COUNT;
@@ -1366,35 +1345,82 @@ const PlaylistSelectorModal = ({
         : null;
       const suggestionThumbnailUrl =
         item.type === "collection"
-          ? (matchedCollection?.cover_thumbnail_url ?? null)
+          ? (item.coverThumbnailUrl ??
+            matchedCollection?.cover_thumbnail_url ??
+            null)
           : (item.items?.[0]?.thumbnail ?? null);
-      const collectionSuggestionSourceType =
-        matchedCollection?.visibility === "private" ||
-        (!matchedCollection && item.readToken)
-          ? "private_collection"
-          : "public_collection";
-      const suggestionSourceType =
-        item.type === "collection"
-          ? collectionSuggestionSourceType
-          : (currentSourceType ?? "youtube_pasted_link");
-      const isPublicCollectionSuggestion =
-        item.type === "collection" &&
-        collectionSuggestionSourceType === "public_collection";
+      const disabled =
+        isCurrent ||
+        isLeaderboardLockedSuggestion ||
+        unavailableCollectionSuggestion;
 
-      const isLeaderboardLockedSuggestion =
-        leaderboardCollectionOnlyMode && !isPublicCollectionSuggestion;
-      const isCurrent = matchesCurrentSource(
-        suggestionSourceType,
-        item.sourceId ?? item.value,
-      );
       return (
-        <button
-          key={group.key}
-          type="button"
-          disabled={
-            isCurrent ||
-            isLeaderboardLockedSuggestion ||
-            unavailableCollectionSuggestion
+        <SourceCard
+          key={`${item.clientId}:${item.suggestedAt}:${item.type}:${item.sourceId ?? item.value}`}
+          title={normalizeDisplayText(
+            item.title,
+            item.type === "collection" ? "未命名題庫" : "未命名推薦",
+          )}
+          subtitle={
+            <div
+              className={`line-clamp-2 text-[13px] leading-5 ${
+                disabled ? "text-slate-400/70" : "text-slate-300/78"
+              }`}
+            >
+              {[
+                item.username ? `推薦者 ${item.username}` : null,
+                suggestionKindLabel,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          }
+          thumbnailUrl={suggestionThumbnailUrl}
+          badge={
+            item.type === "collection" ? (
+              isPublicCollectionSuggestion ? (
+                <>
+                  <PublicRoundedIcon sx={{ fontSize: 14 }} />
+                  公開
+                </>
+              ) : (
+                <>
+                  <BookmarkBorderRoundedIcon sx={{ fontSize: 14 }} />
+                  私人
+                </>
+              )
+            ) : (
+              <>
+                <YouTubeIcon sx={{ fontSize: 14 }} />
+                YouTube
+              </>
+            )
+          }
+          mode="grid"
+          disabled={disabled}
+          actionText={isCurrent ? "已套用" : null}
+          lockReason={
+            isLeaderboardLockedSuggestion
+              ? leaderboardCollectionOnlyReason
+              : unavailableCollectionSuggestionReason
+          }
+          warningIndicator={
+            <PlaylistAvailabilityWarningIcon
+              playable={suggestionAvailability.playable}
+              total={suggestionAvailability.total}
+            />
+          }
+          metrics={
+            <Metrics
+              itemCount={item.totalCount}
+              itemCountLabel={
+                <PlaylistAvailabilityBadge
+                  playable={suggestionAvailability.playable}
+                  total={suggestionAvailability.total}
+                  showWarningIcon={false}
+                />
+              }
+            />
           }
           onClick={() => {
             void (async () => {
@@ -1406,45 +1432,28 @@ const PlaylistSelectorModal = ({
                 setActionError(unavailableCollectionSuggestionReason);
                 return;
               }
-              if (isCurrent) return;
-              if (actionRunning) return;
-              if (item.type === "collection" || item.items?.length) {
-                setActionRunning(true);
-                setPendingActionKey(
-                  `suggestion:${item.clientId}:${item.suggestedAt}`,
-                );
-                try {
-                  const ok = await onApplySuggestionSnapshot(item);
-                  if (!ok) return;
-                  if (item.type === "collection") {
-                    onRecordSourceApplied({
-                      sourceType: collectionSuggestionSourceType,
-                      title:
-                        item.title ?? matchedCollection?.title ?? item.value,
-                      sourceId: collectionId,
-                      thumbnailUrl:
-                        matchedCollection?.cover_thumbnail_url ?? null,
-                      itemCount:
-                        item.totalCount ??
-                        matchedCollection?.item_count ??
-                        null,
-                    });
-                  }
-                  onClose();
-                } finally {
-                  setActionRunning(false);
-                  setPendingActionKey(null);
-                }
-                return;
-              }
-              if (item.type === "playlist") {
-                setActionRunning(true);
-                setPendingActionKey(
-                  `suggestion:${item.clientId}:${item.suggestedAt}`,
-                );
-                try {
-                  const ok = await onApplyPlaylistUrlDirect(item.value);
-                  if (!ok) return;
+              if (isCurrent || actionRunning) return;
+
+              setActionRunning(true);
+              setPendingActionKey(
+                `suggestion:${item.clientId}:${item.suggestedAt}`,
+              );
+              try {
+                const ok =
+                  item.type === "collection" || item.items?.length
+                    ? await onApplySuggestionSnapshot(item)
+                    : await onApplyPlaylistUrlDirect(item.value);
+                if (!ok) return;
+                if (item.type === "collection") {
+                  onRecordSourceApplied({
+                    sourceType: collectionSuggestionSourceType,
+                    title: item.title ?? matchedCollection?.title ?? item.value,
+                    sourceId: collectionId,
+                    thumbnailUrl: suggestionThumbnailUrl,
+                    itemCount:
+                      item.totalCount ?? matchedCollection?.item_count ?? null,
+                  });
+                } else {
                   onRecordSourceApplied({
                     sourceType: "youtube_pasted_link",
                     title: item.title ?? item.value,
@@ -1452,129 +1461,30 @@ const PlaylistSelectorModal = ({
                     url: item.value,
                     itemCount: item.totalCount ?? null,
                   });
-                  onClose();
-                } finally {
-                  setActionRunning(false);
-                  setPendingActionKey(null);
                 }
-                return;
+                onClose();
+              } finally {
+                setActionRunning(false);
+                setPendingActionKey(null);
               }
             })();
           }}
-          className={`relative flex h-[108px] w-full items-center gap-4 rounded-[24px] border px-4 text-left transition duration-200 ${
-            isCurrent ||
-            isLeaderboardLockedSuggestion ||
-            unavailableCollectionSuggestion
-              ? "cursor-not-allowed border-white/10 bg-[#080d17]/88 text-slate-500"
-              : "border-white/8 bg-[#060b16] hover:border-cyan-300/34 hover:bg-[#08101e]"
-          }`}
-        >
-          {isCurrent || isLeaderboardLockedSuggestion || unavailableCollectionSuggestion ? (
-            <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(8,13,23,0.24),rgba(8,13,23,0.52))]" />
-          ) : null}
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-cyan-400/8 text-cyan-100">
-            {suggestionThumbnailUrl ? (
-              <img
-                src={suggestionThumbnailUrl}
-                alt={normalizeDisplayText(
-                  item.title,
-                  item.type === "collection" ? "未命名題庫" : "未命名推薦",
-                )}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <TipsAndUpdatesRoundedIcon sx={{ fontSize: 24 }} />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div
-              className={`line-clamp-1 text-[15px] font-semibold ${
-                isCurrent ||
-                isLeaderboardLockedSuggestion ||
-                unavailableCollectionSuggestion
-                  ? "text-slate-300/80"
-                  : "text-slate-50"
-              }`}
-            >
-              {normalizeDisplayText(
-                item.title,
-                item.type === "collection" ? "未命名題庫" : "未命名推薦",
-              )}
-            </div>
-            <div
-              className={`mt-1 line-clamp-2 text-[13px] leading-5 ${
-                isCurrent ||
-                isLeaderboardLockedSuggestion ||
-                unavailableCollectionSuggestion
-                  ? "text-slate-400/70"
-                  : "text-slate-300/78"
-              }`}
-            >
-              {[
-                group.count > 1
-                  ? `推薦者 ${group.usernames.slice(0, 2).join("、")}${
-                      group.usernames.length > 2 ? " 等" : ""
-                    }`
-                  : `推薦者 ${item.username}`,
-                item.type === "collection" ? "題庫推薦" : "播放清單推薦",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </div>
-            <div className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-200/92">
-              <QuizRoundedIcon
-                sx={{ fontSize: 16, color: "rgba(103,232,249,0.94)" }}
-              />
-              <PlaylistAvailabilityBadge
-                playable={suggestionAvailability.playable}
-                total={suggestionAvailability.total}
-                showWarningIcon={false}
-              />
-            </div>
-            {unavailableCollectionSuggestionReason ? (
-              <div className="mt-1 text-[12px] leading-5 text-amber-200/90">
-                {unavailableCollectionSuggestionReason}
-              </div>
-            ) : null}
-          </div>
-          <div className="absolute right-4 top-4 flex items-center gap-2">
-            {group.count > 1 ? (
-              <span
-                className="rounded-full border border-cyan-300/30 bg-cyan-300/16 px-2.5 py-1 text-[11px] font-semibold text-cyan-50"
-                title={`${group.count} 位玩家推薦了此題庫`}
-              >
-                ×{group.count}
-              </span>
-            ) : null}
-            {isCurrent ? (
-              <span className="rounded-full border border-white/12 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-100">
-                已套用
-              </span>
-            ) : null}
-          </div>
-          <span className="absolute bottom-4 right-4">
-            <PlaylistAvailabilityWarningIcon
-              playable={suggestionAvailability.playable}
-              total={suggestionAvailability.total}
-            />
-          </span>
-        </button>
+        />
       );
     },
     [
       actionRunning,
+      collections,
       currentSourceType,
       leaderboardCollectionOnlyMode,
       leaderboardCollectionOnlyReason,
       matchesCurrentSource,
-      collections,
       onApplyPlaylistUrlDirect,
       onApplySuggestionSnapshot,
       onClose,
       onRecordSourceApplied,
     ],
   );
-
   const renderPreview = useCallback(
     (item: PlaylistItem, index: number) => (
       <div
@@ -1746,7 +1656,7 @@ const PlaylistSelectorModal = ({
   );
   const showEmptyFrame =
     (activeTab === "suggestions" &&
-      (!isHost || groupedSuggestions.length === 0)) ||
+      (!isHost || suggestionEntries.length === 0)) ||
     (activeTab === "public" &&
       !collectionsLoading &&
       publicCollections.length === 0) ||
@@ -1768,20 +1678,17 @@ const PlaylistSelectorModal = ({
           title="只有房主可以推薦題庫"
           description="目前只有房主可以查看與套用推薦題庫。"
         />
-      ) : groupedSuggestions.length === 0 ? (
+      ) : suggestionEntries.length === 0 ? (
         <EmptyState
           title="目前沒有推薦題庫"
           description="暫時還沒有其他玩家推薦題庫，可以先搜尋公開題庫或改用其他來源。"
         />
       ) : (
-        <div className="pr-3 pb-3">
-          <VirtualList<GenericRowProps<SuggestionGroup>>
-            style={{ height: viewportSafeH, width: "100%" }}
-            rowCount={groupedSuggestions.length}
-            rowHeight={SUGGESTION_H}
-            rowProps={{ items: groupedSuggestions, render: renderSuggestion }}
-            rowComponent={GenericRow as never}
-          />
+        <div
+          className="grid gap-4 overflow-y-auto pr-3 pb-3 sm:grid-cols-2 lg:grid-cols-3"
+          style={{ maxHeight: viewportSafeH }}
+        >
+          {suggestionEntries.map(renderSuggestionCard)}
         </div>
       )
     ) : activeTab === "public" ? (
@@ -2375,9 +2282,15 @@ const PlaylistSelectorModal = ({
                       selectorTabs.find((item) => item.key === value) ??
                       activeSelectorTab;
                     return (
-                      <span className="inline-flex items-center gap-2">
-                        {tab.icon}
-                        <span>{tab.label}</span>
+                    <span className="relative inline-flex items-center gap-2 pr-1">
+                      {tab.icon}
+                      <span>{tab.label}</span>
+                        {tab.key === "suggestions" &&
+                        suggestionBadgeCount > 0 ? (
+                          <span className="absolute -right-3 -top-2 inline-flex min-w-[18px] justify-center rounded-full bg-cyan-300/22 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-50 shadow-[0_8px_18px_-10px_rgba(34,211,238,0.8)]">
+                            {suggestionBadgeCount}
+                          </span>
+                        ) : null}
                       </span>
                     );
                   },
@@ -2396,9 +2309,15 @@ const PlaylistSelectorModal = ({
                     leaderboardCollectionOnlyMode && tab.key !== "public";
                   return (
                     <MenuItem key={tab.key} value={tab.key}>
-                      <span className="inline-flex items-center gap-2">
+                      <span className="relative inline-flex items-center gap-2 pr-1">
                         {tab.icon}
                         <span>{tab.label}</span>
+                        {tab.key === "suggestions" &&
+                        suggestionBadgeCount > 0 ? (
+                          <span className="absolute -right-3 -top-2 inline-flex min-w-[18px] justify-center rounded-full bg-cyan-300/22 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-50 shadow-[0_8px_18px_-10px_rgba(34,211,238,0.8)]">
+                            {suggestionBadgeCount}
+                          </span>
+                        ) : null}
                         {tabLocked ? (
                           <LockOutlinedIcon sx={{ fontSize: 14 }} />
                         ) : null}
@@ -2426,7 +2345,7 @@ const PlaylistSelectorModal = ({
                         }
                         setActiveTab(tab.key);
                       }}
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm ${
+                      className={`relative inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm ${
                         activeTab === tab.key
                           ? "border-cyan-300/30 bg-cyan-300/14 text-cyan-50"
                           : "border-white/10 bg-white/[0.03] text-slate-300"
@@ -2434,6 +2353,11 @@ const PlaylistSelectorModal = ({
                     >
                       {tab.icon}
                       <span>{tab.label}</span>
+                      {tab.key === "suggestions" && suggestionBadgeCount > 0 ? (
+                        <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[18px] justify-center rounded-full bg-cyan-300/22 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-50 shadow-[0_8px_18px_-10px_rgba(34,211,238,0.8)]">
+                          {suggestionBadgeCount}
+                        </span>
+                      ) : null}
                       {tabLocked ? (
                         <LockOutlinedIcon sx={{ fontSize: 14 }} />
                       ) : null}
@@ -2512,3 +2436,4 @@ const PlaylistSelectorModal = ({
 };
 
 export default React.memo(PlaylistSelectorModal);
+
