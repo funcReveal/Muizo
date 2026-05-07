@@ -41,11 +41,13 @@ import type {
   PlaylistSuggestion,
 } from "@features/RoomSession";
 import {
-  formatCollectionAvailabilityMetricLabel,
-  formatPlaylistAvailabilityMetricLabel,
+  resolveCollectionPlayableRequirement,
   resolveCollectionAvailabilityCounts,
   resolvePlaylistAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
+import PlaylistAvailabilityBadge, {
+  PlaylistAvailabilityWarningIcon,
+} from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 import {
   buildPlaylistIssueSummary,
   getPlaylistIssueTotal,
@@ -53,7 +55,10 @@ import {
   type PlaylistPreviewMeta,
   type YoutubePlaylist,
 } from "@features/PlaylistSource";
-import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
+import {
+  MIN_COLLECTION_PLAYABLE_COUNT,
+  YOUTUBE_PLAYLIST_MIN_ITEM_COUNT,
+} from "@domain/room/constants";
 // import { formatDurationLabel } from "../lib/roomsHubViewModels";
 import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
 
@@ -165,55 +170,6 @@ const SUGGESTION_H = 116;
 const PREVIEW_H = 80;
 const RECOMMENDATION_COOLDOWN_MS = 5000;
 const VIEWPORT_SAFE_GAP = 14;
-
-// Isolated so the parent's per-second re-renders (cooldownNow ticks) never
-// reach this subtree. The CSS keyframe is the only thing driving the ring;
-// animationDelay is captured ONCE at mount via useMemo and never updated,
-// otherwise the ring would judder each second.
-const CooldownRing: React.FC<{ cooldownUntil: number }> = React.memo(
-  ({ cooldownUntil }) => {
-    const circumference = 2 * Math.PI * 54;
-    // Capture the mount moment once (useState lazy init) so Date.now() isn't
-    // called during render. Parent re-keys this component per cooldown, so
-    // remounting starts a fresh mountTime at the right instant.
-    const [mountTime] = React.useState(() => Date.now());
-    const animationDelayMs = Math.max(
-      0,
-      RECOMMENDATION_COOLDOWN_MS - (cooldownUntil - mountTime),
-    );
-    return (
-      <svg
-        viewBox="0 0 120 120"
-        className="absolute inset-0 h-full w-full -rotate-90"
-        aria-hidden
-      >
-        <circle
-          cx="60"
-          cy="60"
-          r="54"
-          fill="none"
-          stroke="rgba(165,243,252,0.14)"
-          strokeWidth="6"
-        />
-        <circle
-          cx="60"
-          cy="60"
-          r="54"
-          fill="none"
-          stroke="rgba(103,232,249,0.85)"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          style={{
-            animation: `playlistSuggestionCooldownDrain ${RECOMMENDATION_COOLDOWN_MS}ms linear forwards`,
-            animationDelay: `-${animationDelayMs}ms`,
-          }}
-        />
-      </svg>
-    );
-  },
-);
-CooldownRing.displayName = "CooldownRing";
 
 const sourceType = (visibility?: "private" | "public") =>
   visibility === "private" ? "private_collection" : "public_collection";
@@ -411,7 +367,7 @@ const Metrics = ({
   ratingAvg,
 }: {
   itemCount?: number | null;
-  itemCountLabel?: string | null;
+  itemCountLabel?: React.ReactNode;
   useCount?: number | null;
   favoriteCount?: number | null;
   ratingCount?: number | null;
@@ -486,6 +442,9 @@ const SourceCard = ({
   disabled = false,
   actionText,
   lockReason,
+  warningIndicator,
+  shakeVersion,
+  blockedMessage,
 }: {
   title: string;
   subtitle?: React.ReactNode;
@@ -497,6 +456,9 @@ const SourceCard = ({
   disabled?: boolean;
   actionText?: string | null;
   lockReason?: string | null;
+  warningIndicator?: React.ReactNode;
+  shakeVersion?: number;
+  blockedMessage?: string | null;
 }) => {
   const list = mode === "list";
   return (
@@ -504,6 +466,13 @@ const SourceCard = ({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      style={
+        shakeVersion
+          ? {
+              animation: `playlistDeniedShake 420ms ease ${shakeVersion % 2}ms`,
+            }
+          : undefined
+      }
       className={
         list
           ? `relative flex h-[120px] w-full items-center gap-4 overflow-hidden rounded-[24px] border px-3 py-3 text-left transition duration-200 ${
@@ -520,6 +489,11 @@ const SourceCard = ({
     >
       {disabled ? (
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(8,13,23,0.24),rgba(8,13,23,0.52))]" />
+      ) : null}
+      {blockedMessage ? (
+        <span className="pointer-events-none absolute left-4 right-4 top-4 z-[4] rounded-full border border-cyan-200/24 bg-slate-950/82 px-3 py-2 text-center text-[12px] font-semibold text-cyan-50 shadow-[0_16px_34px_-24px_rgba(34,211,238,0.65)] backdrop-blur-md">
+          {blockedMessage}
+        </span>
       ) : null}
       <div
         className={
@@ -581,6 +555,17 @@ const SourceCard = ({
         </div>
         {metrics}
       </div>
+      {warningIndicator ? (
+        <span
+          className={
+            list
+              ? "absolute bottom-3 right-3 z-[3]"
+              : "absolute bottom-4 right-4 z-[3]"
+          }
+        >
+          {warningIndicator}
+        </span>
+      ) : null}
     </button>
   );
 };
@@ -651,8 +636,9 @@ const PlaylistSelectorModal = ({
   >(() => new Set());
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
-  const [cooldownOverlayDismissed, setCooldownOverlayDismissed] =
-    useState(false);
+  const [cooldownBlockedKey, setCooldownBlockedKey] = useState<string | null>(
+    null,
+  );
   const [actionRunning, setActionRunning] = useState(false);
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
   const [playlistIssueDialogOpen, setPlaylistIssueDialogOpen] = useState(false);
@@ -680,6 +666,25 @@ const PlaylistSelectorModal = ({
   const cooldownSeconds = cooldownUntil
     ? Math.max(0, Math.ceil((cooldownUntil - cooldownNow) / 1000))
     : 0;
+  const cooldownProgress =
+    cooldownUntil && isCooldownActive
+      ? Math.max(
+          0,
+          Math.min(
+            1,
+            (RECOMMENDATION_COOLDOWN_MS -
+              Math.max(0, cooldownUntil - cooldownNow)) /
+              RECOMMENDATION_COOLDOWN_MS,
+          ),
+        )
+      : 0;
+
+  const triggerCooldownBlockedFeedback = useCallback(
+    (key: string) => {
+      setCooldownBlockedKey(`${key}:${Date.now()}`);
+    },
+    [],
+  );
   useEffect(() => {
     if (
       open &&
@@ -708,9 +713,6 @@ const PlaylistSelectorModal = ({
 
   useEffect(() => {
     if (!cooldownUntil) return;
-    // A fresh cooldown starts → re-show the overlay even if the user had
-    // dismissed the previous one.
-    setCooldownOverlayDismissed(false);
     // Align wakeups to the next second boundary. setTimeout chain beats
     // setInterval on mobile: no drift when the tab is backgrounded, and we
     // only re-render once per visible-seconds change.
@@ -1050,12 +1052,9 @@ const PlaylistSelectorModal = ({
         return;
       }
       if (isCooldownActive) {
-        setActionNotice(
-          `請在 ${Math.max(1, cooldownSeconds)} 秒後再推薦下一個題庫。`,
+        triggerCooldownBlockedFeedback(
+          `suggest:${type}:${options?.sourceId ?? value}`,
         );
-        // User attempted another suggestion during cooldown → bring the
-        // countdown overlay back even if they'd previously dismissed it.
-        setCooldownOverlayDismissed(false);
         return;
       }
       setActionError(null);
@@ -1069,7 +1068,6 @@ const PlaylistSelectorModal = ({
         }
         setCooldownUntil(Date.now() + RECOMMENDATION_COOLDOWN_MS);
         setCooldownNow(Date.now());
-        setActionNotice("題庫推薦已送出。");
         // Optimistically mark this source as suggested so the card gets
         // the "已推薦" mask immediately, before the socket echo arrives.
         const normalizedValue = String(value ?? "").trim();
@@ -1093,19 +1091,24 @@ const PlaylistSelectorModal = ({
       leaderboardCollectionOnlyMode,
       leaderboardCollectionOnlyReason,
       onSuggestPlaylist,
+      triggerCooldownBlockedFeedback,
     ],
   );
 
   const applyCollection = useCallback(
     async (item: CollectionEntry) => {
       if (matchesCurrentSource(sourceType(item.visibility), item.id)) return;
-      const counts = resolveCollectionAvailabilityCounts(item);
-      if (counts.playable <= 0) {
-        setActionError("目前沒有可播放題目");
+      const playableRequirement = resolveCollectionPlayableRequirement(item);
+      if (playableRequirement.disabled) {
+        setActionError(playableRequirement.reason);
         return;
       }
       if (leaderboardCollectionOnlyMode && item.visibility !== "public") {
         setActionError(leaderboardCollectionOnlyReason);
+        return;
+      }
+      if (isSuggestionMode && isCooldownActive) {
+        triggerCooldownBlockedFeedback(`suggest:collection:${item.id}`);
         return;
       }
       if (actionRunning) return;
@@ -1149,6 +1152,7 @@ const PlaylistSelectorModal = ({
     },
     [
       actionRunning,
+      isCooldownActive,
       isSuggestionMode,
       leaderboardCollectionOnlyMode,
       leaderboardCollectionOnlyReason,
@@ -1158,6 +1162,7 @@ const PlaylistSelectorModal = ({
       onRecordSourceApplied,
       openConfirmModal,
       runSuggestion,
+      triggerCooldownBlockedFeedback,
     ],
   );
 
@@ -1169,41 +1174,52 @@ const PlaylistSelectorModal = ({
       );
       const alreadySuggested =
         isSuggestionMode && hasSuggestedSource("collection", item.id, item.id);
-      const counts = resolveCollectionAvailabilityCounts(item);
-      const disabledByAvailability = counts.playable <= 0;
+      const counts = resolveCollectionPlayableRequirement(item);
+      const disabledByAvailability = counts.disabled;
       const disabled = isCurrent || alreadySuggested || disabledByAvailability;
+      const sourceKey = `suggest:collection:${item.id}`;
+      const cooldownBlockedKeyParts = cooldownBlockedKey?.split(":") ?? [];
+      const shakeVersion = cooldownBlockedKey?.startsWith(`${sourceKey}:`)
+        ? Number(cooldownBlockedKeyParts[cooldownBlockedKeyParts.length - 1])
+        : undefined;
+      const blockedMessage = shakeVersion && isCooldownActive
+        ? `還不能推薦，請稍候 ${Math.max(1, cooldownSeconds)} 秒`
+        : null;
       return (
         <SourceCard
           key={item.id}
           title={normalizeDisplayText(item.title, "未命名題庫")}
           subtitle={
-            <div className="space-y-1">
-              <CollectionRatingLine
-                ratingAvg={item.rating_avg}
-                ratingCount={item.rating_count}
-                disabled={disabled}
-              />
-              <div
-                className={`text-[12px] leading-5 ${
-                  disabledByAvailability
-                    ? "text-slate-400/70"
-                    : "hidden"
-                }`}
-              >
-                {disabledByAvailability ? "目前沒有可播放題目" : null}
-              </div>
-            </div>
+            <CollectionRatingLine
+              ratingAvg={item.rating_avg}
+              ratingCount={item.rating_count}
+              disabled={disabled}
+            />
           }
           thumbnailUrl={item.cover_thumbnail_url}
           badge={badge}
           mode={mode}
           disabled={disabled}
           actionText={isCurrent ? "已套用" : alreadySuggested ? "已推薦" : null}
-          lockReason={disabledByAvailability ? "目前沒有可播放題目" : null}
+          lockReason={counts.reason}
+          shakeVersion={shakeVersion}
+          blockedMessage={blockedMessage}
+          warningIndicator={
+            <PlaylistAvailabilityWarningIcon
+              playable={counts.playable}
+              total={counts.total}
+            />
+          }
           metrics={
             <Metrics
               itemCount={item.item_count}
-              itemCountLabel={formatCollectionAvailabilityMetricLabel(item)}
+              itemCountLabel={
+                <PlaylistAvailabilityBadge
+                  playable={counts.playable}
+                  total={counts.total}
+                  showWarningIcon={false}
+                />
+              }
               useCount={item.use_count}
               favoriteCount={item.favorite_count}
             />
@@ -1219,6 +1235,10 @@ const PlaylistSelectorModal = ({
       hasSuggestedSource,
       isSuggestionMode,
       matchesCurrentSource,
+      cooldownBlockedKey,
+      cooldownSeconds,
+      isCooldownActive,
+      triggerCooldownBlockedFeedback,
     ],
   );
 
@@ -1338,13 +1358,12 @@ const PlaylistSelectorModal = ({
         playlistTotalCount: item.totalCount,
         playlistPlayableCount: item.playableCount ?? null,
       });
-      const suggestionAvailabilityLabel = formatPlaylistAvailabilityMetricLabel({
-        playlistCount: item.totalCount,
-        playlistTotalCount: item.totalCount,
-        playlistPlayableCount: item.playableCount ?? null,
-      });
       const unavailableCollectionSuggestion =
-        item.type === "collection" && suggestionAvailability.playable <= 0;
+        item.type === "collection" &&
+        suggestionAvailability.playable < MIN_COLLECTION_PLAYABLE_COUNT;
+      const unavailableCollectionSuggestionReason = unavailableCollectionSuggestion
+        ? `至少需要 ${MIN_COLLECTION_PLAYABLE_COUNT} 題可遊玩，目前只有 ${suggestionAvailability.playable} 題`
+        : null;
       const suggestionThumbnailUrl =
         item.type === "collection"
           ? (matchedCollection?.cover_thumbnail_url ?? null)
@@ -1384,7 +1403,7 @@ const PlaylistSelectorModal = ({
                 return;
               }
               if (unavailableCollectionSuggestion) {
-                setActionError("目前沒有可播放題目");
+                setActionError(unavailableCollectionSuggestionReason);
                 return;
               }
               if (isCurrent) return;
@@ -1506,8 +1525,17 @@ const PlaylistSelectorModal = ({
               <QuizRoundedIcon
                 sx={{ fontSize: 16, color: "rgba(103,232,249,0.94)" }}
               />
-              <span>{suggestionAvailabilityLabel}</span>
+              <PlaylistAvailabilityBadge
+                playable={suggestionAvailability.playable}
+                total={suggestionAvailability.total}
+                showWarningIcon={false}
+              />
             </div>
+            {unavailableCollectionSuggestionReason ? (
+              <div className="mt-1 text-[12px] leading-5 text-amber-200/90">
+                {unavailableCollectionSuggestionReason}
+              </div>
+            ) : null}
           </div>
           <div className="absolute right-4 top-4 flex items-center gap-2">
             {group.count > 1 ? (
@@ -1524,6 +1552,12 @@ const PlaylistSelectorModal = ({
               </span>
             ) : null}
           </div>
+          <span className="absolute bottom-4 right-4">
+            <PlaylistAvailabilityWarningIcon
+              playable={suggestionAvailability.playable}
+              total={suggestionAvailability.total}
+            />
+          </span>
         </button>
       );
     },
@@ -2106,6 +2140,15 @@ const PlaylistSelectorModal = ({
           },
         }}
       >
+        <style>{`
+          @keyframes playlistDeniedShake {
+            0%, 100% { transform: translateX(0); }
+            18% { transform: translateX(-5px); }
+            36% { transform: translateX(5px); }
+            54% { transform: translateX(-3px); }
+            72% { transform: translateX(3px); }
+          }
+        `}</style>
         <DialogTitle className="!p-0">
           <div className="border-b border-white/8 px-6 py-5 max-sm:px-6 max-sm:py-3.5">
             <div className="flex items-start justify-between gap-4">
@@ -2399,21 +2442,37 @@ const PlaylistSelectorModal = ({
                 })}
               </div>
             )}
-            {chips.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2 max-sm:gap-1.5">
-                {chips.map((chip) => (
-                  <Chip
-                    key={chip}
-                    size="small"
-                    label={chip}
-                    sx={{
-                      borderRadius: "999px",
-                      backgroundColor: "rgba(255,255,255,0.05)",
-                      color: "#cbd5e1",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  />
-                ))}
+            {chips.length > 0 || (isSuggestionMode && isCooldownActive) ? (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 max-sm:gap-1.5">
+                <div className="flex flex-wrap gap-2 max-sm:gap-1.5">
+                  {chips.map((chip) => (
+                    <Chip
+                      key={chip}
+                      size="small"
+                      label={chip}
+                      sx={{
+                        borderRadius: "999px",
+                        backgroundColor: "rgba(255,255,255,0.05)",
+                        color: "#cbd5e1",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    />
+                  ))}
+                </div>
+                {isSuggestionMode && isCooldownActive ? (
+                  <div className="ml-auto mr-2 w-[360px] max-w-[calc(100%-0.5rem)] flex-none rounded-full border border-cyan-300/12 bg-slate-950/36 px-3 py-1.5 text-[12px] font-semibold text-cyan-50 max-sm:mr-0 max-sm:w-full max-sm:max-w-full">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>推薦冷卻中，{cooldownSeconds} 秒後可再次推薦</span>
+                      <span className="text-cyan-100/70">請稍候</span>
+                    </div>
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-950/70">
+                      <div
+                        className="h-full origin-left rounded-full bg-cyan-300 transition-transform duration-300"
+                        style={{ transform: `scaleX(${cooldownProgress})` }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -2437,51 +2496,6 @@ const PlaylistSelectorModal = ({
               <span>
                 {isSuggestionMode ? "正在送出推薦..." : "正在套用題庫..."}
               </span>
-            </div>
-          </div>
-        ) : null}
-        {isSuggestionMode &&
-        isCooldownActive &&
-        !modalInteractionLocked &&
-        !cooldownOverlayDismissed ? (
-          // Softer full-modal cooldown overlay. Design notes:
-          //  • No inner panel — just the ring + text sit on a lightly dimmed
-          //    backdrop, which feels less abrupt than a popover-on-popover.
-          //  • Countdown ring drains via a pure CSS keyframe animation (linear,
-          //    RECOMMENDATION_COOLDOWN_MS long), so the sweep is perfectly
-          //    smooth and doesn't re-render every frame in React.
-          //  • Clicking the dim area dismisses just the overlay (not the whole
-          //    modal) — cooldown is still active underneath; a fresh cooldown
-          //    will re-show the overlay automatically.
-          <div
-            role="button"
-            tabIndex={-1}
-            aria-label="關閉倒數"
-            onClick={() => setCooldownOverlayDismissed(true)}
-            className="absolute inset-0 z-30 flex cursor-pointer flex-col items-center justify-center bg-[rgba(6,10,20,0.55)] backdrop-blur-[2px]"
-          >
-            <style>{`
-            @keyframes playlistSuggestionCooldownDrain {
-              from { stroke-dashoffset: 0; }
-              to { stroke-dashoffset: ${2 * Math.PI * 54}; }
-            }
-          `}</style>
-            <div className="pointer-events-none relative flex h-28 w-28 items-center justify-center">
-              <CooldownRing
-                key={cooldownUntil ?? 0}
-                cooldownUntil={cooldownUntil ?? 0}
-              />
-              <span className="relative text-[44px] font-bold leading-none text-cyan-50 tabular-nums drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
-                {cooldownSeconds}
-              </span>
-            </div>
-            <div className="pointer-events-none mt-5 flex flex-col items-center gap-1.5 px-8 text-center">
-              <div className="text-base font-semibold text-cyan-50 drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
-                推薦冷卻中
-              </div>
-              <div className="text-xs leading-5 text-slate-200/85 drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
-                點擊任意處可關閉
-              </div>
             </div>
           </div>
         ) : null}

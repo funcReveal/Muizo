@@ -15,7 +15,11 @@ import {
   StarRounded,
 } from "@mui/icons-material";
 import { IconButton, Menu, MenuItem } from "@mui/material";
-import { formatCollectionAvailabilityMetricLabel } from "@features/RoomSession/model/playlistAvailability";
+import {
+  formatCollectionAvailabilityMetricLabel,
+  resolveCollectionAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
+import { PlaylistAvailabilityWarningIcon } from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 
 type CollectionCardProps = {
   collection: {
@@ -37,6 +41,8 @@ type CollectionCardProps = {
   };
   view: "grid" | "list";
   selected: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
   isPublicLibraryTab: boolean;
   isFavoriteUpdating?: boolean;
   onSelect: () => void;
@@ -62,6 +68,8 @@ const CollectionCard = ({
   collection,
   view,
   selected,
+  disabled = false,
+  disabledReason = null,
   isPublicLibraryTab,
   isFavoriteUpdating = false,
   onSelect,
@@ -92,6 +100,7 @@ const CollectionCard = ({
     typeof collection.item_count === "number"
       ? formatCollectionAvailabilityMetricLabel(collection)
       : null;
+  const availabilityCounts = resolveCollectionAvailabilityCounts(collection);
 
   const statsMeta = [
     itemCountLabel
@@ -140,6 +149,7 @@ const CollectionCard = ({
   const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
+    if (disabled) return;
     onSelect();
   };
 
@@ -216,11 +226,17 @@ const CollectionCard = ({
       <div
         key={collection.id}
         role="button"
-        tabIndex={0}
-        onClick={onSelect}
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          onSelect();
+        }}
         onKeyDown={handleCardKeyDown}
         className={`group relative h-full cursor-pointer overflow-hidden rounded-[22px] border text-left transition ${
-          selected
+          disabled
+            ? "cursor-not-allowed border-white/10 bg-slate-950/42 opacity-75"
+            : selected
             ? "border-cyan-300/55 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(8,47,73,0.42))] shadow-[0_24px_44px_-28px_rgba(34,211,238,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]"
             : `border-cyan-300/18 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.58))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_16px_34px_-32px_rgba(15,23,42,0.9)] ${
                 suppressCardHover
@@ -255,6 +271,11 @@ const CollectionCard = ({
                 )}
                 {visibilityLabel}
               </span>
+            </div>
+          ) : null}
+          {disabledReason ? (
+            <div className="absolute inset-x-3 bottom-3 rounded-xl border border-amber-300/30 bg-slate-950/78 px-3 py-2 text-xs font-semibold text-amber-100 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.55)]">
+              {disabledReason}
             </div>
           ) : null}
         </div>
@@ -303,6 +324,10 @@ const CollectionCard = ({
                 </span>
               )}
             </div>
+            <PlaylistAvailabilityWarningIcon
+              playable={availabilityCounts.playable}
+              total={availabilityCounts.total}
+            />
             {renderActions("grid")}
           </div>
         </div>
@@ -314,11 +339,17 @@ const CollectionCard = ({
     <div
       key={collection.id}
       role="button"
-      tabIndex={0}
-      onClick={onSelect}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onClick={() => {
+        if (disabled) return;
+        onSelect();
+      }}
       onKeyDown={handleCardKeyDown}
       className={`w-full cursor-pointer border-b border-slate-700/55 px-3 py-3 text-left transition ${
-        selected
+        disabled
+          ? "cursor-not-allowed bg-slate-950/20 opacity-75"
+          : selected
           ? "bg-cyan-500/10"
           : suppressCardHover
             ? "bg-transparent"
@@ -389,6 +420,10 @@ const CollectionCard = ({
             ))}
           </div>
         </div>
+        <PlaylistAvailabilityWarningIcon
+          playable={availabilityCounts.playable}
+          total={availabilityCounts.total}
+        />
         {renderActions("list")}
       </div>
     </div>

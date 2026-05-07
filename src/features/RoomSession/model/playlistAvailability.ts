@@ -1,4 +1,7 @@
-import { QUESTION_MAX } from "@domain/room/constants";
+import {
+  MIN_COLLECTION_PLAYABLE_COUNT,
+  QUESTION_MAX,
+} from "@domain/room/constants";
 import type { PlaylistSourceType } from "./types";
 
 export type PlaylistAvailabilityInput = {
@@ -65,12 +68,16 @@ export const formatPlaylistAvailabilityLabel = (
   source: PlaylistAvailabilityInput | null | undefined,
 ): string => {
   const counts = resolvePlaylistAvailabilityCounts(source);
-
-  if (counts.total > 0 && counts.playable < counts.total) {
-    return `可用 ${counts.playable} / 共 ${counts.total} 題`;
-  }
-
   return `${counts.playable} 題`;
+};
+
+export const formatPlaylistAvailabilityTooltip = (
+  source: PlaylistAvailabilityInput | null | undefined,
+): string => {
+  const counts = resolvePlaylistAvailabilityCounts(source);
+  return counts.unavailable > 0
+    ? `共 ${counts.total} 題，目前 ${counts.playable} 題可遊玩，${counts.unavailable} 題暫時無法播放。建立房間、推薦與更換題庫時，只會使用可遊玩的題目。`
+    : `共 ${counts.total} 題，目前 ${counts.playable} 題可遊玩。`;
 };
 
 export const resolveQuestionLimitFromAvailability = (
@@ -99,9 +106,7 @@ export const formatPlaylistAvailabilityMetricLabel = (
   source: PlaylistAvailabilityInput | null | undefined,
 ): string => {
   const counts = resolvePlaylistAvailabilityCounts(source);
-  return counts.total > 0
-    ? `${counts.playable}/${counts.total}題`
-    : `${counts.playable}題`;
+  return `${counts.playable}題`;
 };
 
 export type CollectionAvailabilityInput = {
@@ -127,12 +132,16 @@ export const formatCollectionAvailabilityLabel = (
   collection: CollectionAvailabilityInput | null | undefined,
 ): string => {
   const counts = resolveCollectionAvailabilityCounts(collection);
-
-  if (counts.total > 0 && counts.playable < counts.total) {
-    return `可用 ${counts.playable} / 共 ${counts.total} 題`;
-  }
-
   return `${counts.playable} 題`;
+};
+
+export const formatCollectionAvailabilityTooltip = (
+  collection: CollectionAvailabilityInput | null | undefined,
+): string => {
+  const counts = resolveCollectionAvailabilityCounts(collection);
+  return counts.unavailable > 0
+    ? `共 ${counts.total} 題，目前 ${counts.playable} 題可遊玩，${counts.unavailable} 題暫時無法播放。建立房間、推薦與更換題庫時，只會使用可遊玩的題目。`
+    : `共 ${counts.total} 題，目前 ${counts.playable} 題可遊玩。`;
 };
 
 export const resolveQuestionLimitFromCollection = (
@@ -161,9 +170,26 @@ export const formatCollectionAvailabilityMetricLabel = (
   collection: CollectionAvailabilityInput | null | undefined,
 ): string => {
   const counts = resolveCollectionAvailabilityCounts(collection);
-  return counts.total > 0
-    ? `${counts.playable}/${counts.total}題`
-    : `${counts.playable}題`;
+  return `${counts.playable}題`;
+};
+
+export const resolveCollectionPlayableRequirement = (
+  collection: CollectionAvailabilityInput | null | undefined,
+) => {
+  const counts = resolveCollectionAvailabilityCounts(collection);
+  const meetsMinimum = counts.playable >= MIN_COLLECTION_PLAYABLE_COUNT;
+
+  return {
+    ...counts,
+    meetsMinimum,
+    disabled: !meetsMinimum,
+    reason: meetsMinimum
+      ? null
+      : `低於 ${MIN_COLLECTION_PLAYABLE_COUNT} 題，不能用於題庫`,
+    detail: meetsMinimum
+      ? null
+      : `目前只有 ${counts.playable} 題可遊玩`,
+  };
 };
 
 export const extractCollectionAvailabilityPatchFromPlaylist = (

@@ -20,9 +20,9 @@ import React, { useEffect, useRef, useState } from "react";
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
 import {
-  formatCollectionAvailabilityMetricLabel,
-  resolveCollectionAvailabilityCounts,
+  resolveCollectionPlayableRequirement,
 } from "@features/RoomSession/model/playlistAvailability";
+import PlaylistAvailabilityBadge from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
@@ -229,7 +229,6 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
         return;
       }
       setCooldownUntil(Date.now() + SUGGESTION_COOLDOWN_MS);
-      setSuggestNotice("推薦已送出。");
     } finally {
       setIsSubmitting(false);
     }
@@ -454,9 +453,9 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                     clearSuggestNoticeIfAllowed();
                     if (!nextId) return;
                     const selected = collections.find((item) => item.id === nextId);
-                    const counts = resolveCollectionAvailabilityCounts(selected);
-                    if (counts.playable <= 0) {
-                      setSuggestError("目前沒有可播放題目");
+                    const requirement = resolveCollectionPlayableRequirement(selected);
+                    if (requirement.disabled) {
+                      setSuggestError(requirement.reason);
                       return;
                     }
                     const label = selected
@@ -501,11 +500,8 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                     {collectionScope === "public" ? "選擇公開收藏庫" : "選擇私人收藏庫"}
                   </MenuItem>
                   {collections.map((collection) => {
-                    const counts =
-                      resolveCollectionAvailabilityCounts(collection);
-                    const disabledByAvailability = counts.playable <= 0;
-                    const availabilityMetric =
-                      formatCollectionAvailabilityMetricLabel(collection);
+                    const counts = resolveCollectionPlayableRequirement(collection);
+                    const disabledByAvailability = counts.disabled;
                     return (
                       <MenuItem
                         key={collection.id}
@@ -526,9 +522,12 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                                 color: "rgba(103,232,249,0.88)",
                               }}
                             />
-                            <span>{availabilityMetric}</span>
+                            <PlaylistAvailabilityBadge
+                              playable={counts.playable}
+                              total={counts.total}
+                            />
                             {disabledByAvailability ? (
-                              <span>· 目前沒有可播放題目</span>
+                              <span>· {counts.reason}</span>
                             ) : null}
                           </span>
                         </div>

@@ -32,6 +32,7 @@ import {
   PlaylistIssueSummaryDialog,
   usePlaylistSource,
 } from "@features/PlaylistSource";
+import { resolveCollectionPlayableRequirement } from "@features/RoomSession/model/playlistAvailability";
 import {
   DEFAULT_BGM_VOLUME,
   SettingsModelContext,
@@ -1336,6 +1337,7 @@ const RoomsHubPage: React.FC = () => {
     const suppressSharedLinkHighlight =
       detailDrawerState?.source === "sharedLink" &&
       detailDrawerState.collectionId === collection.id;
+    const playableRequirement = resolveCollectionPlayableRequirement(collection);
 
     return (
       <CollectionCard
@@ -1345,6 +1347,8 @@ const RoomsHubPage: React.FC = () => {
           selectedCreateCollectionId === collection.id &&
           !suppressSharedLinkHighlight
         }
+        disabled={playableRequirement.disabled}
+        disabledReason={playableRequirement.reason}
         isPublicLibraryTab={createLibraryTab === "public"}
         isFavoriteUpdating={collectionFavoriteUpdatingId === collection.id}
         onSelect={() => {

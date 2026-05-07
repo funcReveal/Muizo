@@ -39,6 +39,13 @@ export interface RoomGameContextValue {
     action: RestartGameVoteAction,
   ) => Promise<boolean>;
   handleCastRestartGameVote: (vote: "approve" | "reject") => Promise<boolean>;
+  handleReportPlaybackError: (payload: {
+    provider: string;
+    sourceId: string;
+    errorCode?: string | number;
+    trackIndex?: number;
+    gameSessionId?: string | number | null;
+  }) => void;
   handleUpdateRoomSettings: (payload: {
     name?: string;
     visibility?: "public" | "private";

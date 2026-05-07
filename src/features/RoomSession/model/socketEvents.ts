@@ -248,6 +248,17 @@ export interface ClientToServerEvents {
     payload: TrackResultHistoryEventPayload,
     callback?: (ack: Ack<null>) => void,
   ) => void;
+  reportPlaybackError: (
+    payload: {
+      roomId: string;
+      provider: string;
+      sourceId: string;
+      errorCode?: string | number;
+      trackIndex?: number;
+      gameSessionId?: string;
+    },
+    callback?: (ack: Ack<{ queued: boolean }>) => void,
+  ) => void;
 }
 
 export type TrackResultYoutubeCtaClickedPayload = {

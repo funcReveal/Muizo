@@ -35,7 +35,10 @@ import {
   clampRevealDurationSec,
   clampStartOffsetSec,
 } from "./roomUtils";
-import { resolveQuestionLimitFromCollection } from "./playlistAvailability";
+import {
+  resolveCollectionPlayableRequirement,
+  resolveQuestionLimitFromCollection,
+} from "./playlistAvailability";
 import type {
   ClientSocket,
   GameState,
@@ -272,6 +275,10 @@ export const useRoomProviderCreateRoomAction = ({
       isCollectionSourceMode && selectedCollection
         ? resolveQuestionLimitFromCollection(selectedCollection)
         : null;
+    const collectionPlayableRequirement =
+      isCollectionSourceMode && selectedCollection
+        ? resolveCollectionPlayableRequirement(selectedCollection)
+        : null;
 
     if (!trimmed) {
       setStatusText("請先輸入房間名稱。");
@@ -281,6 +288,15 @@ export const useRoomProviderCreateRoomAction = ({
 
     if (collectionQuestionLimit && !collectionQuestionLimit.canStart) {
       setStatusText("這個收藏庫目前沒有可播放題目。");
+      finalizeCreate();
+      return;
+    }
+
+    if (
+      collectionPlayableRequirement &&
+      collectionPlayableRequirement.disabled
+    ) {
+      setStatusText(collectionPlayableRequirement.reason ?? "低於 20 題，不能用於題庫");
       finalizeCreate();
       return;
     }

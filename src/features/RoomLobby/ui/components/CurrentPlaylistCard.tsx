@@ -11,7 +11,8 @@ import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 
 import type { PlaylistSourceType, RoomState } from "@features/RoomSession";
-import { formatPlaylistAvailabilityLabel } from "@features/RoomSession/model/playlistAvailability";
+import { resolvePlaylistAvailabilityCounts } from "@features/RoomSession/model/playlistAvailability";
+import PlaylistAvailabilityBadge from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 import { normalizeDisplayText } from "./roomLobbyDisplayUtils";
 
 type CurrentPlaylistCardProps = {
@@ -99,7 +100,7 @@ const CurrentPlaylistCard = ({
   );
   const sourceLabel = sourceConfig?.label ?? "匯入題庫";
   const buttonLabel = actionLabel ?? (isHost ? "更換題庫" : "推薦題庫");
-  const availabilityLabel = formatPlaylistAvailabilityLabel({
+  const availabilityCounts = resolvePlaylistAvailabilityCounts({
     playlistCount,
     playlistPlayableCount,
     playlistTotalCount,
@@ -166,7 +167,12 @@ const CurrentPlaylistCard = ({
               <Chip
                 size="small"
                 icon={<QuizRoundedIcon sx={{ fontSize: 15 }} />}
-                label={availabilityLabel}
+                label={
+                  <PlaylistAvailabilityBadge
+                    playable={availabilityCounts.playable}
+                    total={availabilityCounts.total}
+                  />
+                }
                 sx={{
                   ...playlistChipSx,
                   backgroundColor: "rgba(250,204,21,0.12)",
