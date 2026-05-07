@@ -403,7 +403,18 @@ export const buildUploadPlaylistItems = (
 export const mergeRoomSummaryIntoCurrentRoom = (
   current: RoomState["room"],
   summary: RoomSummary,
-): RoomState["room"] => ({
+): RoomState["room"] => {
+  const summaryPlaylistTotalCount =
+    summary.playlistTotalCount ?? summary.playlistCount;
+  const summarySourceType =
+    summary.playlistSourceType ?? current.playlist.sourceType ?? null;
+  const summaryIsCommittedCollection =
+    (summarySourceType === "public_collection" ||
+      summarySourceType === "private_collection") &&
+    (typeof summary.playlistCount === "number" ||
+      typeof summary.playlistTotalCount === "number");
+
+  return {
   ...current,
   id: summary.id,
   roomCode: summary.roomCode,
@@ -415,6 +426,12 @@ export const mergeRoomSummaryIntoCurrentRoom = (
   ...(summary.password !== undefined ? { password: summary.password } : {}),
   ...(summary.pin !== undefined ? { pin: summary.pin } : {}),
   playlistCount: summary.playlistCount,
+  ...(summary.playlistTotalCount !== undefined
+    ? { playlistTotalCount: summary.playlistTotalCount }
+    : {}),
+  ...(summary.playlistPlayableCount !== undefined
+    ? { playlistPlayableCount: summary.playlistPlayableCount }
+    : {}),
   ...(summary.playlistId !== undefined
     ? { playlistId: summary.playlistId }
     : {}),
@@ -453,13 +470,18 @@ export const mergeRoomSummaryIntoCurrentRoom = (
     ...(summary.playlistSourceType !== undefined
       ? { sourceType: summary.playlistSourceType ?? null }
       : {}),
-    ...(typeof summary.playlistCount === "number"
+    ...(typeof summary.playlistCount === "number" ||
+    typeof summary.playlistTotalCount === "number" ||
+    typeof summary.playlistPlayableCount === "number"
       ? {
-          totalCount: summary.playlistCount,
-          receivedCount: Math.min(
-            current.playlist.receivedCount,
-            summary.playlistCount,
-          ),
+          totalCount: summary.playlistTotalCount ?? summary.playlistCount,
+          ...(summary.playlistPlayableCount !== undefined &&
+          summary.playlistPlayableCount !== null
+            ? { playableCount: summary.playlistPlayableCount }
+            : {}),
+          receivedCount: summaryIsCommittedCollection
+            ? summaryPlaylistTotalCount
+            : Math.min(current.playlist.receivedCount, summaryPlaylistTotalCount),
         }
       : {}),
   },
@@ -467,7 +489,8 @@ export const mergeRoomSummaryIntoCurrentRoom = (
     current.gameSettings,
     summary.gameSettings,
   ),
-});
+  };
+};
 
 export const capRoomMessages = (
   messages: ChatMessage[],

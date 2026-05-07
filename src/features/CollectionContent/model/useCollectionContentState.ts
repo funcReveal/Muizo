@@ -24,6 +24,7 @@ import { DEFAULT_CLIP_SEC, DEFAULT_PAGE_SIZE } from "@domain/room/constants";
 import { ensureFreshAuthToken } from "../../../shared/auth/token";
 
 const EMPTY_COLLECTION_RETRY_LIMIT = 2;
+export const COLLECTION_AVAILABILITY_PATCH_TTL_MS = 15 * 60 * 1000;
 
 type UseCollectionContentStateOptions = {
   apiUrl?: string;
@@ -56,6 +57,11 @@ const normalizeCollectionEntry = (
   cover_source_id: item.cover_source_id ?? null,
   cover_provider: item.cover_provider ?? null,
   item_count: Math.max(0, Number(item.item_count ?? 0)),
+  playable_item_count:
+    item.playable_item_count === null || item.playable_item_count === undefined
+      ? null
+      : Math.max(0, Number(item.playable_item_count ?? 0)),
+  readToken: item.readToken ?? null,
   use_count: Math.max(0, Number(item.use_count ?? 0)),
   favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
   rating_count: Math.max(0, Number(item.rating_count ?? 0)),
@@ -66,6 +72,156 @@ const normalizeCollectionEntry = (
   ai_edited_count: Math.max(0, Number(item.ai_edited_count ?? 0)),
   has_ai_edited: Boolean(item.has_ai_edited),
 });
+
+const toAvailabilityCount = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : undefined;
+
+type NormalizedAvailabilityPatch = {
+  collectionId: string;
+  itemCount?: number;
+  playableItemCount?: number | null;
+  patchedAt: number;
+  source: "room" | "playlist" | "summary";
+};
+
+export const patchCollectionSummary = (
+  item: CollectionEntry,
+  patch: NormalizedAvailabilityPatch,
+): CollectionEntry => {
+  if (item.id !== patch.collectionId) return item;
+
+  const nextItemCount = patch.itemCount ?? item.item_count;
+  const nextPlayableCount =
+    patch.playableItemCount === null
+      ? null
+      : patch.playableItemCount !== undefined
+        ? nextItemCount !== undefined
+          ? Math.min(patch.playableItemCount, nextItemCount)
+          : patch.playableItemCount
+        : item.playable_item_count !== undefined &&
+            item.playable_item_count !== null &&
+            nextItemCount !== undefined
+          ? Math.min(item.playable_item_count, nextItemCount)
+          : item.playable_item_count;
+
+  if (
+    nextItemCount === item.item_count &&
+    nextPlayableCount === item.playable_item_count
+  ) {
+    return item;
+  }
+
+  return {
+    ...item,
+    ...(patch.itemCount !== undefined ? { item_count: patch.itemCount } : {}),
+    ...(nextPlayableCount !== item.playable_item_count
+      ? { playable_item_count: nextPlayableCount }
+      : {}),
+  };
+};
+
+export const patchCollectionAvailabilityIntoList = (
+  items: CollectionEntry[],
+  patch: NormalizedAvailabilityPatch,
+): CollectionEntry[] => {
+  let changed = false;
+  const next = items.map((item) => {
+    const patched = patchCollectionSummary(item, patch);
+    if (patched !== item) changed = true;
+    return patched;
+  });
+  return changed ? next : items;
+};
+
+const isAvailabilityPatchFresh = (
+  patch: NormalizedAvailabilityPatch,
+  now = Date.now(),
+): boolean => now - patch.patchedAt <= COLLECTION_AVAILABILITY_PATCH_TTL_MS;
+
+const pruneAvailabilityPatches = (
+  patches: Record<string, NormalizedAvailabilityPatch>,
+  now = Date.now(),
+): Record<string, NormalizedAvailabilityPatch> => {
+  let changed = false;
+  const next: Record<string, NormalizedAvailabilityPatch> = {};
+  for (const [collectionId, patch] of Object.entries(patches)) {
+    if (isAvailabilityPatchFresh(patch, now)) {
+      next[collectionId] = patch;
+    } else {
+      changed = true;
+    }
+  }
+  return changed ? next : patches;
+};
+
+export const patchCollectionAvailabilityWithMap = (
+  item: CollectionEntry,
+  patches: Record<string, NormalizedAvailabilityPatch>,
+): CollectionEntry => {
+  const patch = patches[item.id];
+  return patch && isAvailabilityPatchFresh(patch)
+    ? patchCollectionSummary(item, patch)
+    : item;
+};
+
+export const patchCollectionAvailabilityListWithMap = (
+  items: CollectionEntry[],
+  patches: Record<string, NormalizedAvailabilityPatch>,
+): CollectionEntry[] => {
+  const patchIds = Object.keys(patches);
+  if (patchIds.length === 0 || items.length === 0) return items;
+
+  let changed = false;
+  const next = items.map((item) => {
+    const patched = patchCollectionAvailabilityWithMap(item, patches);
+    if (patched !== item) changed = true;
+    return patched;
+  });
+
+  return changed ? next : items;
+};
+
+export const normalizeAvailabilityPatchInput = ({
+  collectionId,
+  itemCount,
+  playableItemCount,
+  source = "summary",
+  patchedAt = Date.now(),
+}: {
+  collectionId: string;
+  itemCount?: number | null;
+  playableItemCount?: number | null;
+  source?: "room" | "playlist" | "summary";
+  patchedAt?: number;
+}): NormalizedAvailabilityPatch | null => {
+  const normalizedCollectionId = collectionId.trim();
+  if (!normalizedCollectionId) return null;
+
+  const normalizedItemCount = toAvailabilityCount(itemCount);
+  const normalizedPlayableCount =
+    playableItemCount === null ? null : toAvailabilityCount(playableItemCount);
+
+  if (
+    normalizedItemCount === undefined &&
+    normalizedPlayableCount === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    collectionId: normalizedCollectionId,
+    patchedAt,
+    source,
+    ...(normalizedItemCount !== undefined
+      ? { itemCount: normalizedItemCount }
+      : {}),
+    ...(normalizedPlayableCount !== undefined || playableItemCount === null
+      ? { playableItemCount: normalizedPlayableCount }
+      : {}),
+  };
+};
 
 export type UseCollectionContentStateResult = {
   collections: Array<{
@@ -80,6 +236,8 @@ export type UseCollectionContentStateResult = {
     cover_source_id?: string | null;
     cover_provider?: string | null;
     item_count?: number;
+    playable_item_count?: number | null;
+    readToken?: string | null;
     use_count?: number;
     favorite_count?: number;
     rating_count?: number;
@@ -119,6 +277,12 @@ export type UseCollectionContentStateResult = {
     collectionId: string,
     options?: { readToken?: string | null; force?: boolean },
   ) => Promise<void>;
+  patchCollectionAvailability: (input: {
+    collectionId: string;
+    itemCount?: number | null;
+    playableItemCount?: number | null;
+    source?: "room" | "playlist" | "summary";
+  }) => void;
   resetCollectionsState: () => void;
   resetCollectionSelection: () => void;
   clearCollectionsError: () => void;
@@ -146,6 +310,8 @@ export const useCollectionContentState = ({
       cover_source_id?: string | null;
       cover_provider?: string | null;
       item_count?: number;
+      playable_item_count?: number | null;
+      readToken?: string | null;
       use_count?: number;
       favorite_count?: number;
       rating_count?: number;
@@ -188,11 +354,45 @@ export const useCollectionContentState = ({
   const latestLoadRequestIdRef = useRef(0);
   const emptyCollectionRetryCountRef = useRef<Record<string, number>>({});
   const pausedEmptyCollectionRef = useRef<Record<string, boolean>>({});
+  const availabilityPatchRef = useRef<
+    Record<string, NormalizedAvailabilityPatch>
+  >({});
 
   const selectCollection = useCallback((collectionId: string | null) => {
     setSelectedCollectionId(collectionId);
     setCollectionItemsError(null);
   }, []);
+
+  const patchCollectionAvailability = useCallback(
+    ({
+      collectionId,
+      itemCount,
+      playableItemCount,
+      source = "summary",
+    }: {
+      collectionId: string;
+      itemCount?: number | null;
+      playableItemCount?: number | null;
+      source?: "room" | "playlist" | "summary";
+    }) => {
+      const patch = normalizeAvailabilityPatchInput({
+        collectionId,
+        itemCount,
+        playableItemCount,
+        source,
+      });
+      if (!patch) return;
+
+      availabilityPatchRef.current = {
+        ...pruneAvailabilityPatches(availabilityPatchRef.current),
+        [patch.collectionId]: patch,
+      };
+      setCollections((prev) =>
+        patchCollectionAvailabilityIntoList(prev, patch),
+      );
+    },
+    [],
+  );
 
   const fetchCollections = useCallback(
     async (scope?: "owner" | "public", options?: { query?: string }) => {
@@ -246,6 +446,8 @@ export const useCollectionContentState = ({
             cover_source_id?: string | null;
             cover_provider?: string | null;
             item_count?: number;
+            playable_item_count?: number | null;
+            readToken?: string | null;
             use_count?: number;
             favorite_count?: number;
             rating_count?: number;
@@ -261,10 +463,18 @@ export const useCollectionContentState = ({
             return;
           }
           collectionPageRef.current = 1;
-          setCollections(
-            items.map((item) => ({
+          availabilityPatchRef.current = pruneAvailabilityPatches(
+            availabilityPatchRef.current,
+          );
+          const normalizedItems = items.map((item) => ({
               ...item,
               item_count: Math.max(0, Number(item.item_count ?? 0)),
+              playable_item_count:
+                item.playable_item_count === null ||
+                item.playable_item_count === undefined
+                  ? null
+                  : Math.max(0, Number(item.playable_item_count ?? 0)),
+              readToken: item.readToken ?? null,
               use_count: Math.max(0, Number(item.use_count ?? 0)),
               favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
               rating_count: Math.max(0, Number(item.rating_count ?? 0)),
@@ -274,7 +484,12 @@ export const useCollectionContentState = ({
               updated_at: Math.max(0, Number(item.updated_at ?? 0)),
               ai_edited_count: Math.max(0, Number(item.ai_edited_count ?? 0)),
               has_ai_edited: Boolean(item.has_ai_edited),
-            })),
+            }));
+          setCollections(
+            patchCollectionAvailabilityListWithMap(
+              normalizedItems,
+              availabilityPatchRef.current,
+            ),
           );
           setCollectionsHasMore(items.length >= DEFAULT_PAGE_SIZE);
           setCollectionsLastFetchedAt(Date.now());
@@ -410,7 +625,13 @@ export const useCollectionContentState = ({
           throw new Error(payload?.error ?? "載入收藏庫資料失敗");
         };
 
-        const collection = await run(initialToken, Boolean(authToken));
+        const collection = patchCollectionAvailabilityWithMap(
+          await run(initialToken, Boolean(authToken)),
+          pruneAvailabilityPatches(availabilityPatchRef.current),
+        );
+        availabilityPatchRef.current = pruneAvailabilityPatches(
+          availabilityPatchRef.current,
+        );
 
         setCollections((prev) => {
           const existingIndex = prev.findIndex(
@@ -476,6 +697,8 @@ export const useCollectionContentState = ({
         cover_source_id?: string | null;
         cover_provider?: string | null;
         item_count?: number;
+        playable_item_count?: number | null;
+        readToken?: string | null;
         use_count?: number;
         favorite_count?: number;
         rating_count?: number;
@@ -487,19 +710,31 @@ export const useCollectionContentState = ({
         has_ai_edited?: boolean | number;
       }>,
     ) => {
-      const normalizedItems = items.map((item) => ({
-        ...item,
-        item_count: Math.max(0, Number(item.item_count ?? 0)),
-        use_count: Math.max(0, Number(item.use_count ?? 0)),
-        favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
-        rating_count: Math.max(0, Number(item.rating_count ?? 0)),
-        rating_avg: Math.max(0, Number(item.rating_avg ?? 0)),
-        is_favorited: Boolean(item.is_favorited),
-        created_at: Math.max(0, Number(item.created_at ?? 0)),
-        updated_at: Math.max(0, Number(item.updated_at ?? 0)),
-        ai_edited_count: Math.max(0, Number(item.ai_edited_count ?? 0)),
-        has_ai_edited: Boolean(item.has_ai_edited),
-      }));
+      availabilityPatchRef.current = pruneAvailabilityPatches(
+        availabilityPatchRef.current,
+      );
+      const normalizedItems = patchCollectionAvailabilityListWithMap(
+        items.map((item) => ({
+          ...item,
+          item_count: Math.max(0, Number(item.item_count ?? 0)),
+          playable_item_count:
+            item.playable_item_count === null ||
+            item.playable_item_count === undefined
+              ? null
+              : Math.max(0, Number(item.playable_item_count ?? 0)),
+          readToken: item.readToken ?? null,
+          use_count: Math.max(0, Number(item.use_count ?? 0)),
+          favorite_count: Math.max(0, Number(item.favorite_count ?? 0)),
+          rating_count: Math.max(0, Number(item.rating_count ?? 0)),
+          rating_avg: Math.max(0, Number(item.rating_avg ?? 0)),
+          is_favorited: Boolean(item.is_favorited),
+          created_at: Math.max(0, Number(item.created_at ?? 0)),
+          updated_at: Math.max(0, Number(item.updated_at ?? 0)),
+          ai_edited_count: Math.max(0, Number(item.ai_edited_count ?? 0)),
+          has_ai_edited: Boolean(item.has_ai_edited),
+        })),
+        availabilityPatchRef.current,
+      );
       setCollections((prev) => {
         const nextMap = new Map(prev.map((item) => [item.id, item]));
         normalizedItems.forEach((item) => {
@@ -925,6 +1160,7 @@ export const useCollectionContentState = ({
     latestLoadRequestIdRef.current = 0;
     emptyCollectionRetryCountRef.current = {};
     pausedEmptyCollectionRef.current = {};
+    availabilityPatchRef.current = {};
   }, []);
 
   const resetCollectionSelection = useCallback(() => {
@@ -957,6 +1193,7 @@ export const useCollectionContentState = ({
     loadMoreCollections,
     toggleCollectionFavorite,
     loadCollectionItems,
+    patchCollectionAvailability,
     resetCollectionsState,
     resetCollectionSelection,
     clearCollectionsError,

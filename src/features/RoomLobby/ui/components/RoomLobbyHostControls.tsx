@@ -19,6 +19,10 @@ import YouTubeIcon from "@mui/icons-material/YouTube";
 import { useEffect, useState } from "react";
 
 import type { GameState, PlaylistSuggestion } from "@features/RoomSession";
+import {
+  formatPlaylistAvailabilityMetricLabel,
+  resolvePlaylistAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
@@ -467,19 +471,20 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                         displayEmpty: true,
                         renderValue: (selected) => {
                           const key = String(selected ?? "");
-                          if (!key) return "選擇建議";
+                          if (!key) return "\u9078\u64C7\u5EFA\u8B70";
                           const selectedSuggestion = playlistSuggestions.find(
                             (suggestion) => getSuggestionKey(suggestion) === key,
                           );
-                          if (!selectedSuggestion) return "該建議已不存在";
+                          if (!selectedSuggestion) return "\u9078\u64C7\u5EFA\u8B70";
                           const label =
                             selectedSuggestion.title ?? selectedSuggestion.value;
-                          const count =
-                            selectedSuggestion.totalCount ??
-                            selectedSuggestion.items?.length;
-                          return `${selectedSuggestion.username} · ${label}${
-                            count ? ` (${count})` : ""
-                          }`;
+                          const countLabel = formatPlaylistAvailabilityMetricLabel({
+                            playlistCount: selectedSuggestion.totalCount,
+                            playlistTotalCount: selectedSuggestion.totalCount,
+                            playlistPlayableCount:
+                              selectedSuggestion.playableCount ?? null,
+                          });
+                          return `${selectedSuggestion.username} · ${label} (${countLabel})`;
                         },
                       }}
                     >
@@ -487,14 +492,33 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                       {playlistSuggestions.map((suggestion) => {
                         const optionKey = getSuggestionKey(suggestion);
                         const displayLabel = suggestion.title ?? suggestion.value;
-                        const displayCount =
-                          suggestion.totalCount ?? suggestion.items?.length;
+                        const suggestionAvailability =
+                          resolvePlaylistAvailabilityCounts({
+                            playlistCount: suggestion.totalCount,
+                            playlistTotalCount: suggestion.totalCount,
+                            playlistPlayableCount:
+                              suggestion.playableCount ?? null,
+                          });
+                        const countLabel = formatPlaylistAvailabilityMetricLabel({
+                          playlistCount: suggestion.totalCount,
+                          playlistTotalCount: suggestion.totalCount,
+                          playlistPlayableCount: suggestion.playableCount ?? null,
+                        });
+                        const disabledByAvailability =
+                          suggestion.type === "collection" &&
+                          suggestionAvailability.playable <= 0;
                         const sourceLabel =
-                          suggestion.type === "playlist" ? "播放清單" : "收藏庫";
+                          suggestion.type === "playlist"
+                            ? "\u64AD\u653E\u6E05\u55AE"
+                            : "\u6536\u85CF\u5EAB";
                         const snapshotLabel = suggestion.items?.length ? " · 快照" : "";
 
                         return (
-                          <MenuItem key={optionKey} value={optionKey}>
+                          <MenuItem
+                            key={optionKey}
+                            value={optionKey}
+                            disabled={disabledByAvailability}
+                          >
                             <Stack spacing={0.25} sx={{ width: "100%", minWidth: 0 }}>
                               <Typography variant="body2" noWrap>
                                 {`${suggestion.username} · ${sourceLabel}${snapshotLabel}`}
@@ -504,7 +528,11 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                                 className="text-slate-400"
                                 noWrap
                               >
-                                {`${displayLabel}${displayCount ? ` (${displayCount})` : ""}`}
+                                {`${displayLabel} (${countLabel})${
+                                  disabledByAvailability
+                                    ? " · \u76EE\u524D\u6C92\u6709\u53EF\u64AD\u653E\u984C\u76EE"
+                                    : ""
+                                }`}
                               </Typography>
                             </Stack>
                           </MenuItem>

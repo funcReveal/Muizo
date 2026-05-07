@@ -22,6 +22,7 @@ import {
   type RoomLookupResult,
   type RoomSummary,
 } from "@features/RoomSession";
+import { formatPlaylistAvailabilityLabel } from "@features/RoomSession/model/playlistAvailability";
 
 const TEXT = {
   invalidInviteLink: "找不到邀請資訊，請確認連結是否正確。",
@@ -218,6 +219,7 @@ const InvitedPage: React.FC = () => {
     (directInviteLookupFailure?.reason === "not_found" ||
       (!hasDirectInviteLookup && inviteNotFound && !inviteRoom));
   const identityLabel = authUser?.display_name || username || "Guest";
+  const playlistAvailabilityLabel = formatPlaylistAvailabilityLabel(inviteRoom);
   const playlistTitle =
     inviteRoom?.playlistTitle?.trim() || `題庫 ${inviteRoom?.playlistCount ?? "-"} 首`;
   const playlistCoverTitle = inviteRoom?.playlistCoverTitle?.trim() || null;
@@ -352,7 +354,7 @@ const InvitedPage: React.FC = () => {
                         <LibraryMusicRounded
                           sx={{ fontSize: 17, color: "rgba(103, 232, 249, 0.94)" }}
                         />
-                        <span>{inviteRoom.playlistCount} 首</span>
+                        <span>{playlistAvailabilityLabel}</span>
                       </span>
                     </div>
 

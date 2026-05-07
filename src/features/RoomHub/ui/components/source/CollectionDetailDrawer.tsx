@@ -36,6 +36,10 @@ import {
 import type { RoomCreateSourceMode } from "@domain/room/types";
 import type { PlaybackExtensionMode } from "@domain/room/types";
 import {
+  formatCollectionAvailabilityMetricLabel,
+  resolveCollectionAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
+import {
   apiFetchCollectionLeaderboardOverview,
   apiFetchCollectionLeaderboardRankings,
   apiFetchCollectionItemPreview,
@@ -76,6 +80,7 @@ type CollectionDetail = {
   cover_source_id?: string | null;
   cover_provider?: string | null;
   item_count?: number | null;
+  playable_item_count?: number | null;
   use_count?: number | null;
   favorite_count?: number | null;
   is_favorited?: boolean | null;
@@ -1001,7 +1006,10 @@ const CollectionDetailDrawer = ({
     selectedLeaderboardMode,
     selectedLeaderboardVariant,
   );
-  const collectionQuestionCount = Math.max(0, collection?.item_count ?? 0);
+  const collectionAvailability = resolveCollectionAvailabilityCounts(collection);
+  const collectionQuestionCount = collectionAvailability.playable;
+  const collectionQuestionMetricLabel =
+    formatCollectionAvailabilityMetricLabel(collection);
   const setupQuestionMaxLimit =
     isSetupView && collection ? collectionQuestionCount : questionMaxLimit;
   const activeLeaderboardMinimumQuestionCount =
@@ -1218,9 +1226,7 @@ const CollectionDetailDrawer = ({
         label: isPublic ? "公開收藏庫" : "私人收藏庫",
         title: collection.title,
         detail:
-          typeof collection.item_count === "number"
-            ? `${Math.max(0, collection.item_count)} 題`
-            : "題數未提供",
+          collectionQuestionMetricLabel,
         thumbnail: previewThumbnail,
       }
     : selectedCreateSourceSummary;
@@ -1794,9 +1800,7 @@ const CollectionDetailDrawer = ({
                       {collection.title}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {typeof collection.item_count === "number"
-                        ? `${Math.max(0, collection.item_count)} 題`
-                        : "題數未提供"}
+                      {collectionQuestionMetricLabel}
                     </p>
                   </div>
                 </div>

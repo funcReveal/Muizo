@@ -75,6 +75,10 @@ interface UseRoomMembershipActionsParams {
   setPlaylistHasMore: Dispatch<SetStateAction<boolean>>;
   setPlaylistLoadingMore: Dispatch<SetStateAction<boolean>>;
   setPlaylistSuggestions: Dispatch<SetStateAction<PlaylistSuggestion[]>>;
+  syncCollectionAvailabilityFromRoom: (
+    room: RoomState["room"] | null | undefined,
+    source?: "room" | "summary",
+  ) => void;
   onLeaderboardAuthRequired?: () => void;
 }
 
@@ -111,6 +115,7 @@ export const useRoomMembershipActions = ({
   setPlaylistHasMore,
   setPlaylistLoadingMore,
   setPlaylistSuggestions,
+  syncCollectionAvailabilityFromRoom,
   onLeaderboardAuthRequired,
 }: UseRoomMembershipActionsParams) => {
   const handleJoinRoom = useCallback(
@@ -135,6 +140,7 @@ export const useRoomMembershipActions = ({
           if (!ack) return;
           if (ack.ok) {
             const state = ack.data;
+            syncCollectionAvailabilityFromRoom(state.room);
             const submittedPin = (pinOverride ?? joinPasswordInput).trim();
             const serverPin = (
               state.room.pin ??
@@ -226,6 +232,7 @@ export const useRoomMembershipActions = ({
       setStatusText,
       setKickedNotice,
       setCurrentRoom,
+      syncCollectionAvailabilityFromRoom,
       saveRoomPassword,
       syncServerOffset,
       username,

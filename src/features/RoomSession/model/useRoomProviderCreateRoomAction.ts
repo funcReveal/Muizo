@@ -21,6 +21,7 @@ import {
   DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
+  QUESTION_MAX,
   QUESTION_MIN,
 } from "./roomConstants";
 import {
@@ -33,8 +34,8 @@ import {
   clampQuestionCount,
   clampRevealDurationSec,
   clampStartOffsetSec,
-  getQuestionMax,
 } from "./roomUtils";
+import { resolveQuestionLimitFromCollection } from "./playlistAvailability";
 import type {
   ClientSocket,
   GameState,
@@ -74,6 +75,15 @@ interface UseRoomProviderCreateRoomActionParams {
   playlistItems: PlaylistItem[];
   lastFetchedPlaylistId: string | null;
   lastFetchedPlaylistTitle: string | null;
+  collections: Array<{
+    id: string;
+    title?: string | null;
+    visibility?: "private" | "public";
+    readToken?: string | null;
+    item_count?: number | null;
+    playable_item_count?: number | null;
+  }>;
+  createCollectionReadToken: (collectionId: string) => Promise<string>;
   clientId: string;
   fetchPlaylistPage: (
     roomId: string,
@@ -110,6 +120,10 @@ interface UseRoomProviderCreateRoomActionParams {
   setRoomNameInput: Dispatch<SetStateAction<string>>;
   setRoomMaxPlayersInput: Dispatch<SetStateAction<string>>;
   resetPlaylistState: () => void;
+  syncCollectionAvailabilityFromRoom: (
+    room: RoomState["room"] | RoomSummary | null | undefined,
+    source?: "room" | "summary",
+  ) => void;
   onLeaderboardAuthRequired?: () => void;
 }
 
@@ -135,6 +149,8 @@ export const useRoomProviderCreateRoomAction = ({
   playlistItems,
   lastFetchedPlaylistId,
   lastFetchedPlaylistTitle,
+  collections,
+  createCollectionReadToken,
   fetchPlaylistPage,
   lockSessionClientId,
   persistRoomId,
@@ -155,6 +171,7 @@ export const useRoomProviderCreateRoomAction = ({
   setRoomNameInput,
   setRoomMaxPlayersInput,
   resetPlaylistState,
+  syncCollectionAvailabilityFromRoom,
   onLeaderboardAuthRequired,
 }: UseRoomProviderCreateRoomActionParams) => {
   const questionMin = QUESTION_MIN;
@@ -245,6 +262,16 @@ export const useRoomProviderCreateRoomAction = ({
     const trimmed = roomNameInput.trim();
     const trimmedPin = roomPasswordInput.trim();
     const trimmedMaxPlayers = roomMaxPlayersInput.trim();
+    const isCollectionSourceMode =
+      roomCreateSourceMode === "publicCollection" ||
+      roomCreateSourceMode === "privateCollection";
+    const selectedCollection = lastFetchedPlaylistId
+      ? collections.find((item) => item.id === lastFetchedPlaylistId)
+      : null;
+    const collectionQuestionLimit =
+      isCollectionSourceMode && selectedCollection
+        ? resolveQuestionLimitFromCollection(selectedCollection)
+        : null;
 
     if (!trimmed) {
       setStatusText("請先輸入房間名稱。");
@@ -252,13 +279,19 @@ export const useRoomProviderCreateRoomAction = ({
       return;
     }
 
-    if (playlistItems.length === 0) {
+    if (collectionQuestionLimit && !collectionQuestionLimit.canStart) {
+      setStatusText("這個收藏庫目前沒有可播放題目。");
+      finalizeCreate();
+      return;
+    }
+
+    if (!isCollectionSourceMode && playlistItems.length === 0) {
       setStatusText("請先準備題庫內容，才能建立房間。");
       finalizeCreate();
       return;
     }
 
-    if (playlistItems.length < questionMin) {
+    if (!isCollectionSourceMode && playlistItems.length < questionMin) {
       setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
       finalizeCreate();
       return;
@@ -301,7 +334,7 @@ export const useRoomProviderCreateRoomAction = ({
 
     const nextQuestionCount = clampQuestionCount(
       questionCount,
-      getQuestionMax(playlistItems.length),
+      collectionQuestionLimit?.max ?? Math.min(QUESTION_MAX, playlistItems.length),
     );
     const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
     const nextRevealDurationSec = clampRevealDurationSec(revealDurationSec);
@@ -342,15 +375,45 @@ export const useRoomProviderCreateRoomAction = ({
       player_limit: desiredMaxPlayers,
       question_count: nextQuestionCount,
       reveal_duration_sec: effectiveRevealDurationSec,
-      playlist_count: playlistItems.length,
+      playlist_count: collectionQuestionLimit?.total ?? playlistItems.length,
       leaderboard_profile_key: leaderboardProfileKey,
     });
 
-    const uploadItems = buildUploadPlaylistItems(playlistItems, {
-      playDurationSec: effectivePlayDurationSec,
-      startOffsetSec: effectiveStartOffsetSec,
-      allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
-    });
+    const uploadItems = isCollectionSourceMode
+      ? []
+      : buildUploadPlaylistItems(playlistItems, {
+          playDurationSec: effectivePlayDurationSec,
+          startOffsetSec: effectiveStartOffsetSec,
+          allowCollectionClipTiming: effectiveAllowCollectionClipTiming,
+        });
+    const resolvedSourceType = resolvePlaylistSourceType(roomCreateSourceMode);
+    const manifestTotalCount = isCollectionSourceMode
+      ? Math.max(0, Number(selectedCollection?.item_count ?? 0))
+      : uploadItems.length;
+    let readToken: string | null = null;
+
+    if (
+      lastFetchedPlaylistId &&
+      (resolvedSourceType === "public_collection" ||
+        resolvedSourceType === "private_collection")
+    ) {
+      const selectedCollection = collections.find(
+        (item) => item.id === lastFetchedPlaylistId,
+      );
+      readToken = selectedCollection?.readToken ?? null;
+
+      if (resolvedSourceType === "private_collection" && !readToken) {
+        try {
+          readToken = await createCollectionReadToken(lastFetchedPlaylistId);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "無法取得收藏庫讀取權限";
+          setStatusText(message);
+          finalizeCreate();
+          return;
+        }
+      }
+    }
 
     const finalizeAck = await runRoomCreationFlow({
       socket,
@@ -373,13 +436,19 @@ export const useRoomProviderCreateRoomAction = ({
       playlist: {
         items: uploadItems,
         chunkSize: CHUNK_SIZE,
-        sourceType: resolvePlaylistSourceType(roomCreateSourceMode),
+        sourceType: resolvedSourceType,
         sourceId: lastFetchedPlaylistId,
         title: lastFetchedPlaylistTitle ?? null,
+        readToken,
+        totalCount: manifestTotalCount,
       },
       onUploadStart: (progress) => {
         setPlaylistProgress(progress);
-        setStatusText(`正在同步題庫到房間（0/${uploadItems.length}）...`);
+        setStatusText(
+          isCollectionSourceMode
+            ? "正在檢查可播放題目..."
+            : `正在同步題庫到房間（0/${uploadItems.length}）...`,
+        );
       },
       onChunkUploaded: (progress) => {
         setPlaylistProgress(progress);
@@ -429,6 +498,7 @@ export const useRoomProviderCreateRoomAction = ({
     });
 
     syncServerOffset(finalizedState.serverNow);
+    syncCollectionAvailabilityFromRoom(finalizedRoom);
     setCurrentRoom(finalizedRoom);
     setParticipants((prev) =>
       mergeCachedParticipantPing(finalizedState.participants, prev),
@@ -480,6 +550,8 @@ export const useRoomProviderCreateRoomAction = ({
   }, [
     allowCollectionClipTiming,
     authToken,
+    collections,
+    createCollectionReadToken,
     createRoomInFlightRef,
     fetchPlaylistPage,
     getSocket,
@@ -519,6 +591,7 @@ export const useRoomProviderCreateRoomAction = ({
     setStatusText,
     startOffsetSec,
     syncServerOffset,
+    syncCollectionAvailabilityFromRoom,
     username,
     runWithTimeout,
     onLeaderboardAuthRequired,

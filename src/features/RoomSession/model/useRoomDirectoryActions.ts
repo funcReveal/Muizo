@@ -14,6 +14,13 @@ type UseRoomDirectoryActionsParams = {
   setSitePresence: (
     payload: { onlineCount: number; updatedAt: number } | null,
   ) => void;
+  syncCollectionAvailabilityFromRooms?: (
+    rooms: RoomSummary[] | null | undefined,
+  ) => void;
+  syncCollectionAvailabilityFromRoom?: (
+    room: RoomSummary | null | undefined,
+    source?: "room" | "summary",
+  ) => void;
 };
 
 export const useRoomDirectoryActions = ({
@@ -21,6 +28,8 @@ export const useRoomDirectoryActions = ({
   setRooms,
   setStatusText,
   setSitePresence,
+  syncCollectionAvailabilityFromRooms,
+  syncCollectionAvailabilityFromRoom,
 }: UseRoomDirectoryActionsParams) => {
   const fetchRooms = useCallback(async () => {
     if (!apiUrl) {
@@ -33,12 +42,14 @@ export const useRoomDirectoryActions = ({
         throw new Error(payload?.error ?? "讀取房間列表失敗");
       }
       const next = (payload?.rooms ?? payload) as RoomSummary[];
-      setRooms(Array.isArray(next) ? next : []);
+      const rooms = Array.isArray(next) ? next : [];
+      syncCollectionAvailabilityFromRooms?.(rooms);
+      setRooms(rooms);
     } catch (error) {
       console.error(error);
       setStatusText("讀取房間列表失敗");
     }
-  }, [apiUrl, setRooms, setStatusText]);
+  }, [apiUrl, setRooms, setStatusText, syncCollectionAvailabilityFromRooms]);
 
   const fetchRoomById = useCallback(
     async (roomId: string): Promise<RoomLookupResult> => {
@@ -81,6 +92,7 @@ export const useRoomDirectoryActions = ({
             message: "房間資料格式異常",
           };
         }
+        syncCollectionAvailabilityFromRoom?.(room as RoomSummary, "summary");
         return { ok: true, room: room as RoomSummary };
       } catch (error) {
         console.error(error);
@@ -91,7 +103,7 @@ export const useRoomDirectoryActions = ({
         };
       }
     },
-    [apiUrl],
+    [apiUrl, syncCollectionAvailabilityFromRoom],
   );
 
   const fetchSitePresence = useCallback(async () => {

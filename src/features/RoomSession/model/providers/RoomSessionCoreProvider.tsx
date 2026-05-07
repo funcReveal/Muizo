@@ -57,6 +57,7 @@ import {
 import { API_URL, SOCKET_URL } from "../roomConstants";
 import { getStoredRoomId } from "../roomStorage";
 import { formatAckError } from "../roomProviderUtils";
+import { useCollectionAvailabilitySync } from "../useCollectionAvailabilitySync";
 import { useHostRoomPasswordCache } from "../useHostRoomPasswordCache";
 import { useRoomClosureActions } from "../useRoomClosureActions";
 import { useRoomProviderPresence } from "../useRoomProviderPresence";
@@ -78,6 +79,7 @@ import { useRoomSessionRecoveryState } from "../useRoomSessionRecoveryState";
 import { useRoomServerClockSync } from "../useRoomServerClockSync";
 import { useRoomSocketConnectionGate } from "../useRoomSocketConnectionGate";
 import { useRoomGameLiveSync } from "../useRoomGameLiveSync";
+import { resolveQuestionLimitFromCollection } from "../playlistAvailability";
 
 export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -124,9 +126,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const { getSocketRef, loadMorePlaylistRef, handleTerminalRoomAckRef } =
     usePlaylistSocketBridge();
 
-  const { collections } = useCollectionContent();
-  const { fetchCollectionSnapshot, createCollectionReadToken } =
-    useCollectionAccess();
+  const { collections, patchCollectionAvailability } = useCollectionContent();
+  const { createCollectionReadToken } = useCollectionAccess();
 
   // Base playlist context re-provided below with real socket handlers
   const basePlaylistCtx = usePlaylistSource();
@@ -135,7 +136,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     lastFetchedPlaylistId,
     lastFetchedPlaylistTitle,
     questionCount,
-    questionMaxLimit,
+    questionMaxLimit: baseQuestionMaxLimit,
     handleFetchPlaylist,
     handleResetPlaylist,
     updateQuestionCount: updateQuestionCountBase,
@@ -143,6 +144,12 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     playlistLoadingMore,
     playlistPageCursor,
   } = basePlaylistCtx;
+  const selectedCollectionForPlaylist = lastFetchedPlaylistId
+    ? collections.find((item) => item.id === lastFetchedPlaylistId)
+    : null;
+  const effectiveQuestionMaxLimit = selectedCollectionForPlaylist
+    ? resolveQuestionLimitFromCollection(selectedCollectionForPlaylist).max
+    : baseQuestionMaxLimit;
 
   const { pathname } = useLocation();
 
@@ -298,12 +305,20 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setStatusText,
   });
 
+  const {
+    syncCollectionAvailabilityFromRoom,
+    syncCollectionAvailabilityFromPlaylist,
+    syncCollectionAvailabilityFromRooms,
+  } = useCollectionAvailabilitySync(patchCollectionAvailability);
+
   const { fetchRooms, fetchRoomById, fetchSitePresence } =
     useRoomDirectoryActions({
       apiUrl: API_URL,
       setRooms,
       setStatusText,
       setSitePresence,
+      syncCollectionAvailabilityFromRoom,
+      syncCollectionAvailabilityFromRooms,
     });
 
   const { fetchSettlementHistorySummaries, fetchSettlementReplay } =
@@ -430,6 +445,9 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       resetGameSyncVersion,
       applyGameLiveUpdate,
       clearRoomAfterClosure,
+      syncCollectionAvailabilityFromRoom,
+      syncCollectionAvailabilityFromPlaylist,
+      syncCollectionAvailabilityFromRooms,
     },
   });
 
@@ -473,6 +491,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistHasMore,
     setPlaylistLoadingMore,
     setPlaylistSuggestions,
+    syncCollectionAvailabilityFromRoom,
     persistRoomSessionToken,
     resetGameSyncVersion,
     handleRoomGoneAck,
@@ -541,7 +560,6 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     authUserId: authUser?.id ?? null,
     authToken,
     createCollectionReadToken,
-    fetchCollectionSnapshot,
     fetchYoutubeSnapshot,
     fetchPublicPlaylistSnapshot,
     playlistItems,
@@ -553,6 +571,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     setPlaylistUrl,
     setPlaylistProgress,
     setCurrentRoom,
+    syncCollectionAvailabilityFromRoom,
     fetchPlaylistPage,
     handleRoomGoneAck,
   });
@@ -595,13 +614,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   // questionCount auto-clamp to playlist size
   useEffect(() => {
     if (playlistItems.length === 0) return;
-    if (questionCount > questionMaxLimit) {
-      updateQuestionCountBase(questionMaxLimit);
+    if (questionCount > effectiveQuestionMaxLimit) {
+      updateQuestionCountBase(effectiveQuestionMaxLimit);
     }
   }, [
+    effectiveQuestionMaxLimit,
     playlistItems.length,
     questionCount,
-    questionMaxLimit,
     updateQuestionCountBase,
   ]);
 
@@ -615,6 +634,8 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
   const fullPlaylistCtxValue = useMemo<PlaylistSourceContextValue>(
     () => ({
       ...basePlaylistCtx,
+      questionMax: effectiveQuestionMaxLimit,
+      questionMaxLimit: effectiveQuestionMaxLimit,
       loadMorePlaylist,
       handleFetchPlaylistByUrl,
       handleChangePlaylist,
@@ -626,6 +647,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     }),
     [
       basePlaylistCtx,
+      effectiveQuestionMaxLimit,
       loadMorePlaylist,
       handleFetchPlaylistByUrl,
       handleChangePlaylist,
@@ -814,6 +836,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       setRooms,
       setHostRoomPassword,
       setRouteRoomResolved,
+      syncCollectionAvailabilityFromRoom,
       joinPasswordInput,
       setJoinPasswordInput,
       handleJoinRoom,
@@ -840,6 +863,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       resetGameSettingsDefaults,
       persistRoomSessionToken,
       applyGameLiveUpdate,
+      syncCollectionAvailabilityFromRoom,
       resetGameSyncVersion,
     ],
   );

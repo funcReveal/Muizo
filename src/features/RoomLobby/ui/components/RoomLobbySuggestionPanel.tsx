@@ -14,10 +14,15 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import BookmarkBorderRoundedIcon from "@mui/icons-material/BookmarkBorderRounded";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import TipsAndUpdatesRoundedIcon from "@mui/icons-material/TipsAndUpdatesRounded";
+import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
+import {
+  formatCollectionAvailabilityMetricLabel,
+  resolveCollectionAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
@@ -44,6 +49,8 @@ export interface SuggestionPanelProps {
       useSnapshot?: boolean;
       sourceId?: string | null;
       title?: string | null;
+      readToken?: string | null;
+      totalCount?: number | null;
     },
   ) => Promise<{ ok: boolean; error?: string }>;
   extractPlaylistId: (url: string) => string | null;
@@ -175,7 +182,7 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
         cooldownTimerRef.current = null;
       }
       if (cooldownIntervalRef.current) {
-        window.clearInterval(cooldownIntervalRef.current);
+        window.clearTimeout(cooldownIntervalRef.current);
         cooldownIntervalRef.current = null;
       }
     };
@@ -198,6 +205,8 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
       useSnapshot?: boolean;
       sourceId?: string | null;
       title?: string | null;
+      readToken?: string | null;
+      totalCount?: number | null;
     },
   ) => {
     if (isCooldownActive) {
@@ -445,14 +454,20 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                     clearSuggestNoticeIfAllowed();
                     if (!nextId) return;
                     const selected = collections.find((item) => item.id === nextId);
+                    const counts = resolveCollectionAvailabilityCounts(selected);
+                    if (counts.playable <= 0) {
+                      setSuggestError("目前沒有可播放題目");
+                      return;
+                    }
                     const label = selected
                       ? normalizeDisplayText(selected.title, "未命名收藏庫")
                       : nextId;
                     openConfirmModal("要推薦這個收藏庫給房主嗎？", label, () => {
                       void submitSuggestion("collection", nextId, {
-                        useSnapshot: selected?.visibility === "private",
                         sourceId: nextId,
                         title: selected?.title ?? null,
+                        totalCount: selected?.item_count ?? 0,
+                        readToken: selected?.readToken ?? null,
                       });
                     });
                   }}
@@ -485,18 +500,41 @@ const RoomLobbySuggestionPanel: React.FC<SuggestionPanelProps> = ({
                   <MenuItem value="">
                     {collectionScope === "public" ? "選擇公開收藏庫" : "選擇私人收藏庫"}
                   </MenuItem>
-                  {collections.map((collection) => (
-                    <MenuItem key={collection.id} value={collection.id}>
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate">
-                          {normalizeDisplayText(collection.title, "未命名收藏庫")}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
-                        </span>
-                      </div>
-                    </MenuItem>
-                  ))}
+                  {collections.map((collection) => {
+                    const counts =
+                      resolveCollectionAvailabilityCounts(collection);
+                    const disabledByAvailability = counts.playable <= 0;
+                    const availabilityMetric =
+                      formatCollectionAvailabilityMetricLabel(collection);
+                    return (
+                      <MenuItem
+                        key={collection.id}
+                        value={collection.id}
+                        disabled={disabledByAvailability}
+                      >
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate">
+                            {normalizeDisplayText(
+                              collection.title,
+                              "未命名收藏庫",
+                            )}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                            <QuizRoundedIcon
+                              sx={{
+                                fontSize: 15,
+                                color: "rgba(103,232,249,0.88)",
+                              }}
+                            />
+                            <span>{availabilityMetric}</span>
+                            {disabledByAvailability ? (
+                              <span>· 目前沒有可播放題目</span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </MenuItem>
+                    );
+                  })}
                 </TextField>
               )}
 
