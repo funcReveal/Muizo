@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Drawer } from "@mui/material";
 
-const DRAWER_MAX_WIDTH = 1180;
+const DRAWER_MAX_WIDTH = 940;
 
 type SelectorDrawerRootProps = React.PropsWithChildren<{
   open: boolean;
@@ -56,7 +56,14 @@ export const PlaylistSelectorDrawerRoot = ({
       onClose={onClose}
       keepMounted={keepMounted}
       className={className}
-      sx={sx}
+      sx={[
+        {
+          "& .MuiDrawer-paper": {
+            backgroundImage: "none",
+          },
+        },
+        sx,
+      ]}
       ModalProps={{
         ...ModalProps,
         disableEscapeKeyDown:
@@ -67,8 +74,8 @@ export const PlaylistSelectorDrawerRoot = ({
           sx: [
             {
               background:
-                "radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.12), transparent 34%), rgba(2, 6, 23, 0.72)",
-              backdropFilter: "blur(10px)",
+                "linear-gradient(90deg, rgba(2, 6, 23, 0.72), rgba(2, 6, 23, 0.52))",
+              backdropFilter: "blur(8px)",
             },
             ModalProps?.BackdropProps?.sx,
             backdropSx,
@@ -79,41 +86,81 @@ export const PlaylistSelectorDrawerRoot = ({
         ...restPaperProps,
         className: paperClassName,
         sx: [
+          /**
+           * Put caller Paper sx first.
+           * Old Dialog styles may still pass width / height / borderRadius.
+           * Drawer defaults below intentionally override those Dialog-era styles.
+           */
+          paperSx,
           {
             width: {
               xs: "100vw",
-              sm: "min(92vw, 760px)",
-              lg: `min(92vw, ${DRAWER_MAX_WIDTH}px)`,
+              sm: "min(94vw, 680px)",
+              md: "min(90vw, 820px)",
+              lg: `min(82vw, ${DRAWER_MAX_WIDTH}px)`,
             },
             maxWidth: "100vw",
             height: {
               xs: "100dvh",
-              sm: "calc(100dvh - 24px)",
+              sm: "calc(100dvh - 16px)",
             },
             maxHeight: {
               xs: "100dvh",
-              sm: "calc(100dvh - 24px)",
+              sm: "calc(100dvh - 16px)",
             },
-            my: {
+            marginTop: {
               xs: 0,
-              sm: "12px",
+              sm: "8px",
+            },
+            marginBottom: {
+              xs: 0,
+              sm: "8px",
             },
             borderRadius: {
               xs: 0,
-              sm: "28px 0 0 28px",
+              sm: "22px 0 0 22px",
             },
             overflow: "hidden",
-            borderLeft: "1px solid rgba(103, 232, 249, 0.18)",
+            display: "flex",
+            flexDirection: "column",
+            overscrollBehavior: "contain",
+            borderLeft: {
+              xs: "none",
+              sm: "1px solid rgba(148, 163, 184, 0.18)",
+            },
             background:
-              "radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 34%), linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98))",
+              "linear-gradient(180deg, rgba(15, 23, 42, 0.99), rgba(2, 6, 23, 0.99))",
             boxShadow:
-              "-28px 0 80px -42px rgba(34, 211, 238, 0.62), inset 1px 0 0 rgba(255,255,255,0.06)",
+              "-22px 0 72px -44px rgba(15, 23, 42, 0.95), inset 1px 0 0 rgba(255, 255, 255, 0.055)",
           },
-          paperSx,
         ],
       }}
     >
-      {children}
+      <Box
+        component="div"
+        sx={{
+          pointerEvents: "none",
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          background:
+            "radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.13), transparent 34%), radial-gradient(circle at 100% 18%, rgba(59, 130, 246, 0.1), transparent 32%)",
+        }}
+      />
+
+      <Box
+        component="div"
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          minHeight: 0,
+          height: "100%",
+          flexDirection: "column",
+        }}
+      >
+        {children}
+      </Box>
     </Drawer>
   );
 };
@@ -137,10 +184,12 @@ export const PlaylistSelectorDrawerTitle = ({
     sx={[
       {
         flex: "0 0 auto",
-        borderBottom: "1px solid rgba(148, 163, 184, 0.16)",
+        borderBottom: "1px solid rgba(148, 163, 184, 0.14)",
         background:
-          "linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.72))",
+          "linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.84))",
         backdropFilter: "blur(18px)",
+        position: "relative",
+        zIndex: 2,
       },
       sx,
     ]}
@@ -171,6 +220,7 @@ export const PlaylistSelectorDrawerContent = ({
         flex: "1 1 auto",
         minHeight: 0,
         overflow: "hidden",
+        position: "relative",
       },
       sx,
     ]}
