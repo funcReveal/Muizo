@@ -32,6 +32,7 @@ import {
   PlaylistIssueSummaryDialog,
   usePlaylistSource,
 } from "@features/PlaylistSource";
+import { resolveCollectionPlayableRequirement } from "@features/RoomSession/model/playlistAvailability";
 import {
   DEFAULT_BGM_VOLUME,
   SettingsModelContext,
@@ -1290,12 +1291,15 @@ const RoomsHubPage: React.FC = () => {
     view: "grid" | "list",
   ) => {
     const collection = collectionValue as (typeof collections)[number];
+    const playableRequirement = resolveCollectionPlayableRequirement(collection);
 
     return (
       <CollectionCard
         collection={collection}
         view={view}
         selected={selectedCreateCollectionId === collection.id}
+        disabled={playableRequirement.disabled}
+        disabledReason={playableRequirement.reason}
         isPublicLibraryTab={createLibraryTab === "public"}
         isFavoriteUpdating={collectionFavoriteUpdatingId === collection.id}
         onSelect={() => {

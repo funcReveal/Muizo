@@ -21,10 +21,15 @@ import { useEffect, useState } from "react";
 import type { GameState, PlaylistSuggestion } from "@features/RoomSession";
 import {
   formatPlaylistAvailabilityMetricLabel,
+  resolveCollectionPlayableRequirement,
   resolvePlaylistAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
+import PlaylistAvailabilityBadge from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 import type { YoutubePlaylist } from "@features/PlaylistSource";
-import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
+import {
+  MIN_COLLECTION_PLAYABLE_COUNT,
+  YOUTUBE_PLAYLIST_MIN_ITEM_COUNT,
+} from "@domain/room/constants";
 import RoomLobbyStatusStrip from "./RoomLobbyStatusStrip";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 import type { CollectionOption } from "./roomLobbyPanelTypes";
@@ -506,7 +511,8 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                         });
                         const disabledByAvailability =
                           suggestion.type === "collection" &&
-                          suggestionAvailability.playable <= 0;
+                          suggestionAvailability.playable <
+                            MIN_COLLECTION_PLAYABLE_COUNT;
                         const sourceLabel =
                           suggestion.type === "playlist"
                             ? "\u64AD\u653E\u6E05\u55AE"
@@ -574,6 +580,11 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                           return;
                         }
                         const selected = collections.find((item) => item.id === nextId);
+                        const requirement =
+                          resolveCollectionPlayableRequirement(selected);
+                        if (requirement.disabled) {
+                          return;
+                        }
                         const label = selected
                           ? normalizeDisplayText(
                               selected.title,
@@ -614,21 +625,40 @@ const RoomLobbyHostControls: React.FC<RoomLobbyHostControlsProps> = ({
                       <MenuItem value="">
                         {collectionScope === "public" ? "選擇公開" : "選擇私人"}
                       </MenuItem>
-                      {collections.map((collection) => (
-                        <MenuItem key={collection.id} value={collection.id}>
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate">
-                              {normalizeDisplayText(
-                                collection.title,
-                                "未命名收藏庫",
-                              )}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
-                            </span>
-                          </div>
-                        </MenuItem>
-                      ))}
+                      {collections.map((collection) => {
+                        const requirement =
+                          resolveCollectionPlayableRequirement(collection);
+                        return (
+                          <MenuItem
+                            key={collection.id}
+                            value={collection.id}
+                            disabled={requirement.disabled}
+                          >
+                            <div className="flex min-w-0 flex-col">
+                              <span className="truncate">
+                                {normalizeDisplayText(
+                                  collection.title,
+                                  "未命名收藏庫",
+                                )}
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                                <PlaylistAvailabilityBadge
+                                  playable={requirement.playable}
+                                  total={requirement.total}
+                                />
+                                <span>
+                                  使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
+                                </span>
+                              </span>
+                              {requirement.disabled ? (
+                                <span className="text-xs text-amber-300">
+                                  {requirement.reason}
+                                </span>
+                              ) : null}
+                            </div>
+                          </MenuItem>
+                        );
+                      })}
                     </TextField>
                   )}
 

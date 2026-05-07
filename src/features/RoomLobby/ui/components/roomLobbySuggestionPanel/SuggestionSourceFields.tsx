@@ -3,6 +3,10 @@ import { MenuItem, TextField, Typography } from "@mui/material";
 
 import type { YoutubePlaylist } from "@features/PlaylistSource";
 import { YOUTUBE_PLAYLIST_MIN_ITEM_COUNT } from "@domain/room/constants";
+import {
+  resolveCollectionPlayableRequirement,
+} from "@features/RoomSession/model/playlistAvailability";
+import PlaylistAvailabilityBadge from "@features/RoomSession/ui/PlaylistAvailabilityBadge";
 import RoomLobbyLoadingState from "../RoomLobbyLoadingState";
 import type { CollectionOption } from "../roomLobbyPanelTypes";
 import { normalizeDisplayText } from "../roomLobbyDisplayUtils";
@@ -89,18 +93,36 @@ const SuggestionSourceFields: React.FC<SuggestionSourceFieldsProps> = ({
           }}
         >
           <MenuItem value="">選擇要推薦的收藏庫</MenuItem>
-          {collections.map((collection) => (
-            <MenuItem key={collection.id} value={collection.id}>
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate">
-                  {normalizeDisplayText(collection.title, "未命名收藏庫")}
-                </span>
-                <span className="text-xs text-slate-400">
-                  使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
-                </span>
-              </div>
-            </MenuItem>
-          ))}
+          {collections.map((collection) => {
+            const requirement = resolveCollectionPlayableRequirement(collection);
+            return (
+              <MenuItem
+                key={collection.id}
+                value={collection.id}
+                disabled={requirement.disabled}
+              >
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate">
+                    {normalizeDisplayText(collection.title, "未命名收藏庫")}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                    <PlaylistAvailabilityBadge
+                      playable={requirement.playable}
+                      total={requirement.total}
+                    />
+                    <span>
+                      使用次數 {Math.max(0, Number(collection.use_count ?? 0))}
+                    </span>
+                  </span>
+                  {requirement.disabled ? (
+                    <span className="text-xs text-amber-300">
+                      {requirement.reason}
+                    </span>
+                  ) : null}
+                </div>
+              </MenuItem>
+            );
+          })}
         </TextField>
       </>
     )}

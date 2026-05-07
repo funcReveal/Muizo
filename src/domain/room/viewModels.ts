@@ -87,9 +87,12 @@ export const getRoomPlaylistLabel = (room: RoomSummary) => {
     if (trimmed) return trimmed;
   }
 
-  return room.playlistCount > 0
-    ? `共 ${room.playlistCount} 首題目`
-    : "題庫資訊未提供";
+  const playableCount =
+    typeof room.playlistPlayableCount === "number"
+      ? Math.max(0, Math.floor(room.playlistPlayableCount))
+      : Math.max(0, Math.floor(room.playlistCount));
+
+  return playableCount > 0 ? `${playableCount} 題` : "題庫資料準備中";
 };
 
 const detectRoomCurrentlyPlaying = (room: RoomSummary) => {

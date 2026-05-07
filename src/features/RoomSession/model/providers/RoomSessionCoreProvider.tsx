@@ -523,6 +523,37 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     handleRoomGoneAck,
   });
 
+  const handleReportPlaybackError = useCallback(
+    (payload: {
+      provider: string;
+      sourceId: string;
+      errorCode?: string | number;
+      trackIndex?: number;
+      gameSessionId?: string | number | null;
+    }) => {
+      const socket = getSocket();
+      if (!socket || !currentRoom?.id) return;
+      if (payload.provider !== "youtube" || !payload.sourceId) return;
+
+      socket.emit(
+        "reportPlaybackError",
+        {
+          roomId: currentRoom.id,
+          provider: payload.provider,
+          sourceId: payload.sourceId,
+          errorCode: payload.errorCode,
+          trackIndex: payload.trackIndex,
+          gameSessionId:
+            payload.gameSessionId === null || payload.gameSessionId === undefined
+              ? undefined
+              : String(payload.gameSessionId),
+        },
+        () => undefined,
+      );
+    },
+    [currentRoom?.id, getSocket],
+  );
+
   const { handleSendMessage } = useRoomChatActions({
     getSocket,
     currentRoom,
@@ -756,6 +787,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       handleCastPlaybackExtensionVote,
       handleRequestRestartGameVote,
       handleCastRestartGameVote,
+      handleReportPlaybackError,
       handleUpdateRoomSettings,
     }),
     [
@@ -778,6 +810,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       handleCastPlaybackExtensionVote,
       handleRequestRestartGameVote,
       handleCastRestartGameVote,
+      handleReportPlaybackError,
       handleUpdateRoomSettings,
     ],
   );

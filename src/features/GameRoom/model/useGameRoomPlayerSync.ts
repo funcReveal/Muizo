@@ -26,6 +26,13 @@ interface UseGameRoomPlayerSyncParams {
   primeSfxAudio: () => void;
   clipReplayStartSec: number;
   clipReplayEndSec: number;
+  onReportPlaybackError?: (payload: {
+    provider: string;
+    sourceId: string;
+    errorCode?: string | number;
+    trackIndex?: number;
+    gameSessionId?: string | number | null;
+  }) => void;
 }
 
 const PLAYER_ID = "mq-main-player";
@@ -105,6 +112,7 @@ const useGameRoomPlayerSync = ({
   primeSfxAudio,
   clipReplayStartSec,
   clipReplayEndSec,
+  onReportPlaybackError,
 }: UseGameRoomPlayerSyncParams) => {
   const [audioUnlockSessionKey, setAudioUnlockSessionKey] = useState<
     string | null
@@ -116,6 +124,7 @@ const useGameRoomPlayerSync = ({
   const [isPlayerPlaying, setIsPlayerPlaying] = useState(false);
   const [loadedTrackKey, setLoadedTrackKey] = useState<string | null>(null);
   const [playerVideoId, setPlayerVideoId] = useState<string | null>(null);
+  const reportedPlaybackErrorKeysRef = useRef<Set<string>>(new Set());
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1799,7 +1808,7 @@ const useGameRoomPlayerSync = ({
         origin.includes("youtube-nocookie.com");
       if (!isYouTube || typeof event.data !== "string") return;
 
-      let data: { event?: string; info?: number; id?: string };
+      let data: { event?: string; info?: number | string; id?: string };
       try {
         data = JSON.parse(event.data);
       } catch {
@@ -1843,6 +1852,27 @@ const useGameRoomPlayerSync = ({
         }
       }
 
+      if (data.event === "onError") {
+        const errorCode =
+          typeof data.info === "number" || typeof data.info === "string"
+            ? data.info
+            : undefined;
+        const currentVideoId = videoId;
+        if (!currentVideoId) return;
+        const reportKey = `${trackSessionKey}:${currentVideoId}:${String(
+          errorCode ?? "unknown",
+        )}`;
+        if (reportedPlaybackErrorKeysRef.current.has(reportKey)) return;
+        reportedPlaybackErrorKeysRef.current.add(reportKey);
+        onReportPlaybackError?.({
+          provider: "youtube",
+          sourceId: currentVideoId,
+          errorCode,
+          trackIndex: currentTrackIndex,
+          gameSessionId: trackSessionKey,
+        });
+      }
+
       if (data.event === "onStateChange") {
         const state = typeof data.info === "number" ? data.info : null;
         lastPlayerStateRef.current = state;
@@ -1874,7 +1904,7 @@ const useGameRoomPlayerSync = ({
           clearBufferingRecoveryTimer();
         }
         if (state === 5 || state === 1) {
-          handleTrackPrepared(data.info ?? state);
+          handleTrackPrepared(state);
         }
         if (state === 1) {
           if (waitingToStart && !prestartWarmupActiveRef.current) {
@@ -2106,6 +2136,7 @@ const useGameRoomPlayerSync = ({
     isTimeAttackMode,
     isStartedByServerTime,
     loadTrack,
+    onReportPlaybackError,
     phase,
     postCommand,
     requestPlayerTime,
@@ -2123,6 +2154,8 @@ const useGameRoomPlayerSync = ({
     startedAt,
     syncToServerPosition,
     trackLoadKey,
+    trackSessionKey,
+    currentTrackIndex,
     waitingToStart,
     videoId,
     replayClipFromStart,

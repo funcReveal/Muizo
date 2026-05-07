@@ -12,6 +12,7 @@ import {
   mergeRoomSummaryIntoCurrentRoom,
 } from "./roomProviderUtils";
 import { clampPlayDurationSec, clampStartOffsetSec } from "./roomUtils";
+import { resolveCollectionPlayableRequirement } from "./playlistAvailability";
 import type {
   Ack,
   ClientSocket,
@@ -594,6 +595,11 @@ export const useRoomProviderPlaylistActions = ({
           const selectedCollection = collections.find(
             (item) => item.id === collectionId,
           );
+          const requirement =
+            resolveCollectionPlayableRequirement(selectedCollection);
+          if (requirement.disabled) {
+            throw new Error(requirement.reason ?? "收藏庫可遊玩題數不足");
+          }
           readToken = readToken ?? (await resolveCollectionReadToken(collectionId));
           snapshot = {
             items: [],
@@ -763,6 +769,12 @@ export const useRoomProviderPlaylistActions = ({
         const selectedCollection = collections.find(
           (item) => item.id === collectionId,
         );
+        const requirement =
+          resolveCollectionPlayableRequirement(selectedCollection);
+        if (requirement.disabled) {
+          setStatusText(requirement.reason ?? "收藏庫可遊玩題數不足");
+          return false;
+        }
         const readToken = await resolveCollectionReadToken(collectionId);
 
         return await uploadPlaylistSelection({

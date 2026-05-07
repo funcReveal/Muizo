@@ -109,6 +109,13 @@ interface GameRoomPageProps {
     action: RestartGameVoteAction,
   ) => Promise<boolean>;
   onCastRestartGameVote?: (vote: "approve" | "reject") => Promise<boolean>;
+  onReportPlaybackError?: (payload: {
+    provider: string;
+    sourceId: string;
+    errorCode?: string | number;
+    trackIndex?: number;
+    gameSessionId?: string | number | null;
+  }) => void;
   participants?: RoomState["participants"];
   meClientId?: string;
   username?: string | null;
@@ -344,6 +351,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   onTransferHost,
   onRequestRestartGameVote,
   onCastRestartGameVote,
+  onReportPlaybackError,
   participants = [],
   meClientId,
   serverOffsetMs = 0,
@@ -1020,6 +1028,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     primeSfxAudio,
     clipReplayStartSec,
     clipReplayEndSec,
+    onReportPlaybackError,
   });
   const shouldShowGestureOverlay =
     !isEnded && requiresAudioGesture && !audioUnlocked;
