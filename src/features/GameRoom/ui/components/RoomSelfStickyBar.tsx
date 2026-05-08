@@ -50,7 +50,7 @@ export const RoomSelfStickyBar = React.memo(function RoomSelfStickyBar({
           </div>
           {combo > 0 ? (
             <div className="text-[10px] text-amber-400 font-semibold">
-              ×{combo}連
+              ×{combo}
             </div>
           ) : totalPlayers > 0 ? (
             <div className="text-[10px] text-slate-500">

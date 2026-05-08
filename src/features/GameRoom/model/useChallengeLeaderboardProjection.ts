@@ -43,6 +43,26 @@ import type {
 const CLIENT_COOLDOWN_MS = 4_000;
 
 // ---------------------------------------------------------------------------
+// Boundary check — only re-fetch when the score window is stale
+// ---------------------------------------------------------------------------
+
+function shouldRefetchNearbyWindow(
+  newScore: number,
+  data: ChallengeProjectedLeaderboardResponse | null,
+): boolean {
+  if (!data) return true;
+  if (data.nearbyOpponents.length === 0) return true;
+  // Treat relation by bestScore vs newScore, not the stale relation field
+  const ahead = data.nearbyOpponents.filter((n) => n.bestScore > newScore);
+  if (ahead.length === 0) return true; // passed all ahead opponents
+  const passedCount = data.nearbyOpponents.filter(
+    (n) => n.bestScore <= newScore,
+  ).length;
+  if (passedCount >= 2) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -201,7 +221,9 @@ export function useChallengeLeaderboardProjection(
       const delta = myLiveScore - prev;
       gainAnimKeyRef.current += 1;
       setGainState({ key: gainAnimKeyRef.current, amount: delta });
-      if (enabled) void doFetch("score_increased");
+      if (enabled && shouldRefetchNearbyWindow(myLiveScore, loadedDataRef.current)) {
+        void doFetch("boundary_crossed");
+      }
     }
   }, [enabled, myLiveScore, doFetch]);
 
@@ -239,6 +261,7 @@ export function useChallengeLeaderboardProjection(
     const updatedOpponents: ChallengeNearbyOpponent[] = data.nearbyOpponents.map((opp) => ({
       ...opp,
       gapFromMe: opp.bestScore - myLiveScore,
+      relation: (opp.bestScore > myLiveScore ? "ahead" : "passed") as "ahead" | "passed",
     }));
     return {
       ...state,

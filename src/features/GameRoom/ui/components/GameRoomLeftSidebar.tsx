@@ -1368,7 +1368,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         </>
       )}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="relative overflow-visible">
+      <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-visible">
         <div className="game-room-scoreboard-stack space-y-1.5 overflow-visible">
           {playerRowCount === 0 ? (
             <>

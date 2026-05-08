@@ -8,24 +8,6 @@ import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 
 // ---------------------------------------------------------------------------
-// Shared score × maxCombo display
-// ---------------------------------------------------------------------------
-
-const ScoreCombo: React.FC<{
-  score: number;
-  maxCombo: number;
-  scoreClass?: string;
-  comboClass?: string;
-}> = ({ score, maxCombo, scoreClass = "text-amber-400", comboClass = "text-slate-500" }) => (
-  <span className={`font-mono text-xs font-semibold ${scoreClass} shrink-0`}>
-    {score.toLocaleString()}
-    {maxCombo > 0 && (
-      <span className={`font-normal ${comboClass}`}>×{maxCombo}</span>
-    )}
-  </span>
-);
-
-// ---------------------------------------------------------------------------
 // Top entry row (Top 5 section)
 // ---------------------------------------------------------------------------
 
@@ -38,25 +20,35 @@ export const ChallengeTopEntryRow = React.memo(
   function ChallengeTopEntryRow({ entry, isMe }: ChallengeTopEntryRowProps) {
     return (
       <div
-        className={`challenge-lb-row flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
+        className={`game-room-score-row challenge-lb-row flex items-center justify-between text-sm ${
           isMe
             ? "bg-amber-500/15 ring-1 ring-amber-500/30"
-            : "hover:bg-white/5"
+            : ""
         }`}
       >
-        <span className="challenge-lb-rank w-6 shrink-0 text-center text-xs font-bold text-slate-400">
-          #{entry.rank}
+        <span className="truncate flex items-center gap-2">
+          <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+            #{entry.rank}
+          </span>
+          <span className="game-room-score-row-avatar-wrap">
+            <PlayerAvatar
+              username={entry.displayName}
+              avatarUrl={entry.avatarUrl}
+              size={38}
+              contentSize={30}
+              className="player-avatar--scoreboard shrink-0"
+            />
+          </span>
+          <span className="truncate font-medium text-slate-200">
+            {entry.displayName}
+          </span>
         </span>
-        <PlayerAvatar
-          username={entry.displayName}
-          avatarUrl={entry.avatarUrl}
-          size={24}
-          className="shrink-0"
-        />
-        <span className="min-w-0 flex-1 truncate font-medium text-slate-200">
-          {entry.displayName}
+        <span className="font-mono text-xs font-semibold text-slate-300 shrink-0">
+          {entry.bestScore.toLocaleString()}
+          {entry.maxCombo > 0 && (
+            <span className="text-slate-500 font-normal">×{entry.maxCombo}</span>
+          )}
         </span>
-        <ScoreCombo score={entry.bestScore} maxCombo={entry.maxCombo} />
       </div>
     );
   },
@@ -68,38 +60,46 @@ export const ChallengeTopEntryRow = React.memo(
 
 interface ChallengeNearbyRowProps {
   opponent: ChallengeNearbyOpponent;
+  liveScore?: number;
 }
 
 export const ChallengeNearbyRow = React.memo(
-  function ChallengeNearbyRow({ opponent }: ChallengeNearbyRowProps) {
-    const isPassed = opponent.relation === "passed";
+  function ChallengeNearbyRow({ opponent, liveScore }: ChallengeNearbyRowProps) {
+    const isPassed = liveScore !== undefined
+      ? opponent.bestScore <= liveScore
+      : opponent.relation === "passed";
     const gapAbs = Math.abs(opponent.gapFromMe);
 
     return (
       <div
-        className={`challenge-lb-nearby-row flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
-          isPassed ? "opacity-60" : "hover:bg-white/5"
+        className={`game-room-score-row challenge-lb-nearby-row flex items-center justify-between text-sm ${
+          isPassed ? "opacity-60" : ""
         }`}
       >
-        <span className="challenge-lb-rank w-6 shrink-0 text-center text-xs font-bold text-slate-500">
-          #{opponent.rank ?? "—"}
-        </span>
-        <PlayerAvatar
-          username={opponent.displayName}
-          avatarUrl={opponent.avatarUrl}
-          size={24}
-          className="shrink-0"
-        />
-        <span className="min-w-0 flex-1 truncate text-slate-300">
-          {opponent.displayName}
+        <span className="truncate flex items-center gap-2">
+          <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+            #{opponent.rank ?? "—"}
+          </span>
+          <span className="game-room-score-row-avatar-wrap">
+            <PlayerAvatar
+              username={opponent.displayName}
+              avatarUrl={opponent.avatarUrl}
+              size={38}
+              contentSize={30}
+              className="player-avatar--scoreboard shrink-0"
+            />
+          </span>
+          <span className="truncate text-slate-300">
+            {opponent.displayName}
+          </span>
         </span>
         <div className="flex shrink-0 flex-col items-end">
-          <ScoreCombo
-            score={opponent.bestScore}
-            maxCombo={opponent.maxCombo}
-            scoreClass="text-slate-400"
-            comboClass="text-slate-600"
-          />
+          <span className="font-mono text-xs font-semibold text-slate-400">
+            {opponent.bestScore.toLocaleString()}
+            {opponent.maxCombo > 0 && (
+              <span className="text-slate-600 font-normal">×{opponent.maxCombo}</span>
+            )}
+          </span>
           <span
             className={`text-[10px] font-medium leading-tight ${
               isPassed ? "text-emerald-400" : "text-rose-400"
@@ -156,13 +156,15 @@ export const ChallengePlaceholderRow = React.memo(
   function ChallengePlaceholderRow({ dim = false }: { dim?: boolean }) {
     return (
       <div
-        className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm ${
+        className={`game-room-score-row flex items-center justify-between text-sm ${
           dim ? "opacity-10" : "opacity-20"
         }`}
       >
-        <span className="w-6 shrink-0 text-center text-xs text-slate-600">—</span>
-        <div className="h-5 w-5 rounded-full bg-white/10 shrink-0" />
-        <div className="h-2.5 flex-1 rounded bg-white/10" />
+        <span className="flex items-center gap-2">
+          <span className="w-5 shrink-0 text-center text-xs text-slate-600">—</span>
+          <div className="h-[38px] w-[38px] rounded-full bg-white/10 shrink-0" />
+          <div className="h-2.5 w-24 rounded bg-white/10" />
+        </span>
         <div className="h-2.5 w-14 rounded bg-white/10" />
       </div>
     );
@@ -170,8 +172,7 @@ export const ChallengePlaceholderRow = React.memo(
 );
 
 // ---------------------------------------------------------------------------
-// Self row — inline, shown both in the nearby section (at correct rank
-// position) and as a fixed reference at the bottom of the panel.
+// Self row — inline (nearby section) and fixed at bottom of panel
 // ---------------------------------------------------------------------------
 
 interface ChallengeSelfRowProps {
@@ -212,26 +213,30 @@ export const ChallengeSelfRow = React.memo(
     const rankColor = isSettled ? "text-amber-300" : "text-sky-300";
 
     return (
-      <div className="challenge-lb-self-row flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm bg-white/8 ring-1 ring-white/15">
-        <span
-          className={`challenge-lb-rank w-6 shrink-0 text-center text-xs font-bold ${rankColor}`}
-        >
-          {rankLabel}
-        </span>
-        <PlayerAvatar
-          username={name}
-          avatarUrl={avatarUrl ?? null}
-          size={24}
-          className="shrink-0"
-        />
-        <span className="min-w-0 flex-1 truncate font-medium text-white/90">
-          {name}
-          <span className="ml-1 text-[10px] font-bold text-white/45 uppercase tracking-wide">
-            YOU
+      <div className="game-room-score-row game-room-score-row--me challenge-lb-self-row flex items-center justify-between text-sm bg-white/8 ring-1 ring-white/15">
+        <span className="truncate flex items-center gap-2">
+          <span
+            className={`w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none ${rankColor}`}
+          >
+            {rankLabel}
           </span>
+          <span className="game-room-score-row-avatar-wrap">
+            <PlayerAvatar
+              username={name}
+              avatarUrl={avatarUrl ?? null}
+              size={38}
+              contentSize={30}
+              isMe
+              className="player-avatar--scoreboard shrink-0"
+            />
+          </span>
+          <span className="truncate font-medium text-white/90">
+            {name}
+          </span>
+          <span className="game-room-score-row-you-badge">YOU</span>
         </span>
         <div className="shrink-0 text-right relative">
-          <div className="font-mono text-xs font-semibold text-white">
+          <div className="font-mono text-sm font-semibold text-emerald-300 tabular-nums">
             {liveScore.toLocaleString()}
             {combo > 0 && (
               <span className="text-slate-500 font-normal">×{combo}</span>

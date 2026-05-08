@@ -4,8 +4,8 @@ import type {
   ChallengeProjectedLeaderboardResponse,
   ChallengeProjectedMyStanding,
   ChallengeProjectionState,
-  ChallengeNearbyOpponent,
 } from "../../model/projectionTypes";
+import { buildChallengeNearbyDisplayRows } from "../../model/challengeNearbyDisplay";
 import {
   ChallengeTopEntryRow,
   ChallengeNearbyRow,
@@ -41,61 +41,17 @@ interface ChallengeLeaderboardPanelProps {
 
 const SkeletonRow: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => (
   <div
-    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 animate-pulse"
+    className="game-room-score-row flex items-center justify-between animate-pulse"
     style={{ opacity }}
   >
-    <div className="h-3.5 w-5 rounded bg-white/10" />
-    <div className="h-5 w-5 rounded-full bg-white/10" />
-    <div className="h-2.5 flex-1 rounded bg-white/10" />
+    <span className="flex items-center gap-2">
+      <div className="h-3.5 w-5 rounded bg-white/10" />
+      <div className="h-[38px] w-[38px] rounded-full bg-white/10" />
+      <div className="h-2.5 w-24 rounded bg-white/10" />
+    </span>
     <div className="h-2.5 w-12 rounded bg-white/10" />
   </div>
 );
-
-// ---------------------------------------------------------------------------
-// Nearby section layout computation
-//
-// Total nearby slots = 5: [aheadToShow opponents][self][passedToShow opponents]
-// passedToShow = min(passed.length, 2)
-// aheadToShow  = 4 - passedToShow
-// Both arrays sorted DESC by bestScore (highest first).
-// displayAhead = ahead.slice(-aheadToShow) — the closest N ahead opponents.
-// displayPassed = passed.slice(0, passedToShow) — the 2 closest passed opponents.
-// Remaining slots filled with ChallengePlaceholderRow.
-// ---------------------------------------------------------------------------
-
-function buildNearbyLayout(
-  nearbyOpponents: ChallengeNearbyOpponent[],
-  meUserId: string | null,
-): {
-  displayAhead: ChallengeNearbyOpponent[];
-  displayPassed: ChallengeNearbyOpponent[];
-  aheadPadCount: number;
-  passedPadCount: number;
-} {
-  const opponents = meUserId
-    ? nearbyOpponents.filter((n) => n.userId !== meUserId)
-    : nearbyOpponents;
-
-  const ahead = opponents
-    .filter((n) => n.relation === "ahead")
-    .sort((a, b) => b.bestScore - a.bestScore);
-
-  const passed = opponents
-    .filter((n) => n.relation === "passed")
-    .sort((a, b) => b.bestScore - a.bestScore);
-
-  const passedToShow = Math.min(passed.length, 2);
-  const aheadToShow = 4 - passedToShow;
-
-  const displayPassed = passed.slice(0, passedToShow);
-  // slice(-N) gives last N in DESC-sorted array = closest ahead opponents
-  const displayAhead = aheadToShow > 0 ? ahead.slice(-aheadToShow) : [];
-
-  const aheadPadCount = Math.max(0, aheadToShow - displayAhead.length);
-  const passedPadCount = Math.max(0, passedToShow - displayPassed.length);
-
-  return { displayAhead, displayPassed, aheadPadCount, passedPadCount };
-}
 
 // ---------------------------------------------------------------------------
 // Main panel
@@ -118,7 +74,6 @@ export const ChallengeLeaderboardPanel = React.memo(
 
     const meUserId = data?.myStanding.viewerDbUserId ?? null;
 
-    // Minimal standing used in skeleton state — rank unknown, totalPlayers unknown
     const skeletonStanding = useMemo<ChallengeProjectedMyStanding>(
       () => ({
         liveScore: viewerScore,
@@ -157,21 +112,17 @@ export const ChallengeLeaderboardPanel = React.memo(
 
     // -----------------------------------------------------------------------
     // Skeleton / loading state
-    // Shows real self row at bottom immediately; top5+nearby remain skeleton.
     // -----------------------------------------------------------------------
     if (state.status === "idle" || state.status === "loading") {
       return (
         <div className="challenge-lb-panel flex flex-col h-full overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5 space-y-0.5">
-            {/* Top 5 skeleton */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1 space-y-1">
             {Array.from({ length: 5 }).map((_, i) => (
               <SkeletonRow key={i} opacity={1 - i * 0.1} />
             ))}
 
-            {/* Ellipsis */}
             <ChallengeEllipsisRow />
 
-            {/* Nearby 4 skeleton + real self at position 5 */}
             {Array.from({ length: 4 }).map((_, i) => (
               <SkeletonRow key={`n${i}`} opacity={0.55 - i * 0.07} />
             ))}
@@ -181,7 +132,6 @@ export const ChallengeLeaderboardPanel = React.memo(
               <SkeletonRow opacity={0.4} />
             )}
 
-            {/* Separator + fixed self */}
             <ChallengeSeparatorRow />
             {hasSelfInfo ? (
               <ChallengeSelfRow {...selfRowProps} />
@@ -218,17 +168,20 @@ export const ChallengeLeaderboardPanel = React.memo(
 
     const { topEntries, nearbyOpponents, myStanding } = data;
 
-    // Top 5 padded to always render 5 rows
     const topRows = topEntries.slice(0, 5);
     const topPadCount = Math.max(0, 5 - topRows.length);
 
-    // Nearby layout
-    const { displayAhead, displayPassed, aheadPadCount, passedPadCount } =
-      buildNearbyLayout(nearbyOpponents, meUserId);
+    const nearbyRows = buildChallengeNearbyDisplayRows({
+      nearbyOpponents,
+      myStanding,
+      liveScore: myStanding.liveScore,
+      meUserId,
+      slots: 5,
+    });
 
     return (
       <div className="challenge-lb-panel flex flex-col h-full overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1.5 space-y-0.5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1 space-y-1">
 
           {/* ── Top 5 ── */}
           {topRows.map((entry) => (
@@ -242,33 +195,25 @@ export const ChallengeLeaderboardPanel = React.memo(
             <ChallengePlaceholderRow key={`tp${i}`} dim />
           ))}
 
-          {/* ── Ellipsis — exactly one row height ── */}
+          {/* ── Ellipsis ── */}
           <ChallengeEllipsisRow />
 
-          {/* ── Nearby section: 4 opponent slots + self = 5 rows total ── */}
-
-          {/* Ahead placeholders (top of window, farthest ahead) */}
-          {Array.from({ length: aheadPadCount }).map((_, i) => (
-            <ChallengePlaceholderRow key={`ap${i}`} />
-          ))}
-
-          {/* Ahead opponents — highest score first (farthest), closest just above self */}
-          {displayAhead.map((opp) => (
-            <ChallengeNearbyRow key={opp.userId} opponent={opp} />
-          ))}
-
-          {/* Self row — inline position in the window */}
-          <ChallengeSelfRow {...selfRowProps} />
-
-          {/* Passed opponents — highest passed first (closest below self) */}
-          {displayPassed.map((opp) => (
-            <ChallengeNearbyRow key={opp.userId} opponent={opp} />
-          ))}
-
-          {/* Passed placeholders */}
-          {Array.from({ length: passedPadCount }).map((_, i) => (
-            <ChallengePlaceholderRow key={`pp${i}`} />
-          ))}
+          {/* ── Nearby section: 5 rows ── */}
+          {nearbyRows.map((row) => {
+            if (row.type === "placeholder") {
+              return <ChallengePlaceholderRow key={row.key} />;
+            }
+            if (row.type === "opponent") {
+              return (
+                <ChallengeNearbyRow
+                  key={row.key}
+                  opponent={row.opponent}
+                  liveScore={myStanding.liveScore}
+                />
+              );
+            }
+            return <ChallengeSelfRow key={row.key} {...selfRowProps} />;
+          })}
 
           {/* ── Separator ── */}
           <ChallengeSeparatorRow />
