@@ -35,6 +35,7 @@ import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import { resolveComboTier } from "../lib/gameRoomUiUtils";
 import type { ScoreboardRow } from "../../model/gameRoomDerivations";
 import type { AvatarEffectLevel } from "../../../../shared/ui/playerAvatar/playerAvatarTheme";
+import { RoomSelfStickyBar } from "./RoomSelfStickyBar";
 
 interface GameRoomLeftSidebarProps {
   scoreboardRows: ScoreboardRow[];
@@ -67,7 +68,7 @@ const RANK_SWAP_DURATION_MS = 960;
 const MAX_RANK_SWAP_OFFSET_ROWS = 6;
 const DESKTOP_FLIP_BASE_DURATION_MS = 860;
 const DESKTOP_FLIP_MAX_DURATION_MS = 1680;
-const DESKTOP_FLIP_ROW_HEIGHT_PX = 60;
+const DESKTOP_FLIP_ROW_HEIGHT_PX = 56;
 const DESKTOP_FLIP_BURST_BUFFER_MS = 90;
 const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 // Must exceed the CSS animation duration (2200ms) so cleanup fires after the
@@ -257,6 +258,8 @@ type RankSwapState = {
 interface GameRoomScorePlayerRowProps {
   player: RoomParticipant;
   isReveal: boolean;
+  /** 1-based room rank for this player (undefined for placeholder / locked rows) */
+  rank?: number;
   answerRank?: number;
   scoreBreakdown?: QuestionScoreBreakdown;
   isMeRow: boolean;
@@ -292,6 +295,7 @@ interface GameRoomScorePlayerRowProps {
 const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   player,
   isReveal,
+  rank,
   answerRank,
   scoreBreakdown,
   isMeRow,
@@ -629,6 +633,11 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
             />
           )}
           <span className="truncate flex items-center gap-2">
+            {typeof rank === "number" && (
+              <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+                #{rank}
+              </span>
+            )}
             <span className="game-room-score-row-avatar-wrap">
               <PlayerAvatar
                 username={displayName}
@@ -685,7 +694,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
                 className="game-room-chip game-room-chip--scoreboard-state"
               />
             )}
-            <span className="relative font-semibold text-emerald-300 tabular-nums">
+            <span className="relative font-mono font-semibold text-emerald-300 tabular-nums">
               {(enableSegmentedScoreAnimation && isReveal && animatedDisplayScore !== null
                 ? animatedDisplayScore
                 : player.score
@@ -781,6 +790,22 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     () => resolveScoreboardScores(scoreboardRows),
     [scoreboardRows],
   );
+  // Single-pass: compute rank for every player row AND locate the "me" entry.
+  const { rankByClientId, meRankAndPlayer } = React.useMemo(() => {
+    const rankMap = new Map<string, number>();
+    let meData: { rank: number; player: RoomParticipant } | null = null;
+    let rank = 0;
+    for (const row of scoreboardRows) {
+      if (row.type !== "player") continue;
+      rank++;
+      rankMap.set(row.player.clientId, rank);
+      if (meClientId && row.player.clientId === meClientId) {
+        meData = { rank, player: row.player };
+      }
+    }
+    return { rankByClientId: rankMap, meRankAndPlayer: meData };
+  }, [scoreboardRows, meClientId]);
+
   const comboLeaderClientId = React.useMemo(() => {
     let bestClientId: string | null = null;
     let bestCombo = 0;
@@ -1342,7 +1367,8 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
           </div>
         </>
       )}
-      <div className="relative min-h-0 overflow-visible">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="relative overflow-visible">
         <div className="game-room-scoreboard-stack space-y-1.5 overflow-visible">
           {playerRowCount === 0 ? (
             <>
@@ -1451,7 +1477,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   p.clientId === topTwoSwapState.secondClientId),
               );
               const rowSwapDistanceRows = Math.abs(rowSwapOffsetRows);
-              const swapRowHeightPx = mobileOverlayMode ? 58 : 60;
+              const swapRowHeightPx = mobileOverlayMode ? 54 : 56;
               const rowSwapStartPx = rowSwapOffsetRows * swapRowHeightPx;
               const rowSwapMidPx = Math.round(rowSwapStartPx * 0.52);
               const rowSwapOvershootPx =
@@ -1571,6 +1597,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   <GameRoomScorePlayerRow
                     player={p}
                     isReveal={isReveal}
+                    rank={rankByClientId.get(p.clientId)}
                     answerRank={answerRank}
                     scoreBreakdown={scoreBreakdown}
                     isMeRow={isMeRow}
@@ -1614,6 +1641,14 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         </div>
       </div>
 
+      {meRankAndPlayer && (
+        <RoomSelfStickyBar
+          player={meRankAndPlayer.player}
+          rank={meRankAndPlayer.rank}
+          totalPlayers={playerRowCount}
+        />
+      )}
+      </div>
     </aside>
   );
 

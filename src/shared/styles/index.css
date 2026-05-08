@@ -1204,3 +1204,39 @@ body {
     animation: none;
   }
 }
+
+/* Challenge leaderboard — floating score gain animation */
+@keyframes challenge-lb-gain-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1.1);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
+}
+
+.challenge-lb-gain-float {
+  animation: challenge-lb-gain-float 1.6s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  position: absolute;
+  right: 0;
+  top: -2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4ade80; /* emerald-400 */
+  pointer-events: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .challenge-lb-gain-float {
+    animation: none;
+    opacity: 0;
+  }
+}

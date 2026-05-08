@@ -58,7 +58,7 @@ import {
 import type { AvatarEffectLevel } from "../../../shared/ui/playerAvatar/playerAvatarTheme";
 import { useGameSfx } from "../model/useGameSfx";
 import GameRoomAnswerPanel from "./components/GameRoomAnswerPanel";
-import GameRoomLeftSidebar from "./components/GameRoomLeftSidebar";
+import GameRoomLeaderboardSidebar from "./GameRoomLeaderboardSidebar";
 import GameRoomPlaybackPanel from "./components/GameRoomPlaybackPanel";
 import {
   AudioGestureOverlayPortal,
@@ -2027,14 +2027,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-0 pb-10 lg:grid-cols-[minmax(274px,318px)_minmax(0,1fr)] lg:pb-8 xl:grid-cols-[minmax(290px,334px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(304px,348px)_minmax(0,1fr)] lg:h-[calc(100vh-124px)] lg:items-stretch">
           {!isMobileGameViewport && (
             <div className="hidden lg:block lg:h-full">
-              <GameRoomLeftSidebar
+              <GameRoomLeaderboardSidebar
                 scoreboardRows={scoreboardRows}
                 answeredClientIdSet={answeredClientIdSet}
                 answeredRankByClientId={answeredRankByClientId}
                 scorePartsByClientId={scorePartsByClientId}
                 scoreBreakdownByClientId={scoreBreakdownByClientId}
                 isReveal={isReveal}
-                meClientId={meClientId}
+                meClientId={meClientId ?? ""}
+                participants={participants ?? []}
                 topTwoSwapState={topTwoSwapState}
                 avatarEffectLevel={mobileAvatarEffectLevel}
                 scoreboardBorderEnabled={scoreboardBorderEnabled}
@@ -2045,6 +2046,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 scoreboardBorderParticleCount={
                   mobileScoreboardBorderParticleCount
                 }
+                isLeaderboardRoom={isLeaderboardRoom}
+                roomId={room.id}
+                isSettled={gameState.status === "ended"}
               />
             </div>
           )}
@@ -2373,14 +2377,15 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   </div>
                 </div>
                 <div className="relative min-h-0 flex-1 overflow-hidden p-2">
-                  <GameRoomLeftSidebar
+                  <GameRoomLeaderboardSidebar
                     scoreboardRows={scoreboardRows}
                     answeredClientIdSet={answeredClientIdSet}
                     answeredRankByClientId={answeredRankByClientId}
                     scorePartsByClientId={scorePartsByClientId}
                     scoreBreakdownByClientId={scoreBreakdownByClientId}
                     isReveal={isReveal}
-                    meClientId={meClientId}
+                    meClientId={meClientId ?? ""}
+                    participants={participants ?? []}
                     topTwoSwapState={topTwoSwapState}
                     className="game-room-mobile-scoreboard-shell !h-full"
                     mobileOverlayMode
@@ -2400,6 +2405,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     scoreboardBorderParticleCount={
                       mobileScoreboardBorderParticleCount
                     }
+                    isLeaderboardRoom={isLeaderboardRoom}
+                    roomId={room.id}
+                    isSettled={gameState.status === "ended"}
                   />
                 </div>
               </Drawer>
