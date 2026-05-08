@@ -9,8 +9,8 @@ import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 
 const formatScoreCombo = (score: number, combo: number) =>
   `${score.toLocaleString()}${combo > 0 ? `\u00d7${combo}` : ""}`;
-const SCOREBOARD_AVATAR_SIZE = 37;
-const SCOREBOARD_AVATAR_CONTENT_SIZE = 29;
+const SCOREBOARD_AVATAR_SIZE = 32;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
 interface ChallengeTopEntryRowProps {
   entry: ChallengeLeaderboardEntry;

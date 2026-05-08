@@ -3,8 +3,8 @@ import type { RoomParticipant } from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 
-const SCOREBOARD_AVATAR_SIZE = 37;
-const SCOREBOARD_AVATAR_CONTENT_SIZE = 29;
+const SCOREBOARD_AVATAR_SIZE = 32;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
 interface RoomSelfStickyBarProps {
   player: RoomParticipant;

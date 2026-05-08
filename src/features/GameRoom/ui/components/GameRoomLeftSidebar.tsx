@@ -79,8 +79,8 @@ const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 // animation ends, not during it.
 const FLOATING_SCORE_BURST_LIFETIME_MS = 3000;
 const ROW_ATTACHED_BURST_STAGGER_MS = 1200;
-const SCOREBOARD_AVATAR_SIZE = 37;
-const SCOREBOARD_AVATAR_CONTENT_SIZE = 29;
+const SCOREBOARD_AVATAR_SIZE = 32;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
 type FloatingScoreTier = "normal" | "boost" | "hot" | "legend";
 
@@ -1342,39 +1342,21 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         } ${mobileMinimalHeader ? "game-room-left-sidebar--mobile-minimal-header" : ""} ${className ?? ""
         }`}
     >
-      {!mobileMinimalHeader && (
-        <>
-          <div className="flex items-center gap-3">
-            <div className="min-w-0">
-              <p className="game-room-title">排行榜</p>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              {onOpenMobileChat && (
-                <button
-                  type="button"
-                  onClick={onOpenMobileChat}
-                  className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
-                >
-                  <Badge
-                    color="error"
-                    badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
-                    invisible={mobileChatUnread <= 0}
-                  >
-                    <ChatBubbleRoundedIcon className="text-[0.9rem]" />
-                  </Badge>
-                  聊天室
-                </button>
-              )}
-              <Chip
-                label={`已答 ${answeredCount}/${playerRowCount}`}
-                size="small"
-                color="success"
-                variant="outlined"
-                className="game-room-chip"
-              />
-            </div>
-          </div>
-        </>
+      {!mobileMinimalHeader && onOpenMobileChat && (
+        <button
+          type="button"
+          onClick={onOpenMobileChat}
+          className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
+        >
+          <Badge
+            color="error"
+            badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
+            invisible={mobileChatUnread <= 0}
+          >
+            <ChatBubbleRoundedIcon className="text-[0.9rem]" />
+          </Badge>
+          聊天室
+        </button>
       )}
       <div
         className="game-room-scoreboard-body flex-1 min-h-0 flex flex-col overflow-hidden"
