@@ -8,7 +8,7 @@
 
 import React from "react";
 import GameRoomLeftSidebar from "./GameRoomLeftSidebar";
-import type { QuestionScoreBreakdown } from "@features/RoomSession";
+import type { QuestionScoreBreakdown, RoomParticipant } from "@features/RoomSession";
 import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import type { ScoreboardRow } from "../../model/gameRoomDerivations";
 import type {
@@ -26,6 +26,9 @@ export interface RoomScoreboardPanelProps {
   scoreBreakdownByClientId?: Map<string, QuestionScoreBreakdown>;
   isReveal: boolean;
   meClientId?: string;
+  meRoomRank?: number | null;
+  meRoomParticipant?: RoomParticipant | null;
+  roomRankByClientId?: Map<string, number>;
   topTwoSwapState: TopTwoSwapState | null;
   className?: string;
   onOpenMobileChat?: () => void;

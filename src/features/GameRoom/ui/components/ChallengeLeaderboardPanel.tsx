@@ -14,10 +14,7 @@ import {
   ChallengePlaceholderRow,
   ChallengeSelfRow,
 } from "./ChallengeLeaderboardRow";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { useScoreboardWheelScroll } from "./useScoreboardWheelScroll";
 
 interface ChallengeLeaderboardPanelProps {
   state: ChallengeProjectionState;
@@ -25,37 +22,25 @@ interface ChallengeLeaderboardPanelProps {
   onRefresh?: () => void;
   viewerDisplayName?: string;
   viewerAvatarUrl?: string | null;
-  /** Current combo from room participant state */
   viewerCombo?: number;
-  /** Current live score from room participant state — shown immediately in skeleton */
   viewerScore?: number;
-  /** Increments on each score gain — drives React key for animation restart */
   gainAnimKey?: number;
-  /** Delta to animate as "+N" floating text */
   gainAmount?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Skeleton row
-// ---------------------------------------------------------------------------
 
 const SkeletonRow: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => (
   <div
     className="game-room-score-row flex items-center justify-between animate-pulse"
     style={{ opacity }}
   >
-    <span className="flex items-center gap-2">
-      <div className="h-3.5 w-5 rounded bg-white/10" />
-      <div className="h-[38px] w-[38px] rounded-full bg-white/10" />
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="h-3.5 w-5 shrink-0 rounded bg-white/10" />
+      <div className="game-room-score-row-avatar-skeleton shrink-0 rounded-full bg-white/10" />
       <div className="h-2.5 w-24 rounded bg-white/10" />
     </span>
-    <div className="h-2.5 w-12 rounded bg-white/10" />
+    <div className="h-2.5 w-12 shrink-0 rounded bg-white/10" />
   </div>
 );
-
-// ---------------------------------------------------------------------------
-// Main panel
-// ---------------------------------------------------------------------------
 
 export const ChallengeLeaderboardPanel = React.memo(
   function ChallengeLeaderboardPanel({
@@ -69,6 +54,8 @@ export const ChallengeLeaderboardPanel = React.memo(
     gainAnimKey = 0,
     gainAmount = 0,
   }: ChallengeLeaderboardPanelProps) {
+    const { scrollRef, onWheel } =
+      useScoreboardWheelScroll<HTMLDivElement>();
     const data: ChallengeProjectedLeaderboardResponse | null =
       state.status === "loaded" ? state.data : null;
 
@@ -88,50 +75,92 @@ export const ChallengeLeaderboardPanel = React.memo(
       [viewerScore],
     );
 
-    const selfRowProps = data
-      ? {
-          standing: data.myStanding,
-          isSettled,
-          displayName: viewerDisplayName,
-          avatarUrl: viewerAvatarUrl,
-          combo: viewerCombo,
-          gainAnimKey,
-          gainAmount,
-        }
-      : {
-          standing: skeletonStanding,
-          isSettled: false,
-          displayName: viewerDisplayName,
-          avatarUrl: viewerAvatarUrl,
-          combo: viewerCombo,
-          gainAnimKey,
-          gainAmount,
-        };
+    const liveStanding = useMemo<ChallengeProjectedMyStanding | null>(
+      () =>
+        data
+          ? {
+              ...data.myStanding,
+              liveScore: viewerScore,
+            }
+          : null,
+      [data, viewerScore],
+    );
+
+    const selfRowProps =
+      data && liveStanding
+        ? {
+            standing: liveStanding,
+            isSettled,
+            displayName: viewerDisplayName,
+            avatarUrl: viewerAvatarUrl,
+            combo: viewerCombo,
+            gainAnimKey,
+            gainAmount,
+          }
+        : {
+            standing: skeletonStanding,
+            isSettled: false,
+            displayName: viewerDisplayName,
+            avatarUrl: viewerAvatarUrl,
+            combo: viewerCombo,
+            gainAnimKey,
+            gainAmount,
+          };
 
     const hasSelfInfo = Boolean(viewerDisplayName);
+    const topRows = useMemo(
+      () => (data ? data.topEntries.slice(0, 10) : []),
+      [data],
+    );
+    const isTopTenMode =
+      data?.myStanding.projectedRank !== null &&
+      data?.myStanding.projectedRank !== undefined &&
+      data.myStanding.projectedRank <= 10;
+    const displayedTopRows = isTopTenMode ? topRows : topRows.slice(0, 5);
+    const topPadCount = Math.max(
+      0,
+      (isTopTenMode ? 10 : 5) - displayedTopRows.length,
+    );
+    const nearbyRows = useMemo(
+      () =>
+        data && !isTopTenMode
+          ? buildChallengeNearbyDisplayRows({
+              nearbyOpponents: data.nearbyOpponents,
+              myStanding: data.myStanding,
+              liveScore: data.myStanding.liveScore,
+              meUserId,
+              slots: 5,
+            })
+          : [],
+      [data, isTopTenMode, meUserId],
+    );
 
-    // -----------------------------------------------------------------------
-    // Skeleton / loading state
-    // -----------------------------------------------------------------------
     if (state.status === "idle" || state.status === "loading") {
       return (
-        <div className="challenge-lb-panel flex flex-col h-full overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1 space-y-1">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonRow key={i} opacity={1 - i * 0.1} />
-            ))}
-
-            <ChallengeEllipsisRow />
-
-            {Array.from({ length: 4 }).map((_, i) => (
-              <SkeletonRow key={`n${i}`} opacity={0.55 - i * 0.07} />
-            ))}
-            {hasSelfInfo ? (
-              <ChallengeSelfRow {...selfRowProps} />
-            ) : (
-              <SkeletonRow opacity={0.4} />
-            )}
-
+        <div
+          className="challenge-lb-panel game-room-scoreboard-body h-full"
+          onWheel={onWheel}
+        >
+          <div
+            ref={scrollRef}
+            className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
+          >
+            <div className="game-room-scoreboard-stack overflow-visible">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonRow key={i} opacity={1 - i * 0.1} />
+              ))}
+              <ChallengeEllipsisRow />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonRow key={`n${i}`} opacity={0.55 - i * 0.07} />
+              ))}
+              {hasSelfInfo ? (
+                <ChallengeSelfRow {...selfRowProps} />
+              ) : (
+                <SkeletonRow opacity={0.4} />
+              )}
+            </div>
+          </div>
+          <div className="game-room-scoreboard-self-sticky-bar px-1">
             <ChallengeSeparatorRow />
             {hasSelfInfo ? (
               <ChallengeSelfRow {...selfRowProps} />
@@ -143,9 +172,6 @@ export const ChallengeLeaderboardPanel = React.memo(
       );
     }
 
-    // -----------------------------------------------------------------------
-    // Error state
-    // -----------------------------------------------------------------------
     if (state.status === "error") {
       return (
         <div className="challenge-lb-panel flex flex-col items-center justify-center h-full gap-3 text-center px-4">
@@ -166,61 +192,51 @@ export const ChallengeLeaderboardPanel = React.memo(
 
     if (!data) return null;
 
-    const { topEntries, nearbyOpponents, myStanding } = data;
-
-    const topRows = topEntries.slice(0, 5);
-    const topPadCount = Math.max(0, 5 - topRows.length);
-
-    const nearbyRows = buildChallengeNearbyDisplayRows({
-      nearbyOpponents,
-      myStanding,
-      liveScore: myStanding.liveScore,
-      meUserId,
-      slots: 5,
-    });
-
     return (
-      <div className="challenge-lb-panel flex flex-col h-full overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto px-1 py-1 space-y-1">
+      <div
+        className="challenge-lb-panel game-room-scoreboard-body h-full"
+        onWheel={onWheel}
+      >
+        <div
+          ref={scrollRef}
+          className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
+        >
+          <div className="game-room-scoreboard-stack overflow-visible">
+            {displayedTopRows.map((entry) => (
+              <ChallengeTopEntryRow
+                key={entry.userId}
+                entry={entry}
+                isMe={meUserId ? entry.userId === meUserId : false}
+              />
+            ))}
+            {Array.from({ length: topPadCount }).map((_, i) => (
+              <ChallengePlaceholderRow key={`tp${i}`} dim />
+            ))}
 
-          {/* ── Top 5 ── */}
-          {topRows.map((entry) => (
-            <ChallengeTopEntryRow
-              key={entry.userId}
-              entry={entry}
-              isMe={meUserId ? entry.userId === meUserId : false}
-            />
-          ))}
-          {Array.from({ length: topPadCount }).map((_, i) => (
-            <ChallengePlaceholderRow key={`tp${i}`} dim />
-          ))}
-
-          {/* ── Ellipsis ── */}
-          <ChallengeEllipsisRow />
-
-          {/* ── Nearby section: 5 rows ── */}
-          {nearbyRows.map((row) => {
-            if (row.type === "placeholder") {
-              return <ChallengePlaceholderRow key={row.key} />;
-            }
-            if (row.type === "opponent") {
-              return (
-                <ChallengeNearbyRow
-                  key={row.key}
-                  opponent={row.opponent}
-                  liveScore={myStanding.liveScore}
-                />
-              );
-            }
-            return <ChallengeSelfRow key={row.key} {...selfRowProps} />;
-          })}
-
-          {/* ── Separator ── */}
+            {!isTopTenMode && (
+              <>
+                <ChallengeEllipsisRow />
+                {nearbyRows.map((row) => {
+                  if (row.type === "placeholder") {
+                    return <ChallengePlaceholderRow key={row.key} />;
+                  }
+                  if (row.type === "opponent") {
+                    return (
+                      <ChallengeNearbyRow
+                        key={row.key}
+                        opponent={row.opponent}
+                      />
+                    );
+                  }
+                  return <ChallengeSelfRow key={row.key} {...selfRowProps} />;
+                })}
+              </>
+            )}
+          </div>
+        </div>
+        <div className="game-room-scoreboard-self-sticky-bar px-1">
           <ChallengeSeparatorRow />
-
-          {/* ── Fixed self row at bottom ── */}
           <ChallengeSelfRow {...selfRowProps} />
-
         </div>
       </div>
     );

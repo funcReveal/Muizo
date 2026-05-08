@@ -36,6 +36,7 @@ import { resolveComboTier } from "../lib/gameRoomUiUtils";
 import type { ScoreboardRow } from "../../model/gameRoomDerivations";
 import type { AvatarEffectLevel } from "../../../../shared/ui/playerAvatar/playerAvatarTheme";
 import { RoomSelfStickyBar } from "./RoomSelfStickyBar";
+import { useScoreboardWheelScroll } from "./useScoreboardWheelScroll";
 
 interface GameRoomLeftSidebarProps {
   scoreboardRows: ScoreboardRow[];
@@ -45,6 +46,9 @@ interface GameRoomLeftSidebarProps {
   scoreBreakdownByClientId?: Map<string, QuestionScoreBreakdown>;
   isReveal: boolean;
   meClientId?: string;
+  meRoomRank?: number | null;
+  meRoomParticipant?: RoomParticipant | null;
+  roomRankByClientId?: Map<string, number>;
   topTwoSwapState: TopTwoSwapState | null;
   className?: string;
   onOpenMobileChat?: () => void;
@@ -75,6 +79,8 @@ const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 // animation ends, not during it.
 const FLOATING_SCORE_BURST_LIFETIME_MS = 3000;
 const ROW_ATTACHED_BURST_STAGGER_MS = 1200;
+const SCOREBOARD_AVATAR_SIZE = 37;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 29;
 
 type FloatingScoreTier = "normal" | "boost" | "hot" | "legend";
 
@@ -646,8 +652,8 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
                 rank={null}
                 combo={player.combo}
                 isMe={isMeRow}
-                size={38}
-                contentSize={30}
+                size={SCOREBOARD_AVATAR_SIZE}
+                contentSize={SCOREBOARD_AVATAR_CONTENT_SIZE}
                 effectLevel={avatarEffectLevel}
                 className="player-avatar--scoreboard"
               />
@@ -751,6 +757,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreBreakdownByClientId,
   isReveal,
   meClientId,
+  meRoomRank,
+  meRoomParticipant,
+  roomRankByClientId,
   topTwoSwapState,
   className,
   onOpenMobileChat,
@@ -767,6 +776,8 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreboardBorderTheme = DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   scoreboardBorderParticleCount = DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
 }) => {
+  const { scrollRef: scoreboardListRef, onWheel: handleScoreboardWheel } =
+    useScoreboardWheelScroll<HTMLDivElement>();
   const enableDesktopFloatingScoreBursts = !mobileOverlayMode;
   const effectiveScoreboardBorderMotion = React.useMemo<ScoreboardBorderAnimationId>(() => {
     if (!scoreboardBorderEnabled) return "none";
@@ -790,21 +801,19 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     () => resolveScoreboardScores(scoreboardRows),
     [scoreboardRows],
   );
-  // Single-pass: compute rank for every player row AND locate the "me" entry.
-  const { rankByClientId, meRankAndPlayer } = React.useMemo(() => {
+  // Use the full room ranking when available so the self-filled 12th row keeps
+  // its true rank instead of its visual slot number.
+  const rankByClientId = React.useMemo(() => {
+    if (roomRankByClientId) return roomRankByClientId;
     const rankMap = new Map<string, number>();
-    let meData: { rank: number; player: RoomParticipant } | null = null;
     let rank = 0;
     for (const row of scoreboardRows) {
       if (row.type !== "player") continue;
       rank++;
       rankMap.set(row.player.clientId, rank);
-      if (meClientId && row.player.clientId === meClientId) {
-        meData = { rank, player: row.player };
-      }
     }
-    return { rankByClientId: rankMap, meRankAndPlayer: meData };
-  }, [scoreboardRows, meClientId]);
+    return rankMap;
+  }, [roomRankByClientId, scoreboardRows]);
 
   const comboLeaderClientId = React.useMemo(() => {
     let bestClientId: string | null = null;
@@ -1329,7 +1338,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const sidebarContent = (
     <aside
       ref={sidebarRef}
-      className={`game-room-panel game-room-panel--left game-room-panel--blaze flex h-full w-full flex-col gap-3 overflow-x-visible overflow-y-hidden p-3 text-slate-50 ${mobileOverlayMode ? "game-room-left-sidebar--mobile-overlay" : ""
+      className={`game-room-panel game-room-panel--left game-room-panel--blaze flex h-full w-full flex-col gap-3 overflow-x-visible overflow-y-hidden px-3 pt-3 pb-0 text-slate-50 ${mobileOverlayMode ? "game-room-left-sidebar--mobile-overlay" : ""
         } ${mobileMinimalHeader ? "game-room-left-sidebar--mobile-minimal-header" : ""} ${className ?? ""
         }`}
     >
@@ -1367,9 +1376,15 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
           </div>
         </>
       )}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-visible">
-        <div className="game-room-scoreboard-stack space-y-1.5 overflow-visible">
+      <div
+        className="game-room-scoreboard-body flex-1 min-h-0 flex flex-col overflow-hidden"
+        onWheel={handleScoreboardWheel}
+      >
+      <div
+        ref={scoreboardListRef}
+        className="game-room-scoreboard-list mq-autohide-scrollbar relative flex-1 min-h-0 overflow-y-auto overflow-x-visible"
+      >
+        <div className="game-room-scoreboard-stack overflow-visible">
           {playerRowCount === 0 ? (
             <>
               <div className="text-xs text-slate-500">目前正在等待玩家進入排行榜...</div>
@@ -1641,11 +1656,10 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         </div>
       </div>
 
-      {meRankAndPlayer && (
+      {meRoomParticipant && meRoomRank && (
         <RoomSelfStickyBar
-          player={meRankAndPlayer.player}
-          rank={meRankAndPlayer.rank}
-          totalPlayers={playerRowCount}
+          player={meRoomParticipant}
+          rank={meRoomRank}
         />
       )}
       </div>

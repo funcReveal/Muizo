@@ -1,21 +1,19 @@
 /**
  * useChallengeLeaderboardProjection
  *
- * Hook for in-game projected challenge leaderboard data.
+ * In-game projected challenge leaderboard data.
  *
  * Update strategy:
- *  - Initial load when challenge tab becomes active.
- *  - Refresh on every correct answer (myLiveScore increase) — guarantees the
- *    display always reflects the CURRENT score, never the previous question's.
- *  - Cooldown: 4 seconds between requests (backend also enforces this).
- *  - Stale data is kept while re-fetching; no empty flash.
+ *  - Initial load when the challenge tab is active and the game is in a
+ *    playable question state, not during the pre-start countdown.
+ *  - Score changes update only the self row and gain animation locally.
+ *  - Network refresh on score increase only when the live score has passed the
+ *    closest visible opponent ahead of the player.
+ *  - Manual/initial loads bypass only the client cooldown. Backend cooldown
+ *    and server-authoritative ranking remain unchanged.
  *
- * Score gain tracking:
- *  - gainAnimKey increments each time myLiveScore increases.
- *  - gainAmount holds the delta for the floating "+N" animation.
- *
- * Security: never sends score/rank to backend. The backend derives all
- * ranking data from server-authoritative room state.
+ * Security: never sends score/rank to backend. The backend derives ranking
+ * data from server-authoritative room state.
  */
 
 import {
@@ -31,116 +29,117 @@ import { API_URL } from "@domain/room/constants";
 import { fetchProjectedWindow } from "./challengeLeaderboardProjectionApi";
 import type {
   ChallengeProjectedLeaderboardResponse,
-  ChallengeNearbyOpponent,
   ChallengeProjectionState,
 } from "./projectionTypes";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Front-end cooldown: ignore backend 429, just don't fire. */
 const CLIENT_COOLDOWN_MS = 4_000;
 
-// ---------------------------------------------------------------------------
-// Boundary check — only re-fetch when the score window is stale
-// ---------------------------------------------------------------------------
+type InternalProjectionState = ChallengeProjectionState & {
+  sessionKey: string;
+};
 
 function shouldRefetchNearbyWindow(
+  previousScore: number,
   newScore: number,
   data: ChallengeProjectedLeaderboardResponse | null,
 ): boolean {
   if (!data) return true;
-  if (data.nearbyOpponents.length === 0) return true;
-  // Treat relation by bestScore vs newScore, not the stale relation field
-  const ahead = data.nearbyOpponents.filter((n) => n.bestScore > newScore);
-  if (ahead.length === 0) return true; // passed all ahead opponents
-  const passedCount = data.nearbyOpponents.filter(
-    (n) => n.bestScore <= newScore,
-  ).length;
-  if (passedCount >= 2) return true;
-  return false;
+  if (data.nearbyOpponents.length === 0) return false;
+
+  const closestAheadBeforeScoreChange = data.nearbyOpponents
+    .filter((opponent) => opponent.bestScore > previousScore)
+    .sort((a, b) => a.bestScore - b.bestScore)[0];
+
+  return Boolean(
+    closestAheadBeforeScoreChange &&
+      newScore >= closestAheadBeforeScoreChange.bestScore,
+  );
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export type UseChallengeLeaderboardProjectionInput = {
-  /** Only run when true — typically when challenge tab is active */
   enabled: boolean;
   roomId: string;
   meClientId: string;
-  /** Live score from room participants (server-authoritative, updated per question) */
   myLiveScore: number;
+  canLoadInitialProjection: boolean;
+  projectionSessionKey: string;
 };
 
 export type UseChallengeLeaderboardProjectionResult = {
   state: ChallengeProjectionState;
   refresh: () => void;
-  /** Increments each time myLiveScore increases — use as React key for animation */
   gainAnimKey: number;
-  /** Score delta from the most recent correct answer (0 if none yet) */
   gainAmount: number;
 };
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
 
 export function useChallengeLeaderboardProjection(
   input: UseChallengeLeaderboardProjectionInput,
 ): UseChallengeLeaderboardProjectionResult {
-  const { enabled, roomId, meClientId, myLiveScore } = input;
+  const {
+    enabled,
+    roomId,
+    meClientId,
+    myLiveScore,
+    canLoadInitialProjection,
+    projectionSessionKey,
+  } = input;
 
   const { authToken, refreshAuthToken, authLoading } = useAuth();
-  const [state, setState] = useState<ChallengeProjectionState>({
+  const [state, setState] = useState<InternalProjectionState>({
     status: "idle",
+    sessionKey: projectionSessionKey,
   });
 
   const abortRef = useRef<AbortController | null>(null);
-  const lastFetchAtRef = useRef<number>(0);
+  const inFlightKeyRef = useRef<string | null>(null);
+  const lastFetchAtRef = useRef(0);
   const loadedDataRef = useRef<ChallengeProjectedLeaderboardResponse | null>(
     null,
   );
-
-  // Gain animation state — updated synchronously on score increase
   const gainAnimKeyRef = useRef(0);
   const [gainState, setGainState] = useState<{ key: number; amount: number }>({
     key: 0,
     amount: 0,
   });
-
-  // Tracks the score from the previous render to detect increases
   const prevLiveScoreRef = useRef(myLiveScore);
 
-  const canFetch = useCallback((): boolean => {
-    const now = Date.now();
-    return now - lastFetchAtRef.current >= CLIENT_COOLDOWN_MS;
+  const canFetch = useCallback((bypassClientCooldown = false): boolean => {
+    if (bypassClientCooldown) return true;
+    return Date.now() - lastFetchAtRef.current >= CLIENT_COOLDOWN_MS;
   }, []);
 
   const doFetch = useCallback(
-    async (_reason: string) => {
-      if (!enabled || !roomId) return;
-      if (authLoading) return;
-      if (!canFetch()) return;
+    async (
+      _reason: string,
+      options?: { bypassClientCooldown?: boolean; replaceInFlight?: boolean },
+    ) => {
+      if (!enabled || !roomId || authLoading) return;
+      if (!canFetch(options?.bypassClientCooldown)) return;
+
+      const requestKey = `${roomId}:${projectionSessionKey}`;
+      if (
+        inFlightKeyRef.current === requestKey &&
+        !options?.replaceInFlight
+      ) {
+        return;
+      }
 
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
+      inFlightKeyRef.current = requestKey;
       lastFetchAtRef.current = Date.now();
 
       setState((prev) =>
-        prev.status === "loaded"
+        prev.status === "loaded" && prev.sessionKey === projectionSessionKey
           ? prev
-          : { status: "loading" },
+          : { status: "loading", sessionKey: projectionSessionKey },
       );
 
       try {
         const token = authToken
           ? await ensureFreshAuthToken({ token: authToken, refreshAuthToken })
           : null;
-
         const result = await fetchProjectedWindow({
           apiUrl: API_URL ?? "",
           roomId,
@@ -157,132 +156,133 @@ export function useChallengeLeaderboardProjection(
             status: "loaded",
             data: result.data,
             loadedAt: Date.now(),
+            sessionKey: projectionSessionKey,
           });
-        } else {
-          if (result.status === 429) return;
-          setState((prev) =>
-            prev.status === "loaded"
-              ? prev
-              : { status: "error", message: result.error },
-          );
+          return;
         }
+
+        setState((prev) =>
+          prev.status === "loaded" && prev.sessionKey === projectionSessionKey
+            ? prev
+            : {
+                status: "error",
+                message: result.error,
+                sessionKey: projectionSessionKey,
+              },
+        );
       } catch {
         if (controller.signal.aborted) return;
         setState((prev) =>
-          prev.status === "loaded"
+          prev.status === "loaded" && prev.sessionKey === projectionSessionKey
             ? prev
-            : { status: "error", message: "排行榜暫時無法使用" },
+            : {
+                status: "error",
+                message: "排行榜暫時無法載入",
+                sessionKey: projectionSessionKey,
+              },
         );
+      } finally {
+        if (inFlightKeyRef.current === requestKey) {
+          inFlightKeyRef.current = null;
+        }
       }
     },
-    [enabled, roomId, meClientId, authToken, refreshAuthToken, canFetch, authLoading],
+    [
+      enabled,
+      roomId,
+      authLoading,
+      canFetch,
+      projectionSessionKey,
+      authToken,
+      refreshAuthToken,
+      meClientId,
+    ],
   );
 
-  // ------------------------------------------------------------------
-  // Initial load when challenge tab becomes active
-  // ------------------------------------------------------------------
-  const prevEnabledRef = useRef(false);
   useEffect(() => {
-    if (enabled && !prevEnabledRef.current) {
-      void doFetch("tab_activated");
-    }
-    prevEnabledRef.current = enabled;
-  }, [enabled, doFetch]);
+    loadedDataRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    inFlightKeyRef.current = null;
+    lastFetchAtRef.current = 0;
+    prevLiveScoreRef.current = 0;
+    gainAnimKeyRef.current = 0;
+    queueMicrotask(() => {
+      setGainState({ key: 0, amount: 0 });
+    });
+  }, [roomId, projectionSessionKey]);
 
-  // ------------------------------------------------------------------
-  // Auth-ready retry
-  // Fires when authLoading transitions true → false while challenge tab
-  // is active and no data has been fetched yet.
-  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (
+      enabled &&
+      canLoadInitialProjection &&
+      loadedDataRef.current === null
+    ) {
+      queueMicrotask(() => {
+        void doFetch("initial_game_started", { bypassClientCooldown: true });
+      });
+    }
+  }, [enabled, canLoadInitialProjection, doFetch]);
+
   const prevAuthLoadingRef = useRef(authLoading);
   useEffect(() => {
     const wasLoading = prevAuthLoadingRef.current;
     prevAuthLoadingRef.current = authLoading;
-
     if (!wasLoading || authLoading) return;
-
-    if (enabled && loadedDataRef.current === null) {
+    if (
+      enabled &&
+      canLoadInitialProjection &&
+      loadedDataRef.current === null
+    ) {
       lastFetchAtRef.current = 0;
-      void doFetch("auth_ready");
+      queueMicrotask(() => {
+        void doFetch("auth_ready", { bypassClientCooldown: true });
+      });
     }
-  }, [authLoading, enabled, doFetch]);
+  }, [authLoading, enabled, canLoadInitialProjection, doFetch]);
 
-  // ------------------------------------------------------------------
-  // Score-increase trigger (primary update mechanism)
-  // Fires whenever myLiveScore increases (correct answer submitted).
-  // This guarantees the leaderboard reflects the CURRENT score, not
-  // the previous question's — fixing the "one question behind" bug.
-  // ------------------------------------------------------------------
   useEffect(() => {
     const prev = prevLiveScoreRef.current;
     prevLiveScoreRef.current = myLiveScore;
 
-    if (myLiveScore > prev) {
-      const delta = myLiveScore - prev;
-      gainAnimKeyRef.current += 1;
-      setGainState({ key: gainAnimKeyRef.current, amount: delta });
-      if (enabled && shouldRefetchNearbyWindow(myLiveScore, loadedDataRef.current)) {
-        void doFetch("boundary_crossed");
-      }
-    }
-  }, [enabled, myLiveScore, doFetch]);
+    if (myLiveScore <= prev) return;
 
-  // ------------------------------------------------------------------
-  // Cleanup when disabled
-  // ------------------------------------------------------------------
+    const delta = myLiveScore - prev;
+    gainAnimKeyRef.current += 1;
+    setGainState({ key: gainAnimKeyRef.current, amount: delta });
+
+    if (
+      enabled &&
+      canLoadInitialProjection &&
+      shouldRefetchNearbyWindow(prev, myLiveScore, loadedDataRef.current)
+    ) {
+      void doFetch("closest_ahead_passed");
+    }
+  }, [enabled, canLoadInitialProjection, myLiveScore, doFetch]);
+
   useEffect(() => {
     if (!enabled) {
       abortRef.current?.abort();
       abortRef.current = null;
+      inFlightKeyRef.current = null;
     }
   }, [enabled]);
 
-  // ------------------------------------------------------------------
-  // Reset when roomId changes (new match / room)
-  // ------------------------------------------------------------------
-  useEffect(() => {
-    loadedDataRef.current = null;
-    setState({ status: "idle" });
-    abortRef.current?.abort();
-    abortRef.current = null;
-    lastFetchAtRef.current = 0;
-    prevLiveScoreRef.current = 0;
-    setGainState({ key: 0, amount: 0 });
-    gainAnimKeyRef.current = 0;
-  }, [roomId]);
-
-  // ------------------------------------------------------------------
-  // Derived nearby opponents with re-calculated gapFromMe
-  // Recompute on myLiveScore change without a network fetch.
-  // ------------------------------------------------------------------
-  const stateWithUpdatedGaps = useMemo<ChallengeProjectionState>(() => {
-    if (state.status !== "loaded") return state;
-    const data = state.data;
-    const updatedOpponents: ChallengeNearbyOpponent[] = data.nearbyOpponents.map((opp) => ({
-      ...opp,
-      gapFromMe: opp.bestScore - myLiveScore,
-      relation: (opp.bestScore > myLiveScore ? "ahead" : "passed") as "ahead" | "passed",
-    }));
-    return {
-      ...state,
-      data: {
-        ...data,
-        nearbyOpponents: updatedOpponents,
-        myStanding: {
-          ...data.myStanding,
-          liveScore: myLiveScore,
-        },
-      },
-    };
-  }, [state, myLiveScore]);
+  const stateForCurrentSession = useMemo<ChallengeProjectionState>(
+    () => (state.sessionKey === projectionSessionKey ? state : { status: "idle" }),
+    [state, projectionSessionKey],
+  );
 
   const refresh = useCallback(() => {
     lastFetchAtRef.current = 0;
-    void doFetch("manual_refresh");
+    void doFetch("manual_refresh", {
+      bypassClientCooldown: true,
+      replaceInFlight: true,
+    });
   }, [doFetch]);
 
   return {
-    state: stateWithUpdatedGaps,
+    state: stateForCurrentSession,
     refresh,
     gainAnimKey: gainState.key,
     gainAmount: gainState.amount,

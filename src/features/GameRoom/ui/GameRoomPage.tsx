@@ -1542,6 +1542,24 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       buildScoreboardRows(sortedParticipants, meClientId, 12, room.maxPlayers),
     [meClientId, room.maxPlayers, sortedParticipants],
   );
+  const roomScoreboardRankModel = useMemo(() => {
+    const rankByClientId = new Map<string, number>();
+    sortedParticipants.forEach((participant, index) => {
+      rankByClientId.set(participant.clientId, index + 1);
+    });
+    const meIndex = sortedParticipants.findIndex(
+      (participant) => participant.clientId === meClientId,
+    );
+    return {
+      roomRankByClientId: rankByClientId,
+      meRoomRank: meIndex >= 0 ? meIndex + 1 : null,
+      meRoomParticipant: meIndex >= 0 ? sortedParticipants[meIndex] : null,
+    };
+  }, [meClientId, sortedParticipants]);
+  const projectionSessionKey =
+    gameSessionId !== null && gameSessionId !== undefined
+      ? `session:${gameSessionId}`
+      : `room:${room.id}`;
 
   const handleShowVideoChange = useCallback((show: boolean) => {
     setShowVideoOverride(show);
@@ -2026,7 +2044,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       <div className="game-room-shell">
         <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-0 pb-10 lg:grid-cols-[minmax(274px,318px)_minmax(0,1fr)] lg:pb-8 xl:grid-cols-[minmax(290px,334px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(304px,348px)_minmax(0,1fr)] lg:h-[calc(100vh-124px)] lg:items-stretch">
           {!isMobileGameViewport && (
-            <div className="hidden lg:block lg:h-full">
+            <div className="game-room-leaderboard-column hidden lg:block lg:h-full">
               <GameRoomLeaderboardSidebar
                 scoreboardRows={scoreboardRows}
                 answeredClientIdSet={answeredClientIdSet}
@@ -2036,6 +2054,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 isReveal={isReveal}
                 meClientId={meClientId ?? ""}
                 participants={participants ?? []}
+                meRoomRank={roomScoreboardRankModel.meRoomRank}
+                meRoomParticipant={roomScoreboardRankModel.meRoomParticipant}
+                roomRankByClientId={roomScoreboardRankModel.roomRankByClientId}
                 topTwoSwapState={topTwoSwapState}
                 avatarEffectLevel={mobileAvatarEffectLevel}
                 scoreboardBorderEnabled={scoreboardBorderEnabled}
@@ -2049,6 +2070,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 isLeaderboardRoom={isLeaderboardRoom}
                 roomId={room.id}
                 isSettled={gameState.status === "ended"}
+                gameStatus={gameState.status}
+                gamePhase={gameState.phase}
+                currentQuestionIndex={trackCursor}
+                trackSessionKey={trackSessionKey}
+                projectionSessionKey={projectionSessionKey}
+                waitingToStart={waitingToStart}
+                isInterTrackWait={isInterTrackWait}
+                isRecoveringConnection={isRecoveringConnection}
               />
             </div>
           )}
@@ -2386,6 +2415,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     isReveal={isReveal}
                     meClientId={meClientId ?? ""}
                     participants={participants ?? []}
+                    meRoomRank={roomScoreboardRankModel.meRoomRank}
+                    meRoomParticipant={roomScoreboardRankModel.meRoomParticipant}
+                    roomRankByClientId={roomScoreboardRankModel.roomRankByClientId}
                     topTwoSwapState={topTwoSwapState}
                     className="game-room-mobile-scoreboard-shell !h-full"
                     mobileOverlayMode
@@ -2408,6 +2440,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     isLeaderboardRoom={isLeaderboardRoom}
                     roomId={room.id}
                     isSettled={gameState.status === "ended"}
+                    gameStatus={gameState.status}
+                    gamePhase={gameState.phase}
+                    currentQuestionIndex={trackCursor}
+                    trackSessionKey={trackSessionKey}
+                    projectionSessionKey={projectionSessionKey}
+                    waitingToStart={waitingToStart}
+                    isInterTrackWait={isInterTrackWait}
+                    isRecoveringConnection={isRecoveringConnection}
                   />
                 </div>
               </Drawer>

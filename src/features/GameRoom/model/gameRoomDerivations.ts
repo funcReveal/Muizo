@@ -39,14 +39,14 @@ export const buildScoreboardRows = (
   slots = 12,
   maxPlayers?: number | null,
 ): ScoreboardRow[] => {
-  const topPlayers = sortedParticipants.slice(0, slots - 1);
+  const topPlayers = sortedParticipants.slice(0, slots);
   const self = sortedParticipants.find(
     (participant) => participant.clientId === meClientId,
   );
   const scoreboardPlayers =
     self &&
     !topPlayers.some((participant) => participant.clientId === self.clientId)
-      ? [...topPlayers, self]
+      ? [...topPlayers.slice(0, slots - 1), self]
       : topPlayers;
   const scoreboardEntries = scoreboardPlayers.slice(0, slots);
   // Effective limit: how many slots are "open" (players + available seats)

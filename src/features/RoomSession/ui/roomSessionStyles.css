@@ -2730,15 +2730,76 @@
   }
 }
 
+.game-room-shell {
+  --game-room-scoreboard-row-height: 30px;
+  --game-room-scoreboard-row-padding-y: 2px;
+  --game-room-scoreboard-row-padding-x: 10px;
+  --game-room-scoreboard-row-gap: 4px;
+  --game-room-scoreboard-avatar-size: 37px;
+  --game-room-scoreboard-avatar-content-size: 29px;
+  --game-room-floating-chat-clearance: 52px;
+}
+
+.game-room-leaderboard-column {
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+@media (min-width: 1024px) {
+  .game-room-leaderboard-column {
+    padding-bottom: var(--game-room-floating-chat-clearance);
+  }
+}
+
+.game-room-scoreboard-stack > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(
+    var(--game-room-scoreboard-row-gap) * calc(1 - var(--tw-space-y-reverse))
+  );
+  margin-bottom: calc(
+    var(--game-room-scoreboard-row-gap) * var(--tw-space-y-reverse)
+  );
+}
+
+.game-room-scoreboard-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.game-room-scoreboard-list {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: visible;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  --mq-scrollbar-size: 6px;
+}
+
+.game-room-scoreboard-self-sticky-bar,
+.game-room-room-self-sticky-bar {
+  flex: 0 0 auto;
+}
+
+.game-room-score-row-avatar-skeleton {
+  width: var(--game-room-scoreboard-avatar-size);
+  height: var(--game-room-scoreboard-avatar-size);
+}
+
 .game-room-score-row {
   position: relative;
   overflow: hidden;
   border-radius: 4px;
-  padding: 5px 10px;
+  padding: var(--game-room-scoreboard-row-padding-y)
+    var(--game-room-scoreboard-row-padding-x);
   background: rgba(255, 255, 255, 0.015);
   border: 1px solid transparent;
   color: #e2e8f0;
-  min-height: 34px;
+  min-height: var(--game-room-scoreboard-row-height);
   white-space: nowrap;
   will-change: transform, box-shadow;
 }

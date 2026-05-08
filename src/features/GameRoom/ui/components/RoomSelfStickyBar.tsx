@@ -3,27 +3,28 @@ import type { RoomParticipant } from "@features/RoomSession";
 import { normalizeRoomDisplayText } from "../../../../shared/utils/text";
 import PlayerAvatar from "../../../../shared/ui/playerAvatar/PlayerAvatar";
 
+const SCOREBOARD_AVATAR_SIZE = 37;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 29;
+
 interface RoomSelfStickyBarProps {
   player: RoomParticipant;
   rank: number;
-  totalPlayers: number;
 }
 
 export const RoomSelfStickyBar = React.memo(function RoomSelfStickyBar({
   player,
   rank,
-  totalPlayers,
 }: RoomSelfStickyBarProps) {
-  const displayName = normalizeRoomDisplayText(player.username, "你");
+  const displayName = normalizeRoomDisplayText(player.username, "Player");
   const combo = player.combo ?? 0;
   const answerDotClass =
     player.isOnline !== false ? "bg-emerald-400" : "bg-slate-500";
 
   return (
-    <div className="shrink-0 space-y-1.5">
+    <div className="game-room-room-self-sticky-bar shrink-0 space-y-1">
       <div className="h-px bg-white/10" />
       <div className="game-room-score-row game-room-score-row--me flex items-center justify-between text-sm">
-        <span className="truncate flex items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
           <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
             #{rank}
           </span>
@@ -32,8 +33,8 @@ export const RoomSelfStickyBar = React.memo(function RoomSelfStickyBar({
               username={displayName}
               clientId={player.clientId}
               avatarUrl={player.avatar_url ?? player.avatarUrl ?? undefined}
-              size={38}
-              contentSize={30}
+              size={SCOREBOARD_AVATAR_SIZE}
+              contentSize={SCOREBOARD_AVATAR_CONTENT_SIZE}
               isMe
               className="player-avatar--scoreboard"
             />
@@ -44,20 +45,12 @@ export const RoomSelfStickyBar = React.memo(function RoomSelfStickyBar({
           <span className="truncate">{displayName}</span>
           <span className="game-room-score-row-you-badge">YOU</span>
         </span>
-        <div className="shrink-0 text-right">
-          <div className="font-mono text-sm font-semibold text-emerald-300 tabular-nums">
-            {player.score.toLocaleString()}
-          </div>
+        <span className="shrink-0 whitespace-nowrap text-right font-mono text-sm font-semibold tabular-nums text-emerald-300">
+          {player.score.toLocaleString()}
           {combo > 0 ? (
-            <div className="text-[10px] text-amber-400 font-semibold">
-              ×{combo}
-            </div>
-          ) : totalPlayers > 0 ? (
-            <div className="text-[10px] text-slate-500">
-              /{totalPlayers.toLocaleString()}人
-            </div>
+            <span className="font-normal text-slate-500">&times;{combo}</span>
           ) : null}
-        </div>
+        </span>
       </div>
     </div>
   );

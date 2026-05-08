@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import type { RoomParticipant } from "@features/RoomSession";
+import type { GameState, RoomParticipant } from "@features/RoomSession";
 import type { QuestionScoreBreakdown } from "@features/RoomSession";
 import type { TopTwoSwapState } from "../model/gameRoomTypes";
 import type { ScoreboardRow } from "../model/gameRoomDerivations";
@@ -43,6 +43,9 @@ export interface GameRoomLeaderboardSidebarProps {
   isReveal: boolean;
   meClientId: string;
   participants: RoomParticipant[];
+  meRoomRank: number | null;
+  meRoomParticipant: RoomParticipant | null;
+  roomRankByClientId: Map<string, number>;
   topTwoSwapState: TopTwoSwapState | null;
   className?: string;
   onOpenMobileChat?: () => void;
@@ -67,6 +70,14 @@ export interface GameRoomLeaderboardSidebarProps {
   roomId: string;
   /** Whether the game has settled (changes display labels) */
   isSettled?: boolean;
+  gameStatus: GameState["status"];
+  gamePhase: GameState["phase"];
+  currentQuestionIndex: number;
+  trackSessionKey: string;
+  projectionSessionKey: string;
+  waitingToStart: boolean;
+  isInterTrackWait: boolean;
+  isRecoveringConnection?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +116,9 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   isReveal,
   meClientId,
   participants,
+  meRoomRank,
+  meRoomParticipant,
+  roomRankByClientId,
   topTwoSwapState,
   className,
   onOpenMobileChat,
@@ -125,6 +139,14 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   isLeaderboardRoom,
   roomId,
   isSettled = false,
+  gameStatus,
+  gamePhase,
+  currentQuestionIndex,
+  trackSessionKey,
+  projectionSessionKey,
+  waitingToStart,
+  isInterTrackWait,
+  isRecoveringConnection = false,
 }) => {
   const [activeTab, setActiveTab] = useState<GameRoomScoreboardTab>(
     isLeaderboardRoom ? "challenge" : "room",
@@ -147,6 +169,16 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   }, [participants, meClientId]);
 
   const challengeEnabled = isLeaderboardRoom && resolvedTab === "challenge";
+  const isPlayablePhase = gamePhase === "guess" || gamePhase === "reveal";
+  const canLoadInitialProjection =
+    challengeEnabled &&
+    gameStatus === "playing" &&
+    isPlayablePhase &&
+    currentQuestionIndex >= 0 &&
+    trackSessionKey.trim().length > 0 &&
+    !waitingToStart &&
+    !isInterTrackWait &&
+    !isRecoveringConnection;
 
   const { state: projectionState, refresh, gainAnimKey, gainAmount } =
     useChallengeLeaderboardProjection({
@@ -154,6 +186,8 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
       roomId,
       meClientId,
       myLiveScore,
+      canLoadInitialProjection,
+      projectionSessionKey,
     });
 
   const handleTabChallenge = useCallback(() => {
@@ -205,6 +239,9 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
             scoreBreakdownByClientId={scoreBreakdownByClientId}
             isReveal={isReveal}
             meClientId={meClientId}
+            meRoomRank={meRoomRank}
+            meRoomParticipant={meRoomParticipant}
+            roomRankByClientId={roomRankByClientId}
             topTwoSwapState={topTwoSwapState}
             className="!h-full"
             onOpenMobileChat={onOpenMobileChat}
