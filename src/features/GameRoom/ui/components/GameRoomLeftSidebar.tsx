@@ -35,6 +35,8 @@ import type { TopTwoSwapState } from "../../model/gameRoomTypes";
 import { resolveComboTier } from "../lib/gameRoomUiUtils";
 import type { ScoreboardRow } from "../../model/gameRoomDerivations";
 import type { AvatarEffectLevel } from "../../../../shared/ui/playerAvatar/playerAvatarTheme";
+import { RoomSelfStickyBar } from "./RoomSelfStickyBar";
+import { useScoreboardWheelScroll } from "./useScoreboardWheelScroll";
 
 interface GameRoomLeftSidebarProps {
   scoreboardRows: ScoreboardRow[];
@@ -44,6 +46,9 @@ interface GameRoomLeftSidebarProps {
   scoreBreakdownByClientId?: Map<string, QuestionScoreBreakdown>;
   isReveal: boolean;
   meClientId?: string;
+  meRoomRank?: number | null;
+  meRoomParticipant?: RoomParticipant | null;
+  roomRankByClientId?: Map<string, number>;
   topTwoSwapState: TopTwoSwapState | null;
   className?: string;
   onOpenMobileChat?: () => void;
@@ -67,13 +72,15 @@ const RANK_SWAP_DURATION_MS = 960;
 const MAX_RANK_SWAP_OFFSET_ROWS = 6;
 const DESKTOP_FLIP_BASE_DURATION_MS = 860;
 const DESKTOP_FLIP_MAX_DURATION_MS = 1680;
-const DESKTOP_FLIP_ROW_HEIGHT_PX = 60;
+const DESKTOP_FLIP_ROW_HEIGHT_PX = 56;
 const DESKTOP_FLIP_BURST_BUFFER_MS = 90;
 const SCOREBOARD_DEBUG_STORAGE_KEY = "musicquiz:debug-sync";
 // Must exceed the CSS animation duration (2200ms) so cleanup fires after the
 // animation ends, not during it.
 const FLOATING_SCORE_BURST_LIFETIME_MS = 3000;
 const ROW_ATTACHED_BURST_STAGGER_MS = 1200;
+const SCOREBOARD_AVATAR_SIZE = 32;
+const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
 type FloatingScoreTier = "normal" | "boost" | "hot" | "legend";
 
@@ -257,6 +264,8 @@ type RankSwapState = {
 interface GameRoomScorePlayerRowProps {
   player: RoomParticipant;
   isReveal: boolean;
+  /** 1-based room rank for this player (undefined for placeholder / locked rows) */
+  rank?: number;
   answerRank?: number;
   scoreBreakdown?: QuestionScoreBreakdown;
   isMeRow: boolean;
@@ -292,6 +301,7 @@ interface GameRoomScorePlayerRowProps {
 const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
   player,
   isReveal,
+  rank,
   answerRank,
   scoreBreakdown,
   isMeRow,
@@ -629,6 +639,11 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
             />
           )}
           <span className="truncate flex items-center gap-2">
+            {typeof rank === "number" && (
+              <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+                #{rank}
+              </span>
+            )}
             <span className="game-room-score-row-avatar-wrap">
               <PlayerAvatar
                 username={displayName}
@@ -637,8 +652,8 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
                 rank={null}
                 combo={player.combo}
                 isMe={isMeRow}
-                size={38}
-                contentSize={30}
+                size={SCOREBOARD_AVATAR_SIZE}
+                contentSize={SCOREBOARD_AVATAR_CONTENT_SIZE}
                 effectLevel={avatarEffectLevel}
                 className="player-avatar--scoreboard"
               />
@@ -685,7 +700,7 @@ const GameRoomScorePlayerRow = React.memo(function GameRoomScorePlayerRow({
                 className="game-room-chip game-room-chip--scoreboard-state"
               />
             )}
-            <span className="relative font-semibold text-emerald-300 tabular-nums">
+            <span className="relative font-mono font-semibold text-emerald-300 tabular-nums">
               {(enableSegmentedScoreAnimation && isReveal && animatedDisplayScore !== null
                 ? animatedDisplayScore
                 : player.score
@@ -742,6 +757,9 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreBreakdownByClientId,
   isReveal,
   meClientId,
+  meRoomRank,
+  meRoomParticipant,
+  roomRankByClientId,
   topTwoSwapState,
   className,
   onOpenMobileChat,
@@ -758,6 +776,8 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   scoreboardBorderTheme = DEFAULT_SCOREBOARD_BORDER_THEME_ID,
   scoreboardBorderParticleCount = DEFAULT_SCOREBOARD_BORDER_PARTICLE_COUNT_VALUE,
 }) => {
+  const { scrollRef: scoreboardListRef, onWheel: handleScoreboardWheel } =
+    useScoreboardWheelScroll<HTMLDivElement>();
   const enableDesktopFloatingScoreBursts = !mobileOverlayMode;
   const effectiveScoreboardBorderMotion = React.useMemo<ScoreboardBorderAnimationId>(() => {
     if (!scoreboardBorderEnabled) return "none";
@@ -772,7 +792,6 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     () => scoreboardRows.filter((row) => row.type === "player").length,
     [scoreboardRows],
   );
-  const answeredCount = Math.min(answeredClientIdSet.size, playerRowCount);
   const displayedPlayerOrder = React.useMemo(
     () => resolveScoreboardPlayerOrder(scoreboardRows),
     [scoreboardRows],
@@ -781,6 +800,20 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     () => resolveScoreboardScores(scoreboardRows),
     [scoreboardRows],
   );
+  // Use the full room ranking when available so the self-filled 12th row keeps
+  // its true rank instead of its visual slot number.
+  const rankByClientId = React.useMemo(() => {
+    if (roomRankByClientId) return roomRankByClientId;
+    const rankMap = new Map<string, number>();
+    let rank = 0;
+    for (const row of scoreboardRows) {
+      if (row.type !== "player") continue;
+      rank++;
+      rankMap.set(row.player.clientId, rank);
+    }
+    return rankMap;
+  }, [roomRankByClientId, scoreboardRows]);
+
   const comboLeaderClientId = React.useMemo(() => {
     let bestClientId: string | null = null;
     let bestCombo = 0;
@@ -1304,46 +1337,35 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
   const sidebarContent = (
     <aside
       ref={sidebarRef}
-      className={`game-room-panel game-room-panel--left game-room-panel--blaze flex h-full w-full flex-col gap-3 overflow-x-visible overflow-y-hidden p-3 text-slate-50 ${mobileOverlayMode ? "game-room-left-sidebar--mobile-overlay" : ""
+      className={`game-room-panel game-room-panel--left game-room-panel--blaze flex h-full w-full flex-col gap-3 overflow-x-visible overflow-y-hidden px-3 pt-3 pb-0 text-slate-50 ${mobileOverlayMode ? "game-room-left-sidebar--mobile-overlay" : ""
         } ${mobileMinimalHeader ? "game-room-left-sidebar--mobile-minimal-header" : ""} ${className ?? ""
         }`}
     >
-      {!mobileMinimalHeader && (
-        <>
-          <div className="flex items-center gap-3">
-            <div className="min-w-0">
-              <p className="game-room-title">排行榜</p>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              {onOpenMobileChat && (
-                <button
-                  type="button"
-                  onClick={onOpenMobileChat}
-                  className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
-                >
-                  <Badge
-                    color="error"
-                    badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
-                    invisible={mobileChatUnread <= 0}
-                  >
-                    <ChatBubbleRoundedIcon className="text-[0.9rem]" />
-                  </Badge>
-                  聊天室
-                </button>
-              )}
-              <Chip
-                label={`已答 ${answeredCount}/${playerRowCount}`}
-                size="small"
-                color="success"
-                variant="outlined"
-                className="game-room-chip"
-              />
-            </div>
-          </div>
-        </>
+      {!mobileMinimalHeader && onOpenMobileChat && (
+        <button
+          type="button"
+          onClick={onOpenMobileChat}
+          className="game-room-mobile-chat-entry inline-flex items-center gap-1 rounded-full border border-cyan-300/45 bg-cyan-500/12 px-2 py-1 text-[11px] font-semibold text-cyan-100"
+        >
+          <Badge
+            color="error"
+            badgeContent={mobileChatUnread > 99 ? "99+" : mobileChatUnread}
+            invisible={mobileChatUnread <= 0}
+          >
+            <ChatBubbleRoundedIcon className="text-[0.9rem]" />
+          </Badge>
+          聊天室
+        </button>
       )}
-      <div className="relative min-h-0 overflow-visible">
-        <div className="game-room-scoreboard-stack space-y-1.5 overflow-visible">
+      <div
+        className="game-room-scoreboard-body flex-1 min-h-0 flex flex-col overflow-hidden"
+        onWheel={handleScoreboardWheel}
+      >
+      <div
+        ref={scoreboardListRef}
+        className="game-room-scoreboard-list mq-autohide-scrollbar relative flex-1 min-h-0 overflow-y-auto overflow-x-visible"
+      >
+        <div className="game-room-scoreboard-stack overflow-visible">
           {playerRowCount === 0 ? (
             <>
               <div className="text-xs text-slate-500">目前正在等待玩家進入排行榜...</div>
@@ -1451,7 +1473,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   p.clientId === topTwoSwapState.secondClientId),
               );
               const rowSwapDistanceRows = Math.abs(rowSwapOffsetRows);
-              const swapRowHeightPx = mobileOverlayMode ? 58 : 60;
+              const swapRowHeightPx = mobileOverlayMode ? 54 : 56;
               const rowSwapStartPx = rowSwapOffsetRows * swapRowHeightPx;
               const rowSwapMidPx = Math.round(rowSwapStartPx * 0.52);
               const rowSwapOvershootPx =
@@ -1571,6 +1593,7 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
                   <GameRoomScorePlayerRow
                     player={p}
                     isReveal={isReveal}
+                    rank={rankByClientId.get(p.clientId)}
                     answerRank={answerRank}
                     scoreBreakdown={scoreBreakdown}
                     isMeRow={isMeRow}
@@ -1614,6 +1637,13 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
         </div>
       </div>
 
+      {meRoomParticipant && meRoomRank && (
+        <RoomSelfStickyBar
+          player={meRoomParticipant}
+          rank={meRoomRank}
+        />
+      )}
+      </div>
     </aside>
   );
 
