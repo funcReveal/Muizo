@@ -1,41 +1,19 @@
 import React, { useMemo } from "react";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import type {
-  ChallengeLeaderboardEntry,
-  ChallengeProjectedLeaderboardResponse,
   ChallengeProjectedMyStanding,
   ChallengeProjectionState,
 } from "../../model/projectionTypes";
-import { buildChallengeNearbyDisplayRows } from "../../model/challengeNearbyDisplay";
+import { buildChallengeLeaderboardDisplayRows } from "../../model/buildChallengeLeaderboardDisplayRows";
 import {
-  ChallengeTopEntryRow,
-  ChallengeNearbyRow,
   ChallengeSeparatorRow,
+  ChallengeSelfRow,
   ChallengeEllipsisRow,
   ChallengePlaceholderRow,
-  ChallengeSelfRow,
 } from "./ChallengeLeaderboardRow";
+import { ChallengeAnimatedRows } from "./ChallengeAnimatedRows";
+import type { SelfRowBaseProps } from "./ChallengeAnimatedRows";
 import { useScoreboardWheelScroll } from "./useScoreboardWheelScroll";
-import { useChallengeFlip } from "./useChallengeFlip";
-
-// ---------------------------------------------------------------------------
-// Layout modes
-// ---------------------------------------------------------------------------
-
-/**
- * top-ten  — projectedRank ≤ 10: self injected into the top-10 list.
- * eleventh — projectedRank = 11: top-10 shown, full-height ellipsis, then self.
- * nearby   — projectedRank ≥ 12 (or unknown): top-5 + ellipsis + 5 nearby rows.
- */
-type ChallengeLayoutMode = "top-ten" | "eleventh" | "nearby";
-
-// ---------------------------------------------------------------------------
-// Merged-top-section row type
-// ---------------------------------------------------------------------------
-
-type TopSectionRow =
-  | { type: "official"; entry: ChallengeLeaderboardEntry; isMe: boolean }
-  | { type: "self" };
 
 // ---------------------------------------------------------------------------
 // Skeleton row (loading state)
@@ -56,7 +34,7 @@ const SkeletonRow: React.FC<{ opacity?: number }> = ({ opacity = 1 }) => (
 );
 
 // ---------------------------------------------------------------------------
-// Panel
+// Panel props
 // ---------------------------------------------------------------------------
 
 interface ChallengeLeaderboardPanelProps {
@@ -71,6 +49,10 @@ interface ChallengeLeaderboardPanelProps {
   gainAmount?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Panel
+// ---------------------------------------------------------------------------
+
 export const ChallengeLeaderboardPanel = React.memo(
   function ChallengeLeaderboardPanel({
     state,
@@ -84,15 +66,13 @@ export const ChallengeLeaderboardPanel = React.memo(
     gainAmount = 0,
   }: ChallengeLeaderboardPanelProps) {
     const { scrollRef, onWheel } = useScoreboardWheelScroll<HTMLDivElement>();
-    const { refFor } = useChallengeFlip();
 
-    const data: ChallengeProjectedLeaderboardResponse | null =
-      state.status === "loaded" ? state.data : null;
+    const data = state.status === "loaded" ? state.data : null;
 
     const meUserId = data?.myStanding.viewerDbUserId ?? null;
 
     // -----------------------------------------------------------------------
-    // Standing snapshots
+    // Self row base props (without gapToNext — supplied by display row model)
     // -----------------------------------------------------------------------
 
     const skeletonStanding = useMemo<ChallengeProjectedMyStanding>(
@@ -112,151 +92,65 @@ export const ChallengeLeaderboardPanel = React.memo(
     const liveStanding = useMemo<ChallengeProjectedMyStanding | null>(
       () =>
         data
-          ? {
-              ...data.myStanding,
-              liveScore: viewerScore,
-            }
+          ? { ...data.myStanding, liveScore: viewerScore }
           : null,
       [data, viewerScore],
     );
 
-    const selfRowProps =
-      data && liveStanding
-        ? {
-            standing: liveStanding,
-            isSettled,
-            displayName: viewerDisplayName,
-            avatarUrl: viewerAvatarUrl,
-            combo: viewerCombo,
-            gainAnimKey,
-            gainAmount,
-          }
-        : {
-            standing: skeletonStanding,
-            isSettled: false,
-            displayName: viewerDisplayName,
-            avatarUrl: viewerAvatarUrl,
-            combo: viewerCombo,
-            gainAnimKey,
-            gainAmount,
-          };
+    const selfRowBaseProps = useMemo<SelfRowBaseProps>(
+      () =>
+        data && liveStanding
+          ? {
+              standing: liveStanding,
+              isSettled,
+              displayName: viewerDisplayName,
+              avatarUrl: viewerAvatarUrl,
+              combo: viewerCombo,
+              gainAnimKey,
+              gainAmount,
+            }
+          : {
+              standing: skeletonStanding,
+              isSettled: false,
+              displayName: viewerDisplayName,
+              avatarUrl: viewerAvatarUrl,
+              combo: viewerCombo,
+              gainAnimKey,
+              gainAmount,
+            },
+      [
+        data,
+        liveStanding,
+        isSettled,
+        viewerDisplayName,
+        viewerAvatarUrl,
+        viewerCombo,
+        gainAnimKey,
+        gainAmount,
+        skeletonStanding,
+      ],
+    );
 
     const hasSelfInfo = Boolean(viewerDisplayName);
 
     // -----------------------------------------------------------------------
-    // Layout mode
+    // Build display rows (pure function — no side-effects)
     // -----------------------------------------------------------------------
 
-    const projectedRank = data?.myStanding.projectedRank ?? null;
-
-    const layoutMode = useMemo<ChallengeLayoutMode>(() => {
-      if (projectedRank !== null && projectedRank <= 10) return "top-ten";
-      if (projectedRank === 11) return "eleventh";
-      return "nearby";
-    }, [projectedRank]);
-
-    // -----------------------------------------------------------------------
-    // Top-section rows
-    //
-    // nearby   → top 5 official entries (viewer excluded)
-    // eleventh → top 10 official entries (viewer excluded; self rendered below)
-    // top-ten  → top 10, viewer's historical entry replaced by ChallengeSelfRow
-    //            at the projected rank position (projectedRank ≤ 10 guaranteed)
-    //
-    // The viewer's historical DB entry is ALWAYS excluded from the official list,
-    // regardless of layout mode. In top-ten mode self is injected at projectedRank;
-    // in nearby/eleventh it appears in the nearby section or below the ellipsis.
-    //
-    // Motivation: showing the historical entry (e.g. rank #2 best score) alongside
-    // a live sticky bar at rank #10 is misleading — the displayed list must reflect
-    // the current live competition state.
-    // -----------------------------------------------------------------------
-
-    const topRows = useMemo(
-      () => (data ? data.topEntries.slice(0, 10) : []),
-      [data],
-    );
-
-    const mergedTopRows = useMemo<TopSectionRow[]>(() => {
-      const target = layoutMode === "nearby" ? 5 : 10;
-      const baseRows = topRows.slice(0, target);
-
-      // If the viewer already appears in the official top entries, just mark their
-      // row with isMe so a YOU badge is shown. No injection or removal needed.
-      const isSelfInOfficial =
-        meUserId !== null && baseRows.some((e) => e.userId === meUserId);
-
-      if (layoutMode !== "top-ten" || isSelfInOfficial) {
-        return baseRows.map((entry) => ({
-          type: "official",
-          entry,
-          isMe: meUserId !== null && entry.userId === meUserId,
-        }));
-      }
-
-      // top-ten mode, self absent from official entries: live score exceeds the
-      // viewer's all-time best (new record in progress, not yet committed to DB).
-      // Inject ChallengeSelfRow at the projected rank position, shifting official
-      // entries down. The last entry that overflows target is dropped.
-      const insertAt = Math.min(projectedRank! - 1, target - 1);
-
-      const result: TopSectionRow[] = [];
-      let selfInserted = false;
-
-      for (const entry of baseRows) {
-        if (!selfInserted && result.length === insertAt) {
-          result.push({ type: "self" });
-          selfInserted = true;
-        }
-        if (result.length < target) {
-          result.push({ type: "official", entry, isMe: false });
-        }
-      }
-      if (!selfInserted && result.length < target) {
-        result.push({ type: "self" });
-      }
-
-      return result;
-    }, [layoutMode, topRows, meUserId, projectedRank]);
-
-    const topPadCount = Math.max(
-      0,
-      (layoutMode === "nearby" ? 5 : 10) - mergedTopRows.length,
-    );
-
-    // Gap from viewer's live score to the #10 entry (eleventh mode only).
-    // Positive = viewer is behind; negative = viewer has surpassed #10 locally.
-    const eleventhGapToNext = useMemo(() => {
-      if (layoutMode !== "eleventh" || !data) return null;
-      const tenth = data.topEntries[9];
-      if (!tenth) return null;
-      return tenth.bestScore - viewerScore;
-    }, [layoutMode, data, viewerScore]);
-
-    // -----------------------------------------------------------------------
-    // Nearby rows (nearby mode only)
-    //
-    // viewerScore is the authoritative live score from room participant state
-    // and must be used here. Using data.myStanding.liveScore (API-time) causes
-    // stale gap values and missing re-renders between refreshes.
-    // -----------------------------------------------------------------------
-
-    const nearbyRows = useMemo(
+    const { listRows } = useMemo(
       () =>
-        data && layoutMode === "nearby"
-          ? buildChallengeNearbyDisplayRows({
-              nearbyOpponents: data.nearbyOpponents,
-              myStanding: data.myStanding,
-              liveScore: viewerScore,
+        data
+          ? buildChallengeLeaderboardDisplayRows({
+              data,
+              viewerScore,
               meUserId,
-              slots: 5,
             })
-          : [],
-      [data, layoutMode, meUserId, viewerScore],
+          : { layoutMode: "nearby" as const, listRows: [] },
+      [data, viewerScore, meUserId],
     );
 
     // -----------------------------------------------------------------------
-    // Loading / error states
+    // Loading state
     // -----------------------------------------------------------------------
 
     if (state.status === "idle" || state.status === "loading") {
@@ -278,7 +172,7 @@ export const ChallengeLeaderboardPanel = React.memo(
                 <SkeletonRow key={`n${i}`} opacity={0.55 - i * 0.07} />
               ))}
               {hasSelfInfo ? (
-                <ChallengeSelfRow {...selfRowProps} />
+                <ChallengeSelfRow {...selfRowBaseProps} />
               ) : (
                 <SkeletonRow opacity={0.4} />
               )}
@@ -287,7 +181,7 @@ export const ChallengeLeaderboardPanel = React.memo(
           <div className="game-room-scoreboard-self-sticky-bar px-1">
             <ChallengeSeparatorRow />
             {hasSelfInfo ? (
-              <ChallengeSelfRow {...selfRowProps} />
+              <ChallengeSelfRow {...selfRowBaseProps} />
             ) : (
               <SkeletonRow opacity={0.7} />
             )}
@@ -295,6 +189,10 @@ export const ChallengeLeaderboardPanel = React.memo(
         </div>
       );
     }
+
+    // -----------------------------------------------------------------------
+    // Error state
+    // -----------------------------------------------------------------------
 
     if (state.status === "error") {
       return (
@@ -318,28 +216,16 @@ export const ChallengeLeaderboardPanel = React.memo(
 
     // -----------------------------------------------------------------------
     // Loaded render
+    //
+    // Layout is fully determined by buildChallengeLeaderboardDisplayRows:
+    //   top-window  (projectedRank ≤ 10) — self injected into Top-10 list
+    //   top-eleven  (projectedRank = 11) — Top-10 + self at #11, no ellipsis
+    //   nearby      (projectedRank ≥ 12 or null) — Top-5 + ellipsis + nearby
+    //
+    // ChallengeAnimatedRows handles move / enter / exit animations.
+    // The sticky self bar is rendered separately and never participates in
+    // the list's layout animations.
     // -----------------------------------------------------------------------
-
-    const topSection = (
-      <>
-        {mergedTopRows.map((row) =>
-          row.type === "self" ? (
-            // Wrap with a stable-height div so FLIP can measure top.
-            // Key prefix "t-" avoids collisions with nearby section keys.
-            <div key="t-self" ref={refFor("t-self")}>
-              <ChallengeSelfRow {...selfRowProps} />
-            </div>
-          ) : (
-            <div key={"t-" + row.entry.userId} ref={refFor("t-" + row.entry.userId)}>
-              <ChallengeTopEntryRow entry={row.entry} isMe={row.isMe} />
-            </div>
-          ),
-        )}
-        {Array.from({ length: topPadCount }).map((_, i) => (
-          <ChallengePlaceholderRow key={`tp${i}`} dim />
-        ))}
-      </>
-    );
 
     return (
       <div
@@ -351,57 +237,17 @@ export const ChallengeLeaderboardPanel = React.memo(
           className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
         >
           <div className="game-room-scoreboard-stack overflow-visible">
-
-            {/* ── Top section ─────────────────────────────────────────────── */}
-            {topSection}
-
-            {/* ── Eleventh mode: full-height ellipsis + self ──────────────── */}
-            {layoutMode === "eleventh" && (
-              <>
-                <ChallengeEllipsisRow fullRow />
-                <div ref={refFor("self-eleventh")}>
-                  <ChallengeSelfRow {...selfRowProps} gapToNext={eleventhGapToNext} />
-                </div>
-              </>
-            )}
-
-            {/* ── Nearby mode: compact ellipsis + animated nearby rows ─────── */}
-            {layoutMode === "nearby" && (
-              <>
-                <ChallengeEllipsisRow />
-                {nearbyRows.map((row) => {
-                  if (row.type === "placeholder") {
-                    // Placeholders are visual spacers — no FLIP animation
-                    return <ChallengePlaceholderRow key={row.key} />;
-                  }
-                  if (row.type === "opponent") {
-                    return (
-                      // Wrap with a stable-height div so FLIP can measure top
-                      <div key={row.key} ref={refFor(row.key)}>
-                        <ChallengeNearbyRow
-                          opponent={row.opponent}
-                          approxRank={row.approxRank}
-                          liveGap={row.liveGap}
-                        />
-                      </div>
-                    );
-                  }
-                  // type === "self"
-                  return (
-                    <div key={row.key} ref={refFor(row.key)}>
-                      <ChallengeSelfRow {...selfRowProps} />
-                    </div>
-                  );
-                })}
-              </>
-            )}
+            <ChallengeAnimatedRows
+              rows={listRows}
+              selfRowBaseProps={selfRowBaseProps}
+            />
           </div>
         </div>
 
-        {/* ── Sticky self bar (always visible) ────────────────────────────── */}
+        {/* Sticky self bar — always visible, separate from animated list */}
         <div className="game-room-scoreboard-self-sticky-bar px-1">
           <ChallengeSeparatorRow />
-          <ChallengeSelfRow {...selfRowProps} />
+          <ChallengeSelfRow {...selfRowBaseProps} />
         </div>
       </div>
     );
