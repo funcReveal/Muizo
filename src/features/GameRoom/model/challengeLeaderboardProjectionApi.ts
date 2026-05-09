@@ -41,7 +41,9 @@ export async function fetchProjectedWindow(
     : internalController.signal;
 
   const url = new URL(`${apiUrl}/api/leaderboards/rooms/${encodeURIComponent(roomId)}/projected-window`);
-  if (!token && clientId) {
+  // Always send clientId as a lookup hint to enable O(1) participant lookup on the backend.
+  // JWT in Authorization header remains the authorisation mechanism — clientId is NOT auth.
+  if (clientId) {
     url.searchParams.set("clientId", clientId);
   }
 

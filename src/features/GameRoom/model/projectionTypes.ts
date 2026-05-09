@@ -12,7 +12,8 @@ export type ChallengeLeaderboardEntry = {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
-  rank: number;
+  /** null for in-game nearby opponents (approximate display); set for top entries */
+  rank: number | null;
   bestScore: number;
   maxCombo: number;
   correctCount: number | null;

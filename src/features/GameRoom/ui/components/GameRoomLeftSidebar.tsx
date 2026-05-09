@@ -792,7 +792,6 @@ const GameRoomLeftSidebar: React.FC<GameRoomLeftSidebarProps> = ({
     () => scoreboardRows.filter((row) => row.type === "player").length,
     [scoreboardRows],
   );
-  const answeredCount = Math.min(answeredClientIdSet.size, playerRowCount);
   const displayedPlayerOrder = React.useMemo(
     () => resolveScoreboardPlayerOrder(scoreboardRows),
     [scoreboardRows],
