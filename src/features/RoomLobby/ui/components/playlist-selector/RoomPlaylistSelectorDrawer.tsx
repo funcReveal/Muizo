@@ -1,0 +1,2080 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  CircularProgress,
+  Drawer,
+  IconButton,
+  InputAdornment,
+  Menu,
+  MenuItem,
+  TextField,
+  Typography,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import PublicRoundedIcon from "@mui/icons-material/PublicRounded";
+import BookmarkBorderRoundedIcon from "@mui/icons-material/BookmarkBorderRounded";
+import YouTubeIcon from "@mui/icons-material/YouTube";
+import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
+import ViewAgendaRoundedIcon from "@mui/icons-material/ViewAgendaRounded";
+import GridViewRoundedIcon from "@mui/icons-material/GridViewRounded";
+import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
+import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
+import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
+import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import TipsAndUpdatesRoundedIcon from "@mui/icons-material/TipsAndUpdatesRounded";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import ArrowDropDownRoundedIcon from "@mui/icons-material/ArrowDropDownRounded";
+import { List, type RowComponentProps } from "react-window";
+
+import type { CollectionEntry } from "@features/CollectionContent";
+import type {
+  PlaylistItem,
+  PlaylistSourceType,
+  PlaylistSuggestion,
+  RoomParticipant,
+} from "@features/RoomSession";
+import {
+  resolveCollectionPlayableRequirement,
+  resolveCollectionAvailabilityCounts,
+} from "@features/RoomSession/model/playlistAvailability";
+import type {
+  PlaylistPreviewMeta,
+  YoutubePlaylist,
+} from "@features/PlaylistSource";
+import {
+  MIN_COLLECTION_PLAYABLE_COUNT,
+  YOUTUBE_PLAYLIST_MIN_ITEM_COUNT,
+} from "@domain/room/constants";
+import { normalizeDisplayText } from "../roomLobbyDisplayUtils";
+
+type SelectorTab = "suggestions" | "public" | "mine" | "youtube" | "link";
+type BrowseViewMode = "grid" | "list";
+type VirtualSourceRowProps = {
+  items: unknown[];
+  columns: number;
+  viewMode: BrowseViewMode;
+  renderItem: (item: unknown, itemIndex: number) => React.ReactNode;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
+  renderLoader?: () => React.ReactNode;
+};
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  isHost: boolean;
+  isGoogleAuthed: boolean;
+  playlistUrl: string;
+  playlistItemsForChange: PlaylistItem[];
+  playlistPreviewMeta: PlaylistPreviewMeta | null;
+  playlistError?: string | null;
+  playlistLoading: boolean;
+  playlistSuggestions: PlaylistSuggestion[];
+  participants: RoomParticipant[];
+  collections: CollectionEntry[];
+  collectionsLoading: boolean;
+  collectionsLoadingMore: boolean;
+  collectionsHasMore: boolean;
+  collectionsError?: string | null;
+  collectionItemsLoading: boolean;
+  collectionItemsError: string | null;
+  youtubePlaylists: YoutubePlaylist[];
+  youtubePlaylistsLoading: boolean;
+  youtubePlaylistsError: string | null;
+  onPlaylistUrlChange: (value: string) => void;
+  onPreviewPlaylistUrl: (url: string) => void;
+  onResetPlaylist: () => void;
+  onApplyPlaylistUrlDirect: (url: string) => Promise<boolean>;
+  onApplyCollectionDirect: (
+    collectionId: string,
+    title?: string | null,
+  ) => Promise<boolean>;
+  onApplyYoutubePlaylistDirect: (
+    playlistId: string,
+    title?: string | null,
+  ) => Promise<boolean>;
+  onApplySuggestionSnapshot: (
+    suggestion: PlaylistSuggestion,
+  ) => Promise<boolean>;
+  onFetchCollections: (
+    scope?: "owner" | "public",
+    options?: { query?: string },
+  ) => void;
+  onLoadMoreCollections: () => void;
+  onFetchYoutubePlaylists: (force?: boolean) => void;
+  onRequestGoogleLogin: () => void;
+  onSuggestPlaylist?: (
+    type: "collection" | "playlist",
+    value: string,
+    options?: {
+      useSnapshot?: boolean;
+      sourceId?: string | null;
+      title?: string | null;
+      readToken?: string | null;
+      totalCount?: number | null;
+    },
+  ) => Promise<{ ok: boolean; error?: string }>;
+  extractPlaylistId?: (url: string) => string | null;
+  openConfirmModal?: (
+    title: string,
+    detail: string | undefined,
+    action: () => void,
+  ) => void;
+  onMarkSuggestionsSeen: () => void;
+  initialTab?: SelectorTab;
+  onRecordSourceApplied: (entry: {
+    sourceType: PlaylistSourceType;
+    title: string;
+    sourceId?: string | null;
+    url?: string | null;
+    thumbnailUrl?: string | null;
+    itemCount?: number | null;
+  }) => void;
+  currentSourceType?: PlaylistSourceType | null;
+  currentSourceIds?: string[];
+  leaderboardCollectionOnlyMode?: boolean;
+  leaderboardCollectionOnlyReason?: string;
+};
+
+const DRAWER_MAX_WIDTH = 1120;
+const RECOMMENDATION_COOLDOWN_MS = 5000;
+
+const sourceType = (visibility?: "private" | "public") =>
+  visibility === "private" ? "private_collection" : "public_collection";
+
+const normalizeSourceId = (value: unknown) => String(value ?? "").trim();
+
+const formatCount = (value: number | null | undefined) =>
+  Math.max(0, Number(value ?? 0)).toLocaleString("en-US");
+
+const getPlaylistIdFromUrl = (url: string) => {
+  try {
+    const parsed = new URL(url.trim());
+    const listId = parsed.searchParams.get("list");
+    if (listId) return listId;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const getCollectionThumbnail = (collection: CollectionEntry) =>
+  collection.cover_thumbnail_url ||
+  (collection.cover_source_id
+    ? `https://i.ytimg.com/vi/${collection.cover_source_id}/hqdefault.jpg`
+    : null);
+
+const getSuggestionThumbnail = (suggestion: PlaylistSuggestion) =>
+  suggestion.coverThumbnailUrl ||
+  suggestion.items?.find((item) => item.thumbnail)?.thumbnail ||
+  null;
+
+const getSourceKey = (type: "collection" | "playlist", value: string) =>
+  `${type}:${value}`;
+
+const isLeaderboardAllowedTab = (tab: SelectorTab) =>
+  tab === "suggestions" || tab === "public";
+const SOURCE_TABS: SelectorTab[] = ["public", "mine", "youtube", "link"];
+
+const getInitial = (value: string) =>
+  normalizeDisplayText(value, "?").trim().slice(0, 1).toUpperCase();
+
+const findCollectionForSuggestion = (
+  suggestion: PlaylistSuggestion,
+  collections: CollectionEntry[],
+) => {
+  if (suggestion.type !== "collection") return null;
+  const candidateIds = [
+    normalizeSourceId(suggestion.sourceId),
+    normalizeSourceId(suggestion.value),
+  ].filter(Boolean);
+
+  return (
+    collections.find((collection) =>
+      candidateIds.includes(normalizeSourceId(collection.id)),
+    ) ?? null
+  );
+};
+
+const EmptyState = ({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) => (
+  <div className="flex min-h-[360px] flex-1 flex-col items-center justify-center rounded-[24px] border border-white/8 bg-slate-950/24 px-6 py-12 text-center">
+    {icon ? (
+      <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/14 bg-cyan-200/8 text-cyan-50">
+        {icon}
+      </div>
+    ) : null}
+
+    <div className="text-base font-semibold text-slate-100">{title}</div>
+    <div className="mt-2 max-w-[520px] text-sm leading-6 text-slate-400">
+      {description}
+    </div>
+
+    {action ? <div className="mt-5">{action}</div> : null}
+  </div>
+);
+
+const LoadingState = ({ label = "載入中..." }: { label?: string }) => (
+  <div className="flex min-h-[360px] flex-1 flex-col items-center justify-center gap-3 rounded-[24px] border border-white/8 bg-slate-950/24 text-slate-300">
+    <CircularProgress size={26} color="inherit" />
+    <span className="text-sm">{label}</span>
+  </div>
+);
+
+const VirtualSourceRow = ({
+  index,
+  style,
+  items,
+  columns,
+  viewMode,
+  renderItem,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
+  renderLoader,
+}: RowComponentProps<VirtualSourceRowProps>) => {
+  const rowStart = viewMode === "grid" ? index * columns : index;
+  const rowItems =
+    viewMode === "grid"
+      ? items.slice(rowStart, rowStart + columns)
+      : items.slice(rowStart, rowStart + 1);
+  const isLoaderRow = rowItems.length === 0 && (hasMore || isLoadingMore);
+
+  React.useEffect(() => {
+    if (!isLoaderRow || !hasMore || isLoadingMore || !onLoadMore) return;
+    onLoadMore();
+  }, [hasMore, isLoaderRow, isLoadingMore, onLoadMore]);
+
+  if (isLoaderRow) {
+    return (
+      <div style={style} className="flex items-center justify-center px-1 py-2">
+        {renderLoader ? renderLoader() : null}
+      </div>
+    );
+  }
+
+  if (viewMode === "grid") {
+    return (
+      <div
+        style={{
+          ...style,
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        }}
+        className="grid gap-4 px-1 py-2"
+        data-row-index={index}
+      >
+        {rowItems.map((item, offset) => (
+          <React.Fragment key={`${rowStart + offset}`}>
+            {renderItem(item, rowStart + offset)}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={style} className="px-1">
+      {rowItems[0] ? renderItem(rowItems[0], rowStart) : null}
+    </div>
+  );
+};
+
+const SourceMetrics = ({
+  itemCount,
+  playableCount,
+  useCount,
+  favoriteCount,
+}: {
+  itemCount?: number | null;
+  playableCount?: number | null;
+  useCount?: number | null;
+  favoriteCount?: number | null;
+}) => {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-slate-200/90">
+      <span className="inline-flex items-center gap-1.5">
+        <QuizRoundedIcon
+          sx={{ fontSize: 16, color: "rgba(103,232,249,0.9)" }}
+        />
+        <span>
+          {playableCount !== undefined && playableCount !== null
+            ? formatCount(playableCount)
+            : formatCount(itemCount)}
+          題
+        </span>
+      </span>
+
+      {typeof useCount !== "undefined" ? (
+        <span className="inline-flex items-center gap-1.5">
+          <BarChartRoundedIcon
+            sx={{ fontSize: 17, color: "rgba(125,211,252,0.86)" }}
+          />
+          <span>{formatCount(useCount)}</span>
+        </span>
+      ) : null}
+
+      {typeof favoriteCount !== "undefined" ? (
+        <span className="inline-flex items-center gap-1.5">
+          <FavoriteBorderRoundedIcon
+            sx={{ fontSize: 16, color: "rgba(251,113,133,0.9)" }}
+          />
+          <span>{formatCount(favoriteCount)}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
+const SourceRating = ({
+  ratingAvg,
+  ratingCount,
+}: {
+  ratingAvg?: number | null;
+  ratingCount?: number | null;
+}) => {
+  const safeRatingCount = Math.max(0, Number(ratingCount ?? 0));
+  const safeRatingAvg =
+    safeRatingCount > 0 ? Math.max(0, Number(ratingAvg ?? 0)) : 0;
+  const ratingAvgLabel =
+    safeRatingCount > 0
+      ? `${safeRatingAvg.toFixed(safeRatingAvg % 1 === 0 ? 0 : 1)} / 5`
+      : "尚無評分";
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-[12px] leading-5 text-slate-300/88">
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <StarRoundedIcon
+          sx={{
+            fontSize: 15,
+            color:
+              safeRatingCount > 0
+                ? "rgba(250,204,21,0.95)"
+                : "rgba(148,163,184,0.56)",
+          }}
+        />
+        <span className="shrink-0 font-semibold text-slate-100/92">
+          {ratingAvgLabel}
+        </span>
+      </span>
+      {safeRatingCount > 0 ? (
+        <span className="min-w-0 truncate text-slate-400">
+          {safeRatingCount} 則評分
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
+const SourceBadge = ({
+  icon,
+  label,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+}) => (
+  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/70 px-2.5 py-1 text-[11px] font-semibold text-slate-100 shadow-[0_10px_24px_-20px_rgba(15,23,42,0.95)]">
+    {icon}
+    {label}
+  </span>
+);
+
+const SourceCard = ({
+  viewMode,
+  title,
+  description,
+  thumbnailUrl,
+  badge,
+  rating,
+  metrics,
+  disabled,
+  disabledReason,
+  isCurrent,
+  isRunning,
+  onClick,
+}: {
+  viewMode: BrowseViewMode;
+  title: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  badge?: React.ReactNode;
+  rating?: React.ReactNode;
+  metrics: React.ReactNode;
+  disabled?: boolean;
+  disabledReason?: string | null;
+  isCurrent?: boolean;
+  isRunning?: boolean;
+  onClick: () => void;
+}) => {
+  const isList = viewMode === "list";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled || isRunning}
+      onClick={onClick}
+      className={
+        isList
+          ? `group relative flex w-full items-center gap-3 border-b border-slate-700/55 px-3 py-3 text-left transition duration-200 ${
+              disabled || isRunning
+                ? "cursor-not-allowed bg-slate-950/20 opacity-75"
+                : isCurrent
+                  ? "bg-cyan-500/10"
+                  : "bg-transparent hover:bg-cyan-500/[0.06]"
+            }`
+          : `group relative h-full min-h-[262px] overflow-hidden rounded-[22px] border text-left transition duration-200 ${
+              disabled || isRunning
+                ? "cursor-not-allowed border-white/10 bg-slate-950/42 opacity-75"
+                : isCurrent
+                  ? "border-cyan-300/55 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(8,47,73,0.42))] shadow-[0_24px_44px_-28px_rgba(34,211,238,0.45),inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  : "border-cyan-300/18 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.58))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_16px_34px_-32px_rgba(15,23,42,0.9)] hover:border-cyan-300/38 hover:bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(8,47,73,0.44))] hover:shadow-[0_22px_42px_-30px_rgba(34,211,238,0.32),inset_0_1px_0_rgba(255,255,255,0.06)]"
+            }`
+      }
+    >
+      <div
+        className={
+          isList
+            ? "relative h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900/40"
+            : "relative h-36 w-full overflow-hidden bg-slate-900/60"
+        }
+      >
+        {thumbnailUrl ? (
+          <img
+            src={thumbnailUrl}
+            alt={title}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(34,211,238,0.16),transparent_42%),linear-gradient(180deg,rgba(30,41,59,0.9),rgba(15,23,42,0.95))] text-[11px] text-cyan-100">
+            {isList ? (
+              "無縮圖"
+            ) : (
+              <LibraryMusicRoundedIcon sx={{ fontSize: 36 }} />
+            )}
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.04)_0%,rgba(2,6,23,0.16)_46%,rgba(2,6,23,0.82)_100%)]" />
+
+        {!isList && badge ? (
+          <div className="absolute left-3 top-3">{badge}</div>
+        ) : null}
+
+        {!isList && isCurrent ? (
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-cyan-100/20 bg-cyan-950/78 px-2.5 py-1 text-[11px] font-semibold text-cyan-50 backdrop-blur-sm">
+            <CheckRoundedIcon sx={{ fontSize: 14 }} />
+            目前使用
+          </span>
+        ) : null}
+
+        {!isList && disabledReason ? (
+          <div className="absolute inset-x-3 bottom-3 rounded-xl border border-amber-300/30 bg-slate-950/78 px-3 py-2 text-xs font-semibold text-amber-100 shadow-[0_16px_34px_-24px_rgba(251,191,36,0.55)]">
+            {disabledReason}
+          </div>
+        ) : null}
+      </div>
+
+      <div className={isList ? "min-w-0 flex-1" : "space-y-3 px-4 py-3.5"}>
+        <div className="min-w-0">
+          <div
+            className={
+              isList ? "flex items-start justify-between gap-3" : "space-y-1.5"
+            }
+          >
+            <p
+              className={
+                isList
+                  ? "min-w-0 flex-1 truncate text-sm font-semibold text-[var(--mc-text)]"
+                  : "line-clamp-1 text-[15px] font-semibold leading-6 text-[var(--mc-text)]"
+              }
+            >
+              {title}
+            </p>
+            {isList ? (
+              <div className="flex shrink-0 items-center gap-2">
+                {isCurrent ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-cyan-100/20 bg-cyan-950/60 px-2 py-1 text-[10px] leading-none text-cyan-50">
+                    <CheckRoundedIcon sx={{ fontSize: 12 }} />
+                    目前使用
+                  </span>
+                ) : null}
+                {badge}
+              </div>
+            ) : null}
+          </div>
+
+          {rating ??
+            (description ? (
+              <div
+                className={
+                  isList
+                    ? "mt-1 truncate text-xs text-[var(--mc-text-muted)]"
+                    : "line-clamp-2 min-h-[2.5rem] text-[12px] leading-5 text-slate-300/88"
+                }
+              >
+                {description}
+              </div>
+            ) : null)}
+        </div>
+
+        <div
+          className={
+            isList ? "mt-2 flex flex-wrap gap-3" : "flex items-center gap-3"
+          }
+        >
+          {metrics}
+          {isList && disabledReason ? (
+            <span className="mt-1 block truncate text-xs font-semibold text-amber-100">
+              {disabledReason}
+            </span>
+          ) : null}
+          {isRunning ? (
+            <span className="mt-1 inline-flex rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+              處理中...
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </button>
+  );
+};
+
+const RoomPlaylistSelectorDrawer = (props: Props) => {
+  const {
+    open,
+    onClose,
+    isHost,
+    isGoogleAuthed,
+    playlistUrl,
+    playlistPreviewMeta,
+    playlistError,
+    playlistLoading,
+    playlistSuggestions,
+    participants,
+    collections,
+    collectionsLoading,
+    collectionsLoadingMore,
+    collectionsHasMore,
+    collectionsError,
+    youtubePlaylists,
+    youtubePlaylistsLoading,
+    youtubePlaylistsError,
+    onPlaylistUrlChange,
+    onPreviewPlaylistUrl,
+    onApplyPlaylistUrlDirect,
+    onApplyCollectionDirect,
+    onApplyYoutubePlaylistDirect,
+    onApplySuggestionSnapshot,
+    onFetchCollections,
+    onLoadMoreCollections,
+    onFetchYoutubePlaylists,
+    onRequestGoogleLogin,
+    onSuggestPlaylist,
+    extractPlaylistId,
+    onMarkSuggestionsSeen,
+    initialTab = "public",
+    onRecordSourceApplied,
+    currentSourceType,
+    currentSourceIds = [],
+    leaderboardCollectionOnlyMode = false,
+    leaderboardCollectionOnlyReason = "排行模式僅支援公開收藏庫",
+  } = props;
+
+  const theme = useTheme();
+  const drawerAnchor = theme.direction === "rtl" ? "left" : "right";
+
+  const isMobile = useMediaQuery("(max-width:640px)");
+  const isTablet = useMediaQuery("(max-width:980px)");
+  const columns = isMobile ? 1 : isTablet ? 2 : 3;
+
+  const [activeTab, setActiveTab] = useState<SelectorTab>("public");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedSuggestionClientId, setSelectedSuggestionClientId] =
+    useState<string>("all");
+  const [viewMode, setViewMode] = useState<BrowseViewMode>("grid");
+  const [selectedSourceTab, setSelectedSourceTab] =
+    useState<SelectorTab>("public");
+  const [sourceMenuAnchor, setSourceMenuAnchor] = useState<HTMLElement | null>(
+    null,
+  );
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+
+  const normalizedCurrentSourceIds = useMemo(
+    () => currentSourceIds.map(normalizeSourceId).filter(Boolean),
+    [currentSourceIds],
+  );
+
+  const participantByClientId = useMemo(() => {
+    const map = new Map<string, RoomParticipant>();
+    participants.forEach((participant) => {
+      map.set(participant.clientId, participant);
+    });
+    return map;
+  }, [participants]);
+
+  const suggestionAuthors = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        clientId: string;
+        username: string;
+        avatarUrl: string | null;
+        count: number;
+      }
+    >();
+
+    playlistSuggestions.forEach((suggestion) => {
+      const clientId = normalizeSourceId(suggestion.clientId);
+      if (!clientId) return;
+      const participant = participantByClientId.get(clientId);
+      const current = map.get(clientId);
+      map.set(clientId, {
+        clientId,
+        username:
+          current?.username ??
+          participant?.username ??
+          normalizeDisplayText(suggestion.username, "玩家"),
+        avatarUrl:
+          current?.avatarUrl ??
+          participant?.avatar_url ??
+          participant?.avatarUrl ??
+          null,
+        count: (current?.count ?? 0) + 1,
+      });
+    });
+
+    return [...map.values()].sort((left, right) =>
+      left.username.localeCompare(right.username, "zh-Hant"),
+    );
+  }, [participantByClientId, playlistSuggestions]);
+
+  const availableTabs = useMemo<SelectorTab[]>(() => {
+    return ["suggestions", "public", "mine", "youtube", "link"];
+  }, []);
+  const activeSourceTab = SOURCE_TABS.includes(activeTab)
+    ? activeTab
+    : selectedSourceTab;
+
+  const isCooldownActive =
+    !isHost && typeof cooldownUntil === "number" && cooldownUntil > Date.now();
+  const cooldownSeconds = cooldownUntil
+    ? Math.max(0, Math.ceil((cooldownUntil - cooldownNow) / 1000))
+    : 0;
+  const toolbarMessage = isCooldownActive
+    ? `推薦冷卻中，${cooldownSeconds} 秒後可再次推薦`
+    : (actionError ?? actionNotice);
+  const toolbarMessageTone = isCooldownActive
+    ? "cooldown"
+    : actionError
+      ? "error"
+      : "notice";
+
+  const tabLabel = useCallback(
+    (tab: SelectorTab) => {
+      if (tab === "suggestions") return `推薦 ${playlistSuggestions.length}`;
+      if (tab === "public") return "公開收藏庫";
+      if (tab === "mine") return "我的收藏庫";
+      if (tab === "youtube") return "YouTube";
+      return "貼上連結";
+    },
+    [playlistSuggestions.length],
+  );
+
+  const tabIcon = (tab: SelectorTab) => {
+    if (tab === "suggestions")
+      return <TipsAndUpdatesRoundedIcon sx={{ fontSize: 16 }} />;
+    if (tab === "public") return <PublicRoundedIcon sx={{ fontSize: 16 }} />;
+    if (tab === "mine")
+      return <BookmarkBorderRoundedIcon sx={{ fontSize: 16 }} />;
+    if (tab === "youtube") return <YouTubeIcon sx={{ fontSize: 17 }} />;
+    return <LinkRoundedIcon sx={{ fontSize: 16 }} />;
+  };
+
+  const isTabLocked = useCallback(
+    (tab: SelectorTab) =>
+      leaderboardCollectionOnlyMode && !isLeaderboardAllowedTab(tab),
+    [leaderboardCollectionOnlyMode],
+  );
+
+  const handleSelectTab = useCallback((tab: SelectorTab) => {
+    if (SOURCE_TABS.includes(tab)) {
+      setSelectedSourceTab(tab);
+    }
+    setActiveTab(tab);
+    setActionError(null);
+    setActionNotice(null);
+  }, []);
+
+  const handleSourceTabClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (SOURCE_TABS.includes(activeTab)) {
+        setSourceMenuAnchor(event.currentTarget);
+        return;
+      }
+
+      handleSelectTab(activeSourceTab);
+    },
+    [activeSourceTab, activeTab, handleSelectTab],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    const nextTab = availableTabs.includes(initialTab) ? initialTab : "public";
+
+    setActiveTab(nextTab);
+    if (SOURCE_TABS.includes(nextTab)) {
+      setSelectedSourceTab(nextTab);
+    }
+    setViewMode(isMobile ? "list" : "grid");
+    setActionError(null);
+    setActionNotice(null);
+    setSelectedSuggestionClientId("all");
+    setSourceMenuAnchor(null);
+  }, [availableTabs, initialTab, isMobile, open]);
+
+  useEffect(() => {
+    if (
+      selectedSuggestionClientId !== "all" &&
+      !suggestionAuthors.some(
+        (author) => author.clientId === selectedSuggestionClientId,
+      )
+    ) {
+      setSelectedSuggestionClientId("all");
+    }
+  }, [selectedSuggestionClientId, suggestionAuthors]);
+
+  useEffect(() => {
+    if (!cooldownUntil) return;
+
+    let tickId: number | null = null;
+    const scheduleTick = () => {
+      const now = Date.now();
+      const remaining = cooldownUntil - now;
+      if (remaining <= 0) {
+        setCooldownUntil(null);
+        setCooldownNow(now);
+        return;
+      }
+
+      setCooldownNow(now);
+      tickId = window.setTimeout(scheduleTick, Math.min(1000, remaining));
+    };
+
+    scheduleTick();
+
+    return () => {
+      if (tickId !== null) window.clearTimeout(tickId);
+    };
+  }, [cooldownUntil]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchDraft.trim().toLowerCase());
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [open, searchDraft]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (activeTab === "suggestions") {
+      onMarkSuggestionsSeen();
+    }
+
+    if (activeTab === "public") {
+      onFetchCollections("public", { query: debouncedSearch });
+      return;
+    }
+
+    if (activeTab === "mine" && isGoogleAuthed) {
+      onFetchCollections("owner");
+      return;
+    }
+
+    if (activeTab === "youtube" && isGoogleAuthed) {
+      onFetchYoutubePlaylists();
+    }
+  }, [
+    activeTab,
+    debouncedSearch,
+    isGoogleAuthed,
+    isHost,
+    onFetchCollections,
+    onFetchYoutubePlaylists,
+    onMarkSuggestionsSeen,
+    open,
+  ]);
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timer = window.setTimeout(() => setActionNotice(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [actionNotice]);
+
+  const matchText = useCallback(
+    (...parts: Array<string | null | undefined>) => {
+      if (!debouncedSearch) return true;
+      return parts
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(debouncedSearch);
+    },
+    [debouncedSearch],
+  );
+
+  const publicCollections = useMemo(
+    () =>
+      collections.filter(
+        (collection) =>
+          (collection.visibility ?? "public") !== "private" &&
+          matchText(
+            collection.title,
+            collection.description,
+            collection.cover_title,
+            collection.cover_channel_title,
+          ),
+      ),
+    [collections, matchText],
+  );
+
+  const ownerCollections = useMemo(
+    () =>
+      collections.filter((collection) =>
+        matchText(
+          collection.title,
+          collection.description,
+          collection.cover_title,
+          collection.cover_channel_title,
+        ),
+      ),
+    [collections, matchText],
+  );
+
+  const filteredYoutubePlaylists = useMemo(
+    () =>
+      youtubePlaylists.filter((playlist) =>
+        matchText(playlist.title, playlist.id),
+      ),
+    [matchText, youtubePlaylists],
+  );
+
+  const filteredSuggestions = useMemo(
+    () =>
+      playlistSuggestions.filter((suggestion) => {
+        if (
+          selectedSuggestionClientId !== "all" &&
+          suggestion.clientId !== selectedSuggestionClientId
+        ) {
+          return false;
+        }
+
+        return matchText(
+          suggestion.title,
+          suggestion.username,
+          suggestion.value,
+        );
+      }),
+    [matchText, playlistSuggestions, selectedSuggestionClientId],
+  );
+
+  const actionLabel = isHost ? "套用" : "推薦";
+
+  const runAction = useCallback(
+    async (key: string, action: () => Promise<boolean>) => {
+      if (pendingActionKey) return;
+
+      setPendingActionKey(key);
+      setActionError(null);
+      setActionNotice(null);
+
+      try {
+        const ok = await action();
+        if (!ok) {
+          setActionError(
+            (current) =>
+              current ??
+              (isHost ? "操作沒有完成，請稍後再試。" : "推薦題庫失敗。"),
+          );
+          return;
+        }
+
+        if (isHost) {
+          setActionNotice("已套用題庫");
+        } else {
+          const now = Date.now();
+          setCooldownNow(now);
+          setCooldownUntil(now + RECOMMENDATION_COOLDOWN_MS);
+          setActionNotice(null);
+        }
+      } catch (error) {
+        setActionError(
+          error instanceof Error ? error.message : "操作失敗，請稍後再試。",
+        );
+      } finally {
+        setPendingActionKey(null);
+      }
+    },
+    [isHost, pendingActionKey],
+  );
+
+  const handleCollectionClick = useCallback(
+    (collection: CollectionEntry) => {
+      const type = sourceType(collection.visibility);
+      const key = getSourceKey("collection", collection.id);
+      const title = normalizeDisplayText(collection.title, "未命名收藏庫");
+      const counts = resolveCollectionAvailabilityCounts(collection);
+      const requirement = resolveCollectionPlayableRequirement(collection);
+
+      if (requirement.disabled) {
+        setActionError(
+          requirement.detail ??
+            `此收藏庫至少需要 ${MIN_COLLECTION_PLAYABLE_COUNT} 題可遊玩題目。`,
+        );
+        return;
+      }
+
+      if (leaderboardCollectionOnlyMode && type !== "public_collection") {
+        setActionError(leaderboardCollectionOnlyReason);
+        return;
+      }
+
+      if (!isHost && isCooldownActive) {
+        setActionError(null);
+        setActionNotice(null);
+        return;
+      }
+
+      void runAction(key, async () => {
+        if (isHost) {
+          const ok = await onApplyCollectionDirect(collection.id, title);
+          if (ok) {
+            onRecordSourceApplied({
+              sourceType: type,
+              title,
+              sourceId: collection.id,
+              thumbnailUrl: getCollectionThumbnail(collection),
+              itemCount: counts.playable,
+            });
+            onClose();
+          }
+          return ok;
+        }
+
+        if (!onSuggestPlaylist) {
+          setActionError("目前無法送出推薦。");
+          return false;
+        }
+
+        const result = await onSuggestPlaylist("collection", collection.id, {
+          sourceId: collection.id,
+          title,
+          readToken: collection.readToken ?? null,
+          totalCount: counts.playable,
+        });
+
+        if (!result.ok && result.error) {
+          setActionError(result.error);
+        }
+
+        return result.ok;
+      });
+    },
+    [
+      isHost,
+      onApplyCollectionDirect,
+      onClose,
+      onRecordSourceApplied,
+      onSuggestPlaylist,
+      isCooldownActive,
+      leaderboardCollectionOnlyMode,
+      leaderboardCollectionOnlyReason,
+      runAction,
+    ],
+  );
+
+  const handleYoutubePlaylistClick = useCallback(
+    (playlist: YoutubePlaylist) => {
+      const key = getSourceKey("playlist", playlist.id);
+      const title = normalizeDisplayText(playlist.title, "未命名播放清單");
+
+      if (playlist.itemCount < YOUTUBE_PLAYLIST_MIN_ITEM_COUNT) {
+        setActionError(
+          `YouTube 播放清單至少需要 ${YOUTUBE_PLAYLIST_MIN_ITEM_COUNT} 首。`,
+        );
+        return;
+      }
+
+      if (leaderboardCollectionOnlyMode) {
+        setActionError(leaderboardCollectionOnlyReason);
+        return;
+      }
+
+      if (!isHost && isCooldownActive) {
+        setActionError(null);
+        setActionNotice(null);
+        return;
+      }
+
+      void runAction(key, async () => {
+        if (isHost) {
+          const ok = await onApplyYoutubePlaylistDirect(playlist.id, title);
+          if (ok) {
+            onRecordSourceApplied({
+              sourceType: "youtube_google_import",
+              title,
+              sourceId: playlist.id,
+              thumbnailUrl: playlist.thumbnail ?? null,
+              itemCount: playlist.itemCount,
+            });
+            onClose();
+          }
+          return ok;
+        }
+
+        if (!onSuggestPlaylist) {
+          setActionError("目前無法送出推薦。");
+          return false;
+        }
+
+        const result = await onSuggestPlaylist("playlist", playlist.id, {
+          sourceId: playlist.id,
+          title,
+          totalCount: playlist.itemCount,
+        });
+
+        if (!result.ok && result.error) {
+          setActionError(result.error);
+        }
+
+        return result.ok;
+      });
+    },
+    [
+      isHost,
+      onApplyYoutubePlaylistDirect,
+      onClose,
+      onRecordSourceApplied,
+      onSuggestPlaylist,
+      isCooldownActive,
+      leaderboardCollectionOnlyMode,
+      leaderboardCollectionOnlyReason,
+      runAction,
+    ],
+  );
+
+  const handleSuggestionClick = useCallback(
+    (suggestion: PlaylistSuggestion) => {
+      if (!isHost) return;
+
+      const key = getSourceKey(
+        suggestion.type,
+        suggestion.sourceId ?? suggestion.value,
+      );
+
+      void runAction(key, async () => {
+        const ok = await onApplySuggestionSnapshot(suggestion);
+        if (ok) onClose();
+        return ok;
+      });
+    },
+    [isHost, onApplySuggestionSnapshot, onClose, runAction],
+  );
+
+  const handleApplyLink = useCallback(() => {
+    const trimmed = playlistUrl.trim();
+    if (!trimmed) {
+      setActionError("請先貼上 YouTube 播放清單連結。");
+      return;
+    }
+
+    const playlistId =
+      extractPlaylistId?.(trimmed) ?? getPlaylistIdFromUrl(trimmed);
+    if (!playlistId) {
+      setActionError("無法辨識播放清單 ID，請確認連結包含 list 參數。");
+      return;
+    }
+
+    if (leaderboardCollectionOnlyMode) {
+      setActionError(leaderboardCollectionOnlyReason);
+      return;
+    }
+
+    if (!isHost && isCooldownActive) {
+      setActionError(null);
+      setActionNotice(null);
+      return;
+    }
+
+    const key = getSourceKey("playlist", playlistId);
+
+    void runAction(key, async () => {
+      if (isHost) {
+        const ok = await onApplyPlaylistUrlDirect(trimmed);
+        if (ok) {
+          onRecordSourceApplied({
+            sourceType: "youtube_pasted_link",
+            title: playlistId,
+            sourceId: playlistId,
+            url: trimmed,
+            itemCount: playlistPreviewMeta?.expectedCount ?? null,
+          });
+          onClose();
+        }
+        return ok;
+      }
+
+      if (!onSuggestPlaylist) {
+        setActionError("目前無法送出推薦。");
+        return false;
+      }
+
+      const result = await onSuggestPlaylist("playlist", trimmed, {
+        sourceId: playlistId,
+        title: playlistId,
+        totalCount: playlistPreviewMeta?.expectedCount ?? null,
+      });
+
+      if (!result.ok && result.error) {
+        setActionError(result.error);
+      }
+
+      return result.ok;
+    });
+  }, [
+    extractPlaylistId,
+    isHost,
+    onApplyPlaylistUrlDirect,
+    onClose,
+    onRecordSourceApplied,
+    onSuggestPlaylist,
+    isCooldownActive,
+    leaderboardCollectionOnlyMode,
+    leaderboardCollectionOnlyReason,
+    playlistPreviewMeta?.expectedCount,
+    playlistUrl,
+    runAction,
+  ]);
+
+  const handlePreviewLink = useCallback(() => {
+    const trimmed = playlistUrl.trim();
+    if (!trimmed) {
+      setActionError("請先貼上 YouTube 播放清單連結。");
+      return;
+    }
+
+    setActionError(null);
+    onPreviewPlaylistUrl(trimmed);
+  }, [onPreviewPlaylistUrl, playlistUrl]);
+
+  const renderCollection = (collection: CollectionEntry) => {
+    const type = sourceType(collection.visibility);
+    const title = normalizeDisplayText(collection.title, "未命名收藏庫");
+    const counts = resolveCollectionAvailabilityCounts(collection);
+    const requirement = resolveCollectionPlayableRequirement(collection);
+    const lockedByLeaderboard =
+      leaderboardCollectionOnlyMode && type !== "public_collection";
+    const key = getSourceKey("collection", collection.id);
+    const isCurrent =
+      currentSourceType === type &&
+      normalizedCurrentSourceIds.includes(normalizeSourceId(collection.id));
+
+    return (
+      <SourceCard
+        key={collection.id}
+        viewMode={viewMode}
+        title={title}
+        description={collection.description || collection.cover_channel_title}
+        thumbnailUrl={getCollectionThumbnail(collection)}
+        badge={
+          <SourceBadge
+            icon={
+              type === "public_collection" ? (
+                <PublicRoundedIcon sx={{ fontSize: 13 }} />
+              ) : (
+                <BookmarkBorderRoundedIcon sx={{ fontSize: 13 }} />
+              )
+            }
+            label={type === "public_collection" ? "公開收藏庫" : "我的收藏庫"}
+          />
+        }
+        rating={
+          <SourceRating
+            ratingAvg={collection.rating_avg}
+            ratingCount={collection.rating_count}
+          />
+        }
+        metrics={
+          <SourceMetrics
+            itemCount={counts.total}
+            playableCount={counts.playable}
+            useCount={collection.use_count}
+            favoriteCount={collection.favorite_count}
+          />
+        }
+        disabled={requirement.disabled || lockedByLeaderboard}
+        disabledReason={
+          lockedByLeaderboard
+            ? leaderboardCollectionOnlyReason
+            : requirement.reason
+        }
+        isCurrent={isCurrent}
+        isRunning={pendingActionKey === key}
+        onClick={() => handleCollectionClick(collection)}
+      />
+    );
+  };
+
+  const renderYoutubePlaylist = (playlist: YoutubePlaylist) => {
+    const key = getSourceKey("playlist", playlist.id);
+    const isCurrent =
+      currentSourceType === "youtube_google_import" &&
+      normalizedCurrentSourceIds.includes(normalizeSourceId(playlist.id));
+    const disabledByCount =
+      playlist.itemCount < YOUTUBE_PLAYLIST_MIN_ITEM_COUNT;
+    const disabled = disabledByCount || leaderboardCollectionOnlyMode;
+
+    return (
+      <SourceCard
+        key={playlist.id}
+        viewMode={viewMode}
+        title={normalizeDisplayText(playlist.title, "未命名播放清單")}
+        description={`YouTube 播放清單 · ${formatCount(playlist.itemCount)} 首`}
+        thumbnailUrl={playlist.thumbnail}
+        badge={
+          <SourceBadge
+            icon={<YouTubeIcon sx={{ fontSize: 14 }} />}
+            label="YouTube"
+          />
+        }
+        metrics={<SourceMetrics itemCount={playlist.itemCount} />}
+        disabled={disabled}
+        disabledReason={
+          leaderboardCollectionOnlyMode
+            ? leaderboardCollectionOnlyReason
+            : disabledByCount
+              ? `至少需要 ${YOUTUBE_PLAYLIST_MIN_ITEM_COUNT} 首`
+              : null
+        }
+        isCurrent={isCurrent}
+        isRunning={pendingActionKey === key}
+        onClick={() => handleYoutubePlaylistClick(playlist)}
+      />
+    );
+  };
+
+  const renderSuggestion = (suggestion: PlaylistSuggestion) => {
+    const key = getSourceKey(
+      suggestion.type,
+      suggestion.sourceId ?? suggestion.value,
+    );
+    const matchedCollection = findCollectionForSuggestion(
+      suggestion,
+      collections,
+    );
+    const collectionCounts = matchedCollection
+      ? resolveCollectionAvailabilityCounts(matchedCollection)
+      : null;
+    const title =
+      normalizeDisplayText(matchedCollection?.title, "") ||
+      normalizeDisplayText(suggestion.title, "") ||
+      (suggestion.type === "collection" ? "未命名收藏庫" : "YouTube 播放清單");
+    const lockedByLeaderboard =
+      leaderboardCollectionOnlyMode && suggestion.type !== "collection";
+    const lockedByRole = !isHost;
+    const isPublicCollection =
+      suggestion.type === "collection" &&
+      (matchedCollection?.visibility ?? "public") !== "private";
+    const description = `${suggestion.username} 推薦 · ${
+      suggestion.type === "collection"
+        ? isPublicCollection
+          ? "公開收藏庫"
+          : "收藏庫"
+        : "播放清單"
+    }`;
+
+    return (
+      <SourceCard
+        key={`${suggestion.clientId}-${suggestion.suggestedAt}-${suggestion.value}`}
+        viewMode={viewMode}
+        title={title}
+        description={description}
+        thumbnailUrl={
+          matchedCollection
+            ? getCollectionThumbnail(matchedCollection)
+            : getSuggestionThumbnail(suggestion)
+        }
+        badge={
+          <SourceBadge
+            icon={
+              isPublicCollection ? (
+                <PublicRoundedIcon sx={{ fontSize: 13 }} />
+              ) : (
+                <TipsAndUpdatesRoundedIcon sx={{ fontSize: 13 }} />
+              )
+            }
+            label={isPublicCollection ? "公開收藏庫" : "玩家推薦"}
+          />
+        }
+        rating={
+          matchedCollection ? (
+            <SourceRating
+              ratingAvg={matchedCollection.rating_avg}
+              ratingCount={matchedCollection.rating_count}
+            />
+          ) : undefined
+        }
+        metrics={
+          <SourceMetrics
+            itemCount={collectionCounts?.total ?? suggestion.totalCount}
+            playableCount={
+              collectionCounts?.playable ??
+              suggestion.playableCount ??
+              suggestion.totalCount
+            }
+            useCount={matchedCollection?.use_count}
+            favoriteCount={matchedCollection?.favorite_count}
+          />
+        }
+        disabled={lockedByLeaderboard || lockedByRole}
+        disabledReason={
+          lockedByLeaderboard
+            ? leaderboardCollectionOnlyReason
+            : lockedByRole
+              ? "只有房主可以套用推薦"
+              : null
+        }
+        isRunning={pendingActionKey === key}
+        onClick={() => handleSuggestionClick(suggestion)}
+      />
+    );
+  };
+
+  const virtualColumns = viewMode === "grid" ? columns : 1;
+  const sourceRowHeight = viewMode === "grid" ? 286 : 112;
+  const sourceListHeight = "100%";
+  const renderVirtualSources = (
+    items: unknown[],
+    renderItem: (item: unknown, itemIndex: number) => React.ReactNode,
+    options?: {
+      hasMore?: boolean;
+      isLoadingMore?: boolean;
+      onLoadMore?: () => void;
+      renderLoader?: () => React.ReactNode;
+    },
+  ) => {
+    const hasLoader = Boolean(options?.hasMore || options?.isLoadingMore);
+    const rowCount =
+      Math.ceil(items.length / virtualColumns) + (hasLoader ? 1 : 0);
+
+    return (
+      <List<VirtualSourceRowProps>
+        style={{
+          height: sourceListHeight,
+          width: "100%",
+        }}
+        rowCount={rowCount}
+        rowHeight={sourceRowHeight}
+        rowProps={{
+          items,
+          columns: virtualColumns,
+          viewMode,
+          renderItem,
+          hasMore: options?.hasMore,
+          isLoadingMore: options?.isLoadingMore,
+          onLoadMore: options?.onLoadMore,
+          renderLoader: options?.renderLoader,
+        }}
+        rowComponent={VirtualSourceRow}
+      />
+    );
+  };
+
+  const renderMainContent = () => {
+    if (activeTab === "suggestions") {
+      if (filteredSuggestions.length === 0) {
+        return (
+          <EmptyState
+            icon={<TipsAndUpdatesRoundedIcon sx={{ fontSize: 26 }} />}
+            title="目前沒有推薦題庫"
+            description="其他玩家推薦後，房主可以在這裡快速套用。"
+          />
+        );
+      }
+
+      return renderVirtualSources(filteredSuggestions, (item) =>
+        renderSuggestion(item as PlaylistSuggestion),
+      );
+    }
+
+    if (activeTab === "public") {
+      if (collectionsLoading && collections.length === 0) {
+        return <LoadingState label="正在載入公開收藏庫..." />;
+      }
+
+      if (collectionsError && publicCollections.length === 0) {
+        return (
+          <EmptyState
+            title="無法載入公開收藏庫"
+            description={collectionsError}
+          />
+        );
+      }
+
+      if (publicCollections.length === 0) {
+        return (
+          <EmptyState
+            icon={<PublicRoundedIcon sx={{ fontSize: 26 }} />}
+            title="找不到符合條件的公開收藏庫"
+            description="可以換個關鍵字搜尋，或先到 RoomsHub 建立公開收藏庫。"
+          />
+        );
+      }
+
+      return renderVirtualSources(
+        publicCollections,
+        (item) => renderCollection(item as CollectionEntry),
+        {
+          hasMore: collectionsHasMore,
+          isLoadingMore: collectionsLoadingMore,
+          onLoadMore: onLoadMoreCollections,
+          renderLoader: () => (
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/14 bg-slate-950/42 px-4 py-2 text-xs font-semibold text-slate-300">
+              {collectionsLoadingMore ? (
+                <CircularProgress size={14} color="inherit" />
+              ) : null}
+              <span>
+                {collectionsLoadingMore ? "載入中..." : "準備載入更多"}
+              </span>
+            </div>
+          ),
+        },
+      );
+    }
+
+    if (activeTab === "mine") {
+      if (!isGoogleAuthed) {
+        return (
+          <EmptyState
+            icon={<BookmarkBorderRoundedIcon sx={{ fontSize: 26 }} />}
+            title="登入後查看你的收藏庫"
+            description="登入 Google 後，可以使用自己建立或收藏的題庫。"
+            action={
+              <Button
+                type="button"
+                variant="contained"
+                onClick={onRequestGoogleLogin}
+                sx={{ borderRadius: 999 }}
+              >
+                登入 Google
+              </Button>
+            }
+          />
+        );
+      }
+
+      if (collectionsLoading && collections.length === 0) {
+        return <LoadingState label="正在載入你的收藏庫..." />;
+      }
+
+      if (collectionsError && ownerCollections.length === 0) {
+        return (
+          <EmptyState
+            title="無法載入你的收藏庫"
+            description={collectionsError}
+          />
+        );
+      }
+
+      if (ownerCollections.length === 0) {
+        return (
+          <EmptyState
+            icon={<BookmarkBorderRoundedIcon sx={{ fontSize: 26 }} />}
+            title="目前沒有可用的收藏庫"
+            description="可以先到 RoomsHub 建立收藏庫，再回到房間套用。"
+          />
+        );
+      }
+
+      return renderVirtualSources(ownerCollections, (item) =>
+        renderCollection(item as CollectionEntry),
+      );
+    }
+
+    if (activeTab === "youtube") {
+      if (!isGoogleAuthed) {
+        return (
+          <EmptyState
+            icon={<YouTubeIcon sx={{ fontSize: 28 }} />}
+            title="登入後查看 YouTube 播放清單"
+            description="登入 Google 後，可以直接選擇你的 YouTube 播放清單。"
+            action={
+              <Button
+                type="button"
+                variant="contained"
+                onClick={onRequestGoogleLogin}
+                sx={{ borderRadius: 999 }}
+              >
+                登入 Google
+              </Button>
+            }
+          />
+        );
+      }
+
+      if (youtubePlaylistsLoading) {
+        return <LoadingState label="正在載入 YouTube 播放清單..." />;
+      }
+
+      if (youtubePlaylistsError && filteredYoutubePlaylists.length === 0) {
+        return (
+          <EmptyState
+            title="無法載入 YouTube 播放清單"
+            description={youtubePlaylistsError}
+            action={
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => onFetchYoutubePlaylists(true)}
+                sx={{ borderRadius: 999 }}
+              >
+                重新整理
+              </Button>
+            }
+          />
+        );
+      }
+
+      if (filteredYoutubePlaylists.length === 0) {
+        return (
+          <EmptyState
+            icon={<YouTubeIcon sx={{ fontSize: 28 }} />}
+            title="找不到播放清單"
+            description="可以換個關鍵字搜尋，或改用貼上連結。"
+          />
+        );
+      }
+
+      return renderVirtualSources(filteredYoutubePlaylists, (item) =>
+        renderYoutubePlaylist(item as YoutubePlaylist),
+      );
+    }
+
+    return (
+      <div className="mx-auto flex w-full max-w-[680px] flex-col gap-4 rounded-[28px] border border-white/10 bg-slate-950/34 p-4 sm:p-5">
+        <div>
+          <div className="text-base font-semibold text-slate-100">
+            貼上 YouTube 播放清單連結
+          </div>
+          <div className="mt-1 text-sm leading-6 text-slate-400">
+            支援含有 list 參數的 YouTube 播放清單連結。
+          </div>
+        </div>
+
+        {leaderboardCollectionOnlyMode ? (
+          <div className="rounded-2xl border border-amber-200/18 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-50">
+            {leaderboardCollectionOnlyReason}
+          </div>
+        ) : null}
+
+        <TextField
+          fullWidth
+          value={playlistUrl}
+          disabled={leaderboardCollectionOnlyMode}
+          onChange={(event) => onPlaylistUrlChange(event.target.value)}
+          placeholder="https://www.youtube.com/playlist?list=..."
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <LinkRoundedIcon sx={{ color: "rgba(148,163,184,0.86)" }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: "18px",
+              color: "rgba(248,250,252,0.94)",
+              backgroundColor: "rgba(15,23,42,0.72)",
+              "& fieldset": {
+                borderColor: "rgba(148,163,184,0.22)",
+              },
+              "&:hover fieldset": {
+                borderColor: "rgba(103,232,249,0.28)",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "rgba(103,232,249,0.55)",
+              },
+            },
+          }}
+        />
+
+        {playlistPreviewMeta ? (
+          <div className="rounded-2xl border border-cyan-200/16 bg-cyan-200/8 px-4 py-3 text-sm leading-6 text-cyan-50">
+            預估 {playlistPreviewMeta.expectedCount ?? "未知"} 題
+            {playlistPreviewMeta.skippedCount > 0
+              ? `，略過 ${playlistPreviewMeta.skippedCount} 筆不可用項目`
+              : ""}
+          </div>
+        ) : null}
+
+        {playlistError ? (
+          <div className="rounded-2xl border border-rose-300/16 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100">
+            {playlistError}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outlined"
+            disabled={playlistLoading || leaderboardCollectionOnlyMode}
+            onClick={handlePreviewLink}
+            sx={{
+              borderRadius: 999,
+              borderColor: "rgba(148,163,184,0.24)",
+              color: "rgba(226,232,240,0.92)",
+            }}
+          >
+            {playlistLoading ? "檢查中..." : "預覽"}
+          </Button>
+
+          <Button
+            type="button"
+            variant="contained"
+            disabled={
+              playlistLoading ||
+              Boolean(pendingActionKey) ||
+              leaderboardCollectionOnlyMode ||
+              isCooldownActive
+            }
+            onClick={handleApplyLink}
+            sx={{ borderRadius: 999 }}
+          >
+            {pendingActionKey ? "處理中..." : actionLabel}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Drawer
+      anchor={drawerAnchor}
+      open={open}
+      onClose={() => onClose()}
+      keepMounted
+      sx={{
+        zIndex: 1100,
+        "& .MuiDrawer-paper": {
+          left: "auto !important",
+          right: "0 !important",
+          width: {
+            xs: "100vw",
+            sm: "min(94vw, 760px)",
+            md: "min(92vw, 940px)",
+            lg: `min(88vw, ${DRAWER_MAX_WIDTH}px)`,
+          },
+          maxWidth: "100vw",
+          height: {
+            xs: "100dvh",
+            sm: "calc(100dvh - 16px)",
+          },
+          maxHeight: {
+            xs: "100dvh",
+            sm: "calc(100dvh - 16px)",
+          },
+          mt: {
+            xs: 0,
+            sm: "8px",
+          },
+          mb: {
+            xs: 0,
+            sm: "8px",
+          },
+          borderRadius: {
+            xs: 0,
+            sm: "24px 0 0 24px",
+          },
+          overflow: "hidden",
+          borderLeft: {
+            xs: "none",
+            sm: "1px solid rgba(148,163,184,0.18)",
+          },
+          background:
+            "radial-gradient(circle at 0% 0%, rgba(34,211,238,0.12), transparent 30%), linear-gradient(180deg, rgba(15,23,42,0.99), rgba(2,6,23,0.99))",
+          boxShadow:
+            "-24px 0 80px -48px rgba(15,23,42,0.98), inset 1px 0 0 rgba(255,255,255,0.055)",
+        },
+      }}
+      ModalProps={{
+        BackdropProps: {
+          sx: {
+            background:
+              "linear-gradient(90deg, rgba(2,6,23,0.72), rgba(2,6,23,0.48))",
+            backdropFilter: "blur(8px)",
+          },
+        },
+      }}
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        <header className="shrink-0 border-b border-white/10 bg-slate-950/36 px-4 py-4 backdrop-blur-xl sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                <Typography
+                  component="h2"
+                  sx={{
+                    color: "rgba(248,250,252,0.98)",
+                    fontSize: { xs: 18, sm: 22 },
+                    fontWeight: 800,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {isHost ? "更改題庫" : "推薦題庫"}
+                </Typography>
+
+                {leaderboardCollectionOnlyMode ? (
+                  <span className="inline-flex rounded-full border border-amber-200/18 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-50">
+                    {leaderboardCollectionOnlyReason}
+                  </span>
+                ) : null}
+              </div>
+
+              {leaderboardCollectionOnlyMode ? null : !isHost ? (
+                <div className="mt-1 text-sm leading-6 text-slate-400">
+                  推薦題庫給房主，房主確認後即可套用。
+                </div>
+              ) : null}
+            </div>
+
+            <IconButton
+              type="button"
+              onClick={onClose}
+              sx={{
+                color: "rgba(226,232,240,0.9)",
+                border: "1px solid rgba(148,163,184,0.16)",
+                backgroundColor: "rgba(15,23,42,0.58)",
+                "&:hover": {
+                  backgroundColor: "rgba(30,41,59,0.78)",
+                },
+              }}
+            >
+              <CloseRoundedIcon />
+            </IconButton>
+          </div>
+
+          <div
+            role={isMobile ? "tablist" : undefined}
+            aria-label={isMobile ? "題庫來源分頁" : undefined}
+            className={
+              isMobile
+                ? "mt-4 grid h-11 grid-cols-2 overflow-visible rounded-2xl border border-cyan-100/14 bg-slate-950/42 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+                : "mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            }
+          >
+            {isMobile ? (
+              <>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "suggestions"}
+                  onClick={() => handleSelectTab("suggestions")}
+                  className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                    activeTab === "suggestions"
+                      ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                      : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                  }`}
+                >
+                  {tabIcon("suggestions")}
+                  {tabLabel("suggestions")}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={SOURCE_TABS.includes(activeTab)}
+                  onClick={handleSourceTabClick}
+                  className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                    SOURCE_TABS.includes(activeTab)
+                      ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                      : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                  }`}
+                >
+                  {tabIcon(activeSourceTab)}
+                  {tabLabel(activeSourceTab)}
+                  <span
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg hover:bg-white/[0.06]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSourceMenuAnchor(event.currentTarget);
+                    }}
+                    aria-hidden="true"
+                  >
+                    <ArrowDropDownRoundedIcon sx={{ fontSize: 18 }} />
+                  </span>
+                </button>
+                <Menu
+                  anchorEl={sourceMenuAnchor}
+                  open={Boolean(sourceMenuAnchor)}
+                  onClose={() => setSourceMenuAnchor(null)}
+                  sx={{ zIndex: 1600 }}
+                  slotProps={{
+                    root: {
+                      sx: { zIndex: 1600 },
+                    },
+                    paper: {
+                      sx: {
+                        mt: 0.75,
+                        border: "1px solid rgba(148,163,184,0.18)",
+                        backgroundColor: "#08111f",
+                        color: "rgba(248,250,252,0.96)",
+                        borderRadius: "14px",
+                        minWidth: 172,
+                        maxHeight: 320,
+                      },
+                    },
+                  }}
+                >
+                  {SOURCE_TABS.map((tab) => {
+                    const locked = isTabLocked(tab);
+
+                    return (
+                      <MenuItem
+                        key={tab}
+                        disabled={locked}
+                        selected={activeTab === tab}
+                        onClick={() => {
+                          if (locked) return;
+                          handleSelectTab(tab);
+                          setSourceMenuAnchor(null);
+                        }}
+                        sx={{ gap: 1, fontSize: 13 }}
+                      >
+                        {locked ? (
+                          <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                        ) : (
+                          tabIcon(tab)
+                        )}
+                        {tabLabel(tab)}
+                      </MenuItem>
+                    );
+                  })}
+                </Menu>
+              </>
+            ) : (
+              availableTabs.map((tab) => {
+                const lockedByLeaderboard = isTabLocked(tab);
+
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    disabled={lockedByLeaderboard}
+                    onClick={() => handleSelectTab(tab)}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[13px] font-semibold transition ${
+                      activeTab === tab
+                        ? "border-cyan-200/34 bg-cyan-200/12 text-cyan-50"
+                        : lockedByLeaderboard
+                          ? "cursor-not-allowed border-amber-200/12 bg-amber-300/[0.03] text-slate-500"
+                          : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/16 hover:bg-white/[0.07]"
+                    }`}
+                  >
+                    {lockedByLeaderboard ? (
+                      <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                    ) : (
+                      tabIcon(tab)
+                    )}
+                    {tabLabel(tab)}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </header>
+
+        <section className="shrink-0 border-b border-white/8 px-4 py-3 sm:px-6">
+          <div className="flex flex-row items-center justify-between gap-2 md:gap-3">
+            {activeTab === "suggestions" ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSuggestionClientId("all")}
+                  className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition ${
+                    selectedSuggestionClientId === "all"
+                      ? "border-cyan-200/34 bg-cyan-200/12 text-cyan-50"
+                      : "border-white/10 bg-slate-950/48 text-slate-300 hover:border-cyan-200/22"
+                  }`}
+                >
+                  全部
+                  <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-slate-200">
+                    {playlistSuggestions.length}
+                  </span>
+                </button>
+
+                {suggestionAuthors.map((author) => {
+                  const selected =
+                    selectedSuggestionClientId === author.clientId;
+
+                  return (
+                    <button
+                      key={author.clientId}
+                      type="button"
+                      title={`${author.username} 的推薦`}
+                      aria-label={`${author.username} 的推薦`}
+                      onClick={() =>
+                        setSelectedSuggestionClientId(author.clientId)
+                      }
+                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition ${
+                        selected
+                          ? "border-cyan-200/55 bg-cyan-200/14 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.1)]"
+                          : "border-white/12 bg-slate-950/54 text-slate-200 hover:border-cyan-200/30"
+                      }`}
+                    >
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-slate-100">
+                        {author.avatarUrl ? (
+                          <img
+                            src={author.avatarUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span>{getInitial(author.username)}</span>
+                        )}
+                      </span>
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-cyan-300 px-1.5 text-[11px] font-bold leading-5 text-slate-950">
+                        {author.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <TextField
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                placeholder={
+                  activeTab === "youtube"
+                    ? "搜尋 YouTube 播放清單"
+                    : activeTab === "link"
+                      ? "貼上或搜尋連結"
+                      : "搜尋收藏庫"
+                }
+                size="small"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon
+                        sx={{ color: "rgba(148,163,184,0.82)", fontSize: 20 }}
+                      />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  width: {
+                    xs: "min(100%, 210px)",
+                    sm: "100%",
+                    md: 360,
+                  },
+                  flex: "1 1 auto",
+                  minWidth: 0,
+                  "& .MuiOutlinedInput-root": {
+                    height: 42,
+                    borderRadius: "999px",
+                    color: "rgba(248,250,252,0.94)",
+                    backgroundColor: "rgba(15,23,42,0.64)",
+                    "& fieldset": {
+                      borderColor: "rgba(148,163,184,0.18)",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "rgba(103,232,249,0.26)",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "rgba(103,232,249,0.5)",
+                    },
+                  },
+                }}
+              />
+            )}
+
+            <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 md:gap-3">
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                {toolbarMessage ? (
+                  <div
+                    className={`min-w-0 truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      toolbarMessageTone === "error"
+                        ? "border-rose-300/18 bg-rose-500/10 text-rose-100"
+                        : toolbarMessageTone === "cooldown"
+                          ? "border-amber-200/18 bg-amber-300/10 text-amber-50"
+                          : "border-cyan-200/18 bg-cyan-200/10 text-cyan-50"
+                    }`}
+                  >
+                    {toolbarMessage}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="inline-flex shrink-0 rounded-full border border-white/10 bg-slate-950/42 p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  disabled={isMobile}
+                  className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
+                    viewMode === "grid"
+                      ? "bg-cyan-200/14 text-cyan-50"
+                      : isMobile
+                        ? "cursor-not-allowed text-slate-600"
+                        : "text-slate-400 hover:text-slate-100"
+                  }`}
+                >
+                  <GridViewRoundedIcon sx={{ fontSize: 18 }} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
+                    viewMode === "list"
+                      ? "bg-cyan-200/14 text-cyan-50"
+                      : "text-slate-400 hover:text-slate-100"
+                  }`}
+                >
+                  <ViewAgendaRoundedIcon sx={{ fontSize: 18 }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <main className="min-h-0 flex-1 overflow-hidden px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-6 sm:pb-4">
+          {renderMainContent()}
+        </main>
+      </div>
+    </Drawer>
+  );
+};
+
+export default RoomPlaylistSelectorDrawer;

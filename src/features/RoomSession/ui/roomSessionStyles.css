@@ -585,6 +585,11 @@
   overflow: hidden !important;
 }
 
+.room-lobby-share-drawer {
+  height: 100%;
+  border-radius: 24px 0 0 24px !important;
+}
+
 .room-lobby-share-modal__title {
   display: flex;
   align-items: center;
@@ -23367,6 +23372,13 @@
 @media (max-width: 599px) {
   .room-lobby-share-modal {
     width: min(96vw, 560px);
+  }
+
+  .room-lobby-share-drawer {
+    width: 100% !important;
+    height: auto;
+    max-height: 88dvh;
+    border-radius: 24px 24px 0 0 !important;
   }
 
   .room-lobby-share-modal__title {

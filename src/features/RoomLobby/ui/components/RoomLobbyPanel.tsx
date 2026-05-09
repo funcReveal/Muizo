@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Drawer,
+  IconButton,
   Stack,
   Switch,
   Typography,
@@ -30,12 +32,13 @@ import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
 // import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
-import ShareRoundedIcon from "@mui/icons-material/ShareRounded";
 import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
+import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import type { RowComponentProps } from "react-window";
 import type {
   GameState,
@@ -74,7 +77,7 @@ import {
 } from "@features/RoomHub/model/leaderboardChallengeOptions";
 import RoomLobbySettingsDialog from "./RoomLobbySettingsDialog";
 import CurrentPlaylistCard from "./CurrentPlaylistCard";
-import PlaylistSelectorModal from "./PlaylistSelectorModal";
+import RoomPlaylistSelectorDrawer from "./playlist-selector/RoomPlaylistSelectorDrawer";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 
 import { useGameSfx } from "@shared/hooks/useGameSfx";
@@ -169,7 +172,9 @@ interface RoomLobbyPanelProps {
       totalCount?: number | null;
     },
   ) => Promise<{ ok: boolean; error?: string }>;
-  onApplySuggestionSnapshot: (suggestion: PlaylistSuggestion) => Promise<boolean>;
+  onApplySuggestionSnapshot: (
+    suggestion: PlaylistSuggestion,
+  ) => Promise<boolean>;
   onApplyPlaylistUrlDirect?: (url: string) => Promise<boolean>;
   onApplyCollectionDirect?: (
     collectionId: string,
@@ -570,7 +575,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     lobbyBgmRef.current.volume = nextVolume;
   }, [bgmVolume]);
 
-  const playlistAvailability = resolveQuestionLimitFromAvailability(currentRoom);
+  const playlistAvailability =
+    resolveQuestionLimitFromAvailability(currentRoom);
   const questionMaxLimit = playlistAvailability.max;
   const questionMinLimit = Math.min(QUESTION_MIN, questionMaxLimit);
   const settingsDisabled = gameState?.status === "playing" || !isHost;
@@ -1221,9 +1227,9 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       ? "遊戲進行中"
       : !playlistAvailability.canStart
         ? playlistAvailability.reason
-      : !canStartGame
-        ? "歌單尚未同步完成"
-        : undefined;
+        : !canStartGame
+          ? "歌單尚未同步完成"
+          : undefined;
   const settingsActionDisabledReason = !isHost
     ? "只有房主可以調整設定"
     : gameState?.status === "playing"
@@ -1639,7 +1645,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       onClick={handleOpenShareDialog}
     >
       <span className="room-lobby-toolbar-icon-btn__icon" aria-hidden="true">
-        <ShareRoundedIcon fontSize="small" />
+        <PersonAddAlt1RoundedIcon fontSize="small" />
       </span>
       <span className="room-lobby-sr-only">{shareButtonLabel}</span>
       <span className="room-lobby-toolbar-floating-label" aria-hidden="true">
@@ -1761,7 +1767,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   );
 
   const playlistSelectorModal = (
-    <PlaylistSelectorModal
+    <RoomPlaylistSelectorDrawer
       open={selectorModalOpen}
       onClose={() => setSelectorModalOpen(false)}
       isHost={isHost}
@@ -1772,6 +1778,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       playlistError={playlistError}
       playlistLoading={playlistLoading}
       playlistSuggestions={playlistSuggestions}
+      participants={participants}
       collections={collections}
       collectionsLoading={collectionsLoading}
       collectionsLoadingMore={collectionsLoadingMore}
@@ -2156,7 +2163,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                           className="room-lobby-mobile-bottom-action__icon"
                           aria-hidden="true"
                         >
-                          <ShareRoundedIcon fontSize="small" />
+                          <PersonAddAlt1RoundedIcon fontSize="small" />
                         </span>
                       </Button>
                     )}
@@ -2288,25 +2295,56 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           </>
         )}
       </Box>
-      <Dialog
+      <Drawer
+        anchor={isMobileLobbyLayout ? "bottom" : "right"}
         open={shareDialogOpen}
         onClose={() => setShareDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
         PaperProps={{
-          className: "room-lobby-share-modal",
+          className: "room-lobby-share-modal room-lobby-share-drawer",
+          sx: {
+            width: {
+              xs: "100%",
+              sm: isMobileLobbyLayout ? "100%" : 430,
+            },
+            maxWidth: "100vw",
+            borderRadius: isMobileLobbyLayout
+              ? "24px 24px 0 0"
+              : "24px 0 0 24px",
+            borderLeft: isMobileLobbyLayout
+              ? "none"
+              : "1px solid rgba(148,163,184,0.18)",
+            borderTop: isMobileLobbyLayout
+              ? "1px solid rgba(148,163,184,0.18)"
+              : "none",
+          },
         }}
       >
-        <DialogTitle className="room-lobby-share-modal__title">
+        <div className="room-lobby-share-modal__title">
           <span
             className="room-lobby-share-modal__title-icon"
             aria-hidden="true"
           >
-            <ShareRoundedIcon fontSize="small" />
+            <PersonAddAlt1RoundedIcon fontSize="small" />
           </span>
           <span>分享邀請</span>
-        </DialogTitle>
-        <DialogContent className="room-lobby-share-modal__content">
+          <IconButton
+            type="button"
+            onClick={() => setShareDialogOpen(false)}
+            size="small"
+            sx={{
+              ml: "auto",
+              color: "rgba(226,232,240,0.9)",
+              border: "1px solid rgba(148,163,184,0.16)",
+              backgroundColor: "rgba(15,23,42,0.58)",
+              "&:hover": {
+                backgroundColor: "rgba(30,41,59,0.78)",
+              },
+            }}
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </IconButton>
+        </div>
+        <div className="room-lobby-share-modal__content">
           <div className="room-lobby-share-modal__section room-lobby-share-modal__section--toggle">
             <div className="room-lobby-share-modal__section-copy">
               <strong>允許其他玩家透過代碼邀請</strong>
@@ -2399,17 +2437,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               </span>
             </button>
           </div>
-        </DialogContent>
-        <DialogActions className="room-lobby-share-modal__actions">
-          <Button
-            onClick={() => setShareDialogOpen(false)}
-            variant="text"
-            className="room-lobby-share-modal__close-btn"
-          >
-            關閉
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </div>
+      </Drawer>
       <RoomLobbySettingsDialog
         open={settingsOpen}
         settingsDisabled={settingsDisabled}
