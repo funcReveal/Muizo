@@ -50,14 +50,19 @@ function shouldRefetchNearbyWindow(
   if (!data) return true;
   if (data.nearbyOpponents.length === 0) return false;
 
-  const closestAheadBeforeScoreChange = data.nearbyOpponents
-    .filter((opponent) => opponent.bestScore > previousScore)
-    .sort((a, b) => a.bestScore - b.bestScore)[0];
+  const aheadBefore = data.nearbyOpponents.filter((o) => o.bestScore > previousScore);
+  const aheadNow    = data.nearbyOpponents.filter((o) => o.bestScore > newScore);
 
-  return Boolean(
-    closestAheadBeforeScoreChange &&
-      newScore >= closestAheadBeforeScoreChange.bestScore,
-  );
+  // At least one stored opponent crossed the boundary from ahead to passed.
+  // Catches single crossings and multi-opponent jumps in one score update.
+  if (aheadBefore.length > aheadNow.length) return true;
+
+  // All stored nearby data is now below our live score but the window has opponents
+  // in it (we are not rank #1 with an empty list). Need a higher-band window from
+  // the backend so the ahead slots show the correct next opponents.
+  if (aheadNow.length === 0 && aheadBefore.length === 0) return true;
+
+  return false;
 }
 
 export type UseChallengeLeaderboardProjectionInput = {

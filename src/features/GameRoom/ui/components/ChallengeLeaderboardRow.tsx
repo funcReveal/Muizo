@@ -52,15 +52,19 @@ export const ChallengeTopEntryRow = React.memo(
 
 interface ChallengeNearbyRowProps {
   opponent: ChallengeNearbyOpponent;
+  approxRank?: number | null;
 }
 
 export const ChallengeNearbyRow = React.memo(
-  function ChallengeNearbyRow({ opponent }: ChallengeNearbyRowProps) {
+  function ChallengeNearbyRow({ opponent, approxRank }: ChallengeNearbyRowProps) {
     const isPassed = opponent.relation === "passed";
     const gapAbs = Math.abs(opponent.gapFromMe);
     const gapText = isPassed
       ? `+${gapAbs.toLocaleString()}`
       : `-${gapAbs.toLocaleString()}`;
+    const rankDisplay = (approxRank ?? opponent.rank) != null
+      ? `#${approxRank ?? opponent.rank}`
+      : "--";
 
     return (
       <div
@@ -70,7 +74,7 @@ export const ChallengeNearbyRow = React.memo(
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
           <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
-            #{opponent.rank ?? "--"}
+            {rankDisplay}
           </span>
           <span className="game-room-score-row-avatar-wrap">
             <PlayerAvatar

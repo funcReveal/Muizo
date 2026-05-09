@@ -121,18 +121,23 @@ export const ChallengeLeaderboardPanel = React.memo(
       0,
       (isTopTenMode ? 10 : 5) - displayedTopRows.length,
     );
+    // viewerScore is the authoritative live score from room participant state and must
+    // be used here (not data.myStanding.liveScore which is the score at the time of
+    // the last API call). Using the stale API score causes two bugs:
+    //   1. Opponents already surpassed locally keep appearing as "ahead".
+    //   2. The nearby section never rerenders when the score changes (missing dep).
     const nearbyRows = useMemo(
       () =>
         data && !isTopTenMode
           ? buildChallengeNearbyDisplayRows({
               nearbyOpponents: data.nearbyOpponents,
               myStanding: data.myStanding,
-              liveScore: data.myStanding.liveScore,
+              liveScore: viewerScore,
               meUserId,
               slots: 5,
             })
           : [],
-      [data, isTopTenMode, meUserId],
+      [data, isTopTenMode, meUserId, viewerScore],
     );
 
     if (state.status === "idle" || state.status === "loading") {
@@ -225,6 +230,7 @@ export const ChallengeLeaderboardPanel = React.memo(
                       <ChallengeNearbyRow
                         key={row.key}
                         opponent={row.opponent}
+                        approxRank={row.approxRank}
                       />
                     );
                   }
