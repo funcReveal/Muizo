@@ -15,10 +15,16 @@ const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 interface ChallengeTopEntryRowProps {
   entry: ChallengeLeaderboardEntry;
   isMe?: boolean;
+  /**
+   * entry.bestScore − viewerLiveScore.
+   * Positive = this player is ahead; negative = viewer has surpassed them.
+   * null = do not display the gap for this row.
+   */
+  liveGap?: number | null;
 }
 
 export const ChallengeTopEntryRow = React.memo(
-  function ChallengeTopEntryRow({ entry, isMe }: ChallengeTopEntryRowProps) {
+  function ChallengeTopEntryRow({ entry, isMe, liveGap = null }: ChallengeTopEntryRowProps) {
     return (
       <div
         className={`game-room-score-row challenge-lb-row flex items-center justify-between text-sm ${
@@ -42,8 +48,21 @@ export const ChallengeTopEntryRow = React.memo(
             {entry.displayName}
           </span>
         </span>
-        <span className="shrink-0 whitespace-nowrap font-mono text-xs font-semibold text-slate-300">
-          {formatScoreCombo(entry.bestScore, entry.maxCombo)}
+        <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap font-mono text-xs">
+          <span className="font-semibold text-slate-300">
+            {formatScoreCombo(entry.bestScore, entry.maxCombo)}
+          </span>
+          {liveGap != null && (
+            <span
+              className={`font-semibold ${
+                liveGap > 0 ? "text-rose-400" : "text-emerald-400"
+              }`}
+            >
+              {liveGap > 0
+                ? `-${liveGap.toLocaleString()}`
+                : `+${Math.abs(liveGap).toLocaleString()}`}
+            </span>
+          )}
         </span>
       </div>
     );
