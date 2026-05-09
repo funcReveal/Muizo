@@ -22,11 +22,11 @@ export const ChallengeTopEntryRow = React.memo(
     return (
       <div
         className={`game-room-score-row challenge-lb-row flex items-center justify-between text-sm ${
-          isMe ? "bg-amber-500/15 ring-1 ring-amber-500/30" : ""
+          isMe ? "bg-amber-500/10 ring-1 ring-amber-500/20" : ""
         }`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
-          <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+          <span className={`w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none ${isMe ? "text-amber-400/70" : "text-slate-500"}`}>
             #{entry.rank}
           </span>
           <span className="game-room-score-row-avatar-wrap">
@@ -53,12 +53,18 @@ export const ChallengeTopEntryRow = React.memo(
 interface ChallengeNearbyRowProps {
   opponent: ChallengeNearbyOpponent;
   approxRank?: number | null;
+  /**
+   * bestScore - currentLiveScore, computed from the viewer's live score.
+   * Positive → opponent is ahead; negative → we surpassed them.
+   * Must not use opponent.gapFromMe (API-time snapshot, stale between refreshes).
+   */
+  liveGap: number;
 }
 
 export const ChallengeNearbyRow = React.memo(
-  function ChallengeNearbyRow({ opponent, approxRank }: ChallengeNearbyRowProps) {
-    const isPassed = opponent.relation === "passed";
-    const gapAbs = Math.abs(opponent.gapFromMe);
+  function ChallengeNearbyRow({ opponent, approxRank, liveGap }: ChallengeNearbyRowProps) {
+    const isPassed = liveGap <= 0;
+    const gapAbs = Math.abs(liveGap);
     const gapText = isPassed
       ? `+${gapAbs.toLocaleString()}`
       : `-${gapAbs.toLocaleString()}`;
@@ -121,13 +127,21 @@ export const ChallengeSeparatorRow = React.memo(
   },
 );
 
-export const ChallengeEllipsisRow = React.memo(function ChallengeEllipsisRow() {
-  return (
-    <div className="flex items-center justify-center py-1.5 text-slate-600 select-none">
-      <span className="text-base leading-none">...</span>
-    </div>
-  );
-});
+export const ChallengeEllipsisRow = React.memo(
+  function ChallengeEllipsisRow({ fullRow = false }: { fullRow?: boolean }) {
+    return (
+      <div
+        className={
+          fullRow
+            ? "game-room-score-row flex items-center justify-center text-slate-500 select-none"
+            : "flex items-center justify-center py-1.5 text-slate-600 select-none"
+        }
+      >
+        <span className="text-base leading-none">···</span>
+      </div>
+    );
+  },
+);
 
 export const ChallengePlaceholderRow = React.memo(
   function ChallengePlaceholderRow({ dim = false }: { dim?: boolean }) {
@@ -158,6 +172,8 @@ interface ChallengeSelfRowProps {
   combo?: number;
   gainAnimKey?: number;
   gainAmount?: number;
+  /** Gap to the player directly ahead: positive = behind, negative = surpassed. */
+  gapToNext?: number | null;
 }
 
 export const ChallengeSelfRow = React.memo(
@@ -169,6 +185,7 @@ export const ChallengeSelfRow = React.memo(
     combo = 0,
     gainAnimKey = 0,
     gainAmount = 0,
+    gapToNext = null,
   }: ChallengeSelfRowProps) {
     const { liveScore, projectedRank, officialRank } = standing;
     const name = normalizeRoomDisplayText(displayName ?? "", "Player");
@@ -202,15 +219,28 @@ export const ChallengeSelfRow = React.memo(
           <span className="truncate font-medium text-white/90">{name}</span>
           <span className="game-room-score-row-you-badge">YOU</span>
         </span>
-        <span className="relative shrink-0 whitespace-nowrap text-right font-mono text-sm font-semibold tabular-nums text-emerald-300">
-          {formatScoreCombo(liveScore, combo)}
-          {gainAmount > 0 && (
+        <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap text-right font-mono">
+          <span className="relative text-sm font-semibold tabular-nums text-emerald-300">
+            {formatScoreCombo(liveScore, combo)}
+            {gainAmount > 0 && (
+              <span
+                key={gainAnimKey}
+                className="challenge-lb-gain-float"
+                aria-hidden="true"
+              >
+                +{gainAmount.toLocaleString()}
+              </span>
+            )}
+          </span>
+          {gapToNext != null && (
             <span
-              key={gainAnimKey}
-              className="challenge-lb-gain-float"
-              aria-hidden="true"
+              className={`text-xs font-semibold ${
+                gapToNext > 0 ? "text-rose-400" : "text-emerald-400"
+              }`}
             >
-              +{gainAmount.toLocaleString()}
+              {gapToNext > 0
+                ? `-${gapToNext.toLocaleString()}`
+                : `+${Math.abs(gapToNext).toLocaleString()}`}
             </span>
           )}
         </span>
