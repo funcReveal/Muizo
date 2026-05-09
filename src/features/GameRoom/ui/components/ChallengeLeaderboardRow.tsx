@@ -14,7 +14,19 @@ const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
 interface ChallengeTopEntryRowProps {
   entry: ChallengeLeaderboardEntry;
-  isMe?: boolean;
+
+  /**
+   * Rank shown in the UI after live self is inserted.
+   * Do not display entry.rank directly, because live self may push rows down.
+   */
+  displayRank?: number | null;
+
+  /**
+   * True when this row is the viewer's historical official best record.
+   * It should look like a normal official row and must not show YOU.
+   */
+  isViewerHistoricalBest?: boolean;
+
   /**
    * entry.bestScore − viewerLiveScore.
    * Positive = this player is ahead; negative = viewer has surpassed them.
@@ -24,16 +36,25 @@ interface ChallengeTopEntryRowProps {
 }
 
 export const ChallengeTopEntryRow = React.memo(
-  function ChallengeTopEntryRow({ entry, isMe, liveGap = null }: ChallengeTopEntryRowProps) {
+  function ChallengeTopEntryRow({
+    entry,
+    displayRank = entry.rank,
+    isViewerHistoricalBest = false,
+    liveGap = null,
+  }: ChallengeTopEntryRowProps) {
+    const rowTitle = isViewerHistoricalBest
+      ? "你的歷史最佳紀錄"
+      : undefined;
+
     return (
       <div
-        className={`game-room-score-row challenge-lb-row flex items-center justify-between text-sm ${
-          isMe ? "bg-amber-500/10 ring-1 ring-amber-500/20" : ""
-        }`}
+        className="game-room-score-row challenge-lb-row flex items-center justify-between text-sm"
+        title={rowTitle}
+        aria-label={rowTitle}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
-          <span className={`w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none ${isMe ? "text-amber-400/70" : "text-slate-500"}`}>
-            #{entry.rank}
+          <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
+            {displayRank !== null ? `#${displayRank}` : "--"}
           </span>
           <span className="game-room-score-row-avatar-wrap">
             <PlayerAvatar
@@ -54,9 +75,8 @@ export const ChallengeTopEntryRow = React.memo(
           </span>
           {liveGap != null && (
             <span
-              className={`font-semibold ${
-                liveGap > 0 ? "text-rose-400" : "text-emerald-400"
-              }`}
+              className={`font-semibold ${liveGap > 0 ? "text-rose-400" : "text-emerald-400"
+                }`}
             >
               {liveGap > 0
                 ? `-${liveGap.toLocaleString()}`
@@ -93,9 +113,8 @@ export const ChallengeNearbyRow = React.memo(
 
     return (
       <div
-        className={`game-room-score-row challenge-lb-nearby-row flex items-center justify-between text-sm ${
-          isPassed ? "opacity-60" : ""
-        }`}
+        className={`game-room-score-row challenge-lb-nearby-row flex items-center justify-between text-sm ${isPassed ? "opacity-60" : ""
+          }`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
           <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums leading-none text-slate-500">
@@ -119,9 +138,8 @@ export const ChallengeNearbyRow = React.memo(
             {formatScoreCombo(opponent.bestScore, opponent.maxCombo)}
           </span>
           <span
-            className={`font-semibold ${
-              isPassed ? "text-emerald-400" : "text-rose-400"
-            }`}
+            className={`font-semibold ${isPassed ? "text-emerald-400" : "text-rose-400"
+              }`}
           >
             {gapText}
           </span>
@@ -166,9 +184,8 @@ export const ChallengePlaceholderRow = React.memo(
   function ChallengePlaceholderRow({ dim = false }: { dim?: boolean }) {
     return (
       <div
-        className={`game-room-score-row flex items-center justify-between text-sm ${
-          dim ? "opacity-10" : "opacity-20"
-        }`}
+        className={`game-room-score-row flex items-center justify-between text-sm ${dim ? "opacity-10" : "opacity-20"
+          }`}
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
           <span className="w-5 shrink-0 text-center text-xs text-slate-600">
@@ -191,6 +208,14 @@ interface ChallengeSelfRowProps {
   combo?: number;
   gainAnimKey?: number;
   gainAmount?: number;
+
+  /**
+   * Rank shown in the UI list.
+   * Use this first, because live self may be inserted into Top 10 and push
+   * official rows down.
+   */
+  displayRank?: number | null;
+
   /** Gap to the player directly ahead: positive = behind, negative = surpassed. */
   gapToNext?: number | null;
 }
@@ -204,17 +229,19 @@ export const ChallengeSelfRow = React.memo(
     combo = 0,
     gainAnimKey = 0,
     gainAmount = 0,
+    displayRank = null,
     gapToNext = null,
   }: ChallengeSelfRowProps) {
     const { liveScore, projectedRank, officialRank } = standing;
     const name = normalizeRoomDisplayText(displayName ?? "", "Player");
-    const rankLabel = isSettled
-      ? officialRank !== null
-        ? `#${officialRank}`
-        : "--"
-      : projectedRank !== null
-        ? `#${projectedRank}`
-        : "--";
+    const rankValue =
+      displayRank !== null
+        ? displayRank
+        : isSettled
+          ? officialRank
+          : projectedRank;
+
+    const rankLabel = rankValue !== null ? `#${rankValue}` : "--";
     const rankColor = isSettled ? "text-amber-300" : "text-sky-300";
 
     return (
@@ -253,9 +280,8 @@ export const ChallengeSelfRow = React.memo(
           </span>
           {gapToNext != null && (
             <span
-              className={`text-xs font-semibold ${
-                gapToNext > 0 ? "text-rose-400" : "text-emerald-400"
-              }`}
+              className={`text-xs font-semibold ${gapToNext > 0 ? "text-rose-400" : "text-emerald-400"
+                }`}
             >
               {gapToNext > 0
                 ? `-${gapToNext.toLocaleString()}`

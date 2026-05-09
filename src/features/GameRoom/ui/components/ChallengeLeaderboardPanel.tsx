@@ -9,7 +9,6 @@ import {
   ChallengeSeparatorRow,
   ChallengeSelfRow,
   ChallengeEllipsisRow,
-  ChallengePlaceholderRow,
 } from "./ChallengeLeaderboardRow";
 import { ChallengeAnimatedRows } from "./ChallengeAnimatedRows";
 import type { SelfRowBaseProps } from "./ChallengeAnimatedRows";
@@ -101,23 +100,23 @@ export const ChallengeLeaderboardPanel = React.memo(
       () =>
         data && liveStanding
           ? {
-              standing: liveStanding,
-              isSettled,
-              displayName: viewerDisplayName,
-              avatarUrl: viewerAvatarUrl,
-              combo: viewerCombo,
-              gainAnimKey,
-              gainAmount,
-            }
+            standing: liveStanding,
+            isSettled,
+            displayName: viewerDisplayName,
+            avatarUrl: viewerAvatarUrl,
+            combo: viewerCombo,
+            gainAnimKey,
+            gainAmount,
+          }
           : {
-              standing: skeletonStanding,
-              isSettled: false,
-              displayName: viewerDisplayName,
-              avatarUrl: viewerAvatarUrl,
-              combo: viewerCombo,
-              gainAnimKey,
-              gainAmount,
-            },
+            standing: skeletonStanding,
+            isSettled: false,
+            displayName: viewerDisplayName,
+            avatarUrl: viewerAvatarUrl,
+            combo: viewerCombo,
+            gainAnimKey,
+            gainAmount,
+          },
       [
         data,
         liveStanding,
@@ -141,10 +140,10 @@ export const ChallengeLeaderboardPanel = React.memo(
       () =>
         data
           ? buildChallengeLeaderboardDisplayRows({
-              data,
-              viewerScore,
-              meUserId,
-            })
+            data,
+            viewerScore,
+            meUserId,
+          })
           : { layoutMode: "nearby" as const, listRows: [] },
       [data, viewerScore, meUserId],
     );
@@ -163,7 +162,7 @@ export const ChallengeLeaderboardPanel = React.memo(
             ref={scrollRef}
             className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
           >
-            <div className="game-room-scoreboard-stack overflow-visible">
+            <div className="game-room-scoreboard-stack challenge-lb-animated-stack">
               {Array.from({ length: 5 }).map((_, i) => (
                 <SkeletonRow key={i} opacity={1 - i * 0.1} />
               ))}
@@ -236,7 +235,7 @@ export const ChallengeLeaderboardPanel = React.memo(
           ref={scrollRef}
           className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
         >
-          <div className="game-room-scoreboard-stack overflow-visible">
+          <div className="game-room-scoreboard-stack challenge-lb-animated-stack">
             <ChallengeAnimatedRows
               rows={listRows}
               selfRowBaseProps={selfRowBaseProps}

@@ -91,7 +91,7 @@ export const ChallengeAnimatedRows = React.memo(
     );
 
     return (
-      <AnimatePresence initial={false} mode="sync">
+      <AnimatePresence initial={false} mode="popLayout">
         {rows.map((row, idx) => {
           const content = renderRowContent(row, selfRowBaseProps);
           const key = row.key;
@@ -166,7 +166,8 @@ function renderRowContent(
         return (
           <ChallengeTopEntryRow
             entry={row.entry}
-            isMe={row.isMe}
+            displayRank={row.displayRank}
+            isViewerHistoricalBest={row.isViewerHistoricalBest}
             liveGap={row.liveGap}
           />
         );
@@ -184,6 +185,7 @@ function renderRowContent(
       return (
         <ChallengeSelfRow
           {...selfRowBaseProps}
+          displayRank={row.displayRank}
           gapToNext={row.gapToNext}
         />
       );
