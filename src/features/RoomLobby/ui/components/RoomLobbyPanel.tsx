@@ -7,10 +7,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Drawer,
-  IconButton,
   Stack,
-  Switch,
   Typography,
   useMediaQuery,
 } from "@mui/material";
@@ -19,6 +16,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ChairRoundedIcon from "@mui/icons-material/ChairRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import FastForwardRoundedIcon from "@mui/icons-material/FastForwardRounded";
@@ -30,14 +28,10 @@ import PlaylistPlayRoundedIcon from "@mui/icons-material/PlaylistPlayRounded";
 import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
 // import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
-import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import type { RowComponentProps } from "react-window";
 import type {
@@ -75,9 +69,11 @@ import {
   type LeaderboardVariantKey,
   type RoomPlayMode,
 } from "@features/RoomHub/model/leaderboardChallengeOptions";
-import RoomLobbySettingsDialog from "./RoomLobbySettingsDialog";
+import CollectionPreviewLoadingRow from "@features/RoomHub/ui/components/source/CollectionPreviewLoadingRow";
+import RoomLobbySettingsDrawer from "./settings/RoomLobbySettingsDrawer";
 import CurrentPlaylistCard from "./CurrentPlaylistCard";
 import RoomPlaylistSelectorDrawer from "./playlist-selector/RoomPlaylistSelectorDrawer";
+import RoomInviteDrawer from "./invite/RoomInviteDrawer";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
 
 import { useGameSfx } from "@shared/hooks/useGameSfx";
@@ -202,6 +198,25 @@ const ROOM_LOBBY_BGM_FADE_IN_MS = 1200;
 
 const noop = () => undefined;
 
+const RoomLobbyPlaylistLoadingRow = ({
+  index,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
+}: {
+  index: number;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
+}) => {
+  React.useEffect(() => {
+    if (!hasMore || isLoadingMore) return;
+    onLoadMore();
+  }, [hasMore, isLoadingMore, onLoadMore]);
+
+  return <CollectionPreviewLoadingRow index={index} />;
+};
+
 const getLeaderboardModeKeyByVariant = (
   variant: LeaderboardVariantKey,
 ): "classic" | "time_attack" => (variant === "15m" ? "time_attack" : "classic");
@@ -274,7 +289,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onFetchYoutubePlaylists,
 }) => {
   type MobileLobbyTab = "members" | "host" | "playlist";
-  const rowCount = playlistItems.length + (playlistHasMore ? 1 : 0);
+  const rowCount =
+    playlistItems.length + (playlistHasMore || playlistLoadingMore ? 1 : 0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
@@ -1114,17 +1130,15 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const PlaylistRow = React.useCallback(
     ({ index, style, ariaAttributes }: RowComponentProps) => {
       if (index >= playlistItems.length) {
-        if (playlistHasMore && !playlistLoadingMore) {
-          onLoadMorePlaylist();
-        }
         return (
-          <Box
-            style={style}
-            {...ariaAttributes}
-            className="text-center text-slate-400 text-xs py-2"
-          >
-            {playlistHasMore ? "正在載入更多歌曲..." : "目前已載入全部歌曲"}
-          </Box>
+          <div style={style} {...ariaAttributes}>
+            <RoomLobbyPlaylistLoadingRow
+              index={index}
+              hasMore={playlistHasMore}
+              isLoadingMore={playlistLoadingMore}
+              onLoadMore={onLoadMorePlaylist}
+            />
+          </div>
         );
       }
 
@@ -1238,7 +1252,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const allowParticipantInvite =
     currentRoom?.gameSettings?.allowParticipantInvite ?? false;
   const canUseShareInvite = isHost || allowParticipantInvite;
-  const shareButtonLabel = canUseShareInvite ? "分享邀請" : "分享邀請未開放";
+  const shareButtonLabel = canUseShareInvite ? "邀請玩家" : "邀請未開放";
   const inviteLink = React.useMemo(() => {
     const inviteReference = currentRoom?.roomCode?.trim() || currentRoom?.id;
     if (!inviteReference || typeof window === "undefined") return "";
@@ -1308,7 +1322,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     try {
       setShareActionRunning(true);
       await navigator.share({
-        title: currentRoom.name || "分享邀請",
+        title: currentRoom.name || "邀請玩家",
         text: shareMessage,
         url: inviteLink || undefined,
       });
@@ -1561,6 +1575,27 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           value: `${leaderboardModeLabel} · ${leaderboardVariantLabel}`,
           icon: <EmojiEventsRoundedIcon fontSize="small" />,
           tone: "amber",
+          trailing: (
+            <RoomUiTooltip
+              title={
+                <span>
+                  排行挑戰限制
+                  <br />
+                  只能用公開收藏庫
+                  <br />
+                  無法修改作答時間、播放區間、公布時間
+                </span>
+              }
+            >
+              <span
+                className="room-lobby-metric-trailing-icon"
+                tabIndex={0}
+                aria-label="排行挑戰限制：只能用公開收藏庫，無法修改作答時間、播放區間、公布時間"
+              >
+                <InfoOutlinedIcon fontSize="small" />
+              </span>
+            </RoomUiTooltip>
+          ),
         },
       ]
     : [
@@ -1720,6 +1755,36 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     },
     [],
   );
+  const currentPlaylistCollection = React.useMemo(() => {
+    const sourceType =
+      currentRoom?.playlistSourceType ?? currentRoom?.playlist?.sourceType;
+    if (sourceType !== "public_collection" && sourceType !== "private_collection") {
+      return null;
+    }
+
+    const candidateIds = [
+      currentRoom?.playlist?.id,
+      currentRoom?.playlistId,
+      currentRoom?.playlistCoverSourceId,
+    ]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+
+    if (candidateIds.length === 0) return null;
+
+    return (
+      collections.find((collection) =>
+        candidateIds.includes(String(collection.id ?? "").trim()),
+      ) ?? null
+    );
+  }, [
+    collections,
+    currentRoom?.playlist?.id,
+    currentRoom?.playlist?.sourceType,
+    currentRoom?.playlistCoverSourceId,
+    currentRoom?.playlistId,
+    currentRoom?.playlistSourceType,
+  ]);
 
   const hostPanel = isHost ? (
     <div className="room-lobby-current-playlist-stack">
@@ -1730,8 +1795,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         playlistTotalCount={playlistAvailability.total}
         isHost={isHost}
         pendingSuggestionCount={newSuggestionCount}
-        collectionOnlyMode={isLeaderboardRoom}
-        collectionOnlyReason={leaderboardCollectionOnlyReason}
+        currentCollection={currentPlaylistCollection}
         onChange={(initialTab = "public") => {
           // Only mark suggestions seen when the host explicitly opens the
           // "推薦" tab via the suggestion chip — not on every modal open.
@@ -1753,8 +1817,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         playlistTotalCount={playlistAvailability.total}
         isHost={false}
         pendingSuggestionCount={0}
-        collectionOnlyMode={isLeaderboardRoom}
-        collectionOnlyReason={leaderboardCollectionOnlyReason}
+        currentCollection={currentPlaylistCollection}
         onChange={(initialTab = "public") => {
           setSelectorInitialTab(initialTab);
           setSelectorModalOpen(true);
@@ -2295,151 +2358,30 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           </>
         )}
       </Box>
-      <Drawer
-        anchor={isMobileLobbyLayout ? "bottom" : "right"}
+      <RoomInviteDrawer
         open={shareDialogOpen}
         onClose={() => setShareDialogOpen(false)}
-        PaperProps={{
-          className: "room-lobby-share-modal room-lobby-share-drawer",
-          sx: {
-            width: {
-              xs: "100%",
-              sm: isMobileLobbyLayout ? "100%" : 430,
-            },
-            maxWidth: "100vw",
-            borderRadius: isMobileLobbyLayout
-              ? "24px 24px 0 0"
-              : "24px 0 0 24px",
-            borderLeft: isMobileLobbyLayout
-              ? "none"
-              : "1px solid rgba(148,163,184,0.18)",
-            borderTop: isMobileLobbyLayout
-              ? "1px solid rgba(148,163,184,0.18)"
-              : "none",
-          },
+        isMobile={isMobileLobbyLayout}
+        isHost={isHost}
+        allowParticipantInvite={allowParticipantInvite}
+        invitePermissionSaving={sharePermissionSaving}
+        roomCode={currentRoom?.roomCode}
+        formattedRoomCode={formattedRoomCode}
+        inviteLink={inviteLink}
+        roomCodeCopied={roomCodeCopied}
+        inviteLinkCopied={inviteLinkCopied}
+        actionRunning={shareActionRunning}
+        canUseNativeShare={canUseNativeShare}
+        onToggleInvitePermission={(checked) => {
+          void handleToggleInvitePermission(checked);
         }}
-      >
-        <div className="room-lobby-share-modal__title">
-          <span
-            className="room-lobby-share-modal__title-icon"
-            aria-hidden="true"
-          >
-            <PersonAddAlt1RoundedIcon fontSize="small" />
-          </span>
-          <span>分享邀請</span>
-          <IconButton
-            type="button"
-            onClick={() => setShareDialogOpen(false)}
-            size="small"
-            sx={{
-              ml: "auto",
-              color: "rgba(226,232,240,0.9)",
-              border: "1px solid rgba(148,163,184,0.16)",
-              backgroundColor: "rgba(15,23,42,0.58)",
-              "&:hover": {
-                backgroundColor: "rgba(30,41,59,0.78)",
-              },
-            }}
-          >
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
-        </div>
-        <div className="room-lobby-share-modal__content">
-          <div className="room-lobby-share-modal__section room-lobby-share-modal__section--toggle">
-            <div className="room-lobby-share-modal__section-copy">
-              <strong>允許其他玩家透過代碼邀請</strong>
-            </div>
-            <div className="room-lobby-share-modal__toggle-wrap">
-              <Switch
-                checked={allowParticipantInvite}
-                onChange={(_, checked) => {
-                  void handleToggleInvitePermission(checked);
-                }}
-                disabled={!isHost || sharePermissionSaving}
-              />
-              <span className="room-lobby-share-modal__toggle-state">
-                {allowParticipantInvite ? "已開啟" : "未開啟"}
-              </span>
-            </div>
-          </div>
-          {!isHost && !allowParticipantInvite ? (
-            <div className="room-lobby-share-modal__locked-note">
-              房主尚未開啟玩家邀請權限
-            </div>
-          ) : null}
-          <div className="room-lobby-share-list">
-            <button
-              type="button"
-              className={`room-lobby-share-row ${roomCodeCopied ? "is-copied" : ""}`}
-              onClick={handleCopyRoomCode}
-              disabled={!currentRoom?.roomCode}
-            >
-              <span className="room-lobby-share-row__icon" aria-hidden="true">
-                {roomCodeCopied ? (
-                  <span className="room-lobby-share-row__copied-tip">
-                    已複製
-                  </span>
-                ) : null}
-                {roomCodeCopied ? (
-                  <CheckRoundedIcon fontSize="small" />
-                ) : (
-                  <ContentCopyRoundedIcon fontSize="small" />
-                )}
-              </span>
-              <span className="room-lobby-share-row__value">
-                {formattedRoomCode ?? "--"}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`room-lobby-share-row room-lobby-share-row--link ${
-                inviteLinkCopied ? "is-copied" : ""
-              }`}
-              onClick={handleCopyInviteLink}
-              disabled={!inviteLink}
-            >
-              <span className="room-lobby-share-row__icon" aria-hidden="true">
-                {inviteLinkCopied ? (
-                  <span className="room-lobby-share-row__copied-tip">
-                    已複製
-                  </span>
-                ) : null}
-                {inviteLinkCopied ? (
-                  <CheckRoundedIcon fontSize="small" />
-                ) : (
-                  <ContentCopyRoundedIcon fontSize="small" />
-                )}
-              </span>
-              <span className="room-lobby-share-row__value room-lobby-share-row__value--link">
-                {inviteLink || "未提供"}
-              </span>
-            </button>
-          </div>
-          <div className="room-lobby-share-actions-grid">
-            <button
-              type="button"
-              className={`room-lobby-share-action-card ${
-                shareActionRunning ? "is-pending" : ""
-              }`}
-              onClick={() => {
-                void handleNativeShare();
-              }}
-              disabled={!canUseNativeShare || shareActionRunning}
-            >
-              <span
-                className="room-lobby-share-action-card__icon"
-                aria-hidden="true"
-              >
-                <IosShareRoundedIcon fontSize="small" />
-              </span>
-              <span className="room-lobby-share-action-card__copy">
-                <strong>分享</strong>
-              </span>
-            </button>
-          </div>
-        </div>
-      </Drawer>
-      <RoomLobbySettingsDialog
+        onCopyRoomCode={handleCopyRoomCode}
+        onCopyInviteLink={handleCopyInviteLink}
+        onNativeShare={() => {
+          void handleNativeShare();
+        }}
+      />
+      <RoomLobbySettingsDrawer
         open={settingsOpen}
         settingsDisabled={settingsDisabled}
         settingsSaving={settingsSaving}

@@ -3,10 +3,8 @@ import {
   Box,
   Button,
   ClickAwayListener,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  Drawer,
+  IconButton,
   Popper,
   Slider,
   Stack,
@@ -16,6 +14,7 @@ import {
 } from "@mui/material";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ChairRoundedIcon from "@mui/icons-material/ChairRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCutRoundedIcon from "@mui/icons-material/ContentCutRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import FastForwardRounded from "@mui/icons-material/FastForwardRounded";
@@ -50,7 +49,7 @@ import { AnimatePresence, motion } from "motion/react";
 type RoomPlayMode = "casual" | "leaderboard";
 type LeaderboardVariantKey = "30q" | "50q" | "15m";
 
-interface RoomLobbySettingsDialogProps {
+interface RoomLobbySettingsDrawerProps {
   open: boolean;
   settingsDisabled: boolean;
   settingsSaving: boolean;
@@ -244,7 +243,7 @@ const playbackExtensionOptions: Array<{
   { key: "disabled", label: "不開放延長" },
 ];
 
-const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
+const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
   open,
   settingsDisabled,
   settingsSaving,
@@ -284,7 +283,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   onClose,
   onSave,
 }) => {
-  const isMobileDialog = useMediaQuery("(max-width:900px)");
+  const isMobileDrawer = useMediaQuery("(max-width:900px)");
   const settingsLocked = settingsDisabled || settingsSaving;
   const settingsVisualLocked = settingsDisabled;
   const isLeaderboardRoom = roomPlayMode === "leaderboard";
@@ -410,7 +409,7 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
     </div>
   ) : null;
 
-  const handleDialogClose = () => {
+  const handleDrawerClose = () => {
     if (settingsSaving) return;
     onClose();
   };
@@ -454,26 +453,30 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
   );
 
   return (
-    <Dialog
+    <Drawer
       open={open}
-      onClose={handleDialogClose}
-      fullScreen={isMobileDialog}
-      fullWidth
-      maxWidth="lg"
+      onClose={handleDrawerClose}
+      anchor={isMobileDrawer ? "bottom" : "right"}
       sx={{ zIndex: 1505 }}
       PaperProps={{
-        className: "room-lobby-settings-dialog",
+        className: "room-lobby-settings-drawer",
         sx: {
-          borderRadius: isMobileDialog ? 0 : 4,
+          width: isMobileDrawer ? "100%" : "min(1040px, 100vw)",
+          height: isMobileDrawer ? "min(92dvh, 820px)" : "100dvh",
+          maxHeight: isMobileDrawer ? "92dvh" : "100dvh",
+          borderRadius: isMobileDrawer ? "22px 22px 0 0" : "24px 0 0 24px",
           border: "1px solid rgba(245,158,11,0.18)",
           background:
             "radial-gradient(720px 320px at 0% 0%, rgba(245,158,11,0.14), transparent 62%), radial-gradient(560px 280px at 100% 0%, rgba(34,211,238,0.14), transparent 64%), linear-gradient(180deg, rgba(6,10,16,0.985), rgba(3,6,11,0.985))",
           boxShadow:
             "0 34px 90px -48px rgba(0,0,0,0.92), 0 0 0 1px rgba(255,255,255,0.03)",
+          overflow: "hidden",
         },
       }}
     >
-      <DialogTitle
+      <Box className="flex h-full min-h-0 flex-col">
+      <Box
+        className="room-lobby-settings-dialog__head"
         sx={{
           px: { xs: 2, sm: 3 },
           pt: { xs: 1.5, sm: 2.5 },
@@ -482,9 +485,20 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
         }}
       >
         <Stack spacing={{ xs: 1, sm: 1.5 }}>
-          <Typography variant="h5" className="font-semibold text-slate-50">
-            房間設定
-          </Typography>
+          <div className="flex items-center justify-between gap-3">
+            <Typography variant="h5" className="font-semibold text-slate-50">
+              房間設定
+            </Typography>
+            <IconButton
+              aria-label="關閉房間設定"
+              onClick={handleDrawerClose}
+              disabled={settingsSaving}
+              size="small"
+              className="!border-0 !bg-white/5 !text-slate-100"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </div>
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4 sm:gap-4">
             <div className="flex items-start gap-2 text-slate-100">
@@ -545,15 +559,14 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             </div>
           </div>
         </Stack>
-      </DialogTitle>
+      </Box>
 
-      <DialogContent
-        dividers
+      <Box
         sx={{
-          borderColor: "rgba(245,158,11,0.12)",
+          flex: "1 1 auto",
+          minHeight: 0,
           py: { xs: 1.5, sm: 2.25 },
           px: { xs: 1.5, sm: 2.5 },
-          maxHeight: { xs: "none", md: "82vh" },
           overflowY: "auto",
           overflowX: "hidden",
         }}
@@ -1532,18 +1545,22 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             ) : null}
           </Stack>
         </div>
-      </DialogContent>
+      </Box>
 
-      <DialogActions
+      <Box
         className="room-lobby-settings-dialog__actions"
         sx={{
           borderTop: "1px solid rgba(245,158,11,0.1)",
           px: { xs: 1.5, sm: 2.5 },
           py: { xs: 1, sm: 1.5 },
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 1,
+          flexShrink: 0,
         }}
       >
         <Button
-          onClick={handleDialogClose}
+          onClick={handleDrawerClose}
           variant="text"
           disabled={settingsSaving}
           className="room-lobby-settings-secondary-btn"
@@ -1563,9 +1580,10 @@ const RoomLobbySettingsDialog: React.FC<RoomLobbySettingsDialogProps> = ({
             {settingsSaving ? "儲存中..." : "儲存設定"}
           </span>
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+      </Box>
+    </Drawer>
   );
 };
 
-export default RoomLobbySettingsDialog;
+export default RoomLobbySettingsDrawer;

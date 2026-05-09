@@ -567,18 +567,7 @@
   border-radius: 28px !important;
   border: 1px solid rgba(56, 189, 248, 0.2) !important;
   color: #f8fafc !important;
-  background:
-    radial-gradient(
-      720px 360px at -6% -16%,
-      rgba(56, 189, 248, 0.18),
-      transparent 62%
-    ),
-    radial-gradient(
-      520px 300px at 100% 0%,
-      rgba(251, 191, 36, 0.12),
-      transparent 68%
-    ),
-    linear-gradient(180deg, rgba(2, 6, 23, 0.98), rgba(2, 6, 23, 0.94)) !important;
+  background: #020617 !important;
   box-shadow:
     0 38px 96px -52px rgba(2, 6, 23, 0.96),
     0 0 0 1px rgba(255, 255, 255, 0.03) !important;
@@ -607,7 +596,6 @@
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  border: 1px solid rgba(96, 165, 250, 0.24);
   background: rgba(15, 23, 42, 0.58);
   color: rgba(125, 211, 252, 0.94);
 }
@@ -623,13 +611,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: nowrap;
   padding: 16px 18px;
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(15, 23, 42, 0.34);
+  background: #0f172a;
 }
 
 .room-lobby-share-modal__section-copy > strong {
+  display: inline-flex;
+  white-space: nowrap;
   font-size: 14px;
   color: rgba(248, 250, 252, 0.98);
 }
@@ -651,7 +642,7 @@
   padding: 10px 12px;
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(15, 23, 42, 0.42);
+  background: #0f172a;
   color: rgba(203, 213, 225, 0.84);
   font-size: 13px;
 }
@@ -672,13 +663,7 @@
   padding: 13px 14px;
   border-radius: 18px;
   border: 1px solid rgba(96, 165, 250, 0.16);
-  background:
-    radial-gradient(
-      180px 80px at 0% 0%,
-      rgba(56, 189, 248, 0.12),
-      transparent 68%
-    ),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.42));
+  background: #0f172a;
   color: rgba(248, 250, 252, 0.94);
   text-align: left;
   cursor: pointer;
@@ -704,13 +689,7 @@
 
 .room-lobby-share-action-card.is-copied {
   border-color: rgba(16, 185, 129, 0.28);
-  background:
-    radial-gradient(
-      180px 80px at 0% 0%,
-      rgba(16, 185, 129, 0.13),
-      transparent 68%
-    ),
-    linear-gradient(180deg, rgba(8, 22, 20, 0.72), rgba(8, 18, 18, 0.52));
+  background: #052e2b;
 }
 
 .room-lobby-share-action-card.is-pending {
@@ -23451,8 +23430,8 @@
   }
 
   .room-lobby-share-modal__section {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
   }
 
   .room-lobby-share-modal__toggle-wrap {

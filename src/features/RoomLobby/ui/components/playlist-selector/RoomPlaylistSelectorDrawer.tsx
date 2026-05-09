@@ -299,15 +299,21 @@ const SourceMetrics = ({
   playableCount,
   useCount,
   favoriteCount,
+  noWrap = false,
 }: {
   itemCount?: number | null;
   playableCount?: number | null;
   useCount?: number | null;
   favoriteCount?: number | null;
+  noWrap?: boolean;
 }) => {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-slate-200/90">
-      <span className="inline-flex items-center gap-1.5">
+    <div
+      className={`flex items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-slate-200/90 ${
+        noWrap ? "min-w-0 flex-nowrap overflow-hidden" : "flex-wrap"
+      }`}
+    >
+      <span className="inline-flex shrink-0 items-center gap-1.5">
         <QuizRoundedIcon
           sx={{ fontSize: 16, color: "rgba(103,232,249,0.9)" }}
         />
@@ -320,7 +326,7 @@ const SourceMetrics = ({
       </span>
 
       {typeof useCount !== "undefined" ? (
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex shrink-0 items-center gap-1.5">
           <BarChartRoundedIcon
             sx={{ fontSize: 17, color: "rgba(125,211,252,0.86)" }}
           />
@@ -329,7 +335,7 @@ const SourceMetrics = ({
       ) : null}
 
       {typeof favoriteCount !== "undefined" ? (
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex shrink-0 items-center gap-1.5">
           <FavoriteBorderRoundedIcon
             sx={{ fontSize: 16, color: "rgba(251,113,133,0.9)" }}
           />
@@ -429,7 +435,7 @@ const SourceCard = ({
       onClick={onClick}
       className={
         isList
-          ? `group relative flex w-full items-center gap-3 border-b border-slate-700/55 px-3 py-3 text-left transition duration-200 ${
+          ? `group relative flex h-full w-full items-center gap-3 overflow-hidden border-b border-slate-700/55 px-3 py-2 text-left transition duration-200 ${
               disabled || isRunning
                 ? "cursor-not-allowed bg-slate-950/20 opacity-75"
                 : isCurrent
@@ -448,7 +454,7 @@ const SourceCard = ({
       <div
         className={
           isList
-            ? "relative h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900/40"
+            ? "relative h-16 w-24 shrink-0 overflow-hidden rounded-md bg-slate-900/40"
             : "relative h-36 w-full overflow-hidden bg-slate-900/60"
         }
       >
@@ -475,7 +481,11 @@ const SourceCard = ({
           <div className="absolute left-3 top-3">{badge}</div>
         ) : null}
 
-        {!isList && isCurrent ? (
+        {!isList && isRunning ? (
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/78 px-2.5 py-1 text-[11px] font-semibold text-slate-100 backdrop-blur-sm">
+            處理中...
+          </span>
+        ) : !isList && isCurrent ? (
           <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-cyan-100/20 bg-cyan-950/78 px-2.5 py-1 text-[11px] font-semibold text-cyan-50 backdrop-blur-sm">
             <CheckRoundedIcon sx={{ fontSize: 14 }} />
             目前使用
@@ -489,7 +499,13 @@ const SourceCard = ({
         ) : null}
       </div>
 
-      <div className={isList ? "min-w-0 flex-1" : "space-y-3 px-4 py-3.5"}>
+      <div
+        className={
+          isList
+            ? "flex h-full min-w-0 flex-1 flex-col justify-center pr-2"
+            : "space-y-3 px-4 py-3.5"
+        }
+      >
         <div className="min-w-0">
           <div
             className={
@@ -499,14 +515,19 @@ const SourceCard = ({
             <p
               className={
                 isList
-                  ? "min-w-0 flex-1 truncate text-sm font-semibold text-[var(--mc-text)]"
+                  ? "min-w-0 flex-1 truncate pr-20 text-sm font-semibold text-[var(--mc-text)]"
                   : "line-clamp-1 text-[15px] font-semibold leading-6 text-[var(--mc-text)]"
               }
             >
               {title}
             </p>
             {isList ? (
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="absolute right-3 top-3 flex shrink-0 items-center gap-2">
+                {isRunning ? (
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] leading-none text-slate-200">
+                    處理中...
+                  </span>
+                ) : null}
                 {isCurrent ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-cyan-100/20 bg-cyan-950/60 px-2 py-1 text-[10px] leading-none text-cyan-50">
                     <CheckRoundedIcon sx={{ fontSize: 12 }} />
@@ -534,18 +555,15 @@ const SourceCard = ({
 
         <div
           className={
-            isList ? "mt-2 flex flex-wrap gap-3" : "flex items-center gap-3"
+            isList
+              ? "mt-2 flex min-h-[18px] min-w-0 flex-nowrap gap-3 overflow-hidden"
+              : "flex items-center gap-3"
           }
         >
           {metrics}
           {isList && disabledReason ? (
-            <span className="mt-1 block truncate text-xs font-semibold text-amber-100">
+            <span className="min-w-0 truncate text-xs font-semibold text-amber-100">
               {disabledReason}
-            </span>
-          ) : null}
-          {isRunning ? (
-            <span className="mt-1 inline-flex rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-              處理中...
             </span>
           ) : null}
         </div>
@@ -1211,16 +1229,18 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
         description={collection.description || collection.cover_channel_title}
         thumbnailUrl={getCollectionThumbnail(collection)}
         badge={
-          <SourceBadge
-            icon={
-              type === "public_collection" ? (
-                <PublicRoundedIcon sx={{ fontSize: 13 }} />
-              ) : (
-                <BookmarkBorderRoundedIcon sx={{ fontSize: 13 }} />
-              )
-            }
-            label={type === "public_collection" ? "公開收藏庫" : "我的收藏庫"}
-          />
+          activeTab === "mine" ? (
+            <SourceBadge
+              icon={
+                type === "public_collection" ? (
+                  <PublicRoundedIcon sx={{ fontSize: 13 }} />
+                ) : (
+                  <BookmarkBorderRoundedIcon sx={{ fontSize: 13 }} />
+                )
+              }
+              label={type === "public_collection" ? "公開收藏庫" : "私人收藏庫"}
+            />
+          ) : undefined
         }
         rating={
           <SourceRating
@@ -1234,6 +1254,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
             playableCount={counts.playable}
             useCount={collection.use_count}
             favoriteCount={collection.favorite_count}
+            noWrap={viewMode === "list"}
           />
         }
         disabled={requirement.disabled || lockedByLeaderboard}
@@ -1265,13 +1286,12 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
         title={normalizeDisplayText(playlist.title, "未命名播放清單")}
         description={`YouTube 播放清單 · ${formatCount(playlist.itemCount)} 首`}
         thumbnailUrl={playlist.thumbnail}
-        badge={
-          <SourceBadge
-            icon={<YouTubeIcon sx={{ fontSize: 14 }} />}
-            label="YouTube"
+        metrics={
+          <SourceMetrics
+            itemCount={playlist.itemCount}
+            noWrap={viewMode === "list"}
           />
         }
-        metrics={<SourceMetrics itemCount={playlist.itemCount} />}
         disabled={disabled}
         disabledReason={
           leaderboardCollectionOnlyMode
@@ -1328,18 +1348,6 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
             ? getCollectionThumbnail(matchedCollection)
             : getSuggestionThumbnail(suggestion)
         }
-        badge={
-          <SourceBadge
-            icon={
-              isPublicCollection ? (
-                <PublicRoundedIcon sx={{ fontSize: 13 }} />
-              ) : (
-                <TipsAndUpdatesRoundedIcon sx={{ fontSize: 13 }} />
-              )
-            }
-            label={isPublicCollection ? "公開收藏庫" : "玩家推薦"}
-          />
-        }
         rating={
           matchedCollection ? (
             <SourceRating
@@ -1358,6 +1366,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
             }
             useCount={matchedCollection?.use_count}
             favoriteCount={matchedCollection?.favorite_count}
+            noWrap={viewMode === "list"}
           />
         }
         disabled={lockedByLeaderboard || lockedByRole}
@@ -1701,31 +1710,31 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
           maxWidth: "100vw",
           height: {
             xs: "100dvh",
-            sm: "calc(100dvh - 16px)",
+            sm: "100dvh",
           },
           maxHeight: {
             xs: "100dvh",
-            sm: "calc(100dvh - 16px)",
+            sm: "100dvh",
           },
           mt: {
             xs: 0,
-            sm: "8px",
+            sm: 0,
           },
           mb: {
             xs: 0,
-            sm: "8px",
+            sm: 0,
           },
           borderRadius: {
             xs: 0,
             sm: "24px 0 0 24px",
           },
           overflow: "hidden",
-          borderLeft: {
+          border: {
             xs: "none",
             sm: "1px solid rgba(148,163,184,0.18)",
           },
-          background:
-            "radial-gradient(circle at 0% 0%, rgba(34,211,238,0.12), transparent 30%), linear-gradient(180deg, rgba(15,23,42,0.99), rgba(2,6,23,0.99))",
+          borderRight: "none",
+          background: "#020617",
           boxShadow:
             "-24px 0 80px -48px rgba(15,23,42,0.98), inset 1px 0 0 rgba(255,255,255,0.055)",
         },
@@ -1733,8 +1742,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
       ModalProps={{
         BackdropProps: {
           sx: {
-            background:
-              "linear-gradient(90deg, rgba(2,6,23,0.72), rgba(2,6,23,0.48))",
+            background: "rgba(2,6,23,0.64)",
             backdropFilter: "blur(8px)",
           },
         },
@@ -1776,7 +1784,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
               onClick={onClose}
               sx={{
                 color: "rgba(226,232,240,0.9)",
-                border: "1px solid rgba(148,163,184,0.16)",
+                border: "none",
                 backgroundColor: "rgba(15,23,42,0.58)",
                 "&:hover": {
                   backgroundColor: "rgba(30,41,59,0.78)",
@@ -2041,13 +2049,10 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
                 <button
                   type="button"
                   onClick={() => setViewMode("grid")}
-                  disabled={isMobile}
                   className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
                     viewMode === "grid"
                       ? "bg-cyan-200/14 text-cyan-50"
-                      : isMobile
-                        ? "cursor-not-allowed text-slate-600"
-                        : "text-slate-400 hover:text-slate-100"
+                      : "text-slate-400 hover:text-slate-100"
                   }`}
                 >
                   <GridViewRoundedIcon sx={{ fontSize: 18 }} />
