@@ -200,6 +200,21 @@ export const ChallengePlaceholderRow = React.memo(
   },
 );
 
+interface ChallengeScoreGainLaneProps {
+  gainAmount?: number;
+}
+
+const ChallengeScoreGainLane = React.memo(function ChallengeScoreGainLane({
+  gainAmount = 0,
+}: ChallengeScoreGainLaneProps) {
+  if (gainAmount <= 0) return null;
+  return (
+    <span className="challenge-lb-score-gain-lane" aria-hidden="true">
+      +{gainAmount.toLocaleString()}
+    </span>
+  );
+});
+
 interface ChallengeSelfRowProps {
   standing: ChallengeProjectedMyStanding;
   isSettled?: boolean;
@@ -216,8 +231,19 @@ interface ChallengeSelfRowProps {
    */
   displayRank?: number | null;
 
-  /** Gap to the player directly ahead: positive = behind, negative = surpassed. */
+  /**
+   * Gap to the player directly ahead: positive = behind, negative = surpassed.
+   * Kept in the data model but intentionally not rendered on the self row —
+   * displaying it here clutters the viewer's own score cluster.
+   * Opponent rows (ChallengeTopEntryRow / ChallengeNearbyRow) still show gaps.
+   */
   gapToNext?: number | null;
+
+  /**
+   * When false, suppresses the gain lane (use for sticky self bar where the
+   * panel-level padding-right is not available).
+   */
+  showGainLane?: boolean;
 }
 
 export const ChallengeSelfRow = React.memo(
@@ -230,7 +256,8 @@ export const ChallengeSelfRow = React.memo(
     gainAnimKey = 0,
     gainAmount = 0,
     displayRank = null,
-    gapToNext = null,
+    // gapToNext is part of the data model but not rendered on the self row
+    showGainLane = true,
   }: ChallengeSelfRowProps) {
     const { liveScore, projectedRank, officialRank } = standing;
     const name = normalizeRoomDisplayText(displayName ?? "", "Player");
@@ -244,7 +271,7 @@ export const ChallengeSelfRow = React.memo(
     const rankLabel = rankValue !== null ? `#${rankValue}` : "--";
     const rankColor = isSettled ? "text-amber-300" : "text-sky-300";
 
-    return (
+    const rowEl = (
       <div className="game-room-score-row game-room-score-row--me challenge-lb-self-row flex items-center justify-between text-sm bg-white/8 ring-1 ring-white/15">
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
           <span
@@ -265,30 +292,20 @@ export const ChallengeSelfRow = React.memo(
           <span className="truncate font-medium text-white/90">{name}</span>
           <span className="game-room-score-row-you-badge">YOU</span>
         </span>
-        <span className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap text-right font-mono">
-          <span className="relative text-sm font-semibold tabular-nums text-emerald-300">
+        <span className="flex shrink-0 items-baseline whitespace-nowrap text-right font-mono">
+          <span className="text-sm font-semibold tabular-nums text-emerald-300">
             {formatScoreCombo(liveScore, combo)}
-            {gainAmount > 0 && (
-              <span
-                key={gainAnimKey}
-                className="challenge-lb-gain-float"
-                aria-hidden="true"
-              >
-                +{gainAmount.toLocaleString()}
-              </span>
-            )}
           </span>
-          {gapToNext != null && (
-            <span
-              className={`text-xs font-semibold ${gapToNext > 0 ? "text-rose-400" : "text-emerald-400"
-                }`}
-            >
-              {gapToNext > 0
-                ? `-${gapToNext.toLocaleString()}`
-                : `+${Math.abs(gapToNext).toLocaleString()}`}
-            </span>
-          )}
         </span>
+      </div>
+    );
+
+    if (!showGainLane) return rowEl;
+
+    return (
+      <div className="challenge-lb-self-row-shell">
+        {rowEl}
+        <ChallengeScoreGainLane key={gainAnimKey} gainAmount={gainAmount} />
       </div>
     );
   },

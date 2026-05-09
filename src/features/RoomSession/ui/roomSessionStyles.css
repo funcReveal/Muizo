@@ -24843,9 +24843,15 @@
    The actual scroll container is still .game-room-scoreboard-list.
    This class only prevents animated transform overflow from creating
    temporary scrollbars during enter / exit / move transitions.
+
+   padding-right reserves space for .challenge-lb-score-gain-lane so the
+   absolute-positioned gain lane stays within this element's padding box
+   (clipped by overflow:clip / contain:paint) without adding scrollbar width.
 */
 .challenge-lb-animated-stack {
+  --challenge-lb-gain-lane-width: 3rem;
   position: relative;
   overflow: clip;
   contain: layout paint;
+  padding-right: var(--challenge-lb-gain-lane-width);
 }

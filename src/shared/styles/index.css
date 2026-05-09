@@ -1205,37 +1205,53 @@ body {
   }
 }
 
-/* Challenge leaderboard — floating score gain animation */
-@keyframes challenge-lb-gain-float {
+/* Challenge leaderboard — self row shell + external gain lane */
+
+.challenge-lb-self-row-shell {
+  position: relative;
+}
+
+@keyframes challenge-lb-score-gain-pop {
   0% {
-    opacity: 1;
-    transform: translateY(0) scale(1.1);
+    opacity: 0;
+    transform: translateY(-50%) translateY(8px) scale(0.92);
   }
-  30% {
+
+  18% {
     opacity: 1;
-    transform: translateY(-6px) scale(1.15);
+    transform: translateY(-50%) translateY(0) scale(1.05);
   }
+
   100% {
     opacity: 0;
-    transform: translateY(-20px) scale(0.9);
+    transform: translateY(-50%) translateY(-14px) scale(1);
   }
 }
 
-.challenge-lb-gain-float {
-  animation: challenge-lb-gain-float 1.6s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+/*
+ * Gain lane sits in the padding-right space reserved by .challenge-lb-animated-stack.
+ * right: calc(-1 * --challenge-lb-gain-lane-width) positions it flush against the
+ * shell's right edge so it occupies exactly the stack's padding area — no scrollbar.
+ */
+.challenge-lb-score-gain-lane {
   position: absolute;
-  right: 0;
-  top: -2px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #4ade80; /* emerald-400 */
+  right: calc(-1 * var(--challenge-lb-gain-lane-width, 3rem));
+  top: 50%;
+  width: var(--challenge-lb-gain-lane-width, 3rem);
+  text-align: center;
   pointer-events: none;
   white-space: nowrap;
-  line-height: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: rgb(52 211 153); /* emerald-400 */
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+  animation: challenge-lb-score-gain-pop 900ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .challenge-lb-gain-float {
+  .challenge-lb-score-gain-lane {
     animation: none;
     opacity: 0;
   }
