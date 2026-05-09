@@ -24845,3 +24845,16 @@
     height: var(--mq-scrollbar-size);
   }
 }
+
+/* Challenge leaderboard animated list
+   Keep exit animations from increasing the scrollable height.
+
+   The actual scroll container is still .game-room-scoreboard-list.
+   This class only prevents animated transform overflow from creating
+   temporary scrollbars during enter / exit / move transitions.
+*/
+.challenge-lb-animated-stack {
+  position: relative;
+  overflow: clip;
+  contain: layout paint;
+}

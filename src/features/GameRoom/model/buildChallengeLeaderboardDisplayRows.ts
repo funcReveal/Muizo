@@ -6,18 +6,24 @@
  *
  * Layout modes
  * ─────────────
- * top-window  projectedRank ≤ 10 — self injected into live-merged Top 10.
- * top-eleven  projectedRank = 11  — official Top 10 shown, self at slot #11.
- * nearby      projectedRank ≥ 12 or null — Top 5 + ellipsis + 5 nearby rows.
+ * top-window  projectedRank ≤ 10 — official Top 10 + live self inserted.
+ * top-eleven  projectedRank = 11  — official Top 10 + live self at #11.
+ * nearby      projectedRank ≥ 12 or null — Top 5 + ellipsis + nearby rows.
  *
- * Key stability
- * ─────────────
- * Row keys are stable across layout-mode transitions so motion/react layout
- * animations can track element movements between modes:
- *   player row  →  `player:${userId}`
- *   self row    →  `self:list`   (sticky bar uses a separate key)
- *   ellipsis    →  `ellipsis:nearby`
- *   placeholder →  `placeholder:top:${n}` | `placeholder:nearby:${n}`
+ * Important UI model rule
+ * ───────────────────────
+ * The viewer's official best record and the viewer's current live run are NOT
+ * the same UI row.
+ *
+ * - official best row = settled historical leaderboard record
+ * - live self row     = current in-room score
+ *
+ * Therefore, the same userId may appear twice only when:
+ * viewerScore < officialSelfEntry.bestScore
+ *
+ * In that case:
+ * - official self row stays visible as a normal official row
+ * - live self row displays YOU
  */
 
 import type {
@@ -36,21 +42,33 @@ export type ChallengeLayoutMode = "top-window" | "top-eleven" | "nearby";
 export type ChallengeLeaderboardDisplayRow =
   | {
       kind: "player";
-      /** `player:${userId}` — stable across layout modes */
+      /** `player:${userId}` — official leaderboard row */
       key: string;
       userId: string;
       section: "top";
       entry: ChallengeLeaderboardEntry;
-      isMe: boolean;
+
+      /**
+       * Rank shown in the UI after live self is inserted.
+       * This may differ from entry.rank.
+       */
+      displayRank: number | null;
+
+      /**
+       * True when this row is the viewer's settled official best record.
+       * This row must NOT show YOU and must NOT use self highlight.
+       */
+      isViewerHistoricalBest: boolean;
+
       /**
        * entry.bestScore − viewerScore.
-       * null means this row does not display the gap (to reduce clutter).
+       * null means this row does not display the gap.
        */
       liveGap: number | null;
     }
   | {
       kind: "player";
-      /** `player:${userId}` — stable across layout modes */
+      /** `player:${userId}` — nearby opponent row */
       key: string;
       userId: string;
       section: "nearby";
@@ -64,6 +82,14 @@ export type ChallengeLeaderboardDisplayRow =
       /** Fixed key for the list row; sticky bar must NOT share this key. */
       key: "self:list";
       section: "top-window" | "top-eleven" | "nearby";
+
+      /**
+       * Rank shown in the UI.
+       * In top-window / top-eleven this is the display position.
+       * In nearby this is usually projectedRank.
+       */
+      displayRank: number | null;
+
       /**
        * Gap to the player directly above self in the displayed list.
        * Positive = behind; negative = already surpassed locally.
@@ -110,14 +136,89 @@ export function buildChallengeLeaderboardDisplayRows({
     case "top-window":
       return {
         layoutMode,
-        listRows: buildTopWindowRows(data, viewerScore, meUserId, projectedRank!),
+        listRows: buildTopWindowRows(
+          data,
+          viewerScore,
+          meUserId,
+          projectedRank!,
+        ),
       };
     case "top-eleven":
-      return { layoutMode, listRows: buildTopElevenRows(data, viewerScore) };
+      return {
+        layoutMode,
+        listRows: buildTopElevenRows(data, viewerScore, meUserId),
+      };
     case "nearby":
-      return { layoutMode, listRows: buildNearbyRows(data, viewerScore, meUserId) };
+      return {
+        layoutMode,
+        listRows: buildNearbyRows(data, viewerScore, meUserId),
+      };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const makeTopPlayerRow = (
+  entry: ChallengeLeaderboardEntry,
+  meUserId: string | null,
+  displayRank: number | null,
+  liveGap: number | null,
+): ChallengeLeaderboardDisplayRow => ({
+  kind: "player",
+  key: `player:${entry.userId}`,
+  userId: entry.userId,
+  section: "top",
+  entry,
+  displayRank,
+  isViewerHistoricalBest: meUserId !== null && entry.userId === meUserId,
+  liveGap,
+});
+
+const getDisplayScore = (
+  row: ChallengeLeaderboardDisplayRow,
+): number | null => {
+  if (row.kind === "player" && row.section === "top") {
+    return row.entry.bestScore;
+  }
+
+  if (row.kind === "player" && row.section === "nearby") {
+    return row.opponent.bestScore;
+  }
+
+  return null;
+};
+
+const finalizeSequentialTopRows = (
+  rows: ChallengeLeaderboardDisplayRow[],
+  viewerScore: number,
+): ChallengeLeaderboardDisplayRow[] => {
+  return rows.map((row, index) => {
+    const displayRank = index + 1;
+
+    if (row.kind === "player" && row.section === "top") {
+      return {
+        ...row,
+        displayRank,
+        liveGap: row.entry.bestScore - viewerScore,
+      };
+    }
+
+    if (row.kind === "self") {
+      const previousRow = index > 0 ? rows[index - 1] : null;
+      const previousScore = previousRow ? getDisplayScore(previousRow) : null;
+
+      return {
+        ...row,
+        displayRank,
+        gapToNext: previousScore !== null ? previousScore - viewerScore : null,
+      };
+    }
+
+    return row;
+  });
+};
 
 // ---------------------------------------------------------------------------
 // top-window mode (projectedRank ≤ 10)
@@ -130,44 +231,73 @@ function buildTopWindowRows(
   projectedRank: number,
 ): ChallengeLeaderboardDisplayRow[] {
   const TARGET = 10;
-  // 0-based slot index where self will be inserted.
-  const insertIdx = Math.min(projectedRank - 1, TARGET - 1);
 
-  // Always exclude the viewer's official entry so ChallengeSelfRow (live data)
-  // is the sole representation of the viewer in the list.
-  const officialsWithoutMe = data.topEntries
-    .filter((e) => e.userId !== meUserId)
-    .slice(0, TARGET); // guard against more than TARGET entries
+  const rawTopEntries = data.topEntries.slice(0, TARGET);
+
+  const officialSelfEntry =
+    meUserId !== null
+      ? (rawTopEntries.find((entry) => entry.userId === meUserId) ?? null)
+      : null;
+
+  /**
+   * If the current live score is still lower than the official best,
+   * keep the official self row as a normal historical official row.
+   *
+   * If live score reaches/exceeds official best, remove the historical self
+   * entry and let the live self row become the only self-like row.
+   */
+  const shouldRemoveOfficialSelf =
+    officialSelfEntry !== null && viewerScore >= officialSelfEntry.bestScore;
+
+  const officialCandidates = rawTopEntries.filter(
+    (entry) => !(shouldRemoveOfficialSelf && entry.userId === meUserId),
+  );
+
+  const insertIdx = Math.max(
+    0,
+    Math.min(projectedRank - 1, officialCandidates.length),
+  );
 
   const rows: ChallengeLeaderboardDisplayRow[] = [];
-  let selfInserted = false;
-  let oi = 0;
 
-  for (let slot = 0; slot < TARGET; slot++) {
-    if (!selfInserted && slot === insertIdx) {
-      rows.push({ kind: "self", key: "self:list", section: "top-window", gapToNext: null });
-      selfInserted = true;
-    } else if (oi < officialsWithoutMe.length) {
-      const entry = officialsWithoutMe[oi++];
+  officialCandidates.forEach((entry, index) => {
+    if (index === insertIdx) {
       rows.push({
-        kind: "player",
-        key: `player:${entry.userId}`,
-        userId: entry.userId,
-        section: "top",
-        entry,
-        isMe: false,
-        liveGap: entry.bestScore - viewerScore,
+        kind: "self",
+        key: "self:list",
+        section: "top-window",
+        displayRank: null,
+        gapToNext: null,
       });
-    } else if (!selfInserted) {
-      // Ran out of officials before reaching insertIdx — self goes here.
-      rows.push({ kind: "self", key: "self:list", section: "top-window", gapToNext: null });
-      selfInserted = true;
-    } else {
-      rows.push({ kind: "placeholder", key: `placeholder:top:${slot}` });
     }
+
+    rows.push(makeTopPlayerRow(entry, meUserId, null, null));
+  });
+
+  if (!rows.some((row) => row.kind === "self")) {
+    rows.push({
+      kind: "self",
+      key: "self:list",
+      section: "top-window",
+      displayRank: null,
+      gapToNext: null,
+    });
   }
 
-  return rows;
+  /**
+   * Keep one displaced row when possible.
+   *
+   * Example:
+   * official #10 Shiriusu
+   * live self projected #10
+   *
+   * UI should show:
+   * #10 self
+   * #11 Shiriusu
+   */
+  const maxRows = officialCandidates.length >= TARGET ? TARGET + 1 : TARGET;
+
+  return finalizeSequentialTopRows(rows.slice(0, maxRows), viewerScore);
 }
 
 // ---------------------------------------------------------------------------
@@ -177,33 +307,24 @@ function buildTopWindowRows(
 function buildTopElevenRows(
   data: ChallengeProjectedLeaderboardResponse,
   viewerScore: number,
+  meUserId: string | null,
 ): ChallengeLeaderboardDisplayRow[] {
   const TARGET = 10;
   const topTen = data.topEntries.slice(0, TARGET);
-  const rows: ChallengeLeaderboardDisplayRow[] = [];
 
-  topTen.forEach((entry, i) => {
-    // Show liveGap only for the #10 entry — the direct target the viewer needs
-    // to surpass to enter the Top 10. Showing gaps for all 10 rows would clutter
-    // the panel on narrow screens without adding meaningful context.
-    const isRankTen = i === TARGET - 1 && topTen.length === TARGET;
-    rows.push({
-      kind: "player",
-      key: `player:${entry.userId}`,
-      userId: entry.userId,
-      section: "top",
+  const rows: ChallengeLeaderboardDisplayRow[] = topTen.map((entry, index) =>
+    makeTopPlayerRow(
       entry,
-      isMe: false,
-      liveGap: isRankTen ? entry.bestScore - viewerScore : null,
-    });
-  });
+      meUserId,
+      index + 1,
+      index === TARGET - 1 ? entry.bestScore - viewerScore : null,
+    ),
+  );
 
-  // Pad with placeholders when topEntries has fewer than 10 entries.
-  for (let i = topTen.length; i < TARGET; i++) {
+  for (let i = topTen.length; i < TARGET; i += 1) {
     rows.push({ kind: "placeholder", key: `placeholder:top:${i}` });
   }
 
-  // Self row at slot #11, with the gap to the #10 entry.
   const gapToNext =
     topTen.length >= TARGET ? topTen[TARGET - 1].bestScore - viewerScore : null;
 
@@ -211,6 +332,7 @@ function buildTopElevenRows(
     kind: "self",
     key: "self:list",
     section: "top-eleven",
+    displayRank: TARGET + 1,
     gapToNext,
   });
 
@@ -230,29 +352,16 @@ function buildNearbyRows(
   const topFive = data.topEntries.slice(0, TARGET_TOP);
   const rows: ChallengeLeaderboardDisplayRow[] = [];
 
-  // Top-5 entries: no liveGap — these players are far above the viewer and
-  // showing a large negative gap would be discouraging without being actionable.
   topFive.forEach((entry) => {
-    rows.push({
-      kind: "player",
-      key: `player:${entry.userId}`,
-      userId: entry.userId,
-      section: "top",
-      entry,
-      isMe: false,
-      liveGap: null,
-    });
+    rows.push(makeTopPlayerRow(entry, meUserId, entry.rank, null));
   });
 
-  // Pad top section to TARGET_TOP.
-  for (let i = topFive.length; i < TARGET_TOP; i++) {
+  for (let i = topFive.length; i < TARGET_TOP; i += 1) {
     rows.push({ kind: "placeholder", key: `placeholder:top:${i}` });
   }
 
-  // Ellipsis separator between top section and nearby section.
   rows.push({ kind: "ellipsis", key: "ellipsis:nearby" });
 
-  // Nearby section (5 slots: mix of ahead opponents, self, and passed opponents).
   const nearbyDisplayRows = buildChallengeNearbyDisplayRows({
     nearbyOpponents: data.nearbyOpponents,
     myStanding: data.myStanding,
@@ -262,6 +371,7 @@ function buildNearbyRows(
   });
 
   let nearbyPlaceholderIdx = 0;
+
   for (const row of nearbyDisplayRows) {
     if (row.type === "opponent") {
       rows.push({
@@ -278,10 +388,10 @@ function buildNearbyRows(
         kind: "self",
         key: "self:list",
         section: "nearby",
+        displayRank: data.myStanding.projectedRank,
         gapToNext: null,
       });
     } else {
-      // placeholder
       rows.push({
         kind: "placeholder",
         key: `placeholder:nearby:${nearbyPlaceholderIdx++}`,
