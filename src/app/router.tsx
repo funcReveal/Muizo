@@ -29,7 +29,7 @@ const CollectionsCreatePage = lazy(() =>
     default: CollectionCreatePage,
   })),
 );
-const EditPage = lazy(() =>
+const CollectionsEditPage = lazy(() =>
   import("@features/Collections").then(({ CollectionEditPage }) => ({
     default: CollectionEditPage,
   })),
@@ -102,7 +102,7 @@ export function AppRouter() {
                 highlights={["編修題目內容", "管理可見權限", "保留編輯紀錄"]}
               >
                 <Suspense fallback={<PageLoader />}>
-                  <EditPage />
+                  <CollectionsEditPage />
                 </Suspense>
               </RequireAuthRoute>
             }
