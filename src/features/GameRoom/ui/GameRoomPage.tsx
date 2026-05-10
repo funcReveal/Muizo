@@ -1561,6 +1561,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? `session:${gameSessionId}`
       : `room:${room.id}`;
 
+  const mobileGuessHudConfig = useMemo(
+    () => ({
+      serverOffsetMs,
+      activePhaseDurationMs,
+      phaseEndsAt,
+      trackSessionKey,
+      allAnsweredReadyForReveal,
+      isRecoveringConnection,
+    }),
+    [
+      serverOffsetMs,
+      activePhaseDurationMs,
+      phaseEndsAt,
+      trackSessionKey,
+      allAnsweredReadyForReveal,
+      isRecoveringConnection,
+    ],
+  );
+
   const handleShowVideoChange = useCallback((show: boolean) => {
     setShowVideoOverride(show);
     setStoredShowVideoPreference(show);
@@ -2112,6 +2131,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
               videoId={videoId}
+              mobileGuessHud={isMobileGameViewport ? mobileGuessHudConfig : undefined}
             />
             <GameRoomAnswerPanel
               isMobileView={isMobileGameViewport}

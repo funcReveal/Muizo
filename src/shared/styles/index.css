@@ -1256,3 +1256,112 @@ body {
     opacity: 0;
   }
 }
+
+/* ── Mobile Guess Countdown HUD ──────────────────────────────────────────── */
+
+.game-room-mobile-guess-hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.game-room-mobile-guess-hud__question {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(203, 213, 225, 0.82);
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.game-room-mobile-guess-hud__ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+}
+
+.game-room-mobile-guess-hud__svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+.game-room-mobile-guess-hud__progress {
+  stroke: rgba(251, 191, 36, 0.88);
+  filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.35));
+}
+
+.game-room-mobile-guess-hud__seconds {
+  position: relative;
+  z-index: 1;
+  font-size: 22px;
+  font-weight: 900;
+  color: rgb(251, 191, 36);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-room-mobile-guess-hud__progress {
+    filter: none;
+  }
+}
+
+/* ── Mobile Player View Toggle (inside frame) ────────────────────────────── */
+
+.game-room-mobile-player-toggle-wrap {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.game-room-mobile-player-toggle__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: rgba(148, 163, 184, 0.65);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-room-mobile-player-toggle__button--active {
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.45);
+  color: rgb(251, 191, 36);
+}
+
+/* ── Mobile game layout spacing refinements ──────────────────────────────── */
+/* These use double-class selectors (specificity 0-2-0) to win over the      */
+/* single-class rules in roomSessionStyles.css (specificity 0-1-0).          */
+
+@media (max-width: 1023.95px) {
+  /* Reduce playback panel padding on mobile */
+  .game-room-playback-panel--mobile.game-room-panel {
+    padding: 8px;
+  }
+
+  /* Reduce answer panel padding on mobile */
+  .game-room-answer-panel--mobile.game-room-panel {
+    padding: 8px;
+  }
+
+  /* Tighter spacing around the info bar strip */
+  .game-room-mobile-info-bar {
+    margin-top: 2px;
+    margin-bottom: 2px;
+  }
+}

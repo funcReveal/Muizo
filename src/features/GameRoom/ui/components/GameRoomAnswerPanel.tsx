@@ -606,6 +606,16 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [isGuessUrgency, trackSessionKey]);
 
+  // When true: the embedded mobile HUD already shows countdown + question counter,
+  // so we hide the duplicate chip, phase title, and progress bar from the answer panel.
+  const shouldUseMobileEmbeddedGuessHud =
+    isMobileView &&
+    gamePhase === "guess" &&
+    !isReveal &&
+    !isInterTrackWait &&
+    !isEnded &&
+    !isRecoveringConnection;
+
   const handleChoiceClick = React.useCallback(
     (choiceIndex: number) => {
       if (isReveal || isEnded || !canAnswerNow || isRecoveringConnection) return;
@@ -644,40 +654,44 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
           <div className="game-room-answer-body">
             <div className="game-room-answer-head flex items-center gap-3">
               <div className="game-room-answer-head__main min-w-0 flex-1">
-                {isRecoveringConnection ? (
-                  /* ── Recovery chip: replaces the normal countdown chip ──── */
-                  <Chip
-                    label={
-                      <span className="game-room-phase-chip-label">
-                        重新連線中
-                      </span>
-                    }
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                    className="game-room-chip"
-                  />
-                ) : (
-                  <GameRoomPhaseStatusChip
-                    isInterTrackWait={isInterTrackWait}
-                    allAnsweredReadyForReveal={allAnsweredReadyForReveal}
-                    isTimeAttackMode={isTimeAttackMode}
-                    timeAttackRemainingMs={timeAttackRemainingMs}
-                    gamePhase={gamePhase}
-                    startedAt={startedAt}
-                    phaseEndsAt={phaseEndsAt}
-                    getLocalNowMs={getLocalNowMs}
-                    isGuessUrgency={isGuessUrgency}
-                    urgentChipPingActive={urgentChipPingActive}
-                  />
+                {!shouldUseMobileEmbeddedGuessHud && (
+                  isRecoveringConnection ? (
+                    /* ── Recovery chip: replaces the normal countdown chip ──── */
+                    <Chip
+                      label={
+                        <span className="game-room-phase-chip-label">
+                          重新連線中
+                        </span>
+                      }
+                      size="small"
+                      color="default"
+                      variant="outlined"
+                      className="game-room-chip"
+                    />
+                  ) : (
+                    <GameRoomPhaseStatusChip
+                      isInterTrackWait={isInterTrackWait}
+                      allAnsweredReadyForReveal={allAnsweredReadyForReveal}
+                      isTimeAttackMode={isTimeAttackMode}
+                      timeAttackRemainingMs={timeAttackRemainingMs}
+                      gamePhase={gamePhase}
+                      startedAt={startedAt}
+                      phaseEndsAt={phaseEndsAt}
+                      getLocalNowMs={getLocalNowMs}
+                      isGuessUrgency={isGuessUrgency}
+                      urgentChipPingActive={urgentChipPingActive}
+                    />
+                  )
                 )}
-                <p className="game-room-title">
-                  {isRecoveringConnection
-                    ? (recoveryStatusText ?? "正在恢復房間狀態...")
-                    : isInterTrackWait
-                      ? "下一題準備中"
-                      : phaseLabel}
-                </p>
+                {!shouldUseMobileEmbeddedGuessHud && (
+                  <p className="game-room-title">
+                    {isRecoveringConnection
+                      ? (recoveryStatusText ?? "正在恢復房間狀態...")
+                      : isInterTrackWait
+                        ? "下一題準備中"
+                        : phaseLabel}
+                  </p>
+                )}
                 {shouldShowInlinePhaseStatus && !isMobileView && !isRecoveringConnection ? (
                   <div className="game-room-guess-inline-status">
                     <span
@@ -723,32 +737,34 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
               ) : null}
             </div>
 
-            <div
-              className={`game-room-phase-progress ${isGuessUrgency && !isRecoveringConnection ? "game-room-phase-progress--urgent" : ""}`}
-            >
-              {/* Recovery: indeterminate bar shows the system is working */}
-              {isRecoveringConnection ? (
-                <LinearProgress
-                  variant="indeterminate"
-                  color="inherit"
-                  className="game-room-phase-progress-bar"
-                  sx={{ opacity: 0.45 }}
-                />
-              ) : isInterTrackWait ? (
-                <LinearProgress
-                  variant="indeterminate"
-                  color="info"
-                  className="game-room-phase-progress-bar"
-                />
-              ) : (
-                <div className="game-room-phase-progress-bar">
-                  <div
-                    ref={progressBarFillRef}
-                    className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
+            {!shouldUseMobileEmbeddedGuessHud && (
+              <div
+                className={`game-room-phase-progress ${isGuessUrgency && !isRecoveringConnection ? "game-room-phase-progress--urgent" : ""}`}
+              >
+                {/* Recovery: indeterminate bar shows the system is working */}
+                {isRecoveringConnection ? (
+                  <LinearProgress
+                    variant="indeterminate"
+                    color="inherit"
+                    className="game-room-phase-progress-bar"
+                    sx={{ opacity: 0.45 }}
                   />
-                </div>
-              )}
-            </div>
+                ) : isInterTrackWait ? (
+                  <LinearProgress
+                    variant="indeterminate"
+                    color="info"
+                    className="game-room-phase-progress-bar"
+                  />
+                ) : (
+                  <div className="game-room-phase-progress-bar">
+                    <div
+                      ref={progressBarFillRef}
+                      className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div
               className={`game-room-options-grid game-room-options-grid--blaze grid grid-cols-1 gap-3 md:grid-cols-2 ${isMobileView ? "game-room-options-grid--mobile" : ""
                 }`}
