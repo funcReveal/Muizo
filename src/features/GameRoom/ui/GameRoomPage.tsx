@@ -1561,24 +1561,38 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       ? `session:${gameSessionId}`
       : `room:${room.id}`;
 
-  const mobileGuessHudConfig = useMemo(
+  const mobileEmbeddedHudMode: "guess" | "reveal" | null = isMobileGameViewport
+    ? isReveal && !isInterTrackWait && !isEnded && !isRecoveringConnection && Number.isFinite(gameState.revealEndsAt)
+      ? "reveal"
+      : gameState.phase === "guess" && !isReveal && !isInterTrackWait && !isEnded && !isRecoveringConnection
+        ? "guess"
+        : null
+    : null;
+
+  const mobileEmbeddedHudConfig = useMemo(
     () => ({
+      mode: mobileEmbeddedHudMode,
       serverOffsetMs,
       activePhaseDurationMs,
       phaseEndsAt,
+      revealEndsAt: gameState.revealEndsAt,
       trackSessionKey,
       allAnsweredReadyForReveal,
       isRecoveringConnection,
     }),
     [
+      mobileEmbeddedHudMode,
       serverOffsetMs,
       activePhaseDurationMs,
       phaseEndsAt,
+      gameState.revealEndsAt,
       trackSessionKey,
       allAnsweredReadyForReveal,
       isRecoveringConnection,
     ],
   );
+
+  const shouldHideMobileAnswerPhaseChrome = mobileEmbeddedHudMode !== null;
 
   const handleShowVideoChange = useCallback((show: boolean) => {
     setShowVideoOverride(show);
@@ -2131,7 +2145,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               gameVolume={gameVolume}
               onGameVolumeChange={setGameVolume}
               videoId={videoId}
-              mobileGuessHud={isMobileGameViewport ? mobileGuessHudConfig : undefined}
+              mobileEmbeddedHud={isMobileGameViewport ? mobileEmbeddedHudConfig : undefined}
             />
             <GameRoomAnswerPanel
               isMobileView={isMobileGameViewport}
@@ -2198,6 +2212,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
               recoveryStatusText={recoveryStatusText}
               isLeaderboardRoom={isLeaderboardRoom}
               leaderboardLockShakeKey={leaderboardLockShakeKey}
+              shouldHideMobileAnswerPhaseChrome={shouldHideMobileAnswerPhaseChrome}
             />
             {isMobileGameViewport && (
               <div

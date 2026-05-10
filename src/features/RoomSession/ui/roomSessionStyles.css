@@ -8481,10 +8481,6 @@
   gap: 0;
 }
 
-.game-room-main-section > .game-room-panel--warm {
-  padding-top: 10px;
-}
-
 /* Collapse forced stretch between options and feedback card */
 .game-room-answer-layout {
   grid-template-rows: auto auto;
@@ -8588,7 +8584,6 @@
   .game-room-main-section > .game-room-panel--warm {
     position: relative;
     margin-top: 6px;
-    padding: 12px 14px 14px;
     border-radius: 18px;
     background:
       linear-gradient(180deg, rgba(8, 13, 22, 0.72), rgba(7, 12, 20, 0.54)),
@@ -14102,7 +14097,6 @@
   .game-room-options-grid .game-room-choice-button.MuiButton-root {
     height: 100%;
     min-height: 0;
-    padding: 8px 10px;
     align-items: stretch;
   }
 
@@ -14162,7 +14156,6 @@
   }
 
   .game-room-grid {
-    gap: 10px;
     grid-template-columns: minmax(320px, 356px) minmax(0, 1fr) !important;
   }
 
@@ -14560,10 +14553,6 @@
     margin-top: 0.35rem;
     margin-bottom: 35px;
     padding-bottom: 0.35rem;
-  }
-
-  .game-room-grid {
-    gap: 10px;
   }
 
   .game-room-main-section {
@@ -15991,11 +15980,9 @@
 
   .game-room-playback-panel--mobile {
     border-radius: 16px;
-    padding: 10px;
   }
 
   .game-room-playback-panel--mobile-inline {
-    padding: 9px;
     gap: 0;
     box-shadow:
       0 14px 28px -24px rgba(15, 23, 42, 0.54),
@@ -16009,7 +15996,6 @@
   .game-room-playback-panel--mobile .game-room-track-counter {
     font-size: 11px;
     letter-spacing: 0.1em;
-    padding: 0.26rem 0.65rem;
   }
 
   .game-room-playback-panel--mobile-inline .game-room-playback-meta-row,
@@ -16021,7 +16007,6 @@
 
   .game-room-playback-panel--mobile-overlay {
     border-radius: 10px;
-    padding: 9px 8px 8px;
     border-color: rgba(71, 85, 105, 0.32);
   }
 
@@ -16061,7 +16046,6 @@
 
   .game-room-playback-panel--mobile-overlay .game-room-track-counter {
     font-size: 10px;
-    padding: 0.24rem 0.62rem;
     flex: 0 1 auto;
     min-width: 0;
   }
@@ -16159,7 +16143,6 @@
 
   .game-room-answer-panel--mobile {
     border-radius: 16px;
-    padding: 10px;
     flex: 1 1 auto;
   }
 
@@ -16199,9 +16182,8 @@
   }
 
   .game-room-choice-button--mobile.MuiButton-root {
-    min-height: 88px;
+    min-height: 72px;
     border-radius: 16px;
-    padding: 9px 11px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     overflow: hidden;
@@ -16289,7 +16271,6 @@
 
   .game-room-choice-button--mobile .game-room-choice-tag {
     min-height: 22px;
-    padding-inline: 9px;
     font-size: 11px;
   }
 
@@ -16383,8 +16364,7 @@
   }
 
   .game-room-choice-button--mobile.MuiButton-root {
-    min-height: 84px;
-    padding-inline: 11px;
+    min-height: 72px;
   }
 
   .game-room-playback-panel--mobile-inline .game-room-media-frame,
@@ -21293,12 +21273,6 @@
 
 /* ===== Mobile simplicity override — reduce panel framing and color intensity ===== */
 @media (max-width: 1023.98px) {
-  /* --- Grid layout: tighten outer padding and inter-panel gap --- */
-  .game-room-grid {
-    padding-inline: 6px;
-    gap: 6px;
-  }
-
   .game-room-main-section {
     gap: 4px;
   }
@@ -24372,7 +24346,6 @@
   .game-room-main-section--immersive .game-room-choice-button.MuiButton-root {
     min-height: clamp(40px, 4.4vh, 48px);
     height: 97%;
-    padding: 2px 6px;
     border-radius: 13px;
     align-items: stretch;
     background: linear-gradient(

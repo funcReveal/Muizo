@@ -13,10 +13,12 @@ import {
   type DanmuItem,
 } from "@features/RoomChat/model/DanmuContext";
 
-interface MobileGuessHudConfig {
+interface MobileEmbeddedHudConfig {
+  mode: "guess" | "reveal" | null;
   serverOffsetMs: number;
   activePhaseDurationMs: number;
   phaseEndsAt: number;
+  revealEndsAt: number;
   trackSessionKey: string;
   allAnsweredReadyForReveal: boolean;
   isRecoveringConnection: boolean;
@@ -51,7 +53,7 @@ interface GameRoomPlaybackPanelProps {
   videoId?: string | null;
   gameVolume: number;
   onGameVolumeChange: (volume: number) => void;
-  mobileGuessHud?: MobileGuessHudConfig;
+  mobileEmbeddedHud?: MobileEmbeddedHudConfig;
 }
 
 const GameRoomDanmuLayer = React.memo(function GameRoomDanmuLayer({
@@ -95,24 +97,24 @@ const MobilePlayerToggle = React.memo(function MobilePlayerToggle({
   onChange: (nextMode: "video" | "thumbnail") => void;
 }) {
   return (
-    <div className="game-room-mobile-player-toggle-wrap">
+    <div className="game-room-mobile-player-tabs">
       <button
         type="button"
-        className={`game-room-mobile-player-toggle__button ${previewMode === "video" ? "game-room-mobile-player-toggle__button--active" : ""}`}
+        className={`game-room-mobile-player-tab ${previewMode === "video" ? "game-room-mobile-player-tab--active" : ""}`}
         onClick={() => onChange("video")}
         aria-label="顯示影片"
         aria-pressed={previewMode === "video"}
       >
-        <VideocamRoundedIcon style={{ fontSize: 16 }} />
+        <VideocamRoundedIcon style={{ fontSize: 15 }} />
       </button>
       <button
         type="button"
-        className={`game-room-mobile-player-toggle__button ${previewMode === "thumbnail" ? "game-room-mobile-player-toggle__button--active" : ""}`}
+        className={`game-room-mobile-player-tab ${previewMode === "thumbnail" ? "game-room-mobile-player-tab--active" : ""}`}
         onClick={() => onChange("thumbnail")}
         aria-label="顯示縮圖"
         aria-pressed={previewMode === "thumbnail"}
       >
-        <ImageRoundedIcon style={{ fontSize: 16 }} />
+        <ImageRoundedIcon style={{ fontSize: 15 }} />
       </button>
     </div>
   );
@@ -275,6 +277,45 @@ const MobileGuessCountdownHud = React.memo(function MobileGuessCountdownHud({
   );
 });
 
+const MobileRevealCountdownHint = React.memo(function MobileRevealCountdownHint({
+  revealEndsAt,
+  serverOffsetMs,
+  trackSessionKey,
+}: {
+  revealEndsAt: number;
+  serverOffsetMs: number;
+  trackSessionKey: string;
+}) {
+  const [seconds, setSeconds] = React.useState(() =>
+    Math.ceil(Math.max(0, revealEndsAt - (Date.now() + serverOffsetMs)) / 1000),
+  );
+
+  React.useEffect(() => {
+    let timerId: number | null = null;
+    const tick = () => {
+      const remainingMs = Math.max(0, revealEndsAt - (Date.now() + serverOffsetMs));
+      const nextSeconds = Math.ceil(remainingMs / 1000);
+      setSeconds((current) => (current === nextSeconds ? current : nextSeconds));
+      if (remainingMs <= 0) return;
+      const nextDelay =
+        remainingMs > 1000 ? (remainingMs % 1000) || 1000 : Math.min(250, remainingMs);
+      timerId = window.setTimeout(tick, nextDelay);
+    };
+    tick();
+    return () => {
+      if (timerId !== null) window.clearTimeout(timerId);
+    };
+  }, [revealEndsAt, serverOffsetMs, trackSessionKey]);
+
+  if (seconds <= 0) return null;
+
+  return (
+    <div className="game-room-mobile-reveal-countdown-hint" aria-hidden="true">
+      {seconds}
+    </div>
+  );
+});
+
 const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   rootRef,
   isMobileView = false,
@@ -304,7 +345,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   gameVolume,
   onGameVolumeChange,
   videoId,
-  mobileGuessHud,
+  mobileEmbeddedHud,
 }) => {
   const revealMarqueeWrapRef = React.useRef<HTMLSpanElement | null>(null);
   const revealMarqueeTrackRef = React.useRef<HTMLSpanElement | null>(null);
@@ -449,9 +490,11 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   const shouldShowYoutubeBadge =
     showGuessMask || showAudioOnlyMask || showPreStartMask || isRevealPhase;
   const shouldUseSimpleMobileGuessSpinner = isMobileView;
-  const isMobileHudActive = Boolean(
-    isMobileView && mobileGuessHud && showGuessMask && !mobileGuessHud.isRecoveringConnection,
+  const isMobileGuessHudActive = Boolean(
+    mobileEmbeddedHud?.mode === "guess" && showGuessMask && !mobileEmbeddedHud.isRecoveringConnection,
   );
+  const isMobileRevealHudActive = mobileEmbeddedHud?.mode === "reveal";
+  const isMobileEmbeddedHudActive = isMobileGuessHudActive || isMobileRevealHudActive;
   const handleVideoModeChange = useCallback(
     (nextMode: "video" | "thumbnail") => {
       onShowVideoChange(nextMode === "video");
@@ -491,22 +534,17 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
     </div>
   ) : null;
 
-  const mobileInfoBar = isMobileView && (!isMobileHudActive || revealAnswerNode) ? (
+  const mobileInfoBar = isMobileView && !isMobileEmbeddedHudActive ? (
     <div className="game-room-mobile-info-bar">
-      {!isMobileHudActive && (
-        <div className="game-room-mobile-info-bar__top">
-          <div className="game-room-mobile-info-bar__counter">{trackCounterNode}</div>
-        </div>
-      )}
-      {revealAnswerNode ? (
-        <div className="game-room-mobile-answer-row">{revealAnswerNode}</div>
-      ) : null}
+      <div className="game-room-mobile-info-bar__top">
+        <div className="game-room-mobile-info-bar__counter">{trackCounterNode}</div>
+      </div>
     </div>
   ) : null;
   return (
     <div
       ref={rootRef}
-      className={`game-room-panel game-room-panel--accent p-3 text-slate-50 ${isMobileOverlay
+      className={`game-room-panel game-room-panel--accent text-slate-50 ${isMobileOverlay
         ? "game-room-playback-panel--mobile-overlay-fill flex h-full min-h-0 flex-col"
         : "flex-none"
         } ${isMobileView
@@ -606,6 +644,14 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
 
         <GameRoomDanmuLayerBridge />
 
+        {isMobileRevealHudActive && mobileEmbeddedHud && (
+          <MobileRevealCountdownHint
+            revealEndsAt={mobileEmbeddedHud.revealEndsAt}
+            serverOffsetMs={mobileEmbeddedHud.serverOffsetMs}
+            trackSessionKey={mobileEmbeddedHud.trackSessionKey}
+          />
+        )}
+
         {isMobileView && (
           <MobilePlayerToggle previewMode={previewMode} onChange={handleVideoModeChange} />
         )}
@@ -613,25 +659,24 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
         {showGuessMask && (
           <div className="game-room-playback-mask game-room-playback-mask--guess pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950">
             {shouldUseSimpleMobileGuessSpinner &&
-            mobileGuessHud &&
-            !mobileGuessHud.isRecoveringConnection ? (
+              mobileEmbeddedHud?.mode === "guess" &&
+              !mobileEmbeddedHud.isRecoveringConnection ? (
               <MobileGuessCountdownHud
                 boundedCursor={boundedCursor}
                 trackOrderLength={trackOrderLength}
-                serverOffsetMs={mobileGuessHud.serverOffsetMs}
-                activePhaseDurationMs={mobileGuessHud.activePhaseDurationMs}
-                phaseEndsAt={mobileGuessHud.phaseEndsAt}
-                trackSessionKey={mobileGuessHud.trackSessionKey}
-                allAnsweredReadyForReveal={mobileGuessHud.allAnsweredReadyForReveal}
+                serverOffsetMs={mobileEmbeddedHud.serverOffsetMs}
+                activePhaseDurationMs={mobileEmbeddedHud.activePhaseDurationMs}
+                phaseEndsAt={mobileEmbeddedHud.phaseEndsAt}
+                trackSessionKey={mobileEmbeddedHud.trackSessionKey}
+                allAnsweredReadyForReveal={mobileEmbeddedHud.allAnsweredReadyForReveal}
               />
             ) : (
               <>
                 <div
-                  className={`game-room-guess-spinner relative ${
-                    shouldUseSimpleMobileGuessSpinner
+                  className={`game-room-guess-spinner relative ${shouldUseSimpleMobileGuessSpinner
                       ? "h-14 w-14"
                       : "h-20 w-20 sm:h-24 sm:w-24"
-                  }`}
+                    }`}
                 >
                   {shouldUseSimpleMobileGuessSpinner ? (
                     <div className="game-room-guess-spinner__ring absolute inset-0" />

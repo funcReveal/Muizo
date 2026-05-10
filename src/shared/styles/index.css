@@ -1241,8 +1241,9 @@ body {
   text-align: center;
   pointer-events: none;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: 0.75rem;
   font-weight: 800;
   color: rgb(52 211 153); /* emerald-400 */
@@ -1311,37 +1312,61 @@ body {
   }
 }
 
-/* ── Mobile Player View Toggle (inside frame) ────────────────────────────── */
+/* ── Mobile Player View Tabs (inside frame, top-right) ───────────────────── */
 
-.game-room-mobile-player-toggle-wrap {
+.game-room-mobile-player-tabs {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 30;
   display: flex;
-  gap: 4px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(8, 13, 28, 0.62);
   pointer-events: auto;
 }
 
-.game-room-mobile-player-toggle__button {
+.game-room-mobile-player-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  color: rgba(148, 163, 184, 0.65);
+  width: 26px;
+  height: 26px;
+  color: rgba(148, 163, 184, 0.42);
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+  background: transparent;
+  border: none;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-.game-room-mobile-player-toggle__button--active {
-  background: rgba(251, 191, 36, 0.14);
-  border-color: rgba(251, 191, 36, 0.45);
-  color: rgb(251, 191, 36);
+.game-room-mobile-player-tab + .game-room-mobile-player-tab {
+  border-left: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.game-room-mobile-player-tab--active {
+  color: rgba(125, 211, 252, 0.88);
+  background: rgba(14, 165, 233, 0.12);
+}
+
+/* ── Mobile Reveal Countdown Hint (inside frame, upper-center) ───────────── */
+
+.game-room-mobile-reveal-countdown-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(203, 213, 225, 0.38);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  user-select: none;
 }
 
 /* ── Mobile game layout spacing refinements ──────────────────────────────── */
@@ -1349,16 +1374,6 @@ body {
 /* single-class rules in roomSessionStyles.css (specificity 0-1-0).          */
 
 @media (max-width: 1023.95px) {
-  /* Reduce playback panel padding on mobile */
-  .game-room-playback-panel--mobile.game-room-panel {
-    padding: 8px;
-  }
-
-  /* Reduce answer panel padding on mobile */
-  .game-room-answer-panel--mobile.game-room-panel {
-    padding: 8px;
-  }
-
   /* Tighter spacing around the info bar strip */
   .game-room-mobile-info-bar {
     margin-top: 2px;

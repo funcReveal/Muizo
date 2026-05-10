@@ -67,6 +67,10 @@ interface GameRoomAnswerPanelProps {
   recoveryStatusText?: string | null;
   isLeaderboardRoom?: boolean;
   leaderboardLockShakeKey?: number;
+  /** When true, the embedded player HUD already shows phase chrome (chip,
+   *  title, progress bar). Hide these in the answer panel to avoid duplication.
+   *  Covers both guess and reveal embedded HUD modes. */
+  shouldHideMobileAnswerPhaseChrome?: boolean;
 }
 
 type InlineStatusSegmentTone =
@@ -254,13 +258,13 @@ const GameRoomPhaseStatusChip = React.memo(function GameRoomPhaseStatusChip({
         ? Math.max(0, startedAt - now)
         : isTimeAttackMode && gamePhase === "guess"
           ? Math.max(
-              0,
-              (typeof timeAttackRemainingMs === "number" &&
+            0,
+            (typeof timeAttackRemainingMs === "number" &&
               Number.isFinite(timeAttackRemainingMs)
-                ? Math.max(0, timeAttackRemainingMs)
-                : 0) - Math.max(0, now - startedAt),
-            )
-        : Math.max(0, phaseEndsAt - now);
+              ? Math.max(0, timeAttackRemainingMs)
+              : 0) - Math.max(0, now - startedAt),
+          )
+          : Math.max(0, phaseEndsAt - now);
       // 倒數到 0 → 停止；伺服器推送下一個 phase 時 props 更新，effect 重啟
       if (remainingMs <= 0) {
         timerId = null;
@@ -293,9 +297,8 @@ const GameRoomPhaseStatusChip = React.memo(function GameRoomPhaseStatusChip({
     <Chip
       label={
         <span
-          className={`game-room-phase-chip-label ${
-            isNumericCountdownLabel ? "game-room-phase-chip-label--countdown" : ""
-          }`}
+          className={`game-room-phase-chip-label ${isNumericCountdownLabel ? "game-room-phase-chip-label--countdown" : ""
+            }`}
         >
           {label}
         </span>
@@ -412,6 +415,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   recoveryStatusText = null,
   isLeaderboardRoom = false,
   leaderboardLockShakeKey = 0,
+  shouldHideMobileAnswerPhaseChrome = false,
 }) => {
   const getLocalNowMs = React.useCallback(
     () => Date.now() + serverOffsetMs,
@@ -458,8 +462,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   const desktopStatusSecondary = isReveal
     ? myFeedback.inlineMeta?.trim() || ""
     : myFeedback.lines?.[1]?.trim() ||
-      myFeedback.badges?.[0]?.trim() ||
-      "";
+    myFeedback.badges?.[0]?.trim() ||
+    "";
   const inlineAnsweredText =
     liveParticipantCount > 0
       ? `已答 ${liveAnsweredCount}/${liveParticipantCount} 人`
@@ -606,16 +610,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [isGuessUrgency, trackSessionKey]);
 
-  // When true: the embedded mobile HUD already shows countdown + question counter,
-  // so we hide the duplicate chip, phase title, and progress bar from the answer panel.
-  const shouldUseMobileEmbeddedGuessHud =
-    isMobileView &&
-    gamePhase === "guess" &&
-    !isReveal &&
-    !isInterTrackWait &&
-    !isEnded &&
-    !isRecoveringConnection;
-
   const handleChoiceClick = React.useCallback(
     (choiceIndex: number) => {
       if (isReveal || isEnded || !canAnswerNow || isRecoveringConnection) return;
@@ -629,7 +623,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
     <div
       ref={answerPanelRef}
       className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${isMobileView ? "game-room-answer-panel--mobile" : ""
-        } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col p-3 text-slate-50 lg:flex-1`}
+        } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col text-slate-50 lg:flex-1`}
     >
       {isInitialCountdown && !isRecoveringConnection ? (
         <GameRoomStartCountdownDisplay
@@ -654,7 +648,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
           <div className="game-room-answer-body">
             <div className="game-room-answer-head flex items-center gap-3">
               <div className="game-room-answer-head__main min-w-0 flex-1">
-                {!shouldUseMobileEmbeddedGuessHud && (
+                {!shouldHideMobileAnswerPhaseChrome && (
                   isRecoveringConnection ? (
                     /* ── Recovery chip: replaces the normal countdown chip ──── */
                     <Chip
@@ -683,7 +677,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                     />
                   )
                 )}
-                {!shouldUseMobileEmbeddedGuessHud && (
+                {!shouldHideMobileAnswerPhaseChrome && (
                   <p className="game-room-title">
                     {isRecoveringConnection
                       ? (recoveryStatusText ?? "正在恢復房間狀態...")
@@ -737,7 +731,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
               ) : null}
             </div>
 
-            {!shouldUseMobileEmbeddedGuessHud && (
+            {!shouldHideMobileAnswerPhaseChrome && (
               <div
                 className={`game-room-phase-progress ${isGuessUrgency && !isRecoveringConnection ? "game-room-phase-progress--urgent" : ""}`}
               >
@@ -872,8 +866,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                               : "info"
                         }
                         className={`game-room-choice-button justify-start ${!isReveal && isSelected
-                            ? "game-room-choice-button--selected-live"
-                            : ""
+                          ? "game-room-choice-button--selected-live"
+                          : ""
                           } ${showComboFocusStyle
                             ? "game-room-choice-button--combo-focus game-room-choice-button--combo-live game-room-choice-button--combo-live-active"
                             : ""
