@@ -945,6 +945,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
             </div>
           </div>
 
+          {!(isMobileView && shouldHideMobileAnswerPhaseChrome && !isReveal) && (
           <div className={`game-room-reveal ${shouldHideDesktopRevealCard ? "game-room-reveal--hidden-desktop" : ""}`}>
             <div
               className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""
@@ -1049,6 +1050,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
               )}
             </div>
           </div>
+          )}
         </div>
       )}
     </div>

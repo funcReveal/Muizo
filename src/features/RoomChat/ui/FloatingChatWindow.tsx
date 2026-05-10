@@ -33,7 +33,12 @@ const writeLastReadId = (roomId: string | null, id: string | null) => {
 const isFromOther = (msg: ChatMessage, clientId: string) =>
   !msg.userId.startsWith("system:") && msg.userId !== clientId;
 
-const FloatingChatWindow: React.FC = () => {
+export interface FloatingChatWindowRef {
+  openChat: () => void;
+}
+
+const FloatingChatWindow = React.forwardRef<FloatingChatWindowRef, { suppressMobileTrigger?: boolean }>(
+  function FloatingChatWindow({ suppressMobileTrigger = false }, ref) {
   const { currentRoom, messages, clientId, gameState } = useRoomRealtime();
   const {
     messageInput,
@@ -225,6 +230,8 @@ const FloatingChatWindow: React.FC = () => {
     handleSendMessage();
   }, [handleSendMessage, isChatCooldownActive, messageInput]);
 
+  React.useImperativeHandle(ref, () => ({ openChat: handleOpen }), [handleOpen]);
+
   const mobileChatDragDismiss = useMobileDrawerDragDismiss({
     open: isMobileRoomMode && open,
     direction: "down",
@@ -282,6 +289,7 @@ const FloatingChatWindow: React.FC = () => {
         handleSend={handleSend}
         isChatCooldownActive={isChatCooldownActive}
         chatCooldownLeft={chatCooldownLeft}
+        suppressTrigger={suppressMobileTrigger}
       />
     );
   }
@@ -305,6 +313,6 @@ const FloatingChatWindow: React.FC = () => {
       chatCooldownLeft={chatCooldownLeft}
     />
   );
-};
+});
 
 export default React.memo(FloatingChatWindow);

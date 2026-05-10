@@ -1,4 +1,4 @@
-export { default } from "./ui/FloatingChatWindow";
+export { default, type FloatingChatWindowRef } from "./ui/FloatingChatWindow";
 export { default as RoomLobbyChatPanel } from "./ui/RoomLobbyChatPanel";
 export {
   DanmuContext,
