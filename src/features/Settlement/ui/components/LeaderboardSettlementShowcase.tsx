@@ -1524,7 +1524,9 @@ const LeaderboardSettlementShowcase: React.FC<
   const scoreSummaryLabel =
     displayedCurrentRank === 1 ? "已經位居榜首" : rankingSummaryLabel;
   const QUESTION_VISIBLE_ROWS = 6.5;
-  const questionListHeight = QUESTION_VISIBLE_ROWS * listRowHeight;
+  const questionListHeight = isDesktopLayout
+    ? "100%"
+    : QUESTION_VISIBLE_ROWS * listRowHeight;
   const LEADERBOARD_DESKTOP_ROW_HEIGHT = 60;
   const LEADERBOARD_MOBILE_ROW_HEIGHT = 82;
   const leaderboardRowCount =
@@ -1534,7 +1536,7 @@ const LeaderboardSettlementShowcase: React.FC<
     void onLoadMoreLeaderboardSettlement?.();
   }, [onLoadMoreLeaderboardSettlement]);
   const leaderboardCardHeight = Math.max(
-    questionListHeight - LEADERBOARD_DESKTOP_ROW_HEIGHT,
+    QUESTION_VISIBLE_ROWS * listRowHeight - LEADERBOARD_DESKTOP_ROW_HEIGHT,
     isDesktopLayout ? 300 : 360,
   );
   const leaderboardDesktopHeight = Math.max(
@@ -1557,9 +1559,19 @@ const LeaderboardSettlementShowcase: React.FC<
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1820px] min-w-0 overflow-hidden pt-2 text-[var(--mc-text)]">
-      <section className="min-h-0">
-        <div className="min-h-0">
+    <div
+      className={`mx-auto w-full max-w-[1820px] min-w-0 overflow-hidden pt-2 text-[var(--mc-text)] ${
+        isDesktopLayout ? "h-[calc(100dvh-112px)]" : ""
+      }`}
+    >
+      <section
+        className={`min-h-0 ${isDesktopLayout ? "flex h-full flex-col" : ""}`}
+      >
+        <div
+          className={`min-h-0 ${
+            isDesktopLayout ? "flex h-full flex-col" : ""
+          }`}
+        >
           <div className="flex items-center justify-between gap-3 border-b border-amber-300/14 pb-3">
             <div className="flex min-w-0 items-center gap-2">
               <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] bg-[linear-gradient(180deg,rgba(245,158,11,0.12),rgba(120,53,15,0.1))] text-amber-100">
@@ -1598,8 +1610,16 @@ const LeaderboardSettlementShowcase: React.FC<
             </div>
           </div>
 
-          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.7fr)]">
-            <div className="min-w-0 space-y-3 overflow-hidden">
+          <div
+            className={`mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.7fr)] ${
+              isDesktopLayout ? "min-h-0 flex-1 overflow-hidden" : ""
+            }`}
+          >
+            <div
+              className={`min-w-0 overflow-hidden ${
+                isDesktopLayout ? "flex min-h-0 flex-col gap-3" : "space-y-3"
+              }`}
+            >
               <article className="rounded-[18px] border border-amber-300/16 bg-[radial-gradient(circle_at_12%_8%,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(28,20,10,0.78),rgba(8,10,14,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(220px,0.9fr)_minmax(0,1.1fr)] lg:gap-3">
                   <div className="min-w-0 border-r border-amber-300/14 pr-2 lg:pr-4">
@@ -1721,10 +1741,12 @@ const LeaderboardSettlementShowcase: React.FC<
               {isDesktopLayout || mobileSettlementPanel === "leaderboard" ? (
                 <article
                   className={`rounded-[18px] border border-amber-300/16 bg-[linear-gradient(180deg,rgba(17,18,20,0.94),rgba(11,12,16,0.96))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] sm:p-3 ${
-                    isDesktopLayout ? "overflow-hidden" : "overflow-visible"
+                    isDesktopLayout
+                      ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                      : "overflow-visible"
                   }`}
                   style={
-                    isDesktopLayout
+                    !isDesktopLayout
                       ? { height: leaderboardCardHeight }
                       : undefined
                   }
@@ -1739,7 +1761,7 @@ const LeaderboardSettlementShowcase: React.FC<
                   </div>
 
                   <div
-                    className={`mt-3 hidden ${LEADERBOARD_DESKTOP_GRID_CLASS} gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid`}
+                    className={`mt-3 hidden shrink-0 ${LEADERBOARD_DESKTOP_GRID_CLASS} gap-2 px-3 text-xs font-semibold text-amber-100/78 xl:grid`}
                   >
                     <div>名次</div>
                     <div>玩家</div>
@@ -1753,7 +1775,7 @@ const LeaderboardSettlementShowcase: React.FC<
 
                   {effectiveLeaderboardRows.length > 0 ? (
                     <>
-                      <div className="mt-2 hidden xl:block">
+                      <div className="mt-2 hidden min-h-0 flex-1 xl:block">
                         <List
                           rowComponent={LeaderboardDesktopRow}
                           rowCount={leaderboardRowCount}
@@ -1769,12 +1791,14 @@ const LeaderboardSettlementShowcase: React.FC<
                           defaultHeight={leaderboardDesktopHeight}
                           onRowsRendered={handleLeaderboardRowsRendered}
                           style={{
-                            height: leaderboardDesktopHeight,
+                            height: isDesktopLayout
+                              ? "100%"
+                              : leaderboardDesktopHeight,
                             width: "100%",
                           }}
                         />
                       </div>
-                      <div className="mt-2 xl:hidden">
+                      <div className="mt-2 min-h-0 flex-1 xl:hidden">
                         <List
                           rowComponent={LeaderboardMobileRow}
                           rowCount={leaderboardRowCount}
@@ -1790,7 +1814,9 @@ const LeaderboardSettlementShowcase: React.FC<
                           defaultHeight={leaderboardMobileHeight}
                           onRowsRendered={handleLeaderboardRowsRendered}
                           style={{
-                            height: leaderboardMobileHeight,
+                            height: isDesktopLayout
+                              ? "100%"
+                              : leaderboardMobileHeight,
                             width: "100%",
                           }}
                         />
@@ -1929,9 +1955,17 @@ const LeaderboardSettlementShowcase: React.FC<
               ) : null}
             </div>
             {isDesktopLayout || mobileSettlementPanel === "review" ? (
-              <aside className="min-w-0">
-                <article className="rounded-[24px] bg-transparent p-0 shadow-none">
-                  <div className="overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
+              <aside
+                className={`min-w-0 ${
+                  isDesktopLayout ? "min-h-0 overflow-hidden" : ""
+                }`}
+              >
+                <article
+                  className={`rounded-[24px] bg-transparent p-0 shadow-none ${
+                    isDesktopLayout ? "flex h-full min-h-0 flex-col" : ""
+                  }`}
+                >
+                  <div className="shrink-0 overflow-hidden rounded-[20px] bg-[linear-gradient(180deg,rgba(24,20,14,0.96),rgba(12,12,14,0.96))]">
                     <div className="relative min-h-[132px] w-full overflow-hidden bg-[linear-gradient(145deg,rgba(59,130,246,0.25),rgba(147,51,234,0.18))]">
                       {coverThumbnail ? (
                         <img
@@ -2047,7 +2081,12 @@ const LeaderboardSettlementShowcase: React.FC<
                     </div>
                   </div>
 
-                  <div ref={questionListRef} className="mt-3 min-h-0">
+                  <div
+                    ref={questionListRef}
+                    className={`mt-3 min-h-0 ${
+                      isDesktopLayout ? "flex-1 overflow-hidden" : ""
+                    }`}
+                  >
                     {filteredQuestionRows.length > 0 ? (
                       <List
                         key={`${questionFilter ?? "all"}-${filteredQuestionRows.length}`}
@@ -2059,7 +2098,7 @@ const LeaderboardSettlementShowcase: React.FC<
                           isDesktopLayout,
                         }}
                         overscanCount={5}
-                        defaultHeight={questionListHeight}
+                        defaultHeight={QUESTION_VISIBLE_ROWS * listRowHeight}
                         style={{ height: questionListHeight, width: "100%" }}
                       />
                     ) : (

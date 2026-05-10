@@ -10,34 +10,34 @@ interface CareerTabsProps {
 const tabs: Array<{
   key: CareerTabKey;
   label: string;
-  description: string;
+  shortLabel: string;
 }> = [
   {
     key: "overview",
     label: "總覽",
-    description: "綜合表現 / 趨勢 / 高光",
+    shortLabel: "總覽",
   },
   {
     key: "collectionRanks",
     label: "題庫戰績",
-    description: "榜單名次 / Δ 變動",
+    shortLabel: "題庫",
   },
   {
     key: "history",
     label: "對戰歷史",
-    description: "完整紀錄 / 回顧",
+    shortLabel: "歷史",
   },
   {
     key: "share",
     label: "分享",
-    description: "模板 / 預覽 / 文案",
+    shortLabel: "分享",
   },
 ];
 
 const CareerTabs: React.FC<CareerTabsProps> = ({ activeTab, onChange }) => {
   return (
-    <div className="shrink-0 rounded-[20px] border border-cyan-100/12 bg-[linear-gradient(180deg,rgba(8,15,28,0.86),rgba(2,6,23,0.94))] p-2 shadow-[0_14px_30px_-24px_rgba(34,211,238,0.5)]">
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+    <nav className="rounded-[22px] border border-cyan-100/12 bg-[linear-gradient(180deg,rgba(8,15,28,0.9),rgba(2,6,23,0.96))] p-1.5 shadow-[0_16px_36px_-30px_rgba(34,211,238,0.5)] backdrop-blur-xl">
+      <div className="grid grid-cols-4 gap-1.5">
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
 
@@ -47,28 +47,30 @@ const CareerTabs: React.FC<CareerTabsProps> = ({ activeTab, onChange }) => {
               type="button"
               onClick={() => onChange(tab.key)}
               aria-pressed={active}
-              className={`rounded-[16px] border px-3 py-2.5 text-left transition ${
+              className={`relative min-w-0 rounded-[16px] border px-2 py-2 text-center transition sm:px-3 ${
                 active
-                  ? "border-sky-300/42 bg-[linear-gradient(180deg,rgba(20,78,126,0.34),rgba(8,31,52,0.9))] shadow-[0_12px_28px_-20px_rgba(14,165,233,0.55)]"
-                  : "border-transparent bg-transparent hover:border-cyan-300/18 hover:bg-cyan-300/8"
+                  ? "border-sky-300/40 bg-sky-300/12 text-sky-50"
+                  : "border-transparent text-[var(--mc-text-muted)] hover:border-cyan-300/18 hover:bg-cyan-300/8 hover:text-[var(--mc-text)]"
               }`}
             >
-              <div className="text-sm font-semibold tracking-[0.08em] text-[var(--mc-text)]">
+              <div className="truncate text-xs font-semibold sm:hidden">
+                {tab.shortLabel}
+              </div>
+
+              <div className="hidden truncate text-sm font-semibold sm:block">
                 {tab.label}
               </div>
 
-              <div className="mt-1 hidden text-[11px] leading-5 text-[var(--mc-text-muted)] sm:block">
-                {tab.description}
-              </div>
-
-              {active && (
-                <div className="mt-2 h-1 w-full rounded-full bg-gradient-to-r from-cyan-300 to-amber-200" />
-              )}
+              <div
+                className={`mx-auto mt-1.5 h-0.5 rounded-full transition ${
+                  active ? "w-8 bg-cyan-200" : "w-0 bg-transparent"
+                }`}
+              />
             </button>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 };
 

@@ -13,7 +13,7 @@ import EmbeddedSettingsDialog from "./EmbeddedSettingsDialog";
 import IdentityProfileDialog from "./IdentityProfileDialog";
 import { useAuth } from "@shared/auth/AuthContext";
 
-type NavigationTarget = "rooms" | "collections" | "history" | "settings";
+type NavigationTarget = "rooms" | "collections" | "career" | "settings";
 
 const getNavigationPath = (target: NavigationTarget) => {
   switch (target) {
@@ -21,8 +21,8 @@ const getNavigationPath = (target: NavigationTarget) => {
       return "/rooms";
     case "collections":
       return "/collections";
-    case "history":
-      return "/history";
+    case "career":
+      return "/career";
     case "settings":
       return "/settings";
     default:
@@ -106,7 +106,7 @@ const AppLayoutShell: React.FC = () => {
           onEditProfile={openProfileEditor}
           onNavigateRooms={() => handleNavigateRequest("rooms")}
           onNavigateCollections={() => handleNavigateRequest("collections")}
-          onNavigateHistory={() => handleNavigateRequest("history")}
+          onNavigateCareer={() => handleNavigateRequest("career")}
           onNavigateSettings={() => handleNavigateRequest("settings")}
           onNavigatePrivacy={() => navigate("/privacy")}
         />

@@ -43,8 +43,13 @@ import {
   resolveCollectionAvailabilityCounts,
 } from "@features/RoomSession/model/playlistAvailability";
 import type {
+  PlaylistIssueListItem,
   PlaylistPreviewMeta,
   YoutubePlaylist,
+} from "@features/PlaylistSource";
+import {
+  buildPlaylistIssueSummary,
+  getPlaylistIssueTotal,
 } from "@features/PlaylistSource";
 import {
   MIN_COLLECTION_PLAYABLE_COUNT,
@@ -54,6 +59,13 @@ import { normalizeDisplayText } from "../roomLobbyDisplayUtils";
 
 type SelectorTab = "suggestions" | "public" | "mine" | "youtube" | "link";
 type BrowseViewMode = "grid" | "list";
+type LinkPreviewTab = "available" | "unavailable";
+type LinkPreviewIssueGroupKey =
+  | "duplicate"
+  | "removed"
+  | "privateRestricted"
+  | "embedBlocked"
+  | "unavailable";
 type VirtualSourceRowProps = {
   items: unknown[];
   columns: number;
@@ -164,6 +176,47 @@ const getPlaylistIdFromUrl = (url: string) => {
   }
 };
 
+type LinkPreviewAvailableRowProps = {
+  items: PlaylistItem[];
+};
+
+type LinkPreviewIssueEntry =
+  | {
+      type: "group";
+      key: string;
+      label: string;
+      count: number;
+      className: string;
+    }
+  | {
+      type: "item";
+      key: string;
+      label: string;
+      item: PlaylistIssueListItem;
+      className: string;
+    }
+  | {
+      type: "empty";
+      key: string;
+      description: string;
+      className: string;
+    };
+
+type LinkPreviewIssueRowProps = {
+  entries: LinkPreviewIssueEntry[];
+};
+
+const canAttemptPlaylistPreview = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return Boolean(parsed.searchParams.get("list"));
+  } catch {
+    return false;
+  }
+};
+
 const getCollectionThumbnail = (collection: CollectionEntry) =>
   collection.cover_thumbnail_url ||
   (collection.cover_source_id
@@ -181,6 +234,39 @@ const getSourceKey = (type: "collection" | "playlist", value: string) =>
 const isLeaderboardAllowedTab = (tab: SelectorTab) =>
   tab === "suggestions" || tab === "public";
 const SOURCE_TABS: SelectorTab[] = ["public", "mine", "youtube", "link"];
+const LINK_PREVIEW_ROW_HEIGHT = 74;
+const LINK_PREVIEW_ISSUE_ROW_HEIGHT = 72;
+const LINK_PREVIEW_MIN_LIST_HEIGHT = 220;
+const LINK_PREVIEW_MAX_LIST_HEIGHT = 420;
+
+const playlistIssueGroups = [
+  {
+    key: "duplicate",
+    label: "重複略過",
+    className: "border-emerald-300/24 bg-emerald-300/8 text-emerald-100",
+  },
+  {
+    key: "removed",
+    label: "已移除",
+    className: "border-amber-300/26 bg-amber-300/9 text-amber-100",
+  },
+  {
+    key: "privateRestricted",
+    label: "隱私限制",
+    className: "border-fuchsia-300/24 bg-fuchsia-300/8 text-fuchsia-100",
+  },
+  {
+    key: "embedBlocked",
+    label: "嵌入限制",
+    className: "border-rose-300/26 bg-rose-300/9 text-rose-100",
+  },
+  {
+    key: "unavailable",
+    label: "其他不可用",
+    className: "border-red-300/24 bg-red-300/8 text-red-100",
+  },
+] as const;
+const defaultLinkPreviewIssueGroup: LinkPreviewIssueGroupKey = "unavailable";
 
 const getInitial = (value: string) =>
   normalizeDisplayText(value, "?").trim().slice(0, 1).toUpperCase();
@@ -235,6 +321,97 @@ const LoadingState = ({ label = "載入中..." }: { label?: string }) => (
     <span className="text-sm">{label}</span>
   </div>
 );
+
+const LinkPreviewAvailableRow = ({
+  index,
+  style,
+  items,
+}: RowComponentProps<LinkPreviewAvailableRowProps>) => {
+  const item = items[index];
+
+  return (
+    <div style={style} className="px-3 py-1.5">
+      <div className="flex h-full min-w-0 items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.035] px-3">
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/6 text-xs font-semibold text-slate-300">
+          {index + 1}
+        </span>
+        <img
+          src={item.thumbnail || "https://img.youtube.com/vi/default/hqdefault.jpg"}
+          alt={normalizeDisplayText(item.title, "未命名曲目")}
+          className="h-12 w-[76px] shrink-0 rounded-lg object-cover"
+          loading="lazy"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-slate-100">
+            {normalizeDisplayText(item.title, "未命名曲目")}
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-slate-400">
+            <span className="min-w-0 truncate">
+              {normalizeDisplayText(item.uploader, "YouTube")}
+            </span>
+            {item.duration ? (
+              <span className="shrink-0 text-slate-500">{item.duration}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const LinkPreviewIssueRow = ({
+  index,
+  style,
+  entries,
+}: RowComponentProps<LinkPreviewIssueRowProps>) => {
+  const entry = entries[index];
+
+  if (entry.type === "group") {
+    return (
+      <div style={style} className="px-3 py-1.5">
+        <div
+          className={`flex h-full items-center justify-between rounded-2xl border px-4 text-sm font-semibold ${entry.className}`}
+        >
+          <span>{entry.label}</span>
+          <span>{entry.count} 首</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.type === "empty") {
+    return (
+      <div style={style} className="px-3 py-1.5">
+        <div
+          className={`flex h-full min-w-0 items-center justify-center rounded-2xl border px-4 text-center text-sm font-semibold ${entry.className}`}
+        >
+          {entry.description}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={style} className="px-3 py-1.5">
+      <div className="flex h-full min-w-0 items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-3">
+        <img
+          src={entry.item.thumbnail || "https://img.youtube.com/vi/default/hqdefault.jpg"}
+          alt={entry.item.title}
+          className="h-11 w-[70px] shrink-0 rounded-lg object-cover"
+          loading="lazy"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-slate-100">
+            {entry.item.title}
+          </div>
+          <div className="mt-0.5 truncate text-xs text-slate-400">
+            {entry.label} · {entry.item.reason}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const VirtualSourceRow = ({
   index,
@@ -579,6 +756,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     isHost,
     isGoogleAuthed,
     playlistUrl,
+    playlistItemsForChange,
     playlistPreviewMeta,
     playlistError,
     playlistLoading,
@@ -594,6 +772,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     youtubePlaylistsError,
     onPlaylistUrlChange,
     onPreviewPlaylistUrl,
+    onResetPlaylist,
     onApplyPlaylistUrlDirect,
     onApplyCollectionDirect,
     onApplyYoutubePlaylistDirect,
@@ -636,6 +815,12 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+  const [playlistUrlDraft, setPlaylistUrlDraft] = useState(playlistUrl);
+  const [linkPreviewTab, setLinkPreviewTab] =
+    useState<LinkPreviewTab>("available");
+  const [selectedLinkIssueGroup, setSelectedLinkIssueGroup] =
+    useState<LinkPreviewIssueGroupKey>(defaultLinkPreviewIssueGroup);
+  const lastAutoPreviewUrlRef = React.useRef("");
 
   const normalizedCurrentSourceIds = useMemo(
     () => currentSourceIds.map(normalizeSourceId).filter(Boolean),
@@ -769,7 +954,15 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     setActionNotice(null);
     setSelectedSuggestionClientId("all");
     setSourceMenuAnchor(null);
+    setLinkPreviewTab("available");
+    setSelectedLinkIssueGroup(defaultLinkPreviewIssueGroup);
+    lastAutoPreviewUrlRef.current = "";
   }, [availableTabs, initialTab, isMobile, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setPlaylistUrlDraft(playlistUrl);
+  }, [open, playlistUrl]);
 
   useEffect(() => {
     if (
@@ -816,6 +1009,126 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     return () => window.clearTimeout(timer);
   }, [open, searchDraft]);
 
+  const trimmedPlaylistUrlDraft = playlistUrlDraft.trim();
+  const playlistUrlLooksValid =
+    canAttemptPlaylistPreview(trimmedPlaylistUrlDraft);
+  const hasLinkPreviewContent =
+    Boolean(playlistPreviewMeta) ||
+    (playlistItemsForChange.length > 0 && Boolean(trimmedPlaylistUrlDraft));
+  const linkPreviewLocked =
+    activeTab === "link" &&
+    ((playlistLoading && playlistUrlLooksValid) ||
+      hasLinkPreviewContent);
+  const linkPreviewError = actionError ?? playlistError ?? null;
+  const showPlaylistUrlError =
+    Boolean(trimmedPlaylistUrlDraft) && Boolean(linkPreviewError);
+  const showPlaylistUrlWarning =
+    Boolean(trimmedPlaylistUrlDraft) &&
+    !showPlaylistUrlError &&
+    !playlistUrlLooksValid;
+  const linkPreviewItems = hasLinkPreviewContent ? playlistItemsForChange : [];
+  const linkPreviewIssueSummary = useMemo(
+    () => buildPlaylistIssueSummary(playlistPreviewMeta),
+    [playlistPreviewMeta],
+  );
+  const linkPreviewIssueTotal = useMemo(
+    () => getPlaylistIssueTotal(linkPreviewIssueSummary),
+    [linkPreviewIssueSummary],
+  );
+  const linkPreviewCover =
+    linkPreviewItems.find((item) => Boolean(item.thumbnail))?.thumbnail ?? null;
+  const linkPreviewListHeight = Math.min(
+    LINK_PREVIEW_MAX_LIST_HEIGHT,
+    Math.max(
+      LINK_PREVIEW_MIN_LIST_HEIGHT,
+      Math.min(linkPreviewItems.length, 5) * LINK_PREVIEW_ROW_HEIGHT,
+    ),
+  );
+  const linkPreviewIssueGroups = useMemo(() => {
+    const summary = linkPreviewIssueSummary;
+    const groupedItems: Record<LinkPreviewIssueGroupKey, PlaylistIssueListItem[]> = {
+      duplicate: summary.duplicate,
+      removed: summary.removed,
+      privateRestricted: summary.privateRestricted,
+      embedBlocked: summary.embedBlocked,
+      unavailable: [
+        ...summary.unavailable,
+        ...summary.unknown,
+      ] as PlaylistIssueListItem[],
+    };
+
+    return playlistIssueGroups.map((group) => {
+      const items = groupedItems[group.key] ?? [];
+      const count =
+        group.key === "unavailable"
+          ? items.length + summary.unknownCount
+          : items.length;
+
+      const entries: LinkPreviewIssueEntry[] = items.map((item, index) => ({
+        type: "item",
+        key: `${group.key}-${item.title}-${index}`,
+        label: group.label,
+        item,
+        className: group.className,
+      }));
+
+      if (group.key === "unavailable" && summary.unknownCount > 0) {
+        entries.push({
+          type: "empty",
+          key: "unknown-count",
+          description: `共 ${summary.unknownCount} 首，後端未提供明細`,
+          className: group.className,
+        });
+      }
+
+      return {
+        ...group,
+        count,
+        entries,
+      };
+    });
+  }, [linkPreviewIssueSummary]);
+  const selectedLinkIssueGroupMeta =
+    linkPreviewIssueGroups.find((group) => group.key === selectedLinkIssueGroup) ??
+    linkPreviewIssueGroups.find((group) => group.count > 0) ??
+    linkPreviewIssueGroups[0];
+  const linkPreviewIssueEntries =
+    selectedLinkIssueGroupMeta?.entries ?? [];
+
+  const linkPreviewIssueListHeight = Math.min(
+    LINK_PREVIEW_MAX_LIST_HEIGHT - 58,
+    Math.max(
+      160,
+      Math.min(Math.max(linkPreviewIssueEntries.length, 1), 5) *
+        LINK_PREVIEW_ISSUE_ROW_HEIGHT,
+    ),
+  );
+
+  useEffect(() => {
+    if (!open || activeTab !== "link") return;
+    if (
+      !playlistUrlLooksValid ||
+      trimmedPlaylistUrlDraft === lastAutoPreviewUrlRef.current
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      lastAutoPreviewUrlRef.current = trimmedPlaylistUrlDraft;
+      onPlaylistUrlChange(trimmedPlaylistUrlDraft);
+      onPreviewPlaylistUrl(trimmedPlaylistUrlDraft);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeTab,
+    onPlaylistUrlChange,
+    onPreviewPlaylistUrl,
+    open,
+    playlistUrlLooksValid,
+    trimmedPlaylistUrlDraft,
+  ]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -853,16 +1166,44 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     return () => window.clearTimeout(timer);
   }, [actionNotice]);
 
+  useEffect(() => {
+    if (linkPreviewTab !== "unavailable" || linkPreviewIssueTotal > 0) return;
+    setLinkPreviewTab("available");
+  }, [linkPreviewIssueTotal, linkPreviewTab]);
+
+  useEffect(() => {
+    const selectedGroup = linkPreviewIssueGroups.find(
+      (group) => group.key === selectedLinkIssueGroup,
+    );
+    if (selectedGroup && selectedGroup.count > 0) return;
+
+    const firstGroupWithIssues = linkPreviewIssueGroups.find(
+      (group) => group.count > 0,
+    );
+    if (!firstGroupWithIssues) {
+      if (selectedLinkIssueGroup !== defaultLinkPreviewIssueGroup) {
+        setSelectedLinkIssueGroup(defaultLinkPreviewIssueGroup);
+      }
+      return;
+    }
+
+    if (selectedLinkIssueGroup !== firstGroupWithIssues.key) {
+      setSelectedLinkIssueGroup(firstGroupWithIssues.key);
+    }
+  }, [linkPreviewIssueGroups, selectedLinkIssueGroup]);
+
   const matchText = useCallback(
     (...parts: Array<string | null | undefined>) => {
-      if (!debouncedSearch) return true;
+      if (activeTab === "youtube" || activeTab === "link" || !debouncedSearch) {
+        return true;
+      }
       return parts
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(debouncedSearch);
     },
-    [debouncedSearch],
+    [activeTab, debouncedSearch],
   );
 
   const publicCollections = useMemo(
@@ -921,6 +1262,8 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
   );
 
   const actionLabel = isHost ? "套用" : "推薦";
+  const shouldShowSourceToolbar =
+    activeTab !== "youtube" && activeTab !== "link";
 
   const runAction = useCallback(
     async (key: string, action: () => Promise<boolean>) => {
@@ -1124,7 +1467,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
   );
 
   const handleApplyLink = useCallback(() => {
-    const trimmed = playlistUrl.trim();
+    const trimmed = playlistUrlDraft.trim();
     if (!trimmed) {
       setActionError("請先貼上 YouTube 播放清單連結。");
       return;
@@ -1194,20 +1537,19 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     leaderboardCollectionOnlyMode,
     leaderboardCollectionOnlyReason,
     playlistPreviewMeta?.expectedCount,
-    playlistUrl,
+    playlistUrlDraft,
     runAction,
   ]);
 
-  const handlePreviewLink = useCallback(() => {
-    const trimmed = playlistUrl.trim();
-    if (!trimmed) {
-      setActionError("請先貼上 YouTube 播放清單連結。");
-      return;
+  const handleClearLinkInput = useCallback(() => {
+    if (linkPreviewLocked) {
+      onResetPlaylist();
+      onPlaylistUrlChange("");
     }
-
+    setPlaylistUrlDraft("");
     setActionError(null);
-    onPreviewPlaylistUrl(trimmed);
-  }, [onPreviewPlaylistUrl, playlistUrl]);
+    lastAutoPreviewUrlRef.current = "";
+  }, [linkPreviewLocked, onPlaylistUrlChange, onResetPlaylist]);
 
   const renderCollection = (collection: CollectionEntry) => {
     const type = sourceType(collection.visibility);
@@ -1594,7 +1936,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     }
 
     return (
-      <div className="mx-auto flex w-full max-w-[680px] flex-col gap-4 rounded-[28px] border border-white/10 bg-slate-950/34 p-4 sm:p-5">
+      <div className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-4 rounded-[28px] border border-white/10 bg-slate-950/34 p-4 sm:p-5">
         <div>
           <div className="text-base font-semibold text-slate-100">
             貼上 YouTube 播放清單連結
@@ -1612,79 +1954,288 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
 
         <TextField
           fullWidth
-          value={playlistUrl}
+          value={playlistUrlDraft}
           disabled={leaderboardCollectionOnlyMode}
-          onChange={(event) => onPlaylistUrlChange(event.target.value)}
+          error={showPlaylistUrlError}
+          onChange={(event) => {
+            setPlaylistUrlDraft(event.target.value);
+            if (actionError) {
+              setActionError(null);
+            }
+          }}
           placeholder="https://www.youtube.com/playlist?list=..."
+          inputProps={{
+            readOnly: linkPreviewLocked,
+            autoComplete: "off",
+            autoCorrect: "off",
+            autoCapitalize: "off",
+            spellCheck: "false",
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
                 <LinkRoundedIcon sx={{ color: "rgba(148,163,184,0.86)" }} />
               </InputAdornment>
             ),
+            endAdornment: trimmedPlaylistUrlDraft ? (
+              <InputAdornment position="end">
+                <IconButton
+                  size="small"
+                  edge="end"
+                  onClick={handleClearLinkInput}
+                  aria-label={
+                    linkPreviewLocked ? "取消目前清單預覽" : "清除播放清單連結"
+                  }
+                  sx={{
+                    color: linkPreviewLocked
+                      ? "#fbbf24"
+                      : "rgba(148,163,184,0.92)",
+                    backgroundColor: "transparent",
+                    "&:hover": {
+                      backgroundColor: "transparent",
+                      color: linkPreviewLocked
+                        ? "#fcd34d"
+                        : "rgba(226,232,240,0.98)",
+                    },
+                  }}
+                >
+                  <CloseRoundedIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            ) : undefined,
           }}
           sx={{
+            "& .MuiInputLabel-root.Mui-focused": {
+              color: showPlaylistUrlWarning
+                ? "rgba(251,191,36,0.96)"
+                : undefined,
+            },
             "& .MuiOutlinedInput-root": {
               borderRadius: "18px",
               color: "rgba(248,250,252,0.94)",
               backgroundColor: "rgba(15,23,42,0.72)",
               "& fieldset": {
-                borderColor: "rgba(148,163,184,0.22)",
+                borderColor: showPlaylistUrlWarning
+                  ? "rgba(251,191,36,0.4)"
+                  : showPlaylistUrlError
+                    ? "rgba(248,113,113,0.5)"
+                    : "rgba(148,163,184,0.22)",
               },
               "&:hover fieldset": {
-                borderColor: "rgba(103,232,249,0.28)",
+                borderColor: showPlaylistUrlWarning
+                  ? "rgba(251,191,36,0.56)"
+                  : showPlaylistUrlError
+                    ? "rgba(248,113,113,0.66)"
+                    : "rgba(103,232,249,0.28)",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "rgba(103,232,249,0.55)",
+                borderColor: showPlaylistUrlWarning
+                  ? "rgba(251,191,36,0.78)"
+                  : showPlaylistUrlError
+                    ? "rgba(248,113,113,0.72)"
+                    : "rgba(103,232,249,0.55)",
               },
             },
           }}
         />
 
-        {playlistPreviewMeta ? (
-          <div className="rounded-2xl border border-cyan-200/16 bg-cyan-200/8 px-4 py-3 text-sm leading-6 text-cyan-50">
-            預估 {playlistPreviewMeta.expectedCount ?? "未知"} 題
-            {playlistPreviewMeta.skippedCount > 0
-              ? `，略過 ${playlistPreviewMeta.skippedCount} 筆不可用項目`
-              : ""}
+        {showPlaylistUrlWarning ? (
+          <div className="rounded-2xl border border-amber-200/18 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-50">
+            請貼上含有 `list=` 參數的 YouTube 播放清單連結。
           </div>
         ) : null}
 
-        {playlistError ? (
+        {linkPreviewError ? (
           <div className="rounded-2xl border border-rose-300/16 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100">
-            {playlistError}
+            {linkPreviewError}
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outlined"
-            disabled={playlistLoading || leaderboardCollectionOnlyMode}
-            onClick={handlePreviewLink}
-            sx={{
-              borderRadius: 999,
-              borderColor: "rgba(148,163,184,0.24)",
-              color: "rgba(226,232,240,0.92)",
-            }}
-          >
-            {playlistLoading ? "檢查中..." : "預覽"}
-          </Button>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/20">
+          {playlistLoading && playlistUrlLooksValid && linkPreviewItems.length === 0 ? (
+            <div className="flex min-h-[240px] flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+              <CircularProgress size={28} color="inherit" className="text-cyan-300" />
+              <div className="text-sm font-semibold text-slate-100">
+                正在讀取播放清單
+              </div>
+              <div className="text-xs text-slate-400">
+                正在驗證連結並整理可套用的曲目。
+              </div>
+            </div>
+          ) : linkPreviewItems.length > 0 || linkPreviewIssueTotal > 0 ? (
+            <>
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-14 w-[88px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-900/80">
+                    {linkPreviewCover ? (
+                      <img
+                        src={linkPreviewCover}
+                        alt="播放清單封面"
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-cyan-100/80">
+                        <YouTubeIcon sx={{ fontSize: 24 }} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-100">
+                      播放清單預覽
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-300">
+                      <span className="rounded-full border border-cyan-300/22 bg-cyan-300/10 px-2.5 py-1 text-cyan-100">
+                        可用 {linkPreviewItems.length} 首
+                      </span>
+                      <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-2.5 py-1 text-rose-100">
+                        不可用 {linkPreviewIssueTotal} 首
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="contained"
+                  disabled={
+                    playlistLoading ||
+                    Boolean(pendingActionKey) ||
+                    leaderboardCollectionOnlyMode ||
+                    isCooldownActive ||
+                    !playlistUrlLooksValid
+                  }
+                  onClick={handleApplyLink}
+                  sx={{
+                    minWidth: 88,
+                    borderRadius: 999,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {pendingActionKey ? "處理中..." : actionLabel}
+                </Button>
+              </div>
 
-          <Button
-            type="button"
-            variant="contained"
-            disabled={
-              playlistLoading ||
-              Boolean(pendingActionKey) ||
-              leaderboardCollectionOnlyMode ||
-              isCooldownActive
-            }
-            onClick={handleApplyLink}
-            sx={{ borderRadius: 999 }}
-          >
-            {pendingActionKey ? "處理中..." : actionLabel}
-          </Button>
+              <div
+                role="tablist"
+                aria-label="播放清單預覽分頁"
+                className="mx-4 mt-3 grid h-11 grid-cols-2 overflow-visible rounded-2xl border border-cyan-100/14 bg-slate-950/42 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={linkPreviewTab === "available"}
+                  onClick={() => setLinkPreviewTab("available")}
+                  className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                    linkPreviewTab === "available"
+                      ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                      : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                  }`}
+                >
+                  <span>可用清單</span>
+                  <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-slate-200">
+                    {linkPreviewItems.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={linkPreviewTab === "unavailable"}
+                  disabled={linkPreviewIssueTotal <= 0}
+                  onClick={() => setLinkPreviewTab("unavailable")}
+                  className={`inline-flex h-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                    linkPreviewTab === "unavailable"
+                      ? "bg-cyan-200/12 text-cyan-50 shadow-[0_10px_24px_-18px_rgba(34,211,238,0.85)]"
+                      : linkPreviewIssueTotal <= 0
+                        ? "cursor-not-allowed text-slate-600"
+                        : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-100"
+                  }`}
+                >
+                  <span>不可用項目</span>
+                  <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-slate-200">
+                    {linkPreviewIssueTotal}
+                  </span>
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 px-1 py-2">
+                {linkPreviewTab === "available" ? (
+                  linkPreviewItems.length > 0 ? (
+                    <List<LinkPreviewAvailableRowProps>
+                      rowCount={linkPreviewItems.length}
+                      rowHeight={LINK_PREVIEW_ROW_HEIGHT}
+                      rowProps={{ items: linkPreviewItems }}
+                      rowComponent={LinkPreviewAvailableRow}
+                      style={{
+                        height: linkPreviewListHeight,
+                        width: "100%",
+                      }}
+                    />
+                  ) : (
+                    <div className="flex min-h-[220px] items-center justify-center px-4 text-center text-sm text-slate-400">
+                      目前沒有可套用的曲目。
+                    </div>
+                  )
+                ) : (
+                  <div className="flex h-full min-h-0 flex-col gap-2">
+                    <div className="px-2">
+                      <label
+                        htmlFor="link-preview-issue-group"
+                        className="sr-only"
+                      >
+                        不可用分類
+                      </label>
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/54 px-3 py-2">
+                        <span className="min-w-0 text-xs font-semibold text-slate-300">
+                          不可用分類
+                        </span>
+                        <select
+                          id="link-preview-issue-group"
+                          value={selectedLinkIssueGroupMeta?.key}
+                          onChange={(event) =>
+                            setSelectedLinkIssueGroup(
+                              event.target.value as LinkPreviewIssueGroupKey,
+                            )
+                          }
+                          className="min-w-[156px] rounded-xl border border-white/10 bg-slate-950/90 px-3 py-1.5 text-sm font-semibold text-slate-100 outline-none transition focus:border-cyan-200/45 focus:ring-2 focus:ring-cyan-200/10"
+                        >
+                          {linkPreviewIssueGroups.map((group) => (
+                            <option
+                              key={group.key}
+                              value={group.key}
+                              disabled={group.count <= 0}
+                            >
+                              {group.label} {group.count}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {linkPreviewIssueEntries.length > 0 ? (
+                      <List<LinkPreviewIssueRowProps>
+                        rowCount={linkPreviewIssueEntries.length}
+                        rowHeight={LINK_PREVIEW_ISSUE_ROW_HEIGHT}
+                        rowProps={{ entries: linkPreviewIssueEntries }}
+                        rowComponent={LinkPreviewIssueRow}
+                        style={{
+                          height: linkPreviewIssueListHeight,
+                          width: "100%",
+                        }}
+                      />
+                    ) : (
+                      <div className="flex min-h-[160px] items-center justify-center px-4 text-center text-sm text-slate-400">
+                        沒有不可用項目。
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex min-h-[240px] flex-1 items-center justify-center px-4 text-center text-sm text-slate-400">
+              貼上連結後會自動讀取清單並顯示曲目預覽。
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1784,10 +2335,10 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
               onClick={onClose}
               sx={{
                 color: "rgba(226,232,240,0.9)",
-                border: "none",
-                backgroundColor: "rgba(15,23,42,0.58)",
+                backgroundColor: "transparent",
                 "&:hover": {
-                  backgroundColor: "rgba(30,41,59,0.78)",
+                  backgroundColor: "transparent",
+                  color: "#ffffff",
                 },
               }}
             >
@@ -1923,156 +2474,155 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
           </div>
         </header>
 
-        <section className="shrink-0 border-b border-white/8 px-4 py-3 sm:px-6">
-          <div className="flex flex-row items-center justify-between gap-2 md:gap-3">
-            {activeTab === "suggestions" ? (
-              <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSuggestionClientId("all")}
-                  className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition ${
-                    selectedSuggestionClientId === "all"
-                      ? "border-cyan-200/34 bg-cyan-200/12 text-cyan-50"
-                      : "border-white/10 bg-slate-950/48 text-slate-300 hover:border-cyan-200/22"
-                  }`}
-                >
-                  全部
-                  <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-slate-200">
-                    {playlistSuggestions.length}
-                  </span>
-                </button>
-
-                {suggestionAuthors.map((author) => {
-                  const selected =
-                    selectedSuggestionClientId === author.clientId;
-
-                  return (
-                    <button
-                      key={author.clientId}
-                      type="button"
-                      title={`${author.username} 的推薦`}
-                      aria-label={`${author.username} 的推薦`}
-                      onClick={() =>
-                        setSelectedSuggestionClientId(author.clientId)
-                      }
-                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition ${
-                        selected
-                          ? "border-cyan-200/55 bg-cyan-200/14 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.1)]"
-                          : "border-white/12 bg-slate-950/54 text-slate-200 hover:border-cyan-200/30"
-                      }`}
-                    >
-                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-slate-100">
-                        {author.avatarUrl ? (
-                          <img
-                            src={author.avatarUrl}
-                            alt=""
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span>{getInitial(author.username)}</span>
-                        )}
-                      </span>
-                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-cyan-300 px-1.5 text-[11px] font-bold leading-5 text-slate-950">
-                        {author.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <TextField
-                value={searchDraft}
-                onChange={(event) => setSearchDraft(event.target.value)}
-                placeholder={
-                  activeTab === "youtube"
-                    ? "搜尋 YouTube 播放清單"
-                    : activeTab === "link"
-                      ? "貼上或搜尋連結"
-                      : "搜尋收藏庫"
-                }
-                size="small"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRoundedIcon
-                        sx={{ color: "rgba(148,163,184,0.82)", fontSize: 20 }}
-                      />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  width: {
-                    xs: "min(100%, 210px)",
-                    sm: "100%",
-                    md: 360,
-                  },
-                  flex: "1 1 auto",
-                  minWidth: 0,
-                  "& .MuiOutlinedInput-root": {
-                    height: 42,
-                    borderRadius: "999px",
-                    color: "rgba(248,250,252,0.94)",
-                    backgroundColor: "rgba(15,23,42,0.64)",
-                    "& fieldset": {
-                      borderColor: "rgba(148,163,184,0.18)",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(103,232,249,0.26)",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "rgba(103,232,249,0.5)",
-                    },
-                  },
-                }}
-              />
-            )}
-
-            <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 md:gap-3">
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-                {toolbarMessage ? (
-                  <div
-                    className={`min-w-0 truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                      toolbarMessageTone === "error"
-                        ? "border-rose-300/18 bg-rose-500/10 text-rose-100"
-                        : toolbarMessageTone === "cooldown"
-                          ? "border-amber-200/18 bg-amber-300/10 text-amber-50"
-                          : "border-cyan-200/18 bg-cyan-200/10 text-cyan-50"
+        {shouldShowSourceToolbar ? (
+          <section className="shrink-0 border-b border-white/8 px-4 py-3 sm:px-6">
+            <div className="flex flex-row items-center justify-between gap-2 md:gap-3">
+              {activeTab === "suggestions" ? (
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSuggestionClientId("all")}
+                    className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition ${
+                      selectedSuggestionClientId === "all"
+                        ? "border-cyan-200/34 bg-cyan-200/12 text-cyan-50"
+                        : "border-white/10 bg-slate-950/48 text-slate-300 hover:border-cyan-200/22"
                     }`}
                   >
-                    {toolbarMessage}
-                  </div>
-                ) : null}
-              </div>
+                    全部
+                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-slate-200">
+                      {playlistSuggestions.length}
+                    </span>
+                  </button>
 
-              <div className="inline-flex shrink-0 rounded-full border border-white/10 bg-slate-950/42 p-1">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
-                    viewMode === "grid"
-                      ? "bg-cyan-200/14 text-cyan-50"
-                      : "text-slate-400 hover:text-slate-100"
-                  }`}
-                >
-                  <GridViewRoundedIcon sx={{ fontSize: 18 }} />
-                </button>
+                  {suggestionAuthors.map((author) => {
+                    const selected =
+                      selectedSuggestionClientId === author.clientId;
 
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
-                    viewMode === "list"
-                      ? "bg-cyan-200/14 text-cyan-50"
-                      : "text-slate-400 hover:text-slate-100"
-                  }`}
-                >
-                  <ViewAgendaRoundedIcon sx={{ fontSize: 18 }} />
-                </button>
+                    return (
+                      <button
+                        key={author.clientId}
+                        type="button"
+                        title={`${author.username} 的推薦`}
+                        aria-label={`${author.username} 的推薦`}
+                        onClick={() =>
+                          setSelectedSuggestionClientId(author.clientId)
+                        }
+                        className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-xs font-semibold transition ${
+                          selected
+                            ? "border-cyan-200/55 bg-cyan-200/14 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.1)]"
+                            : "border-white/12 bg-slate-950/54 text-slate-200 hover:border-cyan-200/30"
+                        }`}
+                      >
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-slate-100">
+                          {author.avatarUrl ? (
+                            <img
+                              src={author.avatarUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span>{getInitial(author.username)}</span>
+                          )}
+                        </span>
+                        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-cyan-300 px-1.5 text-[11px] font-bold leading-5 text-slate-950">
+                          {author.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <TextField
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder="搜尋收藏庫"
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchRoundedIcon
+                          sx={{
+                            color: "rgba(148,163,184,0.82)",
+                            fontSize: 20,
+                          }}
+                        />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    width: {
+                      xs: "min(100%, 210px)",
+                      sm: "100%",
+                      md: 360,
+                    },
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                    "& .MuiOutlinedInput-root": {
+                      height: 42,
+                      borderRadius: "999px",
+                      color: "rgba(248,250,252,0.94)",
+                      backgroundColor: "rgba(15,23,42,0.64)",
+                      "& fieldset": {
+                        borderColor: "rgba(148,163,184,0.18)",
+                      },
+                      "&:hover fieldset": {
+                        borderColor: "rgba(103,232,249,0.26)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "rgba(103,232,249,0.5)",
+                      },
+                    },
+                  }}
+                />
+              )}
+
+              <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 md:gap-3">
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                  {toolbarMessage ? (
+                    <div
+                      className={`min-w-0 truncate rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                        toolbarMessageTone === "error"
+                          ? "border-rose-300/18 bg-rose-500/10 text-rose-100"
+                          : toolbarMessageTone === "cooldown"
+                            ? "border-amber-200/18 bg-amber-300/10 text-amber-50"
+                            : "border-cyan-200/18 bg-cyan-200/10 text-cyan-50"
+                      }`}
+                    >
+                      {toolbarMessage}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="inline-flex shrink-0 rounded-full border border-white/10 bg-slate-950/42 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grid")}
+                    className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
+                      viewMode === "grid"
+                        ? "bg-cyan-200/14 text-cyan-50"
+                        : "text-slate-400 hover:text-slate-100"
+                    }`}
+                  >
+                    <GridViewRoundedIcon sx={{ fontSize: 18 }} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={`inline-flex h-8 w-9 items-center justify-center rounded-full transition ${
+                      viewMode === "list"
+                        ? "bg-cyan-200/14 text-cyan-50"
+                        : "text-slate-400 hover:text-slate-100"
+                    }`}
+                  >
+                    <ViewAgendaRoundedIcon sx={{ fontSize: 18 }} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         <main className="min-h-0 flex-1 overflow-hidden px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-6 sm:pb-4">
           {renderMainContent()}

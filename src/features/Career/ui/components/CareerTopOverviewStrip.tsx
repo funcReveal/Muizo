@@ -21,99 +21,74 @@ const CareerTopOverviewStrip: React.FC<CareerTopOverviewStripProps> = ({
 }) => {
   const avatarLabel = hero.displayName.trim().slice(0, 2).toUpperCase() || "MU";
 
-  return (
-    <section className="relative shrink-0 overflow-hidden rounded-[26px] border border-cyan-100/14 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_92%_12%,rgba(251,191,36,0.13),transparent_30%),linear-gradient(180deg,rgba(8,15,28,0.98),rgba(2,6,23,0.99))] p-4 shadow-[0_22px_54px_-34px_rgba(34,211,238,0.7),inset_0_1px_0_rgba(255,255,255,0.055)]">
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent" />
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-200/28 bg-[radial-gradient(circle_at_30%_25%,rgba(125,211,252,0.95),rgba(8,47,73,0.95))] text-lg font-bold text-white shadow-[0_0_0_6px_rgba(34,211,238,0.08),0_18px_34px_-24px_rgba(34,211,238,0.9)]">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={hero.displayName}
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                avatarLabel
-              )}
-              <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/18" />
-            </div>
+  const stats = [
+    {
+      label: "總場次",
+      value: hero.totalMatches.toLocaleString("zh-TW"),
+    },
+    {
+      label: "總分數",
+      value: formatCareerScore(hero.totalScore),
+    },
+    {
+      label: "最高分",
+      value: formatCareerScore(hero.bestScore),
+    },
+    {
+      label: "最佳名次",
+      value: formatCareerRank(hero.bestRank),
+    },
+    {
+      label: "遊玩時數",
+      value: formatCareerPlayTime(hero.playTimeSec),
+    },
+    {
+      label: "最高 Combo",
+      value: hero.bestCombo ? `x${hero.bestCombo}` : "-",
+    },
+  ];
 
-            <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--mc-text)]">
-                戰績總覽
-              </h1>
-              <div className="mt-0.5 truncate text-sm font-semibold text-sky-300">
-                {hero.displayName} · {hero.descriptor}
-              </div>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400">
-                依照你的真實對戰紀錄同步總分、名次、題庫表現與近期成長。
-              </p>
-            </div>
-          </div>
+  return (
+    <section className="relative shrink-0 overflow-hidden rounded-[26px] border border-cyan-100/14 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(180deg,rgba(8,15,28,0.98),rgba(2,6,23,0.99))] p-4 shadow-[0_22px_54px_-36px_rgba(34,211,238,0.62),inset_0_1px_0_rgba(255,255,255,0.055)]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
+
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-200/28 bg-[radial-gradient(circle_at_30%_25%,rgba(125,211,252,0.95),rgba(8,47,73,0.95))] text-lg font-bold text-white shadow-[0_0_0_6px_rgba(34,211,238,0.08),0_18px_34px_-24px_rgba(34,211,238,0.9)]">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={hero.displayName}
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            avatarLabel
+          )}
+          <span className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/18" />
         </div>
 
-        <div className="inline-flex items-center self-start rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-cyan-100">
-          LIVE CAREER DATA
+        <div className="min-w-0">
+          <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-2xl">
+            {hero.displayName}
+          </h2>
+
+          <div className="mt-0.5 truncate text-sm font-medium text-sky-300">
+            {hero.descriptor}
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            總場次
+      <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        {stats.map((stat) => (
+          <div key={stat.label} className={quickCardClass}>
+            <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
+              {stat.label}
+            </div>
+            <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
+              {stat.value}
+            </div>
           </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {hero.totalMatches.toLocaleString("zh-TW")}
-          </div>
-        </div>
-
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            總分數
-          </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {formatCareerScore(hero.totalScore)}
-          </div>
-        </div>
-
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            最高分
-          </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {formatCareerScore(hero.bestScore)}
-          </div>
-        </div>
-
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            最佳名次
-          </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {formatCareerRank(hero.bestRank)}
-          </div>
-        </div>
-
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            遊玩時數
-          </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {formatCareerPlayTime(hero.playTimeSec)}
-          </div>
-        </div>
-
-        <div className={quickCardClass}>
-          <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
-            最高 Combo
-          </div>
-          <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
-            {hero.bestCombo ? `x${hero.bestCombo}` : "-"}
-          </div>
-        </div>
+        ))}
       </div>
     </section>
   );

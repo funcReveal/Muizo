@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Box,
-  Button,
   ClickAwayListener,
   Drawer,
   IconButton,
@@ -45,6 +44,7 @@ import {
 } from "@domain/room/constants";
 import type { PlaybackExtensionMode } from "@features/RoomSession";
 import { AnimatePresence, motion } from "motion/react";
+import DrawerFooterActions from "@shared/ui/DrawerFooterActions";
 
 type RoomPlayMode = "casual" | "leaderboard";
 type LeaderboardVariantKey = "30q" | "50q" | "15m";
@@ -461,10 +461,10 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
       PaperProps={{
         className: "room-lobby-settings-drawer",
         sx: {
-          width: isMobileDrawer ? "100%" : "min(1040px, 100vw)",
-          height: isMobileDrawer ? "min(92dvh, 820px)" : "100dvh",
-          maxHeight: isMobileDrawer ? "92dvh" : "100dvh",
-          borderRadius: isMobileDrawer ? "22px 22px 0 0" : "24px 0 0 24px",
+          width: isMobileDrawer ? "100vw" : "min(1120px, 100vw)",
+          height: "100dvh",
+          maxHeight: "100dvh",
+          borderRadius: isMobileDrawer ? 0 : "24px 0 0 24px",
           border: "1px solid rgba(245,158,11,0.18)",
           background:
             "radial-gradient(720px 320px at 0% 0%, rgba(245,158,11,0.14), transparent 62%), radial-gradient(560px 280px at 100% 0%, rgba(34,211,238,0.14), transparent 64%), linear-gradient(180deg, rgba(6,10,16,0.985), rgba(3,6,11,0.985))",
@@ -494,7 +494,14 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
               onClick={handleDrawerClose}
               disabled={settingsSaving}
               size="small"
-              className="!border-0 !bg-white/5 !text-slate-100"
+              sx={{
+                color: "rgba(241,245,249,0.92)",
+                backgroundColor: "transparent",
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  color: "#ffffff",
+                },
+              }}
             >
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
@@ -1552,34 +1559,19 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
         sx={{
           borderTop: "1px solid rgba(245,158,11,0.1)",
           px: { xs: 1.5, sm: 2.5 },
-          py: { xs: 1, sm: 1.5 },
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 1,
+          py: { xs: 1.25, sm: 1.5 },
           flexShrink: 0,
         }}
       >
-        <Button
-          onClick={handleDrawerClose}
-          variant="text"
-          disabled={settingsSaving}
-          className="room-lobby-settings-secondary-btn"
-        >
-          取消
-        </Button>
-
-        <Button
-          onClick={onSave}
-          variant="contained"
-          disabled={settingsLocked}
-          className={`room-lobby-settings-primary-btn ${
-            settingsSaving ? "is-saving" : ""
-          }`}
-        >
-          <span className="room-lobby-settings-primary-btn__content">
-            {settingsSaving ? "儲存中..." : "儲存設定"}
-          </span>
-        </Button>
+        <DrawerFooterActions
+          onCancel={handleDrawerClose}
+          onConfirm={onSave}
+          cancelDisabled={settingsSaving}
+          confirmDisabled={settingsLocked}
+          confirmLoading={settingsSaving}
+          confirmLabel="儲存設定"
+          confirmPendingLabel="儲存中..."
+        />
       </Box>
       </Box>
     </Drawer>

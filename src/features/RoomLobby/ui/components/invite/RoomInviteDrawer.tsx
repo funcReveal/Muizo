@@ -8,7 +8,6 @@ import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import IosShareRoundedIcon from "@mui/icons-material/IosShareRounded";
-import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 
 type RoomInviteDrawerProps = {
   open: boolean;
@@ -69,9 +68,6 @@ const RoomInviteDrawer = ({
     }}
   >
     <div className="room-lobby-share-modal__title">
-      <span className="room-lobby-share-modal__title-icon" aria-hidden="true">
-        <PersonAddAlt1RoundedIcon fontSize="small" />
-      </span>
       <span>邀請玩家</span>
       <IconButton
         type="button"
@@ -80,10 +76,10 @@ const RoomInviteDrawer = ({
         sx={{
           ml: "auto",
           color: "rgba(226,232,240,0.9)",
-          border: "none",
-          backgroundColor: "rgba(15,23,42,0.58)",
+          backgroundColor: "transparent",
           "&:hover": {
-            backgroundColor: "rgba(30,41,59,0.78)",
+            backgroundColor: "transparent",
+            color: "#ffffff",
           },
         }}
       >

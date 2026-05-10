@@ -21,7 +21,7 @@ const CollectionContentLayoutShell = lazy(
 );
 const RoomsHubPage = lazy(() => import("@features/RoomHub"));
 const RoomLobbyPage = lazy(() => import("@features/RoomLobby"));
-// const CareerPage = lazy(() => import("@features/Career"));
+const CareerPage = lazy(() => import("@features/Career"));
 const InvitedPage = lazy(() => import("@features/Invited"));
 const CollectionsPage = lazy(() => import("@features/Collections"));
 const CollectionsCreatePage = lazy(() =>
@@ -54,7 +54,9 @@ export function AppRouter() {
             </Suspense>
           }
         />
+
         <Route path="/settings" element={<Navigate to="/rooms" replace />} />
+
         <Route
           path="/collections"
           element={
@@ -70,6 +72,7 @@ export function AppRouter() {
             </RequireAuthRoute>
           }
         />
+
         <Route
           element={
             <Suspense fallback={<PageLoader />}>
@@ -92,6 +95,7 @@ export function AppRouter() {
               </RequireAuthRoute>
             }
           />
+
           <Route
             path="/collections/:collectionId/edit"
             element={
@@ -109,6 +113,7 @@ export function AppRouter() {
           />
         </Route>
       </Route>
+
       <Route
         element={
           <Suspense fallback={<PageLoader />}>
@@ -116,6 +121,25 @@ export function AppRouter() {
           </Suspense>
         }
       >
+        <Route path="/history" element={<Navigate to="/career" replace />} />
+
+        <Route
+          path="/career"
+          element={
+            <RequireAuthRoute
+              badge="Career Access"
+              title="先建立身分即可查看生涯總覽"
+              description="訪客可查看目前身分的對戰紀錄；登入可跨裝置保存完整歷史。"
+              highlights={["完整對戰回顧", "個人戰績總覽", "題庫排行表現"]}
+              allowGuest
+            >
+              <Suspense fallback={<PageLoader />}>
+                <CareerPage />
+              </Suspense>
+            </RequireAuthRoute>
+          }
+        />
+
         <Route
           path="/rooms"
           element={
@@ -124,6 +148,7 @@ export function AppRouter() {
             </Suspense>
           }
         />
+
         <Route
           path="/rooms/:roomId"
           element={
@@ -132,6 +157,7 @@ export function AppRouter() {
             </Suspense>
           }
         />
+
         <Route
           path="/invited/:roomId"
           element={
@@ -140,27 +166,13 @@ export function AppRouter() {
             </Suspense>
           }
         />
-        {/* <Route
-          path="/history"
-          element={
-            <RequireAuthRoute
-              badge="History Access"
-              title="先建立身分即可查看生涯總覽"
-              description="訪客可查看目前身分的對戰紀錄；登入可跨裝置保存完整歷史。"
-              highlights={["完整對戰回放", "個人戰績", "跨裝置同步"]}
-              allowGuest
-            >
-              <Suspense fallback={<PageLoader />}>
-                <CareerPage />
-              </Suspense>
-            </RequireAuthRoute>
-          }
-        /> */}
       </Route>
+
       <Route element={<LegalLayout />}>
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

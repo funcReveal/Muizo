@@ -450,6 +450,18 @@ export const mergeRoomSummaryIntoCurrentRoom = (
   ...(summary.playlistSourceType !== undefined
     ? { playlistSourceType: summary.playlistSourceType }
     : {}),
+  ...(summary.playlistRatingAvg !== undefined
+    ? { playlistRatingAvg: summary.playlistRatingAvg }
+    : {}),
+  ...(summary.playlistRatingCount !== undefined
+    ? { playlistRatingCount: summary.playlistRatingCount }
+    : {}),
+  ...(summary.playlistUseCount !== undefined
+    ? { playlistUseCount: summary.playlistUseCount }
+    : {}),
+  ...(summary.playlistFavoriteCount !== undefined
+    ? { playlistFavoriteCount: summary.playlistFavoriteCount }
+    : {}),
   ...(summary.visibility !== undefined
     ? { visibility: summary.visibility }
     : {}),

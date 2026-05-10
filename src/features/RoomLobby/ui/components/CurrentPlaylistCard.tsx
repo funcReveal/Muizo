@@ -80,6 +80,11 @@ const CurrentPlaylistCard = ({
     playlist: room?.playlist,
   });
   const playlistSource = room?.playlist;
+  const playlistSourceType =
+    room?.playlistSourceType ?? room?.playlist?.sourceType ?? null;
+  const shouldShowRating =
+    playlistSourceType !== "youtube_google_import" &&
+    playlistSourceType !== "youtube_pasted_link";
   const ratingCount = getFiniteCount(
     currentCollection?.rating_count,
     getRecordValue(playlistSource, "rating_count"),
@@ -216,27 +221,29 @@ const CurrentPlaylistCard = ({
               </span>
             </div>
 
-            <div className="hidden min-w-0 items-center gap-2 text-[12px] leading-5 text-slate-300/88 sm:flex">
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <StarRoundedIcon
-                  sx={{
-                    fontSize: 15,
-                    color:
-                      ratingCount !== null && ratingCount > 0
-                        ? "rgba(250,204,21,0.95)"
-                        : "rgba(148,163,184,0.56)",
-                  }}
-                />
-                <span className="shrink-0 font-semibold text-slate-100/92">
-                  {ratingAvgLabel}
+            {shouldShowRating ? (
+              <div className="hidden min-w-0 items-center gap-2 text-[12px] leading-5 text-slate-300/88 sm:flex">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <StarRoundedIcon
+                    sx={{
+                      fontSize: 15,
+                      color:
+                        ratingCount !== null && ratingCount > 0
+                          ? "rgba(250,204,21,0.95)"
+                          : "rgba(148,163,184,0.56)",
+                    }}
+                  />
+                  <span className="shrink-0 font-semibold text-slate-100/92">
+                    {ratingAvgLabel}
+                  </span>
                 </span>
-              </span>
-              {ratingCountLabel ? (
-                <span className="min-w-0 truncate text-slate-400">
-                  {ratingCountLabel}
-                </span>
-              ) : null}
-            </div>
+                {ratingCountLabel ? (
+                  <span className="min-w-0 truncate text-slate-400">
+                    {ratingCountLabel}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="mt-auto hidden items-end justify-between gap-4 sm:flex">
               <div className="flex min-w-0 flex-1 flex-wrap gap-3">

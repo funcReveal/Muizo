@@ -5,7 +5,7 @@ import { useAuth } from "@shared/auth/AuthContext";
 import { useRoomGame, useRoomSession } from "@features/RoomSession";
 import ConfirmDialog from "@shared/ui/ConfirmDialog";
 
-type NavigationTarget = "rooms" | "collections" | "history" | "settings";
+type NavigationTarget = "rooms" | "collections" | "career" | "settings";
 
 const getNavigationPath = (target: NavigationTarget) => {
   switch (target) {
@@ -13,8 +13,8 @@ const getNavigationPath = (target: NavigationTarget) => {
       return "/rooms";
     case "collections":
       return "/collections";
-    case "history":
-      return "/history";
+    case "career":
+      return "/career";
     case "settings":
       return "/settings";
     default:
@@ -204,7 +204,7 @@ export function useRoomAwareNavigationGuards({
     handleLoginRequest,
     handleLogoutRequest,
     handleNavigateCollections: () => handleNavigateRequest("collections"),
-    handleNavigateHistory: () => handleNavigateRequest("history"),
+    handleNavigateCareer: () => handleNavigateRequest("career"),
     handleNavigateRooms: () => handleNavigateRequest("rooms"),
     handleNavigateSettings: () => handleNavigateRequest("settings"),
     handlePrivacyRequest,

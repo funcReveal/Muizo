@@ -187,6 +187,10 @@ interface RoomLobbyPanelProps {
     scope?: "owner" | "public",
     options?: { query?: string },
   ) => void;
+  onFetchCollectionById?: (
+    collectionId: string,
+    options?: { readToken?: string | null },
+  ) => Promise<CollectionOption | null>;
   onLoadMoreCollections?: () => Promise<void>;
   onFetchYoutubePlaylists: () => void;
 }
@@ -285,6 +289,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   onFetchPlaylistByUrl,
   onResetPlaylist,
   onFetchCollections,
+  onFetchCollectionById,
   onLoadMoreCollections,
   onFetchYoutubePlaylists,
 }) => {
@@ -1755,7 +1760,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     },
     [],
   );
-  const currentPlaylistCollection = React.useMemo(() => {
+  const currentPlaylistCollectionId = React.useMemo(() => {
     const sourceType =
       currentRoom?.playlistSourceType ?? currentRoom?.playlist?.sourceType;
     if (sourceType !== "public_collection" && sourceType !== "private_collection") {
@@ -1763,27 +1768,49 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     }
 
     const candidateIds = [
-      currentRoom?.playlist?.id,
       currentRoom?.playlistId,
-      currentRoom?.playlistCoverSourceId,
+      currentRoom?.playlist?.id,
     ]
       .map((value) => String(value ?? "").trim())
       .filter(Boolean);
 
     if (candidateIds.length === 0) return null;
 
-    return (
-      collections.find((collection) =>
-        candidateIds.includes(String(collection.id ?? "").trim()),
-      ) ?? null
-    );
+    return candidateIds[0];
   }, [
-    collections,
     currentRoom?.playlist?.id,
     currentRoom?.playlist?.sourceType,
-    currentRoom?.playlistCoverSourceId,
     currentRoom?.playlistId,
     currentRoom?.playlistSourceType,
+  ]);
+
+  const currentPlaylistCollection = React.useMemo(() => {
+    if (!currentPlaylistCollectionId) return null;
+
+    return (
+      collections.find((collection) =>
+        currentPlaylistCollectionId === String(collection.id ?? "").trim(),
+      ) ?? null
+    );
+  }, [collections, currentPlaylistCollectionId]);
+
+  const currentCollectionFetchIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!currentPlaylistCollectionId || currentPlaylistCollection) {
+      currentCollectionFetchIdRef.current = null;
+      return;
+    }
+    if (!onFetchCollectionById) return;
+    if (currentCollectionFetchIdRef.current === currentPlaylistCollectionId) {
+      return;
+    }
+
+    currentCollectionFetchIdRef.current = currentPlaylistCollectionId;
+    void onFetchCollectionById(currentPlaylistCollectionId);
+  }, [
+    currentPlaylistCollection,
+    currentPlaylistCollectionId,
+    onFetchCollectionById,
   ]);
 
   const hostPanel = isHost ? (

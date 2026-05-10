@@ -1107,6 +1107,7 @@ const RoomLobbyPage: React.FC = () => {
     collectionItemsLoading,
     collectionItemsError,
     fetchCollections,
+    fetchCollectionById,
     loadMoreCollections,
   } = useCollectionContent();
   const {
@@ -3921,6 +3922,7 @@ const RoomLobbyPage: React.FC = () => {
             onFetchPlaylistByUrl={handleFetchPlaylistByUrl}
             onResetPlaylist={handleResetPlaylist}
             onFetchCollections={fetchCollections}
+            onFetchCollectionById={fetchCollectionById}
             onLoadMoreCollections={loadMoreCollections}
             onFetchYoutubePlaylists={fetchYoutubePlaylists}
           />

@@ -58,6 +58,10 @@ export interface RoomSummary {
   playlistCoverThumbnailUrl?: string | null;
   playlistCoverSourceId?: string | null;
   playlistSourceType?: PlaylistSourceType | null;
+  playlistRatingAvg?: number | null;
+  playlistRatingCount?: number | null;
+  playlistUseCount?: number | null;
+  playlistFavoriteCount?: number | null;
   currentQuestionNo?: number | null;
   completedQuestionCount?: number;
   totalQuestionCount?: number;
