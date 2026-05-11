@@ -945,111 +945,111 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
             </div>
           </div>
 
-          {!(isMobileView && shouldHideMobileAnswerPhaseChrome && !isReveal) && (
-          <div className={`game-room-reveal ${shouldHideDesktopRevealCard ? "game-room-reveal--hidden-desktop" : ""}`}>
-            <div
-              className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""
-                } ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""} ${isComboBreakThisQuestion && comboBreakTier > 0
-                  ? `game-room-reveal-card--combo-break game-room-reveal-card--combo-break-tier-${comboBreakTier}`
-                  : ""
-                }`}
-            >
+          {!shouldHideMobileAnswerPhaseChrome && (
+            <div className={`game-room-reveal ${shouldHideDesktopRevealCard ? "game-room-reveal--hidden-desktop" : ""}`}>
               <div
-                className={`game-room-feedback-head ${isReveal ? "game-room-feedback-head--reveal" : ""
+                className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""
+                  } ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""} ${isComboBreakThisQuestion && comboBreakTier > 0
+                    ? `game-room-reveal-card--combo-break game-room-reveal-card--combo-break-tier-${comboBreakTier}`
+                    : ""
                   }`}
               >
-                <p className="game-room-feedback-title">{myFeedback.title}</p>
-                {isReveal && myFeedback.inlineMeta && (
-                  <span
-                    className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
-                  >
-                    {myFeedback.inlineMeta}
-                  </span>
-                )}
-                {isReveal && (
-                  <span
-                    className={`game-room-feedback-pill game-room-feedback-pill--${revealTone} ${myFeedback.pillText ?? myFeedback.detail
-                      ? ""
-                      : "game-room-feedback-pill--placeholder"
-                      }`}
-                  >
-                    {(myFeedback.pillText ?? myFeedback.detail) || "等待揭曉"}
-                  </span>
-                )}
-              </div>
-              {!isReveal && feedbackLines.length === 0 ? (
-                myFeedback.detail && (
-                  <p
-                    className={`game-room-feedback-detail ${isMobileView ? "game-room-feedback-detail--mobile-compact" : ""}`}
-                  >
-                    {myFeedback.detail}
-                  </p>
-                )
-              ) : !isReveal && (
                 <div
-                  className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"} ${isMobileView ? "game-room-feedback-lines--mobile-compact" : ""}`}
+                  className={`game-room-feedback-head ${isReveal ? "game-room-feedback-head--reveal" : ""
+                    }`}
                 >
-                  {feedbackLines
-                    .slice(0, 2)
-                    .map((line, idx) => (
-                      <p
-                        key={`${trackSessionKey}-feedback-line-${idx}`}
-                        className="game-room-feedback-line"
-                      >
-                        {line}
-                      </p>
-                    ))}
+                  <p className="game-room-feedback-title">{myFeedback.title}</p>
+                  {isReveal && myFeedback.inlineMeta && (
+                    <span
+                      className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
+                    >
+                      {myFeedback.inlineMeta}
+                    </span>
+                  )}
+                  {isReveal && (
+                    <span
+                      className={`game-room-feedback-pill game-room-feedback-pill--${revealTone} ${myFeedback.pillText ?? myFeedback.detail
+                        ? ""
+                        : "game-room-feedback-pill--placeholder"
+                        }`}
+                    >
+                      {(myFeedback.pillText ?? myFeedback.detail) || "等待揭曉"}
+                    </span>
+                  )}
                 </div>
-              )}
-              {!isReveal &&
-                feedbackLines.length === 0 &&
-                myFeedback.badges.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {myFeedback.badges.map((badge) => (
-                      <span
-                        key={`${trackSessionKey}-${badge}`}
-                        className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/35 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
-                      >
-                        {badge}
-                      </span>
-                    ))}
+                {!isReveal && feedbackLines.length === 0 ? (
+                  myFeedback.detail && (
+                    <p
+                      className={`game-room-feedback-detail ${isMobileView ? "game-room-feedback-detail--mobile-compact" : ""}`}
+                    >
+                      {myFeedback.detail}
+                    </p>
+                  )
+                ) : !isReveal && (
+                  <div
+                    className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"} ${isMobileView ? "game-room-feedback-lines--mobile-compact" : ""}`}
+                  >
+                    {feedbackLines
+                      .slice(0, 2)
+                      .map((line, idx) => (
+                        <p
+                          key={`${trackSessionKey}-feedback-line-${idx}`}
+                          className="game-room-feedback-line"
+                        >
+                          {line}
+                        </p>
+                      ))}
                   </div>
                 )}
-              {!isReveal && isMobileView && mobileGuessAnsweredText && !isRecoveringConnection ? (
-                <p className="mt-0.5 text-[11px] font-semibold text-cyan-100">
-                  {mobileGuessAnsweredText}
-                </p>
-              ) : null}
-              {isReveal && (
-                <>
-                  <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
-                    <span className="mr-1 text-[11px] font-semibold text-emerald-200">正解</span>
-                    {resolvedAnswerTitle}
-                  </p>
-                  {gameStatus === "playing" ? (
-                    <GameRoomRevealCountdownText
-                      revealEndsAt={revealEndsAt}
-                      getLocalNowMs={getLocalNowMs}
-                    />
-                  ) : (
-                    <div className="mt-1 flex items-center justify-between">
-                      <p className="text-xs text-emerald-200">
-                        對戰已結束，可返回房間或直接離開遊戲。
-                      </p>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="inherit"
-                        onClick={onOpenExitConfirm}
-                      >
-                        離開遊戲
-                      </Button>
+                {!isReveal &&
+                  feedbackLines.length === 0 &&
+                  myFeedback.badges.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {myFeedback.badges.map((badge) => (
+                        <span
+                          key={`${trackSessionKey}-${badge}`}
+                          className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/35 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
+                        >
+                          {badge}
+                        </span>
+                      ))}
                     </div>
                   )}
-                </>
-              )}
+                {!isReveal && isMobileView && mobileGuessAnsweredText && !isRecoveringConnection ? (
+                  <p className="mt-0.5 text-[11px] font-semibold text-cyan-100">
+                    {mobileGuessAnsweredText}
+                  </p>
+                ) : null}
+                {isReveal && (
+                  <>
+                    <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
+                      <span className="mr-1 text-[11px] font-semibold text-emerald-200">正解</span>
+                      {resolvedAnswerTitle}
+                    </p>
+                    {gameStatus === "playing" ? (
+                      <GameRoomRevealCountdownText
+                        revealEndsAt={revealEndsAt}
+                        getLocalNowMs={getLocalNowMs}
+                      />
+                    ) : (
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-xs text-emerald-200">
+                          對戰已結束，可返回房間或直接離開遊戲。
+                        </p>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          onClick={onOpenExitConfirm}
+                        >
+                          離開遊戲
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
           )}
         </div>
       )}

@@ -64,7 +64,8 @@ export const ChallengeLeaderboardPanel = React.memo(
     gainAnimKey = 0,
     gainAmount = 0,
   }: ChallengeLeaderboardPanelProps) {
-    const { scrollRef, onWheel } = useScoreboardWheelScroll<HTMLDivElement>();
+    const { setScrollNodeRef, onWheel } =
+      useScoreboardWheelScroll<HTMLDivElement>();
 
     const data = state.status === "loaded" ? state.data : null;
 
@@ -159,7 +160,7 @@ export const ChallengeLeaderboardPanel = React.memo(
           onWheel={onWheel}
         >
           <div
-            ref={scrollRef}
+            ref={setScrollNodeRef}
             className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
           >
             <div className="game-room-scoreboard-stack challenge-lb-animated-stack">
@@ -232,7 +233,7 @@ export const ChallengeLeaderboardPanel = React.memo(
         onWheel={onWheel}
       >
         <div
-          ref={scrollRef}
+          ref={setScrollNodeRef}
           className="game-room-scoreboard-list mq-autohide-scrollbar px-1 py-1"
         >
           <div className="game-room-scoreboard-stack challenge-lb-animated-stack">

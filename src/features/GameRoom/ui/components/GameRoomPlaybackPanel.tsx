@@ -34,6 +34,9 @@ const formatMobileHudTime = (totalSeconds: number): string => {
   return `${m}:${String(rem).padStart(2, "0")}`;
 };
 
+const MOBILE_GUESS_RING_RADIUS = 30;
+const MOBILE_GUESS_RING_CIRCUMFERENCE =
+  2 * Math.PI * MOBILE_GUESS_RING_RADIUS;
 interface GameRoomPlaybackPanelProps {
   rootRef?: React.Ref<HTMLDivElement>;
   isMobileView?: boolean;
@@ -106,27 +109,45 @@ const MobilePlayerSwitch = React.memo(function MobilePlayerSwitch({
   previewMode: "video" | "thumbnail";
   onChange: (nextMode: "video" | "thumbnail") => void;
 }) {
+  const isVideoMode = previewMode === "video";
+  const nextMode: "video" | "thumbnail" = isVideoMode ? "thumbnail" : "video";
+
+  const handleToggle = React.useCallback(() => {
+    onChange(nextMode);
+  }, [nextMode, onChange]);
+
   return (
-    <div className="game-room-mobile-player-switch">
-      <button
-        type="button"
-        className={`game-room-mobile-player-switch__option ${previewMode === "video" ? "game-room-mobile-player-switch__option--active" : ""}`}
-        onClick={() => onChange("video")}
-        aria-label="顯示影片"
-        aria-pressed={previewMode === "video"}
+    <button
+      type="button"
+      className={`game-room-mobile-player-switch ${isVideoMode
+          ? "game-room-mobile-player-switch--video"
+          : "game-room-mobile-player-switch--thumbnail"
+        }`}
+      role="switch"
+      aria-checked={isVideoMode}
+      aria-label={
+        isVideoMode
+          ? "目前顯示影片，點擊切換為縮圖"
+          : "目前顯示縮圖，點擊切換為影片"
+      }
+      onClick={handleToggle}
+    >
+      <span
+        className={`game-room-mobile-player-switch__option ${isVideoMode ? "game-room-mobile-player-switch__option--active" : ""
+          }`}
+        aria-hidden="true"
       >
         <VideocamRoundedIcon style={{ fontSize: 15 }} />
-      </button>
-      <button
-        type="button"
-        className={`game-room-mobile-player-switch__option ${previewMode === "thumbnail" ? "game-room-mobile-player-switch__option--active" : ""}`}
-        onClick={() => onChange("thumbnail")}
-        aria-label="顯示縮圖"
-        aria-pressed={previewMode === "thumbnail"}
+      </span>
+
+      <span
+        className={`game-room-mobile-player-switch__option ${!isVideoMode ? "game-room-mobile-player-switch__option--active" : ""
+          }`}
+        aria-hidden="true"
       >
         <ImageRoundedIcon style={{ fontSize: 15 }} />
-      </button>
-    </div>
+      </span>
+    </button>
   );
 });
 
@@ -191,7 +212,7 @@ const MobileGuessCountdownHud = React.memo(function MobileGuessCountdownHud({
   liveAnsweredCount: number;
   liveParticipantCount: number;
 }) {
-  const progressBarRef = React.useRef<HTMLDivElement | null>(null);
+  const progressCircleRef = React.useRef<SVGCircleElement | null>(null);
 
   const [seconds, setSeconds] = React.useState(() =>
     Math.ceil(Math.max(0, phaseEndsAt - (Date.now() + serverOffsetMs)) / 1000),
@@ -221,45 +242,89 @@ const MobileGuessCountdownHud = React.memo(function MobileGuessCountdownHud({
 
   // Horizontal bar progress — CSS transition driven, right-to-left, no per-frame React updates
   React.useLayoutEffect(() => {
-    const bar = progressBarRef.current;
-    if (!bar) return;
+    const circle = progressCircleRef.current;
+    if (!circle) return;
 
     if (allAnsweredReadyForReveal) {
-      bar.style.transition = "transform 220ms ease-out";
-      bar.style.transform = "scaleX(0)";
+      circle.style.transition = "stroke-dashoffset 220ms ease-out";
+      circle.style.strokeDashoffset = String(-MOBILE_GUESS_RING_CIRCUMFERENCE);
       return;
     }
 
-    const remainingMs = Math.max(0, phaseEndsAt - (Date.now() + serverOffsetMs));
+    const remainingMs = Math.max(
+      0,
+      phaseEndsAt - (Date.now() + serverOffsetMs),
+    );
+
     const fraction =
       activePhaseDurationMs > 0
         ? Math.max(0, Math.min(1, remainingMs / activePhaseDurationMs))
         : 1;
 
-    // Snap to current position without transition
-    bar.style.transition = "none";
-    bar.style.transform = `scaleX(${fraction})`;
-    void bar.getBoundingClientRect();
+    circle.style.transition = "none";
+    circle.style.strokeDashoffset = String(
+      -MOBILE_GUESS_RING_CIRCUMFERENCE * (1 - fraction),
+    );
+
+    void circle.getBoundingClientRect();
 
     if (remainingMs > 0) {
-      bar.style.transition = `transform ${remainingMs}ms linear`;
-      bar.style.transform = "scaleX(0)";
+      circle.style.transition = `stroke-dashoffset ${remainingMs}ms linear`;
+      circle.style.strokeDashoffset = String(-MOBILE_GUESS_RING_CIRCUMFERENCE);
     }
-  }, [activePhaseDurationMs, allAnsweredReadyForReveal, phaseEndsAt, serverOffsetMs, trackSessionKey]);
+  }, [
+    activePhaseDurationMs,
+    allAnsweredReadyForReveal,
+    phaseEndsAt,
+    serverOffsetMs,
+    trackSessionKey,
+  ]);
+
+  const isUrgent = seconds > 0 && seconds <= 3;
 
   return (
-    <div className="game-room-mobile-guess-hud">
-      <div className="game-room-mobile-guess-hud__top-row">
-        <span className="game-room-mobile-guess-hud__question">
-          題目 {boundedCursor + 1}/{trackOrderLength || "?"}
-        </span>
+    <div
+      className={`game-room-mobile-guess-hud ${isUrgent ? "game-room-mobile-guess-hud--urgent" : ""
+        }`}
+    >
+      <span className="game-room-mobile-guess-hud__question">
+        題目 {boundedCursor + 1}/{trackOrderLength || "?"}
+      </span>
+
+      <div className="game-room-mobile-guess-hud__ring-wrap">
+        <svg
+          className="game-room-mobile-guess-hud__ring-svg"
+          viewBox="0 0 80 80"
+          width="80"
+          height="80"
+          aria-hidden="true"
+        >
+          <circle
+            className="game-room-mobile-guess-hud__ring-track"
+            cx="40"
+            cy="40"
+            r={MOBILE_GUESS_RING_RADIUS}
+            fill="none"
+          />
+
+          <circle
+            ref={progressCircleRef}
+            className="game-room-mobile-guess-hud__ring-progress"
+            cx="40"
+            cy="40"
+            r={MOBILE_GUESS_RING_RADIUS}
+            fill="none"
+            strokeDasharray={MOBILE_GUESS_RING_CIRCUMFERENCE}
+            strokeDashoffset="0"
+            transform="rotate(-90 40 40)"
+          />
+        </svg>
+
         <span className="game-room-mobile-guess-hud__timer">
           {formatMobileHudTime(seconds)}
         </span>
       </div>
-      <div className="game-room-mobile-guess-hud__bar-wrap">
-        <div ref={progressBarRef} className="game-room-mobile-guess-hud__bar-fill" />
-      </div>
+
       {liveParticipantCount > 0 && (
         <span className="game-room-mobile-guess-hud__answered">
           已答 {liveAnsweredCount}/{liveParticipantCount}
@@ -668,8 +733,8 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
               <>
                 <div
                   className={`game-room-guess-spinner relative ${shouldUseSimpleMobileGuessSpinner
-                      ? "h-14 w-14"
-                      : "h-20 w-20 sm:h-24 sm:w-24"
+                    ? "h-14 w-14"
+                    : "h-20 w-20 sm:h-24 sm:w-24"
                     }`}
                 >
                   {shouldUseSimpleMobileGuessSpinner ? (

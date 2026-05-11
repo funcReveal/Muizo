@@ -1268,13 +1268,6 @@ body {
   width: min(220px, 80%);
 }
 
-.game-room-mobile-guess-hud__top-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .game-room-mobile-guess-hud__question {
   font-size: 11px;
   font-weight: 700;
@@ -1293,21 +1286,6 @@ body {
   white-space: nowrap;
 }
 
-.game-room-mobile-guess-hud__bar-wrap {
-  height: 3px;
-  background: rgba(148, 163, 184, 0.12);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.game-room-mobile-guess-hud__bar-fill {
-  height: 100%;
-  background: rgba(251, 191, 36, 0.85);
-  border-radius: 999px;
-  transform-origin: right center;
-  transform: scaleX(1);
-}
-
 .game-room-mobile-guess-hud__answered {
   font-size: 10px;
   font-weight: 600;
@@ -1315,12 +1293,6 @@ body {
   text-align: center;
   letter-spacing: 0.02em;
   line-height: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .game-room-mobile-guess-hud__bar-fill {
-    transition: none !important;
-  }
 }
 
 /* ── Mobile Player View Switch (inside frame, top-right) ─────────────────── */
@@ -1351,7 +1323,9 @@ body {
   cursor: pointer;
   background: transparent;
   border: none;
-  transition: color 200ms ease, background 200ms ease;
+  transition:
+    color 200ms ease,
+    background 200ms ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1474,5 +1448,178 @@ body {
   .game-room-mobile-info-bar {
     margin-top: 2px;
     margin-bottom: 2px;
+  }
+  .game-room-mobile-guess-hud {
+    position: relative;
+    z-index: 24;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 112px;
+    color: rgba(226, 232, 240, 0.92);
+    pointer-events: none;
+  }
+
+  .game-room-mobile-guess-hud__question {
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    color: rgba(203, 213, 225, 0.74);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.42);
+  }
+
+  .game-room-mobile-guess-hud__ring-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: grid;
+    place-items: center;
+  }
+
+  .game-room-mobile-guess-hud__ring-svg {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+  }
+
+  .game-room-mobile-guess-hud__ring-track {
+    stroke: rgba(148, 163, 184, 0.18);
+    stroke-width: 5;
+  }
+
+  .game-room-mobile-guess-hud__ring-progress {
+    stroke: rgba(250, 204, 21, 0.94);
+    stroke-width: 5;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.22));
+    will-change: stroke-dashoffset;
+  }
+
+  .game-room-mobile-guess-hud__timer {
+    position: relative;
+    z-index: 1;
+    font-size: 22px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: rgba(250, 204, 21, 0.98);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
+  }
+
+  .game-room-mobile-guess-hud__answered {
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    color: rgba(148, 163, 184, 0.74);
+  }
+
+  .game-room-mobile-guess-hud--urgent .game-room-mobile-guess-hud__timer {
+    color: rgba(248, 113, 113, 0.98);
+    animation: game-room-mobile-countdown-urgent 520ms ease-in-out infinite;
+  }
+
+  .game-room-mobile-guess-hud--urgent
+    .game-room-mobile-guess-hud__ring-progress {
+    stroke: rgba(248, 113, 113, 0.96);
+    filter: drop-shadow(0 0 6px rgba(248, 113, 113, 0.28));
+  }
+}
+
+.game-room-mobile-player-switch {
+  appearance: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 32;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.58);
+  padding: 3px;
+  color: rgba(203, 213, 225, 0.72);
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.game-room-mobile-player-switch:hover {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.game-room-mobile-player-switch:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 2px;
+}
+
+.game-room-mobile-player-switch__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: rgba(148, 163, 184, 0.62);
+  pointer-events: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.game-room-mobile-player-switch__option--active {
+  background: rgba(14, 165, 233, 0.18);
+  color: rgba(186, 230, 253, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.18);
+}
+
+.game-room-mobile-player-switch:active
+  .game-room-mobile-player-switch__option--active {
+  transform: scale(0.96);
+}
+
+@keyframes game-room-mobile-countdown-urgent {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+
+  20% {
+    transform: translateX(-1px) scale(1.04);
+  }
+
+  40% {
+    transform: translateX(1px) scale(1.04);
+  }
+
+  60% {
+    transform: translateX(-1px) scale(1.02);
+  }
+
+  80% {
+    transform: translateX(1px) scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-room-mobile-guess-hud--urgent .game-room-mobile-guess-hud__timer {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-room-mobile-player-switch,
+  .game-room-mobile-player-switch__option {
+    transition: none;
   }
 }

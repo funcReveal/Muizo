@@ -92,11 +92,10 @@ const TabButton: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-      active
-        ? "bg-white/15 text-white"
-        : "text-slate-400 hover:text-slate-200 hover:bg-white/8"
-    }`}
+    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${active
+      ? "bg-white/15 text-white"
+      : "text-slate-400 hover:text-slate-200 hover:bg-white/8"
+      }`}
   >
     {label}
   </button>
@@ -199,10 +198,18 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   }, []);
 
   return (
-    <div className={`game-room-leaderboard-sidebar flex h-full flex-col ${className ?? ""}`}>
+    <div
+      className={[
+        "game-room-leaderboard-sidebar flex h-full flex-col",
+        mobileOverlayMode ? "game-room-leaderboard-sidebar--mobile-overlay" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {/* Tab bar — only shown for leaderboard rooms */}
       {isLeaderboardRoom && (
-        <div className="flex gap-1 px-2 pt-2 pb-1 shrink-0">
+        <div className="game-room-leaderboard-tabs flex gap-1 px-2 pt-2 pb-1 shrink-0">
           <TabButton
             label="挑戰排行"
             active={resolvedTab === "challenge"}
@@ -217,7 +224,7 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
       )}
 
       {/* Panel */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="game-room-leaderboard-panel min-h-0 flex-1 overflow-hidden">
         {resolvedTab === "challenge" && isLeaderboardRoom ? (
           <ChallengeLeaderboardPanel
             state={projectionState}

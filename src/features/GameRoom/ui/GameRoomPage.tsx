@@ -30,6 +30,7 @@ import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import HowToVoteRoundedIcon from "@mui/icons-material/HowToVoteRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
+import KeyboardDoubleArrowRightRoundedIcon from "@mui/icons-material/KeyboardDoubleArrowRightRounded";
 import type {
   GameState,
   PlaylistItem,
@@ -86,8 +87,10 @@ import type { SettlementQuestionRecap } from "../../Settlement/model/types";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
-import FloatingChatWindow, { type FloatingChatWindowRef } from "@features/RoomChat";
-import { useRoomRealtime } from "@features/RoomSession";
+import FloatingChatWindow, {
+  GameRoomMobileChatPreview,
+  type FloatingChatWindowRef,
+} from "@features/RoomChat";
 import GameRoomDanmuProviderBridge from "./components/GameRoomDanmuProviderBridge";
 interface GameRoomPageProps {
   room: RoomState["room"];
@@ -143,6 +146,8 @@ const MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH = 60;
 
 const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
 const MOBILE_SCOREBOARD_PARTICLE_COUNT_CAP = 4;
+
+const MOBILE_SCOREBOARD_DRAWER_WIDTH_PX = 336;
 
 const PLAYBACK_VOTE_DIALOG_PAPER_PROPS = {
   className: "game-room-playback-vote-dialog",
@@ -339,7 +344,7 @@ const GameRoomMobilePersonalRankCard = React.memo(function GameRoomMobilePersona
         username={meRoomParticipant.username}
         clientId={meRoomParticipant.clientId}
         avatarUrl={meRoomParticipant.avatar_url ?? meRoomParticipant.avatarUrl ?? undefined}
-        size={28}
+        size={34}
       // effectLevel="none"
       />
       {meRoomRank != null && <span className="game-room-mobile-rank-card__rank">#{meRoomRank}</span>}
@@ -347,31 +352,12 @@ const GameRoomMobilePersonalRankCard = React.memo(function GameRoomMobilePersona
       {(meRoomParticipant.combo ?? 0) > 0 && (
         <span className="game-room-mobile-rank-card__combo">Combo {meRoomParticipant.combo}</span>
       )}
-      <span className="game-room-mobile-rank-card__expand" aria-hidden="true">↗</span>
-    </button>
-  );
-});
-
-const GameRoomMobileChatSummaryCard = React.memo(function GameRoomMobileChatSummaryCard({
-  onOpen,
-}: { onOpen: () => void }) {
-  const { messages } = useRoomRealtime();
-  const recentMessages = React.useMemo(
-    () => messages.filter((msg) => !msg.userId.startsWith("system:") && msg.userId !== "system").slice(-2),
-    [messages],
-  );
-  return (
-    <button type="button" className="game-room-mobile-chat-summary" onClick={onOpen} aria-label="開啟聊天室">
-      {recentMessages.length === 0 ? (
-        <span className="game-room-mobile-chat-summary__empty">尚無訊息</span>
-      ) : (
-        recentMessages.map((msg) => (
-          <p key={msg.id} className="game-room-mobile-chat-summary__message">
-            <span className="game-room-mobile-chat-summary__name">{msg.username || "玩家"}</span>{" "}
-            {msg.content}
-          </p>
-        ))
-      )}
+      <span
+        className="game-room-mobile-card-expand-hint game-room-mobile-card-expand-hint--rank"
+        aria-hidden="true"
+      >
+        <KeyboardDoubleArrowRightRoundedIcon fontSize="inherit" />
+      </span>
     </button>
   );
 });
@@ -1838,24 +1824,14 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   const mobileScoreboardDrawerPaperProps = useMemo<MuiDrawerPaperProps>(
     () => ({
-      className: `game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--single ${mobileScoreboardOpen
-        ? "game-room-mobile-scoreboard-drawer--open"
-        : "game-room-mobile-scoreboard-drawer--closed"
-        } ${isMobileDrawerGestureActive
-          ? "game-room-mobile-scoreboard-drawer--dragging"
-          : ""
-        }`,
+      className:
+        "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--side",
       style: {
-        ...mobileScoreboardDragDismiss.paperStyle,
-        pointerEvents: mobileScoreboardOpen ? "auto" : "none",
-        visibility: mobileScoreboardOpen ? "visible" : "hidden",
-      } as CSSProperties,
+        width: `min(88vw, ${MOBILE_SCOREBOARD_DRAWER_WIDTH_PX}px)`,
+        maxWidth: "calc(100vw - 20px)",
+      },
     }),
-    [
-      isMobileDrawerGestureActive,
-      mobileScoreboardDragDismiss.paperStyle,
-      mobileScoreboardOpen,
-    ],
+    [],
   );
 
   const mobileHostManageDrawerPaperProps = useMemo<MuiDrawerPaperProps>(
@@ -2153,7 +2129,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   meRoomRank={roomScoreboardRankModel.meRoomRank}
                   onOpenLeaderboard={handleToggleMobileScoreboard}
                 />
-                <GameRoomMobileChatSummaryCard onOpen={handleOpenChat} />
+                <GameRoomMobileChatPreview onOpen={handleOpenChat} />
               </div>
             )}
             {isMobileGameViewport && (
@@ -2286,8 +2262,8 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 />
               )}
               <Drawer
-                className="game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard lg:!hidden"
-                anchor="bottom"
+                className="game-room-mobile-drawer-root game-room-mobile-drawer-root--scoreboard game-room-mobile-drawer-root--scoreboard-side lg:!hidden"
+                anchor="left"
                 open={mobileScoreboardOpen}
                 onClose={handleCloseMobileScoreboard}
                 ModalProps={GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS}
