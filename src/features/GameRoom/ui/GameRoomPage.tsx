@@ -80,7 +80,6 @@ import {
   getRestartVoteActionViewState,
 } from "./lib/gameRoomUiUtils";
 import useGameRoomChoiceHotkeys from "./lib/useGameRoomChoiceHotkeys";
-import useGameRoomAnswerPanelAutoScroll from "./lib/useGameRoomAnswerPanelAutoScroll";
 import useMobileDrawerDragDismiss from "@shared/hooks/useMobileDrawerDragDismiss";
 import { appToast } from "@shared/ui/toastApi";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
@@ -442,8 +441,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
 
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
 
-  const answerPanelRef = useRef<HTMLDivElement | null>(null);
-  const mobilePlaybackPanelRef = useRef<HTMLDivElement | null>(null);
   const { primeSfxAudio, playGameSfx } = useGameSfx({
     enabled: sfxEnabled,
     volume: Math.round((sfxVolume * gameVolume) / 100),
@@ -895,17 +892,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       : "idle";
   const isMobileDrawerGestureActive = mobileScoreboardDragDismiss.isDragging;
   const mobileSubdockActionCount = isHostInGame ? 1 : 0;
-  useGameRoomAnswerPanelAutoScroll({
-    answerPanelRef,
-    scrollTargetRef: mobilePlaybackPanelRef,
-    initialScrollKey:
-      isMobileGameViewport &&
-        gameState.status === "playing" &&
-        (gameState.trackCursor ?? 0) === 0
-        ? `${room.id}:${gameState.startedAt}:initial`
-        : null,
-    autoScrollKey: null,
-  });
 
   const {
     trackCursor,
@@ -2024,9 +2010,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           )}
           <section className="game-room-main-section game-room-main-section--immersive flex min-h-0 flex-col gap-2 lg:h-full lg:overflow-visible">
             <GameRoomPlaybackPanel
-              rootRef={
-                isMobileGameViewport ? mobilePlaybackPanelRef : undefined
-              }
               isMobileView={isMobileGameViewport}
               isCompactMobile={isMobileGameViewport}
               isRevealPhase={isReveal}
@@ -2057,7 +2040,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             />
             <GameRoomAnswerPanel
               isMobileView={isMobileGameViewport}
-              answerPanelRef={answerPanelRef}
               isInitialCountdown={isInitialCountdown}
               countdownTone={countdownTone}
               isReveal={isReveal}

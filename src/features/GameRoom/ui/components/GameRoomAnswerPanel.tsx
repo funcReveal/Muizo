@@ -11,7 +11,6 @@ import type {
 
 interface GameRoomAnswerPanelProps {
   isMobileView?: boolean;
-  answerPanelRef: React.RefObject<HTMLDivElement | null>;
   isInitialCountdown: boolean;
   countdownTone: string;
   isReveal: boolean;
@@ -367,7 +366,6 @@ const GameRoomRevealCountdownText = React.memo(function GameRoomRevealCountdownT
 
 const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   isMobileView = false,
-  answerPanelRef,
   isInitialCountdown,
   countdownTone,
   isReveal,
@@ -621,7 +619,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
 
   return (
     <div
-      ref={answerPanelRef}
       className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${isMobileView ? "game-room-answer-panel--mobile" : ""
         } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col text-slate-50 lg:flex-1`}
     >

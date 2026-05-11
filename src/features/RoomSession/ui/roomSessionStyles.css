@@ -24931,6 +24931,24 @@
   font-size: 10px;
 }
 
+.game-room-mobile-chat-preview__progress {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 16px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  background: rgba(14, 165, 233, 0.12);
+  color: rgba(186, 230, 253, 0.96) !important;
+  font-size: 9px !important;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .game-room-mobile-chat-preview__bubble p {
   margin: 0;
   color: rgba(226, 232, 240, 0.94);
@@ -25094,58 +25112,71 @@
 
 /* =========================================================
    Mobile leaderboard scrollbar
-   Hidden by default, visible only while scrolling.
+   Native scrollbar is always hidden.
+   A lightweight custom indicator appears only while scrolling.
    ========================================================= */
 
-.game-room-mobile-drawer-root--scoreboard-side .mq-autohide-scrollbar {
-  scrollbar-width: thin;
+.game-room-mobile-drawer-root--scoreboard-side
+  .game-room-scoreboard-list.mq-autohide-scrollbar,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden !important;
+  scrollbar-width: none !important;
   scrollbar-color: transparent transparent !important;
+  scrollbar-gutter: auto !important;
+  -ms-overflow-style: none;
 }
 
 .game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 .game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar::-webkit-scrollbar-track {
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar-track,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar-track,
+.game-room-mobile-drawer-root--scoreboard-side
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar-thumb,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar::-webkit-scrollbar-thumb {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
 }
 
+/* Custom transient scroll hint.
+   Use ::before with absolute positioning so it does not affect list layout. */
 .game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar::-webkit-scrollbar-thumb {
-  background: transparent !important;
-  border: 2px solid transparent !important;
+  .game-room-scoreboard-list.mq-autohide-scrollbar::before,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 3px;
+  z-index: 4;
+  width: 3px;
+  height: 64px;
   border-radius: 999px;
-  box-shadow: none !important;
+  background: rgba(148, 163, 184, 0.58);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
 .game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
-
-.game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar.is-scrolling {
-  scrollbar-color: rgba(148, 163, 184, 0.58) transparent !important;
-}
-
-.game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.58) !important;
-  border: 2px solid rgba(15, 23, 42, 0.62) !important;
-  border-radius: 999px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28) !important;
-}
-
-.game-room-mobile-drawer-root--scoreboard-side
-  .mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-track {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  .game-room-scoreboard-list.mq-autohide-scrollbar.is-scrolling::before,
+.game-room-mobile-scoreboard-drawer--side
+  .game-room-scoreboard-list.mq-autohide-scrollbar.is-scrolling::before {
+  opacity: 1;
 }
 
 /* =========================================================

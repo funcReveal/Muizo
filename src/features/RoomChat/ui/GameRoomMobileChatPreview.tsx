@@ -6,6 +6,7 @@ import { useRoomRealtime } from "@features/RoomSession";
 import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 import {
     formatChatMessageTime,
+    formatChatQuestionProgress,
     getChatDisplayName,
 } from "./chatMessagePresentation";
 
@@ -67,30 +68,39 @@ const GameRoomMobileChatPreview: React.FC<GameRoomMobileChatPreviewProps> = ({
                     key={latestMessageId ?? "empty"}
                     className="game-room-mobile-chat-preview__list"
                 >
-                    {recentMessages.map((message) => (
-                        <article
-                            key={message.id}
-                            className="game-room-mobile-chat-preview__item"
-                        >
-                            <PlayerAvatar
-                                username={message.username}
-                                clientId={message.userId}
-                                avatarUrl={message.avatarUrl ?? undefined}
-                                size={28}
-                                hideRankMark
-                                effectLevel="simple"
-                            />
+                    {recentMessages.map((message) => {
+                        const questionProgress = formatChatQuestionProgress(message);
 
-                            <div className="game-room-mobile-chat-preview__bubble">
-                                <div className="game-room-mobile-chat-preview__meta">
-                                    <strong>{getChatDisplayName(message)}</strong>
-                                    <span>{formatChatMessageTime(message.timestamp)}</span>
+                        return (
+                            <article
+                                key={message.id}
+                                className="game-room-mobile-chat-preview__item"
+                            >
+                                <PlayerAvatar
+                                    username={message.username}
+                                    clientId={message.userId}
+                                    avatarUrl={message.avatarUrl ?? undefined}
+                                    size={28}
+                                    hideRankMark
+                                    effectLevel="simple"
+                                />
+
+                                <div className="game-room-mobile-chat-preview__bubble">
+                                    <div className="game-room-mobile-chat-preview__meta">
+                                        <strong>{getChatDisplayName(message)}</strong>
+                                        <span>{formatChatMessageTime(message.timestamp)}</span>
+                                        {questionProgress ? (
+                                            <span className="game-room-mobile-chat-preview__progress">
+                                                {questionProgress}
+                                            </span>
+                                        ) : null}
+                                    </div>
+
+                                    <p>{message.content}</p>
                                 </div>
-
-                                <p>{message.content}</p>
-                            </div>
-                        </article>
-                    ))}
+                            </article>
+                        );
+                    })}
                 </div>
             )}
         </button>
