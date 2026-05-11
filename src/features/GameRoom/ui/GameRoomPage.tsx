@@ -147,7 +147,7 @@ const MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH = 60;
 const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
 const MOBILE_SCOREBOARD_PARTICLE_COUNT_CAP = 4;
 
-const MOBILE_SCOREBOARD_DRAWER_WIDTH_PX = 336;
+const MOBILE_SCOREBOARD_DRAWER_WIDTH_PX = 352;
 
 const PLAYBACK_VOTE_DIALOG_PAPER_PROPS = {
   className: "game-room-playback-vote-dialog",
@@ -2288,10 +2288,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       </span>
                     </div>
                     <div className="game-room-mobile-scoreboard-actions">
-                      <span className="game-room-mobile-scoreboard-answered-pill">
-                        已答 {displayAnsweredCount}/
-                        {displayParticipantCount || 0}
-                      </span>
                       <button
                         type="button"
                         className="game-room-mobile-drawer-close game-room-mobile-drawer-close--scoreboard-inline game-room-mobile-drawer-close--icon"

@@ -24809,18 +24809,10 @@
     height: var(--mq-scrollbar-size);
   }
 }
+/* =========================================================
+   Mobile game HUD: rank card + chat preview
+   ========================================================= */
 
-/* Challenge leaderboard animated list
-   Keep exit animations from increasing the scrollable height.
-
-   The actual scroll container is still .game-room-scoreboard-list.
-   This class only prevents animated transform overflow from creating
-   temporary scrollbars during enter / exit / move transitions.
-
-   padding-right reserves space for .challenge-lb-score-gain-lane so the
-   absolute-positioned gain lane stays within this element's padding box
-   (clipped by overflow:clip / contain:paint) without adding scrollbar width.
-*/
 .challenge-lb-animated-stack {
   --challenge-lb-gain-lane-width: 3rem;
   position: relative;
@@ -24840,12 +24832,8 @@
 
 .game-room-mobile-rank-card,
 .game-room-mobile-chat-preview {
-  min-height: 104px;
-}
-
-.game-room-mobile-rank-card,
-.game-room-mobile-chat-preview {
   position: relative;
+  min-height: 104px;
 }
 
 .game-room-mobile-card-expand-hint {
@@ -24886,8 +24874,7 @@
     rgba(7, 10, 24, 0.98)
   );
   color: rgba(239, 246, 255, 0.96);
-  padding: 10px 12px;
-  padding-top: 12px;
+  padding: 12px 12px 10px;
   text-align: left;
   overflow: hidden;
   box-shadow:
@@ -24908,7 +24895,7 @@
 .game-room-mobile-chat-preview__list {
   display: grid;
   gap: 8px;
-  padding-right: 20px;
+  padding-right: 24px;
 }
 
 .game-room-mobile-chat-preview__item {
@@ -25000,6 +24987,10 @@
   white-space: nowrap;
 }
 
+/* =========================================================
+   Mobile leaderboard side drawer
+   ========================================================= */
+
 .game-room-mobile-drawer-root--scoreboard-side .MuiDrawer-paper,
 .game-room-mobile-scoreboard-drawer--side {
   height: 100dvh;
@@ -25018,9 +25009,17 @@
   box-shadow: 18px 0 40px rgba(0, 0, 0, 0.38);
 }
 
+.game-room-mobile-drawer-root--scoreboard-side .game-room-mobile-drawer-head {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .game-room-mobile-drawer-handle-wrap {
+  display: none;
+}
+
 .game-room-mobile-drawer-root--scoreboard-side .game-room-leaderboard-sidebar {
   --game-room-mobile-scoreboard-pad-x: 10px;
-  --game-room-mobile-scoreboard-pad-y: 10px;
   --game-room-mobile-scoreboard-row-gap: 8px;
 }
 
@@ -25034,25 +25033,149 @@
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 
+/* =========================================================
+   Mobile leaderboard list spacing + score-first layout
+   ========================================================= */
+
 .game-room-mobile-drawer-root--scoreboard-side .game-room-scoreboard-list {
-  padding: 8px 4px 12px !important;
+  overflow-x: hidden !important;
   scroll-padding: 8px 0 12px;
 }
 
-.game-room-mobile-drawer-root--scoreboard-side .game-room-scoreboard-stack {
+.game-room-mobile-drawer-root--scoreboard-side .game-room-scoreboard-stack,
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-animated-stack {
+  display: flex;
+  flex-direction: column;
   gap: var(--game-room-mobile-scoreboard-row-gap);
 }
 
 .game-room-mobile-drawer-root--scoreboard-side .game-room-score-row {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-height: 48px;
-  padding-inline: 10px;
+  gap: 8px;
+  padding-inline: 8px;
+  border-radius: 14px;
 }
 
-.game-room-mobile-drawer-root--scoreboard-side .game-room-score-row-shell {
+.game-room-mobile-drawer-root--scoreboard-side .game-room-score-row-shell,
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-self-row-shell {
   min-width: 0;
+  max-width: 100%;
 }
 
-.game-room-mobile-drawer-root--scoreboard-side .game-room-scoreboard-self-sticky-bar {
-  padding: 8px 4px max(10px, env(safe-area-inset-bottom)) !important;
-  margin-top: 6px;
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: calc(100% - 106px);
+}
+
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__score {
+  flex: 0 0 102px;
+  min-width: 102px;
+  max-width: 102px;
+  justify-content: flex-end;
+  overflow: visible;
+  text-align: right;
+  font-size: 11px;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__score > span {
+  white-space: nowrap;
+}
+
+/* =========================================================
+   Mobile leaderboard scrollbar
+   Hidden by default, visible only while scrolling.
+   ========================================================= */
+
+.game-room-mobile-drawer-root--scoreboard-side .mq-autohide-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border: 2px solid transparent !important;
+  border-radius: 999px;
+  box-shadow: none !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar.is-scrolling {
+  scrollbar-color: rgba(148, 163, 184, 0.58) transparent !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.58) !important;
+  border: 2px solid rgba(15, 23, 42, 0.62) !important;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28) !important;
+}
+
+.game-room-mobile-drawer-root--scoreboard-side
+  .mq-autohide-scrollbar.is-scrolling::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* =========================================================
+   Very small mobile width fallback
+   ========================================================= */
+
+@media (max-width: 374px) {
+  .game-room-mobile-after-options {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .game-room-mobile-rank-card,
+  .game-room-mobile-chat-preview {
+    min-height: 98px;
+  }
+
+  .game-room-mobile-drawer-root--scoreboard-side
+    .game-room-leaderboard-sidebar {
+    --game-room-mobile-scoreboard-pad-x: 8px;
+  }
+
+  .game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__identity {
+    max-width: calc(100% - 100px);
+  }
+
+  .game-room-mobile-drawer-root--scoreboard-side .challenge-lb-row__score {
+    flex-basis: 96px;
+    min-width: 96px;
+    max-width: 96px;
+    font-size: 10.5px;
+  }
 }
