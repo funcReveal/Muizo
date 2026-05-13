@@ -27,15 +27,6 @@ export type MobileScoreFeedbackEvent =
       target: FeedbackPlayer;
     }
   | {
-      type: "overtaken";
-      scope: "room";
-      oldRank: number;
-      newRank: number;
-      me: FeedbackPlayer;
-      target: FeedbackPlayer;
-      targetScoreGain: number | null;
-    }
-  | {
       type: "score";
       scope: MobileScoreFeedbackScope;
       scoreGain: number;
@@ -117,7 +108,7 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
     typeof meRank === "number"
       ? {
           clientId: meClientId || ME_CHALLENGE_CLIENT_ID,
-          username: meUsername?.trim() || "我",
+          username: meUsername?.trim() || "\u6211",
           avatarUrl: meAvatarUrl ?? null,
           score: meScore,
           rank: meRank,
@@ -229,22 +220,6 @@ const findPassedTarget = (
       );
     }) ?? null;
 
-const findOvertakingTarget = (
-  prevSnapshot: MobileScoreFeedbackSnapshot,
-  nextSnapshot: MobileScoreFeedbackSnapshot,
-  oldRank: number,
-  newRank: number,
-) =>
-  nextSnapshot.players
-    .filter((player) => player.rank > oldRank && player.rank <= newRank)
-    .sort((a, b) => b.rank - a.rank)
-    .find((player) => {
-      const previousTargetRank = prevSnapshot.rankByClientId.get(player.clientId);
-      return (
-        typeof previousTargetRank === "number" && previousTargetRank > oldRank
-      );
-    }) ?? null;
-
 export const buildMobileScoreFeedbackEvent = (
   prevSnapshot: MobileScoreFeedbackSnapshot | null,
   nextSnapshot: MobileScoreFeedbackSnapshot | null,
@@ -273,8 +248,11 @@ export const buildMobileScoreFeedbackEvent = (
   }
 
   const scoreGain = nextMe.score - prevScore;
+  if (scoreGain <= 0) {
+    return null;
+  }
 
-  if (newRank < oldRank && scoreGain > 0) {
+  if (newRank < oldRank) {
     const passedTarget = findPassedTarget(
       prevSnapshot,
       nextSnapshot,
@@ -293,35 +271,6 @@ export const buildMobileScoreFeedbackEvent = (
         target: passedTarget,
       };
     }
-  }
-
-  if (nextSnapshot.scope === "room" && newRank > oldRank && scoreGain <= 0) {
-    const target = findOvertakingTarget(
-      prevSnapshot,
-      nextSnapshot,
-      oldRank,
-      newRank,
-    );
-
-    if (target) {
-      const prevTargetScore = prevSnapshot.scoreByClientId.get(target.clientId);
-      return {
-        type: "overtaken",
-        scope: "room",
-        oldRank,
-        newRank,
-        me: nextMe,
-        target,
-        targetScoreGain:
-          typeof prevTargetScore === "number"
-            ? Math.max(0, target.score - prevTargetScore)
-            : null,
-      };
-    }
-  }
-
-  if (scoreGain <= 0) {
-    return null;
   }
 
   if (newRank === 1) {

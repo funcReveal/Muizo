@@ -78,6 +78,7 @@ import useGameRoomAnswerFlow from "../model/useGameRoomAnswerFlow";
 import useGameRoomQuestionDerivedState from "../model/useGameRoomQuestionDerivedState";
 import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
+import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
 import useMobileScoreFeedback from "../model/useMobileScoreFeedback";
 import useTopTwoSwapState from "../model/useTopTwoSwapState";
 import PlayerAvatar from "../../../shared/ui/playerAvatar/PlayerAvatar";
@@ -89,10 +90,7 @@ import useGameRoomChoiceHotkeys from "./lib/useGameRoomChoiceHotkeys";
 import useMobileDrawerDragDismiss from "@shared/hooks/useMobileDrawerDragDismiss";
 import { appToast } from "@shared/ui/toastApi";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
-import type {
-  ChallengeProjectedLeaderboardResponse,
-  GameRoomScoreboardTab,
-} from "../model/projectionTypes";
+import type { GameRoomScoreboardTab } from "../model/projectionTypes";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
@@ -332,35 +330,46 @@ const useGameRoomUiClock = ({
 };
 
 const GameRoomMobilePersonalRankCard = React.memo(function GameRoomMobilePersonalRankCard({
-  meRoomParticipant,
-  meRoomRank,
+  participant,
+  rank,
+  score,
+  combo,
   onOpenLeaderboard,
 }: {
-  meRoomParticipant: RoomState["participants"][number] | null;
-  meRoomRank: number | null;
+  participant: RoomState["participants"][number] | null;
+  rank: number | null;
+  score: number | null;
+  combo: number;
   onOpenLeaderboard: () => void;
 }) {
-  if (!meRoomParticipant) {
-    return (
-      <button type="button" className="game-room-mobile-rank-card" onClick={onOpenLeaderboard} aria-label="開啟排行榜">
-        <span className="game-room-mobile-rank-card__score">--</span>
-      </button>
-    );
-  }
   return (
-    <button type="button" className="game-room-mobile-rank-card" onClick={onOpenLeaderboard} aria-label="開啟排行榜">
-      <PlayerAvatar
-        username={meRoomParticipant.username}
-        clientId={meRoomParticipant.clientId}
-        avatarUrl={meRoomParticipant.avatar_url ?? meRoomParticipant.avatarUrl ?? undefined}
-        size={34}
-      // effectLevel="none"
-      />
-      {meRoomRank != null && <span className="game-room-mobile-rank-card__rank">#{meRoomRank}</span>}
-      <span className="game-room-mobile-rank-card__score">{meRoomParticipant.score ?? 0}</span>
-      {(meRoomParticipant.combo ?? 0) > 0 && (
-        <span className="game-room-mobile-rank-card__combo">Combo {meRoomParticipant.combo}</span>
-      )}
+    <button
+      type="button"
+      className="game-room-mobile-rank-card"
+      onClick={onOpenLeaderboard}
+      aria-label="開啟排行榜"
+    >
+      {participant ? (
+        <PlayerAvatar
+          username={participant.username}
+          clientId={participant.clientId}
+          avatarUrl={participant.avatar_url ?? participant.avatarUrl ?? undefined}
+          size={26}
+          hideRankMark
+          className="game-room-mobile-rank-card__avatar"
+        />
+      ) : null}
+      <span className="game-room-mobile-rank-card__score-row">
+        <span className="game-room-mobile-rank-card__score">
+          {score != null ? score.toLocaleString("en-US") : "--"}
+        </span>
+        {combo > 0 ? (
+          <span className="game-room-mobile-rank-card__combo">Combo {combo}</span>
+        ) : null}
+      </span>
+      <span className="game-room-mobile-rank-card__rank">
+        {rank != null ? `#${rank}` : "--"}
+      </span>
       <span
         className="game-room-mobile-card-expand-hint game-room-mobile-card-expand-hint--rank"
         aria-hidden="true"
@@ -417,8 +426,6 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     useState<MobileBottomPanel>(null);
   const [scoreFeedbackTab, setScoreFeedbackTab] =
     useState<GameRoomScoreboardTab>(isLeaderboardRoom ? "challenge" : "room");
-  const [challengeFeedbackProjection, setChallengeFeedbackProjection] =
-    useState<ChallengeProjectedLeaderboardResponse | null>(null);
   const [mobileScoreboardHeight, setMobileScoreboardHeight] = useState(
     MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
   );
@@ -461,10 +468,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     if (nextTab !== scoreFeedbackTab) {
       deferStateUpdate(() => setScoreFeedbackTab(nextTab));
     }
-    if (!isLeaderboardRoom && challengeFeedbackProjection) {
-      deferStateUpdate(() => setChallengeFeedbackProjection(null));
-    }
-  }, [challengeFeedbackProjection, isLeaderboardRoom, scoreFeedbackTab]);
+  }, [isLeaderboardRoom, scoreFeedbackTab]);
 
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
 
@@ -1194,6 +1198,46 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => sortParticipantsByScore(participants),
     [participants],
   );
+  const projectionSessionKey =
+    gameSessionId !== null && gameSessionId !== undefined
+      ? `session:${gameSessionId}`
+      : `room:${room.id}`;
+  const meLiveParticipant = useMemo(
+    () =>
+      meClientId
+        ? participants.find((participant) => participant.clientId === meClientId) ??
+          null
+        : null,
+    [meClientId, participants],
+  );
+  const challengeProjectionEnabled =
+    isLeaderboardRoom && scoreFeedbackTab === "challenge";
+  const challengeProjectionCanLoadInitial =
+    challengeProjectionEnabled &&
+    gameState.status === "playing" &&
+    (gameState.phase === "guess" || gameState.phase === "reveal") &&
+    trackCursor >= 0 &&
+    trackSessionKey.trim().length > 0 &&
+    !waitingToStart &&
+    !isInterTrackWait &&
+    !isRecoveringConnection;
+  const {
+    state: challengeProjectionState,
+    refresh: refreshChallengeProjection,
+    gainAnimKey: challengeGainAnimKey,
+    gainAmount: challengeGainAmount,
+  } = useChallengeLeaderboardProjection({
+    enabled: challengeProjectionEnabled,
+    roomId: room.id,
+    meClientId: meClientId ?? "",
+    myLiveScore: meLiveParticipant?.score ?? 0,
+    canLoadInitialProjection: challengeProjectionCanLoadInitial,
+    projectionSessionKey,
+  });
+  const challengeFeedbackProjection =
+    challengeProjectionState.status === "loaded"
+      ? challengeProjectionState.data
+      : null;
   const { topTwoSwapState, resetTopTwoSwapState } =
     useTopTwoSwapState(sortedParticipants);
   const mobileScoreFeedbackEvent = useMobileScoreFeedback({
@@ -1632,10 +1676,26 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
       meRoomParticipant: meIndex >= 0 ? sortedParticipants[meIndex] : null,
     };
   }, [meClientId, sortedParticipants]);
-  const projectionSessionKey =
-    gameSessionId !== null && gameSessionId !== undefined
-      ? `session:${gameSessionId}`
-      : `room:${room.id}`;
+  const mobilePersonalRankCardModel = useMemo(() => {
+    const participant = roomScoreboardRankModel.meRoomParticipant;
+    const rank =
+      isLeaderboardRoom && scoreFeedbackTab === "challenge"
+        ? challengeFeedbackProjection?.myStanding.projectedRank ?? null
+        : roomScoreboardRankModel.meRoomRank;
+
+    return {
+      participant,
+      rank,
+      score: participant?.score ?? null,
+      combo: participant?.combo ?? 0,
+    };
+  }, [
+    challengeFeedbackProjection,
+    isLeaderboardRoom,
+    roomScoreboardRankModel.meRoomParticipant,
+    roomScoreboardRankModel.meRoomRank,
+    scoreFeedbackTab,
+  ]);
 
   const mobileEmbeddedHudMode: "guess" | "reveal" | null = isMobileGameViewport
     ? isReveal && !isInterTrackWait && !isEnded && !isRecoveringConnection && Number.isFinite(gameState.revealEndsAt)
@@ -2093,19 +2153,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                   mobileScoreboardBorderParticleCount
                 }
                 isLeaderboardRoom={isLeaderboardRoom}
-                roomId={room.id}
                 activeTab={scoreFeedbackTab}
                 onActiveTabChange={setScoreFeedbackTab}
-                onProjectionDataChange={setChallengeFeedbackProjection}
+                challengeProjectionState={challengeProjectionState}
+                onChallengeProjectionRefresh={refreshChallengeProjection}
+                challengeGainAnimKey={challengeGainAnimKey}
+                challengeGainAmount={challengeGainAmount}
                 isSettled={gameState.status === "ended"}
-                gameStatus={gameState.status}
-                gamePhase={gameState.phase}
-                currentQuestionIndex={trackCursor}
-                trackSessionKey={trackSessionKey}
-                projectionSessionKey={projectionSessionKey}
-                waitingToStart={waitingToStart}
-                isInterTrackWait={isInterTrackWait}
-                isRecoveringConnection={isRecoveringConnection}
               />
             </div>
           )}
@@ -2209,8 +2263,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
             {isMobileGameViewport && gameState.status === "playing" && (
               <div className="game-room-mobile-after-options">
                 <GameRoomMobilePersonalRankCard
-                  meRoomParticipant={roomScoreboardRankModel.meRoomParticipant}
-                  meRoomRank={roomScoreboardRankModel.meRoomRank}
+                  participant={mobilePersonalRankCardModel.participant}
+                  rank={mobilePersonalRankCardModel.rank}
+                  score={mobilePersonalRankCardModel.score}
+                  combo={mobilePersonalRankCardModel.combo}
                   onOpenLeaderboard={handleToggleMobileScoreboard}
                 />
                 <GameRoomMobileChatPreview onOpen={handleOpenChat} />
@@ -2416,19 +2472,13 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                       mobileScoreboardBorderParticleCount
                     }
                     isLeaderboardRoom={isLeaderboardRoom}
-                    roomId={room.id}
                     activeTab={scoreFeedbackTab}
                     onActiveTabChange={setScoreFeedbackTab}
-                    onProjectionDataChange={setChallengeFeedbackProjection}
+                    challengeProjectionState={challengeProjectionState}
+                    onChallengeProjectionRefresh={refreshChallengeProjection}
+                    challengeGainAnimKey={challengeGainAnimKey}
+                    challengeGainAmount={challengeGainAmount}
                     isSettled={gameState.status === "ended"}
-                    gameStatus={gameState.status}
-                    gamePhase={gameState.phase}
-                    currentQuestionIndex={trackCursor}
-                    trackSessionKey={trackSessionKey}
-                    projectionSessionKey={projectionSessionKey}
-                    waitingToStart={waitingToStart}
-                    isInterTrackWait={isInterTrackWait}
-                    isRecoveringConnection={isRecoveringConnection}
                   />
                 </div>
               </Drawer>

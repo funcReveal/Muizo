@@ -14,7 +14,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import type { GameState, RoomParticipant } from "@features/RoomSession";
+import type { RoomParticipant } from "@features/RoomSession";
 import type { QuestionScoreBreakdown } from "@features/RoomSession";
 import type { TopTwoSwapState } from "../model/gameRoomTypes";
 import type { ScoreboardRow } from "../model/gameRoomDerivations";
@@ -25,10 +25,9 @@ import type {
 } from "../../Setting/model/scoreboardBorderEffects";
 import type { AvatarEffectLevel } from "../../../shared/ui/playerAvatar/playerAvatarTheme";
 import type {
-  ChallengeProjectedLeaderboardResponse,
+  ChallengeProjectionState,
   GameRoomScoreboardTab,
 } from "../model/projectionTypes";
-import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
 import RoomScoreboardPanel from "./components/RoomScoreboardPanel";
 import { ChallengeLeaderboardPanel } from "./components/ChallengeLeaderboardPanel";
 
@@ -70,22 +69,14 @@ export interface GameRoomLeaderboardSidebarProps {
   // --- Challenge leaderboard ---
   /** true if room.gameSettings?.leaderboardProfileKey is set */
   isLeaderboardRoom: boolean;
-  roomId: string;
   /** Whether the game has settled (changes display labels) */
   isSettled?: boolean;
-  gameStatus: GameState["status"];
-  gamePhase: GameState["phase"];
-  currentQuestionIndex: number;
-  trackSessionKey: string;
-  projectionSessionKey: string;
-  waitingToStart: boolean;
-  isInterTrackWait: boolean;
-  isRecoveringConnection?: boolean;
   activeTab?: GameRoomScoreboardTab;
   onActiveTabChange?: (tab: GameRoomScoreboardTab) => void;
-  onProjectionDataChange?: (
-    data: ChallengeProjectedLeaderboardResponse | null,
-  ) => void;
+  challengeProjectionState: ChallengeProjectionState;
+  onChallengeProjectionRefresh: () => void;
+  challengeGainAnimKey: number;
+  challengeGainAmount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,19 +135,13 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   scoreboardBorderParticleCount,
   // challenge lb
   isLeaderboardRoom,
-  roomId,
   isSettled = false,
-  gameStatus,
-  gamePhase,
-  currentQuestionIndex,
-  trackSessionKey,
-  projectionSessionKey,
-  waitingToStart,
-  isInterTrackWait,
-  isRecoveringConnection = false,
   activeTab: controlledActiveTab,
   onActiveTabChange,
-  onProjectionDataChange,
+  challengeProjectionState,
+  onChallengeProjectionRefresh,
+  challengeGainAnimKey,
+  challengeGainAmount,
 }) => {
   const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<GameRoomScoreboardTab>(
     isLeaderboardRoom ? "challenge" : "room",
@@ -182,34 +167,6 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
       viewerCombo: me?.combo ?? 0,
     };
   }, [participants, meClientId]);
-
-  const challengeEnabled = isLeaderboardRoom && resolvedTab === "challenge";
-  const isPlayablePhase = gamePhase === "guess" || gamePhase === "reveal";
-  const canLoadInitialProjection =
-    challengeEnabled &&
-    gameStatus === "playing" &&
-    isPlayablePhase &&
-    currentQuestionIndex >= 0 &&
-    trackSessionKey.trim().length > 0 &&
-    !waitingToStart &&
-    !isInterTrackWait &&
-    !isRecoveringConnection;
-
-  const { state: projectionState, refresh, gainAnimKey, gainAmount } =
-    useChallengeLeaderboardProjection({
-      enabled: challengeEnabled,
-      roomId,
-      meClientId,
-      myLiveScore,
-      canLoadInitialProjection,
-      projectionSessionKey,
-    });
-
-  React.useEffect(() => {
-    onProjectionDataChange?.(
-      projectionState.status === "loaded" ? projectionState.data : null,
-    );
-  }, [onProjectionDataChange, projectionState]);
 
   const handleTabChallenge = useCallback(() => {
     if (!isLeaderboardRoom) return;
@@ -252,15 +209,15 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
       <div className="game-room-leaderboard-panel min-h-0 flex-1 overflow-hidden">
         {resolvedTab === "challenge" && isLeaderboardRoom ? (
           <ChallengeLeaderboardPanel
-            state={projectionState}
+            state={challengeProjectionState}
             isSettled={isSettled}
-            onRefresh={refresh}
+            onRefresh={onChallengeProjectionRefresh}
             viewerDisplayName={viewerDisplayName}
             viewerAvatarUrl={viewerAvatarUrl}
             viewerCombo={viewerCombo}
             viewerScore={myLiveScore}
-            gainAnimKey={gainAnimKey}
-            gainAmount={gainAmount}
+            gainAnimKey={challengeGainAnimKey}
+            gainAmount={challengeGainAmount}
           />
         ) : (
           <RoomScoreboardPanel

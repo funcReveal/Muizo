@@ -9,9 +9,20 @@ type MobileScoreFeedbackOverlayProps = {
   anchorStyle?: React.CSSProperties;
 };
 
-const SCORE_SCOPE_LABEL: Record<MobileScoreFeedbackEvent["scope"], string> = {
-  challenge: "挑戰排行",
-  room: "房間排行",
+const getScoreFeedbackTitle = (
+  event: Extract<MobileScoreFeedbackEvent, { type: "score" }>,
+) => {
+  if (event.me.rank === 1) {
+    return event.runnerUp
+      ? `\u9818\u5148 #2 ${event.leadScore ?? 0} \u5206`
+      : "\u76ee\u524d\u7b2c 1 \u540d";
+  }
+
+  if (event.target && event.remainingScore !== null) {
+    return `\u8ddd\u96e2 #${event.target.rank} \u9084\u5dee ${event.remainingScore} \u5206`;
+  }
+
+  return `#${event.me.rank}`;
 };
 
 const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
@@ -20,9 +31,7 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
       return null;
     }
 
-    const hasRankChange =
-      event.type === "passed" || event.type === "overtaken";
-    const targetPlayer = hasRankChange ? event.target : null;
+    const hasRankChange = event.type === "passed";
     const cardClassName = [
       "game-room-mobile-score-feedback-card",
       `game-room-mobile-score-feedback-card--${event.type}`,
@@ -33,9 +42,7 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
     const eventKey =
       event.type === "passed"
         ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target.clientId}`
-        : event.type === "overtaken"
-          ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target.clientId}`
-          : `${event.scope}-${event.type}-${event.me.score}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
+        : `${event.scope}-${event.type}-${event.me.score}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
 
     return (
       <div
@@ -44,8 +51,16 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
         aria-live="polite"
       >
         <div key={eventKey} className={cardClassName}>
-          {hasRankChange && (
+          {event.type === "passed" ? (
             <div className="game-room-mobile-score-feedback-avatars">
+              <PlayerAvatar
+                username={event.target.username}
+                clientId={event.target.clientId}
+                avatarUrl={event.target.avatarUrl}
+                size={34}
+                hideRankMark
+                className="game-room-mobile-score-feedback-avatar--target"
+              />
               <PlayerAvatar
                 username={event.me.username}
                 clientId={event.me.clientId}
@@ -55,67 +70,32 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
                 hideRankMark
                 className="game-room-mobile-score-feedback-avatar--me"
               />
-              {targetPlayer ? (
-                <PlayerAvatar
-                  username={targetPlayer.username}
-                  clientId={targetPlayer.clientId}
-                  avatarUrl={targetPlayer.avatarUrl}
-                  size={34}
-                  hideRankMark
-                  className="game-room-mobile-score-feedback-avatar--target"
-                />
-              ) : null}
-            </div>
-          )}
-
-          {event.type !== "overtaken" ? (
-            <div className="game-room-mobile-score-feedback-gain">
-              +{event.scoreGain}
             </div>
           ) : null}
+
+          <div className="game-room-mobile-score-feedback-gain">
+            +{event.scoreGain}
+          </div>
 
           {event.type === "passed" ? (
             <>
               <div className="game-room-mobile-score-feedback-title">
-                超越 #{event.target.rank} {event.target.username}
+                {"\u8d85\u8d8a"} #{event.target.rank} {event.target.username}
               </div>
               <div className="game-room-mobile-score-feedback-detail">
-                {SCORE_SCOPE_LABEL[event.scope]} #{event.oldRank} → #
-                {event.newRank}
+                #{event.oldRank} {"\u2192"} #{event.newRank}
               </div>
             </>
-          ) : null}
-
-          {event.type === "overtaken" ? (
-            <>
-              <div className="game-room-mobile-score-feedback-title game-room-mobile-score-feedback-title--danger">
-                被 #{event.target.rank} {event.target.username} 超越
-              </div>
-              <div className="game-room-mobile-score-feedback-detail">
-                房間排行 #{event.oldRank} → #{event.newRank}
-                {event.targetScoreGain && event.targetScoreGain > 0
-                  ? ` · 對方 +${event.targetScoreGain}`
-                  : ""}
-              </div>
-            </>
-          ) : null}
-
-          {event.type === "score" ? (
+          ) : (
             <>
               <div className="game-room-mobile-score-feedback-title">
-                {event.me.rank === 1
-                  ? event.runnerUp
-                    ? `領先 #2 ${event.leadScore ?? 0} 分`
-                    : "目前第 1 名"
-                  : event.target && event.remainingScore !== null
-                    ? `距離 #${event.target.rank} 還差 ${event.remainingScore} 分`
-                    : SCORE_SCOPE_LABEL[event.scope]}
+                {getScoreFeedbackTitle(event)}
               </div>
               <div className="game-room-mobile-score-feedback-detail">
-                {SCORE_SCOPE_LABEL[event.scope]} #{event.me.rank}
+                #{event.me.rank}
               </div>
             </>
-          ) : null}
+          )}
         </div>
       </div>
     );
