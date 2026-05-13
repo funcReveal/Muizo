@@ -155,6 +155,8 @@ const MOBILE_SPLIT_STACK_MAX_TOTAL_VH = 100;
 const MOBILE_SCOREBOARD_PARTICLE_COUNT_CAP = 4;
 
 const MOBILE_SCOREBOARD_DRAWER_WIDTH_PX = 352;
+const MOBILE_SCORE_FEEDBACK_SCORE_DURATION_MS = 2500;
+const MOBILE_SCORE_FEEDBACK_RANK_DURATION_MS = 2500;
 
 const PLAYBACK_VOTE_DIALOG_PAPER_PROPS = {
   className: "game-room-playback-vote-dialog",
@@ -1258,6 +1260,18 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     enabled: isMobileGameViewport && gameState.status === "playing",
     gameStatus: gameState.status,
     scope: isLeaderboardRoom ? scoreFeedbackTab : "room",
+    resetKey: [
+      room.id,
+      projectionSessionKey,
+      trackSessionKey,
+      gameState.status,
+      isLeaderboardRoom ? scoreFeedbackTab : "room",
+      challengeFeedbackProjection?.collectionId ?? "",
+      challengeFeedbackProjection?.profileKey ?? "",
+      meClientId ?? "",
+    ].join(":"),
+    scoreDurationMs: MOBILE_SCORE_FEEDBACK_SCORE_DURATION_MS,
+    rankDurationMs: MOBILE_SCORE_FEEDBACK_RANK_DURATION_MS,
     challengeProjection:
       isLeaderboardRoom && scoreFeedbackTab === "challenge"
         ? challengeFeedbackProjection
@@ -1977,10 +1991,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const mobileScoreboardDrawerPaperProps = useMemo<MuiDrawerPaperProps>(
     () => ({
       className:
-        "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--side",
+        "game-room-mobile-scoreboard-drawer game-room-mobile-scoreboard-drawer--side game-room-mobile-scoreboard-drawer-paper",
       style: {
-        width: `min(88vw, ${MOBILE_SCOREBOARD_DRAWER_WIDTH_PX}px)`,
-        maxWidth: "calc(100vw - 20px)",
+        width: `min(100dvw, ${MOBILE_SCOREBOARD_DRAWER_WIDTH_PX}px)`,
+        maxWidth: "100dvw",
       },
     }),
     [],

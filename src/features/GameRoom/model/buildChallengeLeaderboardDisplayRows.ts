@@ -350,6 +350,10 @@ function buildNearbyRows(
 ): ChallengeLeaderboardDisplayRow[] {
   const TARGET_TOP = 5;
   const topFive = data.topEntries.slice(0, TARGET_TOP);
+  const topUserIds = new Set(topFive.map((entry) => entry.userId));
+  const nearbyOpponents = data.nearbyOpponents.filter(
+    (opponent) => !topUserIds.has(opponent.userId),
+  );
   const rows: ChallengeLeaderboardDisplayRow[] = [];
 
   topFive.forEach((entry) => {
@@ -363,7 +367,7 @@ function buildNearbyRows(
   rows.push({ kind: "ellipsis", key: "ellipsis:nearby" });
 
   const nearbyDisplayRows = buildChallengeNearbyDisplayRows({
-    nearbyOpponents: data.nearbyOpponents,
+    nearbyOpponents,
     myStanding: data.myStanding,
     liveScore: viewerScore,
     meUserId,

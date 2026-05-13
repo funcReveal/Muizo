@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import type {
   ChallengeProjectedMyStanding,
@@ -10,6 +10,7 @@ import {
   ChallengeSelfRow,
   ChallengeEllipsisRow,
 } from "./ChallengeLeaderboardRow";
+import type { ChallengeRankChangePulse } from "./ChallengeLeaderboardRow";
 import { ChallengeAnimatedRows } from "./ChallengeAnimatedRows";
 import type { SelfRowBaseProps } from "./ChallengeAnimatedRows";
 import { useScoreboardWheelScroll } from "./useScoreboardWheelScroll";
@@ -52,6 +53,9 @@ interface ChallengeLeaderboardPanelProps {
 // Panel
 // ---------------------------------------------------------------------------
 
+const SCORE_GAIN_VISIBLE_BEFORE_RANK_SWAP_MS = 2500;
+const RANK_CHANGE_LANE_VISIBLE_MS = 2500;
+
 export const ChallengeLeaderboardPanel = React.memo(
   function ChallengeLeaderboardPanel({
     state,
@@ -67,7 +71,103 @@ export const ChallengeLeaderboardPanel = React.memo(
     const { setScrollNodeRef, onWheel } =
       useScoreboardWheelScroll<HTMLDivElement>();
 
-    const data = state.status === "loaded" ? state.data : null;
+    const sourceData = state.status === "loaded" ? state.data : null;
+    const [displayData, setDisplayData] = useState(sourceData);
+    const [rankChange, setRankChange] =
+      useState<ChallengeRankChangePulse | null>(null);
+    const displayDataRef = useRef(displayData);
+    const presentationScopeKeyRef = useRef<string | null>(null);
+    const rankChangeKeyRef = useRef(0);
+    const commitTimerRef = useRef<number | null>(null);
+    const clearRankChangeTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+      const clearTimers = () => {
+        if (commitTimerRef.current !== null) {
+          window.clearTimeout(commitTimerRef.current);
+          commitTimerRef.current = null;
+        }
+        if (clearRankChangeTimerRef.current !== null) {
+          window.clearTimeout(clearRankChangeTimerRef.current);
+          clearRankChangeTimerRef.current = null;
+        }
+      };
+
+      const commitDisplayData = (
+        nextData: typeof sourceData,
+        nextRankChange: ChallengeRankChangePulse | null,
+      ) => {
+        displayDataRef.current = nextData;
+        setDisplayData(nextData);
+        setRankChange(nextRankChange);
+      };
+
+      if (!sourceData) {
+        clearTimers();
+        presentationScopeKeyRef.current = null;
+        commitDisplayData(null, null);
+        return clearTimers;
+      }
+
+      const presentationScopeKey = [
+        sourceData.roomId,
+        sourceData.collectionId,
+        sourceData.profileKey,
+        sourceData.myStanding.viewerDbUserId ?? "",
+        viewerDisplayName ?? "",
+        viewerAvatarUrl ?? "",
+      ].join(":");
+      const previousData = displayDataRef.current;
+      if (
+        !previousData ||
+        presentationScopeKeyRef.current !== presentationScopeKey
+      ) {
+        clearTimers();
+        presentationScopeKeyRef.current = presentationScopeKey;
+        commitDisplayData(sourceData, null);
+        return clearTimers;
+      }
+
+      const fromRank = previousData.myStanding.projectedRank;
+      const toRank = sourceData.myStanding.projectedRank;
+      if (
+        fromRank === null ||
+        toRank === null ||
+        fromRank === toRank
+      ) {
+        clearTimers();
+        commitDisplayData(sourceData, null);
+        return clearTimers;
+      }
+
+      clearTimers();
+      const commitRankChange = () => {
+        const nextRankChange: ChallengeRankChangePulse = {
+          key: ++rankChangeKeyRef.current,
+          fromRank,
+          toRank,
+          direction: toRank < fromRank ? "up" : "down",
+        };
+        commitDisplayData(sourceData, nextRankChange);
+        clearRankChangeTimerRef.current = window.setTimeout(() => {
+          setRankChange(null);
+          clearRankChangeTimerRef.current = null;
+        }, RANK_CHANGE_LANE_VISIBLE_MS);
+      };
+
+      if (gainAnimKey <= 0 || gainAmount <= 0) {
+        commitRankChange();
+      } else {
+        commitTimerRef.current = window.setTimeout(
+          commitRankChange,
+          SCORE_GAIN_VISIBLE_BEFORE_RANK_SWAP_MS,
+        );
+      }
+
+      return clearTimers;
+    }, [gainAmount, gainAnimKey, sourceData, viewerAvatarUrl, viewerDisplayName]);
+
+    const data = displayData;
 
     const meUserId = data?.myStanding.viewerDbUserId ?? null;
 
@@ -108,6 +208,7 @@ export const ChallengeLeaderboardPanel = React.memo(
             combo: viewerCombo,
             gainAnimKey,
             gainAmount,
+            rankChange,
           }
           : {
             standing: skeletonStanding,
@@ -117,6 +218,7 @@ export const ChallengeLeaderboardPanel = React.memo(
             combo: viewerCombo,
             gainAnimKey,
             gainAmount,
+            rankChange: null,
           },
       [
         data,
@@ -127,6 +229,7 @@ export const ChallengeLeaderboardPanel = React.memo(
         viewerCombo,
         gainAnimKey,
         gainAmount,
+        rankChange,
         skeletonStanding,
       ],
     );

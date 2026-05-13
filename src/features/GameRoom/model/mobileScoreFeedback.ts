@@ -123,7 +123,7 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
     typeof meRank === "number"
       ? {
           clientId: meClientId || ME_CHALLENGE_CLIENT_ID,
-          username: meUsername?.trim() || "我",
+          username: meUsername?.trim() || "\u6211",
           avatarUrl: meAvatarUrl ?? null,
           score: meScore,
           rank: meRank,
@@ -173,16 +173,17 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
 
   if (me) addPlayer(me);
 
+  const { nextTarget } = projection.myStanding;
   if (
-    projection.myStanding.nextTarget &&
+    nextTarget?.userId &&
     typeof meRank === "number" &&
-    !projection.myStanding.nextTarget.userId
+    nextTarget.userId !== projection.myStanding.viewerDbUserId
   ) {
     addPlayer({
-      clientId: "challenge:next-target",
-      username: projection.myStanding.nextTarget.displayName,
+      clientId: `challenge:${nextTarget.userId}`,
+      username: nextTarget.displayName,
       avatarUrl: null,
-      score: projection.myStanding.nextTarget.score,
+      score: nextTarget.score,
       rank: Math.max(1, meRank - 1),
       combo: null,
     });

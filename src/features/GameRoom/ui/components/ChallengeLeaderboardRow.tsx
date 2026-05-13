@@ -12,6 +12,13 @@ const formatScoreCombo = (score: number, combo: number) =>
 const SCOREBOARD_AVATAR_SIZE = 32;
 const SCOREBOARD_AVATAR_CONTENT_SIZE = 26;
 
+export type ChallengeRankChangePulse = {
+  key: number;
+  fromRank: number;
+  toRank: number;
+  direction: "up" | "down";
+};
+
 interface ChallengeTopEntryRowProps {
   entry: ChallengeLeaderboardEntry;
 
@@ -215,6 +222,22 @@ const ChallengeScoreGainLane = React.memo(function ChallengeScoreGainLane({
   );
 });
 
+const ChallengeRankChangeLane = React.memo(function ChallengeRankChangeLane({
+  rankChange,
+}: {
+  rankChange: ChallengeRankChangePulse;
+}) {
+  return (
+    <span
+      key={rankChange.key}
+      className={`challenge-lb-rank-change-lane challenge-lb-rank-change-lane--${rankChange.direction}`}
+      aria-hidden="true"
+    >
+      #{rankChange.fromRank} → #{rankChange.toRank}
+    </span>
+  );
+});
+
 interface ChallengeSelfRowProps {
   standing: ChallengeProjectedMyStanding;
   isSettled?: boolean;
@@ -223,6 +246,7 @@ interface ChallengeSelfRowProps {
   combo?: number;
   gainAnimKey?: number;
   gainAmount?: number;
+  rankChange?: ChallengeRankChangePulse | null;
 
   /**
    * Rank shown in the UI list.
@@ -255,6 +279,7 @@ export const ChallengeSelfRow = React.memo(
     combo = 0,
     gainAnimKey = 0,
     gainAmount = 0,
+    rankChange = null,
     displayRank = null,
     // gapToNext is part of the data model but not rendered on the self row
     showGainLane = true,
@@ -307,7 +332,11 @@ export const ChallengeSelfRow = React.memo(
     return (
       <div className="challenge-lb-self-row-shell">
         {rowEl}
-        <ChallengeScoreGainLane key={gainAnimKey} gainAmount={gainAmount} />
+        {rankChange ? (
+          <ChallengeRankChangeLane rankChange={rankChange} />
+        ) : (
+          <ChallengeScoreGainLane key={gainAnimKey} gainAmount={gainAmount} />
+        )}
       </div>
     );
   },

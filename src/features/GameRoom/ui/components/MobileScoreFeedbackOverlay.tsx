@@ -9,20 +9,24 @@ type MobileScoreFeedbackOverlayProps = {
   anchorStyle?: React.CSSProperties;
 };
 
+const getComboFeedbackTier = (
+  combo: number,
+): "none" | "normal" | "hot" | "great" | "legend" => {
+  if (combo >= 10) return "legend";
+  if (combo >= 6) return "great";
+  if (combo >= 3) return "hot";
+  if (combo >= 1) return "normal";
+  return "none";
+};
+
 const getScoreFeedbackTitle = (
   event: Extract<MobileScoreFeedbackEvent, { type: "score" }>,
 ) => {
   const combo = event.me.combo ?? 0;
-
-  if (combo > 1) {
-    return `Combo x${combo}`;
-  }
-
-  if (combo === 1) {
-    return "Combo x1";
-  }
-
-  return "答對加分";
+  if (combo >= 10) return `Legend Combo x${combo}`;
+  if (combo >= 6) return `Great Combo x${combo}`;
+  if (combo >= 1) return `Combo x${combo}`;
+  return "分數提升";
 };
 
 const getScoreFeedbackDetail = (
@@ -41,14 +45,31 @@ const getScoreFeedbackDetail = (
   return null;
 };
 
+const canRenderFeedbackAvatar = (
+  player: MobileScoreFeedbackEvent["me"] | null,
+) =>
+  Boolean(
+    player &&
+      player.clientId.trim().length > 0 &&
+      player.username.trim().length > 0 &&
+      Number.isFinite(player.rank) &&
+      Number.isFinite(player.score),
+  );
+
 const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
   React.memo(({ event, anchorStyle }) => {
-    if (!event) {
-      return null;
-    }
+    if (!event) return null;
 
     const isRankChange =
       event.type === "passed" || event.type === "overtaken";
+    const comboTier =
+      event.type === "score"
+        ? getComboFeedbackTier(event.me.combo ?? 0)
+        : "none";
+    const canShowRankAvatars =
+      isRankChange &&
+      canRenderFeedbackAvatar(event.me) &&
+      canRenderFeedbackAvatar(event.target);
 
     const cardClassName = [
       "game-room-mobile-score-feedback-card",
@@ -56,11 +77,19 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
       isRankChange
         ? "game-room-mobile-score-feedback-card--rank-change"
         : "game-room-mobile-score-feedback-card--bubble",
-    ].join(" ");
+      isRankChange
+        ? `game-room-mobile-score-feedback-card--rank-${event.type}`
+        : "",
+      comboTier !== "none"
+        ? `game-room-mobile-score-feedback-card--combo-${comboTier}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const eventKey =
       event.type === "passed" || event.type === "overtaken"
-        ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target?.clientId ?? "unknown"}`
+        ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target?.clientId ?? "text"}`
         : `${event.scope}-${event.type}-${event.me.score}-${event.me.combo ?? 0}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
 
     const scoreDetail =
@@ -73,25 +102,23 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
         aria-live="polite"
       >
         <div key={eventKey} className={cardClassName}>
-          {isRankChange ? (
-            <div className="game-room-mobile-score-feedback-avatars">
-              {event.target ? (
-                <PlayerAvatar
-                  username={event.target.username}
-                  clientId={event.target.clientId}
-                  avatarUrl={event.target.avatarUrl}
-                  size={34}
-                  hideRankMark
-                  effectLevel="off"
-                  className="game-room-mobile-score-feedback-avatar--target"
-                />
-              ) : (
-                <span
-                  className="game-room-mobile-score-feedback-avatar-placeholder game-room-mobile-score-feedback-avatar--target"
-                  aria-hidden="true"
-                />
-              )}
-
+          {canShowRankAvatars && event.target ? (
+            <div
+              className={`game-room-mobile-score-feedback-swap game-room-mobile-score-feedback-swap--${event.type}`}
+              aria-hidden="true"
+            >
+              <PlayerAvatar
+                username={event.target.username}
+                clientId={event.target.clientId}
+                avatarUrl={event.target.avatarUrl}
+                size={34}
+                hideRankMark
+                effectLevel="off"
+                className="game-room-mobile-score-feedback-swap-avatar game-room-mobile-score-feedback-swap-avatar--target"
+              />
+              <span className="game-room-mobile-score-feedback-swap-arrow">
+                {event.type === "passed" ? ">" : "<"}
+              </span>
               <PlayerAvatar
                 username={event.me.username}
                 clientId={event.me.clientId}
@@ -100,43 +127,35 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
                 isMe
                 hideRankMark
                 effectLevel="off"
-                className="game-room-mobile-score-feedback-avatar--me"
+                className="game-room-mobile-score-feedback-swap-avatar game-room-mobile-score-feedback-swap-avatar--me"
               />
             </div>
           ) : null}
 
-          {event.type !== "overtaken" ? (
+          {event.type === "score" ? (
             <div className="game-room-mobile-score-feedback-gain">
               +{event.scoreGain}
-            </div>
-          ) : event.targetScoreGain && event.targetScoreGain > 0 ? (
-            <div className="game-room-mobile-score-feedback-gain game-room-mobile-score-feedback-gain--danger">
-              對方 +{event.targetScoreGain}
             </div>
           ) : null}
 
           {event.type === "passed" ? (
             <>
               <div className="game-room-mobile-score-feedback-title">
-                {event.target
-                  ? `超越 ${event.target.username}`
-                  : "排名上升"}
+                {event.target ? `超越 ${event.target.username}` : "排名上升"}
               </div>
-
               <div className="game-room-mobile-score-feedback-detail">
-                #{event.oldRank} → #{event.newRank}
+                #{event.oldRank} -&gt; #{event.newRank}
               </div>
             </>
           ) : event.type === "overtaken" ? (
             <>
               <div className="game-room-mobile-score-feedback-title game-room-mobile-score-feedback-title--danger">
                 {event.target
-                  ? `被 ${event.target.username} 超越`
+                  ? `${event.target.username} 超越你`
                   : "排名下降"}
               </div>
-
               <div className="game-room-mobile-score-feedback-detail">
-                #{event.oldRank} → #{event.newRank}
+                #{event.oldRank} -&gt; #{event.newRank}
               </div>
             </>
           ) : (
@@ -144,7 +163,6 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
               <div className="game-room-mobile-score-feedback-title">
                 {getScoreFeedbackTitle(event)}
               </div>
-
               {scoreDetail ? (
                 <div className="game-room-mobile-score-feedback-detail">
                   {scoreDetail}

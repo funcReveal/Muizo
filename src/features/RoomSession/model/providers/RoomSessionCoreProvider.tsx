@@ -532,13 +532,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
       gameSessionId?: string | number | null;
     }) => {
       const socket = getSocket();
-      if (!socket || !currentRoom?.id) return;
+      if (!socket || !currentRoomId) return;
       if (payload.provider !== "youtube" || !payload.sourceId) return;
 
       socket.emit(
         "reportPlaybackError",
         {
-          roomId: currentRoom.id,
+          roomId: currentRoomId,
           provider: payload.provider,
           sourceId: payload.sourceId,
           errorCode: payload.errorCode,
@@ -551,7 +551,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         () => undefined,
       );
     },
-    [currentRoom?.id, getSocket],
+    [currentRoomId, getSocket],
   );
 
   const { handleSendMessage } = useRoomChatActions({
