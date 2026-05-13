@@ -27,6 +27,7 @@ type UseCollectionLoaderParams = {
   setCollectionsError: (value: string | null) => void;
   setActiveCollectionId: (value: string | null) => void;
   setCollectionTitle: (value: string) => void;
+  setCollectionDescription: (value: string) => void;
   setCollectionVisibility: (value: "private" | "public") => void;
   buildEditableItemsFromDb: (items: DbCollectionItem[]) => EditableItem[];
   setPlaylistItems: (items: EditableItem[]) => void;
@@ -83,6 +84,7 @@ export const useCollectionLoader = ({
   setCollectionsError,
   setActiveCollectionId,
   setCollectionTitle,
+  setCollectionDescription,
   setCollectionVisibility,
   buildEditableItemsFromDb,
   setPlaylistItems,
@@ -176,9 +178,11 @@ export const useCollectionLoader = ({
         const matched = items.find((item) => item.id === collectionId);
         setActiveCollectionId(collectionId);
         setCollectionTitle(matched?.title ?? "");
+        setCollectionDescription(matched?.description ?? "");
         setCollectionVisibility(matched?.visibility ?? "private");
       } else {
         setCollectionTitle("");
+        setCollectionDescription("");
         setCollectionVisibility("private");
       }
     };
@@ -227,6 +231,7 @@ export const useCollectionLoader = ({
     setCollectionsError,
     setActiveCollectionId,
     setCollectionTitle,
+    setCollectionDescription,
     setCollectionVisibility,
   ]);
 

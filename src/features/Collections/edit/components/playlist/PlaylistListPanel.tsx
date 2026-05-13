@@ -26,9 +26,11 @@ import {
 import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import CheckCircleOutlineRounded from "@mui/icons-material/CheckCircleOutlineRounded";
 import Close from "@mui/icons-material/Close";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DragIndicatorRounded from "@mui/icons-material/DragIndicatorRounded";
 import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import LibraryMusic from "@mui/icons-material/LibraryMusic";
+import MotionPhotosAutoOutlined from "@mui/icons-material/MotionPhotosAutoOutlined";
 import PlaylistAddRounded from "@mui/icons-material/PlaylistAddRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import {
@@ -102,6 +104,8 @@ type PlaylistListPanelProps = {
   formatSeconds: (value: number) => string;
   onOpenSourceModal: () => void;
   sourceModalOpen: boolean;
+  autoPlayOnSwitch: boolean;
+  onAutoPlayChange: (value: boolean) => void;
 };
 
 type SortableRowProps = {
@@ -248,10 +252,10 @@ const RowCard = ({
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
-          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/8 text-rose-200 transition-all duration-150 hover:bg-rose-500/18 hover:text-rose-100 active:scale-95"
-          aria-label="Delete"
+          className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center text-rose-200 transition-all duration-150 hover:text-rose-100 active:scale-95"
+          aria-label="刪除題目"
         >
-          <Close sx={{ fontSize: 14 }} />
+          <DeleteOutlineRounded sx={{ fontSize: 17 }} />
         </button>
       )}
       {item.answerStatus === "ai_modified" && (
@@ -418,6 +422,8 @@ const PlaylistListPanel = ({
   formatSeconds,
   onOpenSourceModal,
   sourceModalOpen,
+  autoPlayOnSwitch,
+  onAutoPlayChange,
 }: PlaylistListPanelProps) => {
   const safeItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
   const itemIds = useMemo(
@@ -719,20 +725,37 @@ const PlaylistListPanel = ({
               </span>
             </div>
           </div>
-          <Tooltip title={sourceModalOpen ? "新增題目來源已開啟" : "新增題目來源"}>
-            <button
-              type="button"
-              onClick={onOpenSourceModal}
-              aria-label="新增題目來源"
-              className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text)] outline-none transition focus:outline-none ${
-                sourceModalOpen
-                  ? "bg-[var(--mc-surface-strong)]/95 ring-1 ring-[var(--mc-accent)]/45"
-                  : "bg-[var(--mc-surface-strong)]/70 hover:bg-[var(--mc-surface-strong)]/90"
-              }`}
-            >
-              <PlaylistAddRounded fontSize="medium" />
-            </button>
-          </Tooltip>
+          <div className="inline-flex items-center gap-2">
+            <Tooltip title={autoPlayOnSwitch ? "切換曲目時自動播放" : "切換曲目時不自動播放"}>
+              <button
+                type="button"
+                onClick={() => onAutoPlayChange(!autoPlayOnSwitch)}
+                aria-pressed={autoPlayOnSwitch}
+                aria-label="切換自動播放"
+                className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border transition ${
+                  autoPlayOnSwitch
+                    ? "border-emerald-400/65 bg-emerald-400/12 text-emerald-100"
+                    : "border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/45 text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                }`}
+              >
+                <MotionPhotosAutoOutlined fontSize="small" />
+              </button>
+            </Tooltip>
+            <Tooltip title={sourceModalOpen ? "新增題目來源已開啟" : "新增題目來源"}>
+              <button
+                type="button"
+                onClick={onOpenSourceModal}
+                aria-label="新增題目來源"
+                className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text)] outline-none transition focus:outline-none ${
+                  sourceModalOpen
+                    ? "bg-[var(--mc-surface-strong)]/95 ring-1 ring-[var(--mc-accent)]/45"
+                    : "bg-[var(--mc-surface-strong)]/70 hover:bg-[var(--mc-surface-strong)]/90"
+                }`}
+              >
+                <PlaylistAddRounded fontSize="medium" />
+              </button>
+            </Tooltip>
+          </div>
           <div className="flex w-full items-center gap-2">
             <label className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/55 px-3 py-1.5 text-[var(--mc-text)]">
               <SearchRounded sx={{ fontSize: 16 }} className="shrink-0" />

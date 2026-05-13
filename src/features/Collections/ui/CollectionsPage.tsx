@@ -30,9 +30,7 @@ import {
 } from "../shared/model/collectionLimits";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { appToast } from "@/shared/ui/toastApi";
-import {
-  formatCollectionAvailabilityLabel,
-} from "@features/RoomSession/model/playlistAvailability";
+import { formatCollectionAvailabilityLabel } from "@features/RoomSession/model/playlistAvailability";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -374,12 +372,12 @@ const CollectionsPage = () => {
     <Box className="w-full md:w-full lg:w-3/5 mx-auto space-y-4">
       <Box className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Typography
+          {/* <Typography
             variant="h6"
             className="text-[var(--mc-text)] font-semibold"
           >
             {TEXT.title}
-          </Typography>
+          </Typography> */}
           {!isAdmin && (
             <div className="flex items-center gap-1 text-sm text-[var(--mc-text-muted)]">
               <span>{collections.length}</span>

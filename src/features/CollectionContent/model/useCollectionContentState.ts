@@ -224,30 +224,7 @@ export const normalizeAvailabilityPatchInput = ({
 };
 
 export type UseCollectionContentStateResult = {
-  collections: Array<{
-    id: string;
-    title: string;
-    description?: string | null;
-    visibility?: "private" | "public";
-    cover_title?: string | null;
-    cover_channel_title?: string | null;
-    cover_thumbnail_url?: string | null;
-    cover_duration_sec?: number | null;
-    cover_source_id?: string | null;
-    cover_provider?: string | null;
-    item_count?: number;
-    playable_item_count?: number | null;
-    readToken?: string | null;
-    use_count?: number;
-    favorite_count?: number;
-    rating_count?: number;
-    rating_avg?: number;
-    is_favorited?: boolean;
-    created_at?: number;
-    updated_at?: number;
-    ai_edited_count?: number;
-    has_ai_edited?: boolean;
-  }>;
+  collections: CollectionEntry[];
   collectionsLoading: boolean;
   collectionsLoadingMore: boolean;
   collectionsHasMore: boolean;
@@ -297,32 +274,7 @@ export const useCollectionContentState = ({
   onPlaylistLoaded,
   onPlaylistReset,
 }: UseCollectionContentStateOptions): UseCollectionContentStateResult => {
-  const [collections, setCollections] = useState<
-    Array<{
-      id: string;
-      title: string;
-      description?: string | null;
-      visibility?: "private" | "public";
-      cover_title?: string | null;
-      cover_channel_title?: string | null;
-      cover_thumbnail_url?: string | null;
-      cover_duration_sec?: number | null;
-      cover_source_id?: string | null;
-      cover_provider?: string | null;
-      item_count?: number;
-      playable_item_count?: number | null;
-      readToken?: string | null;
-      use_count?: number;
-      favorite_count?: number;
-      rating_count?: number;
-      rating_avg?: number;
-      is_favorited?: boolean;
-      created_at?: number;
-      updated_at?: number;
-      ai_edited_count?: number;
-      has_ai_edited?: boolean;
-    }>
-  >([]);
+  const [collections, setCollections] = useState<CollectionEntry[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [collectionsLoadingMore, setCollectionsLoadingMore] = useState(false);
   const [collectionsHasMore, setCollectionsHasMore] = useState(false);

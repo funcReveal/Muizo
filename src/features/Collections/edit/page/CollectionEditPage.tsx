@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@mui/material";
 import ConfirmDialog from "../../../../shared/ui/ConfirmDialog";
@@ -22,6 +22,7 @@ import {
 import { ensureFreshAuthToken } from "../../../../shared/auth/token";
 import CollectionPopover from "../components/playlist/CollectionPopover";
 import ClipEditorPanel from "../components/player/ClipEditorPanel";
+import BulkPlaybackRangeDrawer from "../../shared/components/BulkPlaybackRangeDrawer";
 import AnswerPanel from "../components/answer/AnswerPanel";
 import EditHeader from "../components/header/EditHeader";
 import PlaylistListPanel from "../components/playlist/PlaylistListPanel";
@@ -36,6 +37,11 @@ import {
   parseDurationToSeconds,
   parseTimeInput,
 } from "../utils/editUtils";
+import {
+  buildBulkPlaybackPreviewItems,
+  DEFAULT_BULK_PLAYBACK_DRAFT,
+  type BulkPlaybackDraft,
+} from "../../shared/model/bulkPlaybackRange";
 import {
   ANSWER_MAX_LENGTH,
   CLIP_DURATION_LABEL,
@@ -104,6 +110,7 @@ const CollectionEditPage = () => {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
 
   const [collectionTitle, setCollectionTitle] = useState("");
+  const [collectionDescription, setCollectionDescription] = useState("");
   const [collectionTitleTouched, setCollectionTitleTouched] = useState(false);
   const [collectionVisibility, setCollectionVisibility] = useState<
     "private" | "public"
@@ -115,11 +122,25 @@ const CollectionEditPage = () => {
   const [visibilityUpdating, setVisibilityUpdating] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [collectionAnchor, setCollectionAnchor] = useState<HTMLElement | null>(
     null,
   );
+  const [bulkPlaybackOpen, setBulkPlaybackOpen] = useState(false);
+  const [bulkPlaybackDraft, setBulkPlaybackDraft] =
+    useState<BulkPlaybackDraft>(DEFAULT_BULK_PLAYBACK_DRAFT);
+  const [bulkPlaybackApplying, setBulkPlaybackApplying] = useState(false);
+  const [bulkPlaybackProgress, setBulkPlaybackProgress] = useState<{
+    completed: number;
+    total: number;
+    label?: string;
+  } | null>(null);
+  const pendingBulkPreviewRef = useRef<{
+    id: string;
+    startSec: number;
+  } | null>(null);
 
   const shareFeedbackTimerRef = useRef<number | null>(null);
   const [playlistItems, setPlaylistItems] = useState<EditableItem[]>([]);
@@ -173,9 +194,15 @@ const CollectionEditPage = () => {
   }, []);
 
   const buildSnapshot = useCallback(
-    (items: EditableItem[], title: string, deletes: string[]): string => {
+    (
+      items: EditableItem[],
+      title: string,
+      description: string,
+      deletes: string[],
+    ): string => {
       const payload = {
         title: title.trim(),
+        description: description.trim(),
         visibility: collectionVisibility,
         items: items.map((item, idx) => ({
           key: item.dbId ?? item.localId,
@@ -233,10 +260,17 @@ const CollectionEditPage = () => {
     baselineSnapshotRef.current = buildSnapshot(
       playlistItems,
       collectionTitle,
+      collectionDescription,
       pendingDeleteIds,
     );
     baselineReadyRef.current = true;
-  }, [buildSnapshot, collectionTitle, pendingDeleteIds, playlistItems]);
+  }, [
+    buildSnapshot,
+    collectionDescription,
+    collectionTitle,
+    pendingDeleteIds,
+    playlistItems,
+  ]);
 
   const handleSavedBaseline = useCallback(() => {
     window.setTimeout(() => {
@@ -257,6 +291,7 @@ const CollectionEditPage = () => {
     setCollectionsError,
     setActiveCollectionId,
     setCollectionTitle,
+    setCollectionDescription,
     setCollectionVisibility,
     buildEditableItemsFromDb,
     setPlaylistItems,
@@ -275,9 +310,11 @@ const CollectionEditPage = () => {
     authPlan: authUser?.plan,
     authExpired,
     collectionTitle,
+    collectionDescription,
     collectionVisibility,
     activeCollectionId,
     activeCollectionStoredTitle: activeCollection?.title ?? null,
+    activeCollectionStoredDescription: activeCollection?.description ?? null,
     activeCollectionStoredVisibility,
     activeCollectionItemLimitOverride:
       activeCollection?.item_limit_override ?? null,
@@ -327,6 +364,7 @@ const CollectionEditPage = () => {
     } else {
       setActiveCollectionId(null);
       setCollectionTitle("");
+      setCollectionDescription("");
       setCollectionVisibility("private");
     }
 
@@ -341,6 +379,9 @@ const CollectionEditPage = () => {
     setSaveStatus("idle");
     setSaveError(null);
     setAutoSaveNotice(null);
+    setTitleDraft("");
+    setDescriptionDraft("");
+    setIsTitleEditing(false);
     dirtyCounterRef.current = 0;
   }, [collectionId, resetPendingItemSyncState]);
 
@@ -357,6 +398,7 @@ const CollectionEditPage = () => {
     const snapshot = buildSnapshot(
       playlistItems,
       collectionTitle,
+      collectionDescription,
       pendingDeleteIds,
     );
     const isDirty = snapshot !== baselineSnapshotRef.current;
@@ -378,6 +420,7 @@ const CollectionEditPage = () => {
     }
   }, [
     playlistItems,
+    collectionDescription,
     collectionTitle,
     pendingDeleteIds,
     buildSnapshot,
@@ -394,7 +437,8 @@ const CollectionEditPage = () => {
   useEffect(() => {
     if (isTitleEditing) return;
     setTitleDraft(collectionTitle);
-  }, [collectionTitle, isTitleEditing]);
+    setDescriptionDraft(collectionDescription);
+  }, [collectionDescription, collectionTitle, isTitleEditing]);
 
   const collectionCount = collections.length;
 
@@ -482,6 +526,7 @@ const CollectionEditPage = () => {
     loopEnabled,
     currentTimeSec,
     setCurrentTimeSec,
+    pausePlayback,
     togglePlayback,
     handleVolumeChange,
     handleVolumeCommit,
@@ -490,6 +535,8 @@ const CollectionEditPage = () => {
     handleLoopToggle,
     handleProgressChange,
     getPlayerCurrentTimeSec,
+    preparePlaybackStart,
+    queuePreviewFromStart,
     previewFromStart,
     previewBeforeEnd,
   } = useCollectionEditPlayer({
@@ -502,6 +549,149 @@ const CollectionEditPage = () => {
     effectiveEnd,
     onDurationResolved: syncDurationFromPlayer,
   });
+
+  const bulkPlaybackPreviewItems = useMemo(() => {
+    return buildBulkPlaybackPreviewItems({
+      items: playlistItems.map((item) => ({ ...item, id: item.localId })),
+      draft: bulkPlaybackDraft,
+      parseDurationToSeconds,
+      parseTimeInput,
+    });
+  }, [bulkPlaybackDraft, playlistItems]);
+
+  const bulkPlaybackAffectedItems = useMemo(
+    () => bulkPlaybackPreviewItems.filter((item) => item.isShortened),
+    [bulkPlaybackPreviewItems],
+  );
+
+  const canApplyBulkPlayback =
+    playlistItems.length > 0 && bulkPlaybackPreviewItems.length > 0;
+
+  const handleBulkPlaybackPreviewItem = useCallback(
+    (id: string, previewStartSec: number) => {
+      const nextIndex = playlistItems.findIndex(
+        (item) => item.localId === id,
+      );
+      if (nextIndex < 0) return;
+
+      pendingBulkPreviewRef.current = { id, startSec: previewStartSec };
+      if (selectedItem?.localId === id && isPlayerReady) {
+        previewFromStart(previewStartSec);
+      } else {
+        queuePreviewFromStart(previewStartSec);
+      }
+      handleSelectIndex(nextIndex);
+      setCurrentTimeSec(previewStartSec);
+
+      if (selectedItem?.localId === id && isPlayerReady) {
+        pendingBulkPreviewRef.current = null;
+      }
+    },
+    [
+      handleSelectIndex,
+      isPlayerReady,
+      playlistItems,
+      queuePreviewFromStart,
+      previewFromStart,
+      selectedItem?.localId,
+      setCurrentTimeSec,
+    ],
+  );
+
+  useEffect(() => {
+    const pending = pendingBulkPreviewRef.current;
+    if (!pending) return;
+    if (selectedItem?.localId !== pending.id) return;
+    if (!isPlayerReady) return;
+
+    pendingBulkPreviewRef.current = null;
+    previewFromStart(pending.startSec);
+  }, [isPlayerReady, previewFromStart, selectedItem?.localId]);
+
+  const handleApplyBulkPlayback = useCallback(async () => {
+    if (bulkPlaybackApplying) return;
+    const previewById = new Map(
+      bulkPlaybackPreviewItems.map((item) => [item.id, item]),
+    );
+    const changedIds = playlistItems
+      .filter((item) => {
+        const preview = previewById.get(item.localId);
+        return Boolean(
+          preview &&
+            (item.startSec !== preview.startSec ||
+              item.endSec !== preview.endSec),
+        );
+      })
+      .map((item) => item.localId);
+
+    if (changedIds.length <= 0) {
+      setBulkPlaybackOpen(false);
+      return;
+    }
+
+    setBulkPlaybackApplying(true);
+    setBulkPlaybackProgress({
+      completed: 0,
+      total: changedIds.length,
+      label: "正在套用播放區間",
+    });
+
+    let processedIds: string[] = [];
+    let nextItems = playlistItems;
+
+    for (let start = 0; start < changedIds.length; start += 80) {
+      const batchIds = new Set(changedIds.slice(start, start + 80));
+      processedIds = [...processedIds, ...batchIds];
+      nextItems = nextItems.map((item) => {
+        if (!batchIds.has(item.localId)) return item;
+        const preview = previewById.get(item.localId);
+        if (!preview) return item;
+        return {
+          ...item,
+          startSec: preview.startSec,
+          endSec: preview.endSec,
+        };
+      });
+      setPlaylistItems(() => nextItems);
+      setBulkPlaybackProgress({
+        completed: processedIds.length,
+        total: changedIds.length,
+        label: "正在套用播放區間",
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    }
+
+    markItemsDirty(changedIds);
+    setBulkPlaybackProgress({
+      completed: 0,
+      total: 0,
+      label: "正在寫入資料庫",
+    });
+    const saved = await handleSaveCollection("manual", nextItems);
+    setBulkPlaybackApplying(false);
+    setBulkPlaybackProgress(null);
+
+    if (saved) {
+      const selectedPreview = selectedItem?.localId
+        ? previewById.get(selectedItem.localId)
+        : null;
+      pausePlayback();
+      if (selectedPreview) {
+        preparePlaybackStart(selectedPreview.startSec);
+      }
+      setBulkPlaybackOpen(false);
+    }
+  }, [
+    bulkPlaybackApplying,
+    bulkPlaybackPreviewItems,
+    handleSaveCollection,
+    markItemsDirty,
+    pausePlayback,
+    preparePlaybackStart,
+    playlistItems,
+    selectedItem?.localId,
+    setPlaylistItems,
+  ]);
 
   const clipCurrentSec = Math.min(
     Math.max(currentTimeSec - startSec, 0),
@@ -577,6 +767,54 @@ const CollectionEditPage = () => {
   const handleEndThumbPressWithPreview = useCallback(() => {
     previewBeforeEnd(startSec, endSec);
   }, [endSec, previewBeforeEnd, startSec]);
+
+  const renderPlayerPanel = (showAutoPlayControl: boolean) => (
+    <PlayerPanel
+      selectedVideoId={selectedVideoId}
+      selectedTitle={selectedItem?.title ?? TEXT.selectSong}
+      selectedUploader={selectedItem?.uploader ?? ""}
+      selectedChannelId={selectedItem?.channelId}
+      selectedDuration={selectedItem?.duration}
+      selectedClipDurationLabel={CLIP_DURATION_LABEL}
+      selectedClipDurationSec={formatSeconds(selectedClipDurationSec)}
+      clipCurrentSec={formatSeconds(clipCurrentSec)}
+      clipDurationSec={formatSeconds(clipDurationSec)}
+      startSec={startSec}
+      effectiveEnd={effectiveEnd}
+      currentTimeSec={currentTimeSec}
+      getPlayerCurrentTimeSec={getPlayerCurrentTimeSec}
+      onProgressChange={handleProgressChange}
+      onTogglePlayback={togglePlayback}
+      isPlayerReady={isPlayerReady}
+      isPlaying={isPlaying}
+      onVolumeChange={handleVolumeChange}
+      onVolumeCommit={handleVolumeCommit}
+      volume={volume}
+      isMuted={isMuted}
+      onToggleMute={handleToggleMute}
+      autoPlayOnSwitch={autoPlayOnSwitch}
+      onAutoPlayChange={handleAutoPlayToggle}
+      autoPlayLabel="切換自動播放"
+      showAutoPlayControl={showAutoPlayControl}
+      loopEnabled={loopEnabled}
+      onLoopChange={handleLoopToggle}
+      loopLabel="循環播放"
+      playLabel={PLAY_LABEL}
+      pauseLabel={PAUSE_LABEL}
+      volumeLabel={VOLUME_LABEL}
+      noSelectionLabel={TEXT.noSelection}
+      playerContainerRef={playerContainerRef}
+      thumbnail={selectedItem?.thumbnail}
+    />
+  );
+  const playerPanelNode = renderPlayerPanel(false);
+  const drawerPlayerPanelNode = renderPlayerPanel(false);
+
+  const closeBulkPlaybackDrawer = useCallback(() => {
+    pausePlayback();
+    preparePlaybackStart(startSec);
+    if (!bulkPlaybackApplying) setBulkPlaybackOpen(false);
+  }, [bulkPlaybackApplying, pausePlayback, preparePlaybackStart, startSec]);
 
   const {
     aiProviderLabel,
@@ -869,17 +1107,21 @@ const CollectionEditPage = () => {
     }, 0);
   }, [handleSaveCollection]);
 
-  const saveTitleImmediately = useCallback(
+  const saveCollectionMetadataImmediately = useCallback(
     async (
       nextTitle: string,
+      nextDescription: string,
       previousTitle: string,
+      previousDescription: string,
       wasCleanBeforeTitleSave: boolean,
     ) => {
       if (!authToken || !activeCollectionId) {
         setCollectionTitle(previousTitle);
+        setCollectionDescription(previousDescription);
         setTitleDraft(previousTitle);
+        setDescriptionDraft(previousDescription);
         setSaveStatus("error");
-        setSaveError("請先登入並選擇收藏庫後再修改名稱");
+        setSaveError("請先登入並選擇收藏庫後再修改資訊");
         return;
       }
 
@@ -897,12 +1139,17 @@ const CollectionEditPage = () => {
 
         await collectionsApi.updateCollection(token, activeCollectionId, {
           title: nextTitle,
+          description: nextDescription || null,
         });
 
         setCollections((prev) =>
           prev.map((item) =>
             item.id === activeCollectionId
-              ? { ...item, title: nextTitle }
+              ? {
+                  ...item,
+                  title: nextTitle,
+                  description: nextDescription || null,
+                }
               : item,
           ),
         );
@@ -917,7 +1164,9 @@ const CollectionEditPage = () => {
         setSaveStatus("saved");
       } catch (error) {
         setCollectionTitle(previousTitle);
+        setCollectionDescription(previousDescription);
         setTitleDraft(previousTitle);
+        setDescriptionDraft(previousDescription);
         setSaveStatus("error");
         setSaveError(error instanceof Error ? error.message : String(error));
       }
@@ -1065,6 +1314,7 @@ const CollectionEditPage = () => {
           baselineSnapshotRef.current = buildSnapshot(
             nextItems,
             collectionTitle,
+            collectionDescription,
             pendingDeleteIds.filter((id) => id !== target.dbId),
           );
           baselineReadyRef.current = true;
@@ -1083,6 +1333,7 @@ const CollectionEditPage = () => {
       activeCollectionId,
       authToken,
       buildSnapshot,
+      collectionDescription,
       collectionTitle,
       hasUnsavedChanges,
       markDirty,
@@ -1143,37 +1394,56 @@ const CollectionEditPage = () => {
       <EditHeader
         title={collectionTitle}
         titleDraft={titleDraft}
+        descriptionDraft={descriptionDraft}
         isTitleEditing={isTitleEditing}
         onTitleDraftChange={(value) => setTitleDraft(value)}
+        onDescriptionDraftChange={(value) => setDescriptionDraft(value)}
         onTitleSave={() => {
           const nextTitle = titleDraft.trim();
-          if (!nextTitle || nextTitle === collectionTitle.trim()) {
+          const nextDescription = descriptionDraft.trim();
+          if (!nextTitle) {
             setIsTitleEditing(false);
             setTitleDraft(collectionTitle);
+            setDescriptionDraft(collectionDescription);
+            return;
+          }
+          if (
+            nextTitle === collectionTitle.trim() &&
+            nextDescription === collectionDescription.trim()
+          ) {
+            setIsTitleEditing(false);
+            setTitleDraft(collectionTitle);
+            setDescriptionDraft(collectionDescription);
             return;
           }
 
           const previousTitle = collectionTitle;
+          const previousDescription = collectionDescription;
           const wasCleanBeforeTitleSave = !hasUnsavedChanges;
 
           setCollectionTitle(nextTitle);
+          setCollectionDescription(nextDescription);
           if (!collectionTitleTouched) {
             setCollectionTitleTouched(true);
           }
           setIsTitleEditing(false);
 
-          void saveTitleImmediately(
+          void saveCollectionMetadataImmediately(
             nextTitle,
+            nextDescription,
             previousTitle,
+            previousDescription,
             wasCleanBeforeTitleSave,
           );
         }}
         onTitleCancel={() => {
           setTitleDraft(collectionTitle);
+          setDescriptionDraft(collectionDescription);
           setIsTitleEditing(false);
         }}
         onStartEdit={() => {
           setTitleDraft(collectionTitle);
+          setDescriptionDraft(collectionDescription);
           setIsTitleEditing(true);
         }}
         showApplyPlaylistTitle={
@@ -1217,8 +1487,6 @@ const CollectionEditPage = () => {
           setCollectionAnchor(event.currentTarget);
           setCollectionMenuOpen((prev) => !prev);
         }}
-        onAiBatchEditClick={openAiBatchModal}
-        aiBatchDisabled={playlistItems.length === 0}
         collectionMenuOpen={collectionMenuOpen}
       />
 
@@ -1242,6 +1510,7 @@ const CollectionEditPage = () => {
           setActiveCollectionId(id);
           const selected = collections.find((item) => item.id === id);
           setCollectionTitle(selected?.title ?? "");
+          setCollectionDescription(selected?.description ?? "");
           setCollectionVisibility(selected?.visibility ?? "private");
           resetPendingItemSyncState();
           setPlaylistItems([]);
@@ -1335,47 +1604,20 @@ const CollectionEditPage = () => {
               formatSeconds={formatSeconds}
               onOpenSourceModal={openPlaylistImportModal}
               sourceModalOpen={sourceModalOpen}
+              autoPlayOnSwitch={autoPlayOnSwitch}
+              onAutoPlayChange={handleAutoPlayToggle}
             />
           </div>
 
           <div className="order-1 lg:order-1 min-w-0 space-y-2">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
-              <PlayerPanel
-                selectedVideoId={selectedVideoId}
-                selectedTitle={selectedItem?.title ?? TEXT.selectSong}
-                selectedUploader={selectedItem?.uploader ?? ""}
-                selectedChannelId={selectedItem?.channelId}
-                selectedDuration={selectedItem?.duration}
-                selectedClipDurationLabel={CLIP_DURATION_LABEL}
-                selectedClipDurationSec={formatSeconds(selectedClipDurationSec)}
-                clipCurrentSec={formatSeconds(clipCurrentSec)}
-                clipDurationSec={formatSeconds(clipDurationSec)}
-                startSec={startSec}
-                effectiveEnd={effectiveEnd}
-                currentTimeSec={currentTimeSec}
-                getPlayerCurrentTimeSec={getPlayerCurrentTimeSec}
-                onProgressChange={handleProgressChange}
-                onTogglePlayback={togglePlayback}
-                isPlayerReady={isPlayerReady}
-                isPlaying={isPlaying}
-                onVolumeChange={handleVolumeChange}
-                onVolumeCommit={handleVolumeCommit}
-                volume={volume}
-                isMuted={isMuted}
-                onToggleMute={handleToggleMute}
-                autoPlayOnSwitch={autoPlayOnSwitch}
-                onAutoPlayChange={handleAutoPlayToggle}
-                autoPlayLabel="切換自動播放"
-                loopEnabled={loopEnabled}
-                onLoopChange={handleLoopToggle}
-                loopLabel="循環播放"
-                playLabel={PLAY_LABEL}
-                pauseLabel={PAUSE_LABEL}
-                volumeLabel={VOLUME_LABEL}
-                noSelectionLabel={TEXT.noSelection}
-                playerContainerRef={playerContainerRef}
-                thumbnail={selectedItem?.thumbnail}
-              />
+              {bulkPlaybackOpen ? (
+                <div className="hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 px-3 py-4 text-sm text-[var(--mc-text-muted)] md:flex md:items-center md:justify-center">
+                  播放器已移到批量預覽面板。
+                </div>
+              ) : (
+                playerPanelNode
+              )}
 
               <AnswerPanel
                 title={TEXT.answer}
@@ -1386,6 +1628,9 @@ const CollectionEditPage = () => {
                 onChange={(value) => {
                   updateSelectedAnswerText(value);
                 }}
+                actionLabel="AI 快速補答案"
+                actionDisabled={playlistItems.length === 0}
+                onActionClick={openAiBatchModal}
               />
             </div>
 
@@ -1441,6 +1686,11 @@ const CollectionEditPage = () => {
                   (e.target as HTMLInputElement).blur();
                 }
               }}
+              actionLabel="一鍵套用播放區間"
+              actionDisabled={
+                playlistItems.length === 0 || isReadOnly || bulkPlaybackApplying
+              }
+              onActionClick={() => setBulkPlaybackOpen(true)}
             />
           </div>
         </div>
@@ -1480,6 +1730,24 @@ const CollectionEditPage = () => {
         aiBatchSaveStepLabel={aiBatchSaveStepLabel}
         onRetryAiBatchWrite={handleRetryAiBatchWrite}
         onBackToPreview={resetAiBatchWriteState}
+      />
+
+      <BulkPlaybackRangeDrawer
+        open={bulkPlaybackOpen}
+        draft={bulkPlaybackDraft}
+        itemsCount={playlistItems.length}
+        previewItems={bulkPlaybackPreviewItems}
+        affectedItems={bulkPlaybackAffectedItems}
+        canApply={canApplyBulkPlayback && !isReadOnly}
+        isApplying={bulkPlaybackApplying}
+        applyProgress={bulkPlaybackProgress}
+        applyLabel="套用並寫入資料庫"
+        previewContent={drawerPlayerPanelNode}
+        formatSeconds={formatSeconds}
+        onClose={closeBulkPlaybackDrawer}
+        onDraftChange={setBulkPlaybackDraft}
+        onPreviewItem={handleBulkPlaybackPreviewItem}
+        onApply={handleApplyBulkPlayback}
       />
 
       {autoSaveNotice && (

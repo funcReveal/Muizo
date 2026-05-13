@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -35,8 +43,11 @@ import CollectionDuplicateDrawer from "../components/CollectionDuplicateDrawer";
 import CollectionClearPlaylistDialog from "../components/CollectionClearPlaylistDialog";
 import CollectionItemLimitDialog from "../components/CollectionItemLimitDialog";
 import CollectionCreateProgressOverlay from "../components/CollectionCreateProgressOverlay";
+import BulkPlaybackRangeDrawer from "../../shared/components/BulkPlaybackRangeDrawer";
+import CollectionEditAiBatchDrawer from "../../edit/components/ai/CollectionEditAiBatchDrawer";
 import { useCollectionCreateDraft } from "../hooks/useCollectionCreateDraft";
 import { useCollectionCreateSubmit } from "../hooks/useCollectionCreateSubmit";
+import { useCollectionEditAiBatch } from "../../edit/hooks/useCollectionEditAiBatch";
 import { useCollectionCreateImportSources } from "../hooks/useCollectionCreateImportSources";
 import { useEditableCollectionTitle } from "../hooks/useEditableCollectionTitle";
 import { useCollectionCreateAutoImport } from "../hooks/useCollectionCreateAutoImport";
@@ -48,6 +59,18 @@ import {
   dedupePlaylistItems,
   type DraftPlaylistItem,
 } from "../utils/createCollectionImport";
+import {
+  buildBulkPlaybackPreviewItems,
+  DEFAULT_BULK_PLAYBACK_DRAFT,
+  type BulkPlaybackDraft,
+} from "../../shared/model/bulkPlaybackRange";
+import {
+  formatSeconds,
+  parseDurationToSeconds,
+  parseTimeInput,
+  createLocalId,
+} from "../../edit/utils/editUtils";
+import type { EditableItem } from "../../edit/utils/editTypes";
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
@@ -116,6 +139,29 @@ const CollectionCreatePage = () => {
   const [clearPlaylistDialogOpen, setClearPlaylistDialogOpen] = useState(false);
   const [pendingRemoveItem, setPendingRemoveItem] =
     useState<DraftPlaylistItem | null>(null);
+  const [draftBatchEdits, setDraftBatchEdits] = useState<
+    Record<
+      string,
+      {
+        startSec?: number;
+        endSec?: number;
+        answerText?: string;
+        answerStatus?: EditableItem["answerStatus"];
+        answerAiProvider?: EditableItem["answerAiProvider"];
+        answerAiUpdatedAt?: number | null;
+        answerAiBatchKey?: string | null;
+      }
+    >
+  >({});
+  const [bulkPlaybackOpen, setBulkPlaybackOpen] = useState(false);
+  const [bulkPlaybackDraft, setBulkPlaybackDraft] =
+    useState<BulkPlaybackDraft>(DEFAULT_BULK_PLAYBACK_DRAFT);
+  const [bulkPlaybackApplying, setBulkPlaybackApplying] = useState(false);
+  const [bulkPlaybackProgress, setBulkPlaybackProgress] = useState<{
+    completed: number;
+    total: number;
+    label?: string;
+  } | null>(null);
 
   const [skipRemoveItemConfirm, setSkipRemoveItemConfirm] = useState(false);
   const [pendingSkipRemoveItemConfirm, setPendingSkipRemoveItemConfirm] =
@@ -189,6 +235,204 @@ const CollectionCreatePage = () => {
     playlistItems: importedPlaylistItems,
     collectionItemLimit,
     longDurationThresholdSec: LONG_DURATION_THRESHOLD_SEC,
+  });
+
+  const decorateDraftItem = useCallback(
+    (item: DraftPlaylistItem): DraftPlaylistItem => ({
+      ...item,
+      ...draftBatchEdits[item.draftKey],
+    }),
+    [draftBatchEdits],
+  );
+
+  const batchEditedDraftPlaylistItems =
+    draftPlaylistItems.map(decorateDraftItem);
+
+  const batchEditedNormalDraftPlaylistItems =
+    normalDraftPlaylistItems.map(decorateDraftItem);
+
+  const batchEditedLongDraftPlaylistItems =
+    longDraftPlaylistItems.map(decorateDraftItem);
+
+  const bulkPlaybackPreviewItems = useMemo(
+    () =>
+      buildBulkPlaybackPreviewItems({
+        items: batchEditedDraftPlaylistItems.map((item) => ({
+          ...item,
+          id: item.draftKey,
+        })),
+        draft: bulkPlaybackDraft,
+        parseDurationToSeconds,
+        parseTimeInput,
+      }),
+    [batchEditedDraftPlaylistItems, bulkPlaybackDraft],
+  );
+
+  const bulkPlaybackAffectedItems = useMemo(
+    () => bulkPlaybackPreviewItems.filter((item) => item.isShortened),
+    [bulkPlaybackPreviewItems],
+  );
+
+  const handleApplyCreateBulkPlayback = useCallback(async () => {
+    if (bulkPlaybackApplying) return;
+    const previewById = new Map(
+      bulkPlaybackPreviewItems.map((item) => [item.id, item]),
+    );
+
+    const changedItems = batchEditedDraftPlaylistItems.filter((item) => {
+      const preview = previewById.get(item.draftKey);
+      return Boolean(
+        preview &&
+          (item.startSec !== preview.startSec || item.endSec !== preview.endSec),
+      );
+    });
+
+    if (changedItems.length <= 0) {
+      setBulkPlaybackOpen(false);
+      return;
+    }
+
+    setBulkPlaybackApplying(true);
+    setBulkPlaybackProgress({
+      completed: 0,
+      total: changedItems.length,
+      label: "正在套用播放區間",
+    });
+
+    for (let start = 0; start < changedItems.length; start += 80) {
+      const batch = changedItems.slice(start, start + 80);
+      setDraftBatchEdits((prev) => {
+        const next = { ...prev };
+        batch.forEach((item) => {
+          const preview = previewById.get(item.draftKey);
+          if (!preview) return;
+          next[item.draftKey] = {
+            ...next[item.draftKey],
+            startSec: preview.startSec,
+            endSec: preview.endSec,
+          };
+        });
+        return next;
+      });
+      setBulkPlaybackProgress({
+        completed: Math.min(start + batch.length, changedItems.length),
+        total: changedItems.length,
+        label: "正在套用播放區間",
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    }
+
+    setBulkPlaybackApplying(false);
+    setBulkPlaybackProgress(null);
+    setBulkPlaybackOpen(false);
+  }, [
+    batchEditedDraftPlaylistItems,
+    bulkPlaybackApplying,
+    bulkPlaybackPreviewItems,
+  ]);
+
+  const createAiEditableItems = useMemo<EditableItem[]>(
+    () =>
+      batchEditedDraftPlaylistItems.map((item) => {
+        const durationSec =
+          parseDurationToSeconds(item.duration) ?? item.durationSec ?? 30;
+        const safeDuration = Math.max(1, durationSec);
+        const startSec = Math.min(
+          Math.max(0, Math.floor(item.startSec ?? 0)),
+          safeDuration - 1,
+        );
+        const endSec = Math.min(
+          safeDuration,
+          Math.max(
+            startSec + 1,
+            Math.floor(item.endSec ?? Math.min(30, safeDuration)),
+          ),
+        );
+
+        return {
+          ...item,
+          localId: item.draftKey || createLocalId(),
+          title: item.title || item.answerText || "Untitled",
+          url: item.url ?? "",
+          channelId: item.channelId ?? undefined,
+          startSec,
+          endSec,
+          answerText: item.answerText || item.title || "Untitled",
+          answerStatus: item.answerStatus ?? "original",
+          answerAiProvider: item.answerAiProvider ?? null,
+          answerAiUpdatedAt: item.answerAiUpdatedAt ?? null,
+          answerAiBatchKey: item.answerAiBatchKey ?? null,
+        };
+      }),
+    [batchEditedDraftPlaylistItems],
+  );
+
+  const setCreateAiEditableItems = useCallback<
+    Dispatch<SetStateAction<EditableItem[]>>
+  >(
+    (action) => {
+      const nextItems =
+        typeof action === "function" ? action(createAiEditableItems) : action;
+
+      setDraftBatchEdits((prev) => {
+        const next = { ...prev };
+        nextItems.forEach((item) => {
+          next[item.localId] = {
+            ...next[item.localId],
+            answerText: item.answerText,
+            answerStatus: item.answerStatus,
+            answerAiProvider: item.answerAiProvider,
+            answerAiUpdatedAt: item.answerAiUpdatedAt,
+            answerAiBatchKey: item.answerAiBatchKey,
+          };
+        });
+        return next;
+      });
+    },
+    [createAiEditableItems],
+  );
+
+  const {
+    aiProviderLabel,
+    aiBatchModalOpen,
+    openAiBatchModal,
+    closeAiBatchModal,
+    aiBatchPageIndex,
+    setAiBatchPageIndex,
+    aiJsonDrafts,
+    aiAppliedPages,
+    aiAppliedBatchRecords,
+    currentAiJsonDraft,
+    setCurrentAiJsonDraft,
+    aiBatchWriteState,
+    resetAiBatchWriteState,
+    aiPromptPages,
+    aiPromptSettings,
+    updateAiPromptSettings,
+    updateAiSplitField,
+    addAiSplitField,
+    removeAiSplitField,
+    reorderAiSplitField,
+    aiPromptText,
+    aiParsedResult,
+    aiPreview,
+    aiPageStatuses,
+    canApplyAiBatch,
+    pendingAiBatchSave,
+    canCloseAiBatchModal,
+    aiBatchSaveProgressLabel,
+    aiBatchSaveStepLabel,
+    handleCopyAiPrompt,
+    handleOpenAiAssistant,
+    handleApplyAiBatch,
+    handleRetryAiBatchWrite,
+  } = useCollectionEditAiBatch({
+    playlistItems: createAiEditableItems,
+    setPlaylistItems: setCreateAiEditableItems,
+    markDirty: () => undefined,
+    markItemsDirty: () => undefined,
+    handleSaveCollection: async () => true,
+    saveError: null,
   });
 
   const trimmedPlaylistUrl = playlistUrl.trim();
@@ -270,7 +514,7 @@ const CollectionCreatePage = () => {
     collectionTitle,
     collectionDescription,
     visibility: effectiveVisibility,
-    draftPlaylistItems,
+    draftPlaylistItems: batchEditedDraftPlaylistItems,
     reachedCollectionLimit,
     reachedPrivateCollectionLimit,
     maxCollectionsPerUser: MAX_COLLECTIONS_PER_USER,
@@ -297,10 +541,10 @@ const CollectionCreatePage = () => {
 
     return {
       title: effectiveCollectionTitle || t("review.untitledCollection"),
-      count: draftPlaylistItems.length,
+      count: batchEditedDraftPlaylistItems.length,
     };
   }, [
-    draftPlaylistItems.length,
+    batchEditedDraftPlaylistItems.length,
     effectiveCollectionTitle,
     hasDraftPlaylistItems,
     t,
@@ -675,8 +919,10 @@ const CollectionCreatePage = () => {
                     isAdmin={isAdmin}
                     collectionItemLimit={collectionItemLimit}
                     importSources={importSources}
-                    normalDraftPlaylistItems={normalDraftPlaylistItems}
-                    longDraftPlaylistItems={longDraftPlaylistItems}
+                    normalDraftPlaylistItems={
+                      batchEditedNormalDraftPlaylistItems
+                    }
+                    longDraftPlaylistItems={batchEditedLongDraftPlaylistItems}
                     removedImportItems={removedDraftPlaylistItems}
                     removedImportItemCount={removedImportItemCount}
                     onRemoveImportSource={removeImportSource}
@@ -691,6 +937,8 @@ const CollectionCreatePage = () => {
                     onOpenPlaylistIssueDialog={() => {
                       setPlaylistIssueDrawerOpen(true);
                     }}
+                    onOpenBulkPlayback={() => setBulkPlaybackOpen(true)}
+                    onOpenAiBatch={openAiBatchModal}
                   />
                 )}
 
@@ -712,8 +960,8 @@ const CollectionCreatePage = () => {
                     maxPrivateCollectionsPerUser={
                       MAX_PRIVATE_COLLECTIONS_PER_USER
                     }
-                    readyItems={draftPlaylistItems.length}
-                    longItems={longDraftPlaylistItems.length}
+                    readyItems={batchEditedDraftPlaylistItems.length}
+                    longItems={batchEditedLongDraftPlaylistItems.length}
                     skippedItems={playlistIssueTotal}
                     removedDuplicateCount={removedDuplicateCount}
                     isDraftOverflow={isDraftOverflow}
@@ -738,8 +986,8 @@ const CollectionCreatePage = () => {
                   totalImportedItems={totalImportedItemCount}
                   selectedItems={importedPlaylistItems.length}
                   removedItems={removedImportItemCount}
-                  readyItems={draftPlaylistItems.length}
-                  longItems={longDraftPlaylistItems.length}
+                  readyItems={batchEditedDraftPlaylistItems.length}
+                  longItems={batchEditedLongDraftPlaylistItems.length}
                   removedDuplicateCount={removedDuplicateCount}
                   skippedCount={playlistIssueTotal}
                   isDraftOverflow={isDraftOverflow}
@@ -889,6 +1137,60 @@ const CollectionCreatePage = () => {
           onReselectSuggested={handleReselectOverflowItems}
           onSelectLongOnly={handleSelectLongTracksOnly}
           onClearSelection={handleClearRemovalSelection}
+        />
+
+        <BulkPlaybackRangeDrawer
+          open={bulkPlaybackOpen}
+          draft={bulkPlaybackDraft}
+          itemsCount={batchEditedDraftPlaylistItems.length}
+          previewItems={bulkPlaybackPreviewItems}
+          affectedItems={bulkPlaybackAffectedItems}
+          canApply={batchEditedDraftPlaylistItems.length > 0}
+          isApplying={bulkPlaybackApplying}
+          applyProgress={bulkPlaybackProgress}
+          applyLabel="套用到建立清單"
+          formatSeconds={formatSeconds}
+          onClose={() => {
+            if (!bulkPlaybackApplying) setBulkPlaybackOpen(false);
+          }}
+          onDraftChange={setBulkPlaybackDraft}
+          onApply={handleApplyCreateBulkPlayback}
+        />
+
+        <CollectionEditAiBatchDrawer
+          open={aiBatchModalOpen}
+          onClose={closeAiBatchModal}
+          aiProviderLabel={aiProviderLabel}
+          playlistItemsCount={createAiEditableItems.length}
+          aiPromptPages={aiPromptPages}
+          aiBatchPageIndex={aiBatchPageIndex}
+          onAiBatchPageChange={setAiBatchPageIndex}
+          aiJsonDrafts={aiJsonDrafts}
+          aiAppliedPages={aiAppliedPages}
+          aiAppliedBatchRecords={aiAppliedBatchRecords}
+          currentAiJsonDraft={currentAiJsonDraft}
+          onCurrentAiJsonDraftChange={setCurrentAiJsonDraft}
+          aiParsedResult={aiParsedResult}
+          aiPreview={aiPreview}
+          aiPageStatuses={aiPageStatuses}
+          aiPromptSettings={aiPromptSettings}
+          onAiPromptSettingsChange={updateAiPromptSettings}
+          onAiSplitFieldChange={updateAiSplitField}
+          onAddAiSplitField={addAiSplitField}
+          onRemoveAiSplitField={removeAiSplitField}
+          onReorderAiSplitField={reorderAiSplitField}
+          aiPromptText={aiPromptText}
+          onCopyAiPrompt={handleCopyAiPrompt}
+          onOpenAiAssistant={handleOpenAiAssistant}
+          canApplyAiBatch={canApplyAiBatch}
+          onApplyAiBatch={handleApplyAiBatch}
+          aiBatchWriteState={aiBatchWriteState}
+          pendingAiBatchSave={pendingAiBatchSave}
+          canCloseAiBatchModal={canCloseAiBatchModal}
+          aiBatchSaveProgressLabel={aiBatchSaveProgressLabel}
+          aiBatchSaveStepLabel={aiBatchSaveStepLabel}
+          onRetryAiBatchWrite={handleRetryAiBatchWrite}
+          onBackToPreview={resetAiBatchWriteState}
         />
       </Box>
     </Box>

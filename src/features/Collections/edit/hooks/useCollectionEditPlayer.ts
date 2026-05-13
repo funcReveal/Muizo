@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   EDIT_AUTOPLAY_STORAGE_KEY,
   EDIT_LOOP_STORAGE_KEY,
@@ -32,14 +32,22 @@ export function useCollectionEditPlayer({
   effectiveEnd,
   onDurationResolved,
 }: UseCollectionEditPlayerArgs) {
-  const playerContainerRef = useRef<HTMLDivElement | null>(null);
+  const [playerViewportElement, setPlayerViewportElement] =
+    useState<HTMLDivElement | null>(null);
+  const [playerMountVersion, setPlayerMountVersion] = useState(0);
+  const playerShellRef = useRef<HTMLDivElement | null>(null);
+  const playerMountElementRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YTPlayer | null>(null);
   const currentVideoItemIdRef = useRef<string | null>(null);
+  const selectedVideoIdRef = useRef<string | null>(selectedVideoId);
   const playRequestedRef = useRef(false);
   const shouldSeekToStartRef = useRef(false);
   const selectedStartRef = useRef(0);
+  const clipStartRef = useRef(startSec);
   const pendingAutoStartRef = useRef<number | null>(null);
+  const pendingPreviewStartRef = useRef<number | null>(null);
   const autoPlaySeekedRef = useRef(false);
+  const playbackStartAppliedRef = useRef(false);
   const progressRafRef = useRef<number | null>(null);
 
   const [playerReadyState, setPlayerReadyState] = useState(false);
@@ -92,6 +100,58 @@ export function useCollectionEditPlayer({
   const [currentTimeSec, setCurrentTimeSec] = useState(0);
 
   useEffect(() => {
+    selectedVideoIdRef.current = selectedVideoId;
+  }, [selectedVideoId]);
+
+  const ensurePlayerHost = useCallback(() => {
+    if (playerShellRef.current || typeof document === "undefined") {
+      return;
+    }
+    const shell = document.createElement("div");
+    const mount = document.createElement("div");
+    shell.dataset.muizoYoutubePlayerHost = "true";
+    shell.style.width = "100%";
+    shell.style.height = "100%";
+    shell.style.overflow = "hidden";
+    shell.style.background = "#0f172a";
+    mount.style.width = "100%";
+    mount.style.height = "100%";
+    shell.appendChild(mount);
+
+    playerShellRef.current = shell;
+    playerMountElementRef.current = mount;
+    setPlayerMountVersion((version) => version + 1);
+  }, []);
+
+  const playerContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node) {
+        ensurePlayerHost();
+      }
+      setPlayerViewportElement(node);
+    },
+    [ensurePlayerHost],
+  );
+
+  useEffect(() => {
+    return () => {
+      playerRef.current?.destroy();
+      playerRef.current = null;
+      playerShellRef.current = null;
+      playerMountElementRef.current = null;
+      document
+        .querySelectorAll("[data-muizo-youtube-player-host='true']")
+        .forEach((node) => node.remove());
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const shell = playerShellRef.current;
+    if (!shell || !playerViewportElement || !selectedVideoId) return;
+    playerViewportElement.replaceChildren(shell);
+  }, [playerViewportElement, selectedVideoId]);
+
+  useEffect(() => {
     autoPlayRef.current = autoPlayOnSwitch;
   }, [autoPlayOnSwitch]);
 
@@ -108,16 +168,72 @@ export function useCollectionEditPlayer({
   }, [isPlayingState]);
 
   useEffect(() => {
+    clipStartRef.current = startSec;
+  }, [startSec]);
+
+  const resolvePlaybackStartSec = useCallback((explicitStart?: number) => {
+    if (typeof explicitStart === "number" && Number.isFinite(explicitStart)) {
+      return explicitStart;
+    }
+
+    const pendingStart = pendingAutoStartRef.current;
+    if (pendingStart !== null && Number.isFinite(pendingStart)) {
+      pendingAutoStartRef.current = null;
+      return pendingStart;
+    }
+
+    if (shouldSeekToStartRef.current) {
+      shouldSeekToStartRef.current = false;
+      return selectedStartRef.current;
+    }
+
+    return clipStartRef.current;
+  }, []);
+
+  const playFromConfiguredStart = useCallback(
+    (player: YTPlayer, explicitStart?: number) => {
+      const nextStart = resolvePlaybackStartSec(explicitStart);
+      selectedStartRef.current = nextStart;
+      setCurrentTimeSec(nextStart);
+      playbackStartAppliedRef.current = false;
+
+      if (selectedVideoId) {
+        player.loadVideoById?.({
+          videoId: selectedVideoId,
+          startSeconds: Math.floor(nextStart),
+        });
+      } else {
+        player.seekTo?.(nextStart, true);
+        player.playVideo?.();
+      }
+
+      return nextStart;
+    },
+    [resolvePlaybackStartSec, selectedVideoId],
+  );
+
+  useEffect(() => {
     if (!selectedItemLocalId) {
       currentVideoItemIdRef.current = null;
       return;
     }
 
+    const pendingPreviewStart = pendingPreviewStartRef.current;
+    const nextStart =
+      pendingPreviewStart !== null && Number.isFinite(pendingPreviewStart)
+        ? pendingPreviewStart
+        : selectedItemStartSec;
+
     currentVideoItemIdRef.current = selectedItemLocalId;
-    selectedStartRef.current = selectedItemStartSec;
-    pendingAutoStartRef.current = selectedItemStartSec;
+    selectedStartRef.current = nextStart;
+    pendingAutoStartRef.current = nextStart;
+    if (pendingPreviewStart !== null) {
+      playRequestedRef.current = true;
+      pendingPreviewStartRef.current = null;
+    }
     shouldSeekToStartRef.current = true;
     autoPlaySeekedRef.current = false;
+    playbackStartAppliedRef.current = false;
   }, [selectedItemLocalId, selectedItemStartSec]);
 
   useEffect(() => {
@@ -163,8 +279,9 @@ export function useCollectionEditPlayer({
 
   useEffect(() => {
     if (!ytReady || itemsLoading || collectionsLoading) return;
+    const playerMountElement = playerMountElementRef.current;
 
-    if (!selectedVideoId || !playerContainerRef.current) {
+    if (!selectedVideoId || !playerMountElement) {
       if (playerRef.current) {
         playerRef.current.destroy();
         playerRef.current = null;
@@ -172,7 +289,7 @@ export function useCollectionEditPlayer({
       return;
     }
 
-    playRequestedRef.current = autoPlayRef.current;
+    playRequestedRef.current = playRequestedRef.current || autoPlayRef.current;
 
     if (playerRef.current) {
       playerRef.current.destroy();
@@ -182,7 +299,13 @@ export function useCollectionEditPlayer({
     const yt = window.YT;
     if (!yt?.Player) return;
 
-    const player = new yt.Player(playerContainerRef.current, {
+    let active = true;
+    const mount = document.createElement("div");
+    mount.style.width = "100%";
+    mount.style.height = "100%";
+    playerMountElement.replaceChildren(mount);
+
+    const player = new yt.Player(mount, {
       videoId: selectedVideoId,
       playerVars: {
         autoplay: 0,
@@ -193,13 +316,14 @@ export function useCollectionEditPlayer({
       },
       events: {
         onReady: (event: YTPlayerEvent) => {
+          if (!active) return;
           setPlayerReadyState(true);
           setReadyVideoId(selectedVideoId);
           setCurrentTimeSec(selectedStartRef.current);
           event.target.setVolume?.(isMutedRef.current ? 0 : volumeRef.current);
 
           const initialStart = Math.floor(selectedStartRef.current);
-          if (autoPlayRef.current) {
+          if (autoPlayRef.current || playRequestedRef.current) {
             playRequestedRef.current = true;
             event.target.loadVideoById?.({
               videoId: selectedVideoId,
@@ -225,6 +349,7 @@ export function useCollectionEditPlayer({
           const boundItemId = currentVideoItemIdRef.current;
           let attempts = 0;
           const trySync = () => {
+            if (!active) return;
             const duration = event.target.getDuration?.();
             if (duration && duration > 0) {
               onDurationResolved(duration, boundItemId);
@@ -239,24 +364,28 @@ export function useCollectionEditPlayer({
         },
 
         onStateChange: (event: YTPlayerStateEvent) => {
+          if (!active) return;
           const state = window.YT?.PlayerState;
           if (!state) return;
 
           if (event.data === state.PLAYING) {
             playRequestedRef.current = true;
 
-            if (autoPlayRef.current && !autoPlaySeekedRef.current) {
+            if (!playbackStartAppliedRef.current) {
               const targetStart = selectedStartRef.current;
               const current = event.target.getCurrentTime?.();
 
               if (
                 typeof current === "number" &&
-                targetStart > 0 &&
-                current < targetStart - 0.2
+                Math.abs(current - targetStart) > 0.3
               ) {
                 event.target.seekTo?.(targetStart, true);
-                autoPlaySeekedRef.current = true;
               }
+              setCurrentTimeSec(targetStart);
+              playbackStartAppliedRef.current = true;
+              autoPlaySeekedRef.current = true;
+            } else if (autoPlayRef.current && !autoPlaySeekedRef.current) {
+              autoPlaySeekedRef.current = true;
             }
 
             setIsPlayingState(true);
@@ -265,6 +394,7 @@ export function useCollectionEditPlayer({
             event.data === state.ENDED
           ) {
             playRequestedRef.current = false;
+            playbackStartAppliedRef.current = false;
             setIsPlayingState(false);
           }
         },
@@ -274,15 +404,20 @@ export function useCollectionEditPlayer({
     playerRef.current = player;
 
     return () => {
-      if (playerRef.current) {
-        playerRef.current.destroy();
+      active = false;
+      player.destroy();
+      if (playerRef.current === player) {
         playerRef.current = null;
       }
+      setPlayerReadyState(false);
+      setReadyVideoId(null);
+      setIsPlayingState(false);
     };
   }, [
     collectionsLoading,
     itemsLoading,
     onDurationResolved,
+    playerMountVersion,
     selectedVideoId,
     ytReady,
   ]);
@@ -380,21 +515,10 @@ export function useCollectionEditPlayer({
 
     playRequestedRef.current = true;
 
-    if (shouldSeekToStartRef.current) {
-      shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(selectedStartRef.current, true);
-    }
-
-    if (pendingAutoStartRef.current !== null) {
-      const pendingStart = pendingAutoStartRef.current;
-      pendingAutoStartRef.current = null;
-      playerRef.current.seekTo?.(pendingStart, true);
-    }
-
     if (!isPlayingRef.current) {
-      playerRef.current.playVideo?.();
+      playFromConfiguredStart(playerRef.current);
     }
-  }, [isPlayerReady, selectedItemLocalId]);
+  }, [isPlayerReady, playFromConfiguredStart, selectedItemLocalId]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
@@ -444,20 +568,39 @@ export function useCollectionEditPlayer({
     };
   }, [effectiveEnd, isPlayerReady, isPlaying, loopEnabled, startSec]);
 
+  const queuePreviewFromStart = useCallback((sec: number) => {
+    selectedStartRef.current = sec;
+    pendingAutoStartRef.current = sec;
+    pendingPreviewStartRef.current = sec;
+    playRequestedRef.current = true;
+    setCurrentTimeSec(sec);
+  }, []);
+
+  const preparePlaybackStart = useCallback((sec: number) => {
+    selectedStartRef.current = sec;
+    pendingAutoStartRef.current = sec;
+    pendingPreviewStartRef.current = null;
+    shouldSeekToStartRef.current = true;
+    playRequestedRef.current = false;
+    playbackStartAppliedRef.current = false;
+    setCurrentTimeSec(sec);
+  }, []);
+
   const previewFromStart = useCallback(
     (sec: number) => {
       selectedStartRef.current = sec;
       pendingAutoStartRef.current = sec;
+      pendingPreviewStartRef.current = sec;
+      playRequestedRef.current = true;
       setCurrentTimeSec(sec);
 
       if (!playerRef.current || !isPlayerReady) return;
 
-      playRequestedRef.current = true;
+      pendingPreviewStartRef.current = null;
       shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(sec, true);
-      playerRef.current.playVideo?.();
+      playFromConfiguredStart(playerRef.current, sec);
     },
-    [isPlayerReady],
+    [isPlayerReady, playFromConfiguredStart],
   );
 
   const previewBeforeEnd = useCallback(
@@ -469,10 +612,9 @@ export function useCollectionEditPlayer({
 
       playRequestedRef.current = true;
       shouldSeekToStartRef.current = false;
-      playerRef.current.seekTo?.(previewStart, true);
-      playerRef.current.playVideo?.();
+      playFromConfiguredStart(playerRef.current, previewStart);
     },
-    [isPlayerReady],
+    [isPlayerReady, playFromConfiguredStart],
   );
 
   const togglePlayback = useCallback(() => {
@@ -485,16 +627,45 @@ export function useCollectionEditPlayer({
     if (playingState !== undefined && state === playingState) {
       player.pauseVideo?.();
       playRequestedRef.current = false;
+      playbackStartAppliedRef.current = false;
     } else {
       playRequestedRef.current = true;
+      playFromConfiguredStart(player);
+    }
+  }, [playFromConfiguredStart]);
 
-      if (shouldSeekToStartRef.current) {
-        shouldSeekToStartRef.current = false;
-        player.seekTo?.(selectedStartRef.current, true);
+  useEffect(() => {
+    const handleSpaceToggle = (event: KeyboardEvent) => {
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (event.defaultPrevented || event.repeat) return;
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName.toLowerCase();
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
       }
 
-      player.playVideo?.();
-    }
+      if (!selectedVideoIdRef.current) return;
+      event.preventDefault();
+      togglePlayback();
+    };
+
+    window.addEventListener("keydown", handleSpaceToggle);
+    return () => window.removeEventListener("keydown", handleSpaceToggle);
+  }, [togglePlayback]);
+
+  const pausePlayback = useCallback(() => {
+    const player = playerRef.current;
+    playRequestedRef.current = false;
+    playbackStartAppliedRef.current = false;
+    if (!player) return;
+    player.pauseVideo?.();
+    setIsPlayingState(false);
   }, []);
 
   const handleVolumeChange = useCallback((value: number) => {
@@ -632,6 +803,7 @@ export function useCollectionEditPlayer({
     loopEnabled,
     currentTimeSec: resolvedCurrentTimeSec,
     setCurrentTimeSec,
+    pausePlayback,
     togglePlayback,
     handleVolumeChange,
     handleVolumeCommit,
@@ -640,6 +812,8 @@ export function useCollectionEditPlayer({
     handleLoopToggle,
     handleProgressChange,
     getPlayerCurrentTimeSec,
+    preparePlaybackStart,
+    queuePreviewFromStart,
     previewFromStart,
     previewBeforeEnd,
   };

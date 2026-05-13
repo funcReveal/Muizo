@@ -147,7 +147,15 @@ export function useCollectionCreateSubmit({
         const durationSec =
           parseDurationToSeconds(item.duration) ?? DEFAULT_DURATION_SEC;
         const safeDuration = Math.max(1, durationSec);
-        const endSec = Math.min(DEFAULT_DURATION_SEC, safeDuration);
+        const defaultEndSec = Math.min(DEFAULT_DURATION_SEC, safeDuration);
+        const startSec = Math.min(
+          Math.max(0, Math.floor(item.startSec ?? 0)),
+          safeDuration - 1,
+        );
+        const endSec = Math.min(
+          safeDuration,
+          Math.max(startSec + 1, Math.floor(item.endSec ?? defaultEndSec)),
+        );
         const id = createServerId();
         const videoId = extractVideoId(item.url ?? "");
         const provider = videoId ? "youtube" : "manual";
@@ -161,9 +169,17 @@ export function useCollectionCreateSubmit({
           title: item.title || item.answerText || "Untitled",
           channel_title: item.uploader ?? null,
           channel_id: item.channelId ?? null,
-          start_sec: 0,
-          end_sec: Math.max(1, endSec),
+          start_sec: startSec,
+          end_sec: endSec,
           answer_text: item.answerText || item.title || "Untitled",
+          answer_status: item.answerStatus ?? "original",
+          answer_ai_provider: item.answerAiProvider ?? null,
+          answer_ai_updated_at:
+            item.answerAiUpdatedAt !== null &&
+            item.answerAiUpdatedAt !== undefined
+              ? new Date(item.answerAiUpdatedAt * 1000).toISOString()
+              : null,
+          answer_ai_batch_key: item.answerAiBatchKey ?? null,
           ...(durationSec ? { duration_sec: durationSec } : {}),
         };
       });

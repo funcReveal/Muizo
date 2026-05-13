@@ -4,7 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type RefObject,
+  type Ref,
 } from "react";
 import {
   Bolt,
@@ -42,6 +42,7 @@ type PlayerPanelProps = {
   autoPlayOnSwitch: boolean;
   onAutoPlayChange: (value: boolean) => void;
   autoPlayLabel: string;
+  showAutoPlayControl?: boolean;
   loopEnabled: boolean;
   onLoopChange: (value: boolean) => void;
   loopLabel: string;
@@ -49,7 +50,7 @@ type PlayerPanelProps = {
   pauseLabel: string;
   volumeLabel: string;
   noSelectionLabel: string;
-  playerContainerRef: RefObject<HTMLDivElement | null>;
+  playerContainerRef: Ref<HTMLDivElement>;
   thumbnail?: string;
 };
 
@@ -79,6 +80,7 @@ const PlayerPanel = ({
   autoPlayOnSwitch,
   onAutoPlayChange,
   autoPlayLabel,
+  showAutoPlayControl = true,
   loopEnabled,
   onLoopChange,
   loopLabel,
@@ -369,11 +371,7 @@ const PlayerPanel = ({
       const observed = getPlayerCurrentTimeSec?.();
       if (typeof observed === "number" && Number.isFinite(observed)) {
         const clamped = clampTime(observed);
-        // Enforce monotonic time to avoid flicker from transient time regressions.
-        progressEstimatedTimeRef.current = Math.max(
-          progressEstimatedTimeRef.current,
-          clamped,
-        );
+        progressEstimatedTimeRef.current = clamped;
         progressLastFrameTsRef.current = now;
       } else {
         // Advance in small steps to avoid one-frame jumps after a long frame.
@@ -520,19 +518,21 @@ const PlayerPanel = ({
             <PlayArrow fontSize="small" />
           )}
         </button>
-        <button
-          type="button"
-          onClick={() => onAutoPlayChange(!autoPlayOnSwitch)}
-          aria-pressed={autoPlayOnSwitch}
-          title={autoPlayLabel}
-          className={`flex h-7 w-7 items-center justify-center rounded-full border text-slate-100 transition ${
-            autoPlayOnSwitch
-              ? "border-emerald-400/70 bg-emerald-400/15"
-              : "border-slate-700 bg-slate-900/80"
-          } hover:border-emerald-300`}
-        >
-          <Bolt fontSize="small" />
-        </button>
+        {showAutoPlayControl ? (
+          <button
+            type="button"
+            onClick={() => onAutoPlayChange(!autoPlayOnSwitch)}
+            aria-pressed={autoPlayOnSwitch}
+            title={autoPlayLabel}
+            className={`flex h-7 w-7 items-center justify-center rounded-full border text-slate-100 transition ${
+              autoPlayOnSwitch
+                ? "border-emerald-400/70 bg-emerald-400/15"
+                : "border-slate-700 bg-slate-900/80"
+            } hover:border-emerald-300`}
+          >
+            <Bolt fontSize="small" />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onLoopChange(!loopEnabled)}

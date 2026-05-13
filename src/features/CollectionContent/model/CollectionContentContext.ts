@@ -15,9 +15,9 @@ export type CollectionEntry = {
   playable_item_count?: number | null;
   readToken?: string | null;
   use_count?: number;
-  favorite_count?: number;
-  rating_count?: number;
-  rating_avg?: number;
+  favorite_count?: number | null;
+  rating_count?: number | null;
+  rating_avg?: number | null;
   is_favorited?: boolean;
   created_at?: number;
   updated_at?: number;

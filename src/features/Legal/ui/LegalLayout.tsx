@@ -29,7 +29,6 @@ const LegalLayout: React.FC = () => {
           onEditProfile={() => navigate("/rooms")}
           onNavigateRooms={() => navigate("/rooms")}
           onNavigateCollections={() => navigate("/collections")}
-          onNavigateHistory={() => navigate("/history")}
           onNavigateSettings={() => navigate("/settings")}
           onNavigatePrivacy={() => navigate("/privacy")}
         />

@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
-import { Switch, TextField, Tooltip } from "@mui/material";
+import { Drawer, IconButton, Switch, TextField, Tooltip } from "@mui/material";
 import ArrowBackIosNew from "@mui/icons-material/ArrowBackIosNew";
+import CloseRounded from "@mui/icons-material/CloseRounded";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import CloudDoneOutlined from "@mui/icons-material/CloudDoneOutlined";
 import CloudUploadOutlined from "@mui/icons-material/CloudUploadOutlined";
 import CloudOffOutlined from "@mui/icons-material/CloudOffOutlined";
 import SaveOutlined from "@mui/icons-material/SaveOutlined";
 import FolderOpenOutlined from "@mui/icons-material/FolderOpenOutlined";
-import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import ShareRounded from "@mui/icons-material/ShareRounded";
 
 const PUBLIC_SWITCH_ICON = encodeURIComponent(
@@ -20,8 +20,10 @@ const PRIVATE_SWITCH_ICON = encodeURIComponent(
 type EditHeaderProps = {
   title: string;
   titleDraft: string;
+  descriptionDraft: string;
   isTitleEditing: boolean;
   onTitleDraftChange: (value: string) => void;
+  onDescriptionDraftChange: (value: string) => void;
   onTitleSave: () => void;
   onTitleCancel: () => void;
   onStartEdit: () => void;
@@ -45,16 +47,16 @@ type EditHeaderProps = {
   shareCopied: boolean;
   shareDisabled: boolean;
   onCollectionButtonClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onAiBatchEditClick: () => void;
-  aiBatchDisabled: boolean;
   collectionMenuOpen: boolean;
 };
 
 const EditHeader = ({
   title,
   titleDraft,
+  descriptionDraft,
   isTitleEditing,
   onTitleDraftChange,
+  onDescriptionDraftChange,
   onTitleSave,
   onTitleCancel,
   onStartEdit,
@@ -78,12 +80,12 @@ const EditHeader = ({
   shareCopied,
   shareDisabled,
   onCollectionButtonClick,
-  onAiBatchEditClick,
-  aiBatchDisabled,
   collectionMenuOpen,
 }: EditHeaderProps) => {
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const trimmedTitleDraft = titleDraft.trim();
+  const TITLE_MAX_LENGTH = 80;
+  const DESCRIPTION_MAX_LENGTH = 500;
   const showSaved =
     !hasUnsavedChanges && !isSaving && saveStatus !== "error" && !saveError;
   const isAutoSaving = isSaving && autoSaveNotice?.type === "success";
@@ -148,81 +150,32 @@ const EditHeader = ({
             type="button"
             onClick={onBack}
             aria-label="返回收藏庫"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-xs text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-xs text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)]"
           >
             <ArrowBackIosNew fontSize="inherit" />
           </button>
-          {isTitleEditing ? (
-            <form
-              className="flex min-w-0 flex-1 items-center"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleTitleCommit();
-              }}
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={onStartEdit}
+              className="flex min-h-11 min-w-0 cursor-pointer items-center text-left"
+              aria-label="編輯收藏庫資訊"
             >
-              <TextField
-                variant="standard"
-                value={titleDraft}
-                onChange={(event) => onTitleDraftChange(event.target.value)}
-                onKeyDown={handleTitleKeyDown}
-                onBlur={handleTitleCommit}
-                inputRef={titleInputRef}
-                placeholder="請輸入收藏庫名稱"
-                className="min-w-0 flex-1"
-                sx={{
-                  "& .MuiInputBase-root": {
-                    minHeight: 44,
-                    color: "var(--mc-text)",
-                    fontSize: {
-                      xs: "1.125rem",
-                      sm: "1.25rem",
-                    },
-                    fontWeight: 600,
-                    lineHeight: 1.15,
-                  },
-                  "& .MuiInputBase-input": {
-                    padding: "8px 0 7px",
-                  },
-                  "& .MuiInput-underline:before": {
-                    borderBottomColor: "rgba(148, 163, 184, 0.35)",
-                  },
-                  "& .MuiInput-underline:after": {
-                    borderBottomColor: "rgba(251, 191, 36, 0.75)",
-                  },
-                  "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
-                    borderBottomColor: "rgba(148, 163, 184, 0.55)",
-                  },
-                  "& .MuiInputBase-input::placeholder": {
-                    color: "var(--mc-text-muted)",
-                    opacity: 1,
-                  },
-                }}
-              />
-            </form>
-          ) : (
-            <div className="flex min-w-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={onStartEdit}
-                className="flex min-h-11 min-w-0 cursor-pointer items-center text-left"
-                aria-label="編輯收藏庫名稱"
-              >
-                <h2 className="min-w-0 truncate text-lg font-semibold leading-[1.15] text-[var(--mc-text)] sm:text-xl">
-                  {title || "未命名收藏庫"}
-                </h2>
-              </button>
-              <button
-                type="button"
-                onClick={onStartEdit}
-                aria-label="編輯名稱"
-                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/40 text-xs text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/60"
-              >
-                <EditOutlined fontSize="inherit" />
-              </button>
-            </div>
-          )}
+              <h2 className="min-w-0 truncate text-lg font-semibold leading-[1.15] text-[var(--mc-text)] sm:text-xl">
+                {title || "未命名收藏庫"}
+              </h2>
+            </button>
+            <button
+              type="button"
+              onClick={onStartEdit}
+              aria-label="編輯收藏庫資訊"
+              className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-xs text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)]"
+            >
+              <EditOutlined fontSize="inherit" />
+            </button>
+          </div>
         </div>
-        <div className="inline-flex shrink-0 items-center">
+        <div className="inline-flex shrink-0 items-center gap-1.5">
           <Tooltip title={visibility === "public" ? "公開中" : "私人"}>
             <Switch
               size="small"
@@ -273,6 +226,43 @@ const EditHeader = ({
               }}
             />
           </Tooltip>
+          <span className="ml-1 text-sm font-semibold tabular-nums text-[var(--mc-text-muted)]">
+            {collectionCount}
+          </span>
+          <Tooltip title={`收藏庫 (${collectionCount})`}>
+            <button
+              type="button"
+              onClick={onCollectionButtonClick}
+              aria-label="收藏庫"
+              className={`inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)] ${
+                collectionMenuOpen ? "text-[var(--mc-accent)]" : ""
+              }`}
+            >
+              <FolderOpenOutlined fontSize="small" />
+            </button>
+          </Tooltip>
+          <Tooltip title={shareCopied ? "已複製分享連結" : "分享收藏庫"}>
+            <button
+              type="button"
+              onClick={onShare}
+              disabled={shareDisabled}
+              aria-label="分享收藏庫"
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)] disabled:cursor-not-allowed disabled:text-[var(--mc-text-muted)] disabled:opacity-45"
+            >
+              <ShareRounded fontSize="small" />
+            </button>
+          </Tooltip>
+          <Tooltip title={saveError ? `${buttonLabel}：${saveError}` : buttonLabel}>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={isSaving || isReadOnly || !hasUnsavedChanges}
+              aria-label={buttonLabel}
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)] disabled:cursor-not-allowed disabled:text-[var(--mc-text-muted)] disabled:opacity-45"
+            >
+              {buttonIcon}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -281,67 +271,131 @@ const EditHeader = ({
           <button
             type="button"
             onClick={onApplyPlaylistTitle}
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/70 px-3 py-1 text-xs text-[var(--mc-text)] transition hover:border-[var(--mc-accent)]/60"
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-[var(--mc-text-muted)] transition hover:text-[var(--mc-text)]"
           >
             套用播放清單名稱
           </button>
         </div>
       ) : null}
 
-      <div className="flex w-full flex-wrap items-center gap-2 lg:justify-end">
-        <div className="inline-flex items-center gap-2">
-          <span className="text-sm font-semibold tabular-nums text-[var(--mc-text-muted)]">
-            {collectionCount}
-          </span>
-          <Tooltip title={`收藏庫 (${collectionCount})`}>
-            <button
-              type="button"
-              onClick={onCollectionButtonClick}
-              aria-label="收藏庫"
-              className={`inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--mc-text)] transition ${
-                collectionMenuOpen
-                  ? "bg-[var(--mc-surface-strong)]/95 ring-1 ring-[var(--mc-accent)]/45"
-                  : "bg-[var(--mc-surface-strong)]/70 hover:bg-[var(--mc-surface-strong)]/90"
-              }`}
+      <Drawer
+        anchor="right"
+        open={isTitleEditing}
+        onClose={onTitleCancel}
+        slotProps={{
+          paper: {
+            sx: {
+              width: "min(420px, 100vw)",
+              background:
+                "linear-gradient(180deg, #10151d 0%, #0b1017 54%, #080b10 100%)",
+              color: "var(--mc-text)",
+              borderLeft: "1px solid rgba(148,163,184,0.22)",
+            },
+          },
+        }}
+      >
+        <form
+          className="flex h-full min-h-0 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleTitleCommit();
+          }}
+        >
+          <header className="flex items-start justify-between gap-3 border-b border-[var(--mc-border)]/80 px-5 py-4">
+            <div>
+              <div className="text-lg font-semibold text-[var(--mc-text)]">
+                編輯收藏庫資訊
+              </div>
+              <div className="mt-1 text-sm text-[var(--mc-text-muted)]">
+                調整標題與描述，方便玩家辨識題庫內容。
+              </div>
+            </div>
+            <IconButton
+              aria-label="關閉編輯收藏庫資訊"
+              onClick={onTitleCancel}
+              size="small"
+              sx={{ color: "var(--mc-text-muted)" }}
             >
-              <FolderOpenOutlined fontSize="medium" />
+              <CloseRounded fontSize="small" />
+            </IconButton>
+          </header>
+
+          <main className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <TextField
+              label="收藏庫標題"
+              value={titleDraft}
+              onChange={(event) =>
+                onTitleDraftChange(
+                  event.target.value.slice(0, TITLE_MAX_LENGTH),
+                )
+              }
+              onKeyDown={handleTitleKeyDown}
+              inputRef={titleInputRef}
+              placeholder="請輸入收藏庫名稱"
+              fullWidth
+              helperText={`${titleDraft.length}/${TITLE_MAX_LENGTH}`}
+              slotProps={{
+                htmlInput: { maxLength: TITLE_MAX_LENGTH },
+                inputLabel: { shrink: true },
+              }}
+              sx={{
+                "& .MuiInputBase-root": {
+                  color: "var(--mc-text)",
+                  backgroundColor: "var(--mc-surface-strong)",
+                  borderRadius: "0.875rem",
+                },
+                "& .MuiInputLabel-root, & .MuiFormHelperText-root": {
+                  color: "var(--mc-text-muted)",
+                },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--mc-border)",
+                },
+              }}
+            />
+            <TextField
+              label="描述"
+              value={descriptionDraft}
+              onChange={(event) =>
+                onDescriptionDraftChange(
+                  event.target.value.slice(0, DESCRIPTION_MAX_LENGTH),
+                )
+              }
+              placeholder="簡短說明這份題庫的曲風、主題或適合的遊玩場合"
+              fullWidth
+              multiline
+              minRows={5}
+              helperText={`${descriptionDraft.length}/${DESCRIPTION_MAX_LENGTH}`}
+              slotProps={{
+                htmlInput: { maxLength: DESCRIPTION_MAX_LENGTH },
+                inputLabel: { shrink: true },
+              }}
+              sx={{
+                "& .MuiInputBase-root": {
+                  color: "var(--mc-text)",
+                  backgroundColor: "var(--mc-surface-strong)",
+                  borderRadius: "0.875rem",
+                },
+                "& .MuiInputLabel-root, & .MuiFormHelperText-root": {
+                  color: "var(--mc-text-muted)",
+                },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--mc-border)",
+                },
+              }}
+            />
+          </main>
+
+          <footer className="border-t border-[var(--mc-border)]/80 px-5 py-4">
+            <button
+              type="submit"
+              disabled={!trimmedTitleDraft}
+              className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[var(--mc-accent)] px-4 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface-strong)] disabled:text-[var(--mc-text-muted)]"
+            >
+              儲存收藏庫資訊
             </button>
-          </Tooltip>
-        </div>
-        <Tooltip title={shareCopied ? "已複製分享連結" : "分享收藏庫"}>
-          <button
-            type="button"
-            onClick={onShare}
-            disabled={shareDisabled}
-            aria-label="分享收藏庫"
-            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
-          >
-            <ShareRounded fontSize="medium" />
-          </button>
-        </Tooltip>
-        <Tooltip title="AI 批次編輯">
-          <button
-            type="button"
-            onClick={onAiBatchEditClick}
-            disabled={aiBatchDisabled}
-            aria-label="AI 批次編輯"
-            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
-          >
-            <AutoFixHighOutlined fontSize="medium" />
-          </button>
-        </Tooltip>
-        <Tooltip title={saveError ? `${buttonLabel}：${saveError}` : buttonLabel}>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={isSaving || isReadOnly || !hasUnsavedChanges}
-            aria-label={buttonLabel}
-            className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--mc-surface-strong)]/70 text-[var(--mc-text)] transition hover:bg-[var(--mc-surface-strong)]/90 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface)]/40 disabled:text-[var(--mc-text-muted)] disabled:opacity-70"
-          >
-            {buttonIcon}
-          </button>
-        </Tooltip>
-      </div>
+          </footer>
+        </form>
+      </Drawer>
     </div>
   );
 };

@@ -1,4 +1,8 @@
 import { getPlaylistItemKey } from "../../edit/utils/editUtils";
+import type {
+  AnswerAiProvider,
+  AnswerStatus,
+} from "../../edit/utils/editTypes";
 import type { CollectionCreateImportSourceType } from "../hooks/useCollectionCreateImportSources";
 
 type BasePlaylistItem = {
@@ -20,6 +24,12 @@ type BasePlaylistItem = {
 export type DraftPlaylistItem = BasePlaylistItem & {
   draftKey: string;
   durationSec: number | null;
+  startSec?: number;
+  endSec?: number;
+  answerStatus?: AnswerStatus;
+  answerAiProvider?: AnswerAiProvider | null;
+  answerAiUpdatedAt?: number | null;
+  answerAiBatchKey?: string | null;
 };
 
 export type RemovedDuplicateGroup = {

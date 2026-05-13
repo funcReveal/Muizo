@@ -51,9 +51,11 @@ type UseCollectionEditorParams = {
   authPlan?: string | null;
   authExpired?: boolean;
   collectionTitle: string;
+  collectionDescription: string;
   collectionVisibility: "private" | "public";
   activeCollectionId: string | null;
   activeCollectionStoredTitle?: string | null;
+  activeCollectionStoredDescription?: string | null;
   activeCollectionStoredVisibility?: "private" | "public" | null;
   activeCollectionItemLimitOverride?: number | null;
   collectionsCount: number;
@@ -88,9 +90,11 @@ export const useCollectionEditor = ({
   authPlan,
   authExpired,
   collectionTitle,
+  collectionDescription,
   collectionVisibility,
   activeCollectionId,
   activeCollectionStoredTitle,
+  activeCollectionStoredDescription,
   activeCollectionStoredVisibility,
   activeCollectionItemLimitOverride,
   collectionsCount,
@@ -370,7 +374,7 @@ export const useCollectionEditor = ({
               created = await collectionsApi.createCollection(nextToken, {
                 owner_id: ownerId,
                 title: collectionTitle.trim(),
-                description: null,
+                description: collectionDescription.trim() || null,
                 visibility: collectionVisibility,
               });
             } catch (error) {
@@ -390,13 +394,17 @@ export const useCollectionEditor = ({
           } else {
             try {
               const nextTitle = collectionTitle.trim();
+              const nextDescription = collectionDescription.trim();
               const shouldUpdateCollection =
                 nextTitle !== (activeCollectionStoredTitle ?? "").trim() ||
+                nextDescription !==
+                  (activeCollectionStoredDescription ?? "").trim() ||
                 collectionVisibility !== activeCollectionStoredVisibility;
 
               if (shouldUpdateCollection) {
                 await collectionsApi.updateCollection(nextToken, collectionId, {
                   title: nextTitle,
+                  description: nextDescription || null,
                   visibility: collectionVisibility,
                 });
               }
@@ -416,6 +424,7 @@ export const useCollectionEditor = ({
                   ? {
                       ...item,
                       title: collectionTitle.trim(),
+                      description: collectionDescription.trim() || null,
                       visibility: collectionVisibility,
                     }
                   : item,
@@ -504,11 +513,13 @@ export const useCollectionEditor = ({
     },
     [
       activeCollectionId,
+      activeCollectionStoredDescription,
       activeCollectionStoredTitle,
       activeCollectionStoredVisibility,
       authExpired,
       authToken,
       collectionVisibility,
+      collectionDescription,
       collectionTitle,
       collectionsCount,
       privateCollectionsCount,

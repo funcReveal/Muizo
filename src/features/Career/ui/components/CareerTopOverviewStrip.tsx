@@ -71,10 +71,6 @@ const CareerTopOverviewStrip: React.FC<CareerTopOverviewStripProps> = ({
           <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--mc-text)] sm:text-2xl">
             {hero.displayName}
           </h2>
-
-          <div className="mt-0.5 truncate text-sm font-medium text-sky-300">
-            {hero.descriptor}
-          </div>
         </div>
       </div>
 

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import RestoreRounded from "@mui/icons-material/RestoreRounded";
+import GraphicEqRounded from "@mui/icons-material/GraphicEqRounded";
+import AutoFixHighOutlined from "@mui/icons-material/AutoFixHighOutlined";
 import CircularProgress from "@mui/material/CircularProgress";
 
 import type { DraftPlaylistItem } from "../utils/createCollectionImport";
@@ -70,6 +72,8 @@ type Props = {
 
   playlistIssueTotal: number;
   onOpenPlaylistIssueDialog: () => void;
+  onOpenBulkPlayback: () => void;
+  onOpenAiBatch: () => void;
 };
 
 function getSourceKey(source: ImportSourceSummary, index: number) {
@@ -476,6 +480,8 @@ export default function CollectionCreateReviewPanel({
 
   playlistIssueTotal,
   onOpenPlaylistIssueDialog,
+  onOpenBulkPlayback,
+  onOpenAiBatch,
 }: Props) {
   const { t } = useTranslation("collectionCreate");
 
@@ -600,7 +606,33 @@ export default function CollectionCreateReviewPanel({
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={onOpenBulkPlayback}
+                className="relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-[var(--mc-accent)]/65 bg-[var(--mc-accent)]/16 px-3.5 pr-4 text-xs font-semibold text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/24"
+                aria-label="批量修改播放區間"
+                title="批量修改播放區間"
+              >
+                <span className="absolute -right-1.5 -top-2 rounded-full bg-[var(--mc-accent)] px-1.5 py-0.5 text-[9px] font-bold leading-none text-slate-950">
+                  推薦
+                </span>
+                <GraphicEqRounded sx={{ fontSize: 17 }} />
+                一鍵套用播放區間
+              </button>
+              <button
+                type="button"
+                onClick={onOpenAiBatch}
+                className="relative ml-1 inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-[var(--mc-accent)]/65 bg-[var(--mc-accent)]/16 px-3.5 pr-4 text-xs font-semibold text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-[var(--mc-accent)]/24"
+                aria-label="AI 批次編輯答案"
+                title="AI 批次編輯答案"
+              >
+                <span className="absolute -right-1.5 -top-2 rounded-full bg-[var(--mc-accent)] px-1.5 py-0.5 text-[9px] font-bold leading-none text-slate-950">
+                  推薦
+                </span>
+                <AutoFixHighOutlined sx={{ fontSize: 17 }} />
+                AI 快速補答案
+              </button>
               <div className="rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 px-3 py-1 text-xs font-semibold text-[var(--mc-text)]">
                 {t("review.songCount", {
                   count: collectionPreview.count,
