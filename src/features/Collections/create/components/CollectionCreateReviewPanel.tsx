@@ -614,7 +614,7 @@ export default function CollectionCreateReviewPanel({
                 aria-label="批量修改播放區間"
                 title="批量修改播放區間"
               >
-                <span className="absolute -right-1.5 -top-2 rounded-full bg-[var(--mc-accent)] px-1.5 py-0.5 text-[9px] font-bold leading-none text-slate-950">
+                <span className="absolute -right-2 -top-2.5 rounded-full bg-[var(--mc-accent)] px-2 py-0.5 text-[10px] font-bold leading-none text-slate-950">
                   推薦
                 </span>
                 <GraphicEqRounded sx={{ fontSize: 17 }} />
@@ -627,11 +627,11 @@ export default function CollectionCreateReviewPanel({
                 aria-label="AI 批次編輯答案"
                 title="AI 批次編輯答案"
               >
-                <span className="absolute -right-1.5 -top-2 rounded-full bg-[var(--mc-accent)] px-1.5 py-0.5 text-[9px] font-bold leading-none text-slate-950">
+                <span className="absolute -right-2 -top-2.5 rounded-full bg-[var(--mc-accent)] px-2 py-0.5 text-[10px] font-bold leading-none text-slate-950">
                   推薦
                 </span>
                 <AutoFixHighOutlined sx={{ fontSize: 17 }} />
-                AI 快速補答案
+                AI 修改答案
               </button>
               <div className="rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface-strong)]/40 px-3 py-1 text-xs font-semibold text-[var(--mc-text)]">
                 {t("review.songCount", {

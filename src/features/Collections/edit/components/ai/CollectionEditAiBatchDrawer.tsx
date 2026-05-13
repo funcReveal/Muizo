@@ -1027,7 +1027,7 @@ export default function CollectionEditAiBatchDrawer({
 
   return (
     <Drawer
-      anchor={isCompact ? "bottom" : "right"}
+      anchor="right"
       open={open}
       onClose={(_, reason) => {
         if (!canCloseAiBatchModal) return;

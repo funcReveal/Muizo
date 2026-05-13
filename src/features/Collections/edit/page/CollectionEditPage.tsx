@@ -452,7 +452,6 @@ const CollectionEditPage = () => {
     endTimeInput,
     maxSec,
     effectiveEnd,
-    clipDurationSec,
     selectedClipDurationSec,
     updateItemAtIndex,
     updateSelectedAnswerText,
@@ -516,6 +515,38 @@ const CollectionEditPage = () => {
 
   const selectedVideoId = extractVideoId(selectedItem?.url);
 
+  const bulkPlaybackPreviewItems = useMemo(() => {
+    return buildBulkPlaybackPreviewItems({
+      items: playlistItems.map((item) => ({ ...item, id: item.localId })),
+      draft: bulkPlaybackDraft,
+      parseDurationToSeconds,
+      parseTimeInput,
+    });
+  }, [bulkPlaybackDraft, playlistItems]);
+
+  const bulkPlaybackAffectedItems = useMemo(
+    () => bulkPlaybackPreviewItems.filter((item) => item.isShortened),
+    [bulkPlaybackPreviewItems],
+  );
+
+  const activeBulkPlaybackPreviewItem = useMemo(() => {
+    if (!bulkPlaybackOpen || !selectedItem) return null;
+    return (
+      bulkPlaybackPreviewItems.find((item) => item.id === selectedItem.localId) ??
+      null
+    );
+  }, [bulkPlaybackOpen, bulkPlaybackPreviewItems, selectedItem]);
+
+  const playbackStartSec = activeBulkPlaybackPreviewItem?.startSec ?? startSec;
+  const playbackEffectiveEnd =
+    activeBulkPlaybackPreviewItem?.endSec ?? effectiveEnd;
+  const playbackClipDurationSec = Math.max(
+    1,
+    playbackEffectiveEnd - playbackStartSec,
+  );
+  const playbackSelectedClipDurationSec =
+    activeBulkPlaybackPreviewItem?.clipLengthSec ?? selectedClipDurationSec;
+
   const {
     playerContainerRef,
     isPlayerReady,
@@ -545,24 +576,10 @@ const CollectionEditPage = () => {
     selectedItemStartSec: selectedItem?.startSec ?? 0,
     itemsLoading,
     collectionsLoading,
-    startSec,
-    effectiveEnd,
+    startSec: playbackStartSec,
+    effectiveEnd: playbackEffectiveEnd,
     onDurationResolved: syncDurationFromPlayer,
   });
-
-  const bulkPlaybackPreviewItems = useMemo(() => {
-    return buildBulkPlaybackPreviewItems({
-      items: playlistItems.map((item) => ({ ...item, id: item.localId })),
-      draft: bulkPlaybackDraft,
-      parseDurationToSeconds,
-      parseTimeInput,
-    });
-  }, [bulkPlaybackDraft, playlistItems]);
-
-  const bulkPlaybackAffectedItems = useMemo(
-    () => bulkPlaybackPreviewItems.filter((item) => item.isShortened),
-    [bulkPlaybackPreviewItems],
-  );
 
   const canApplyBulkPlayback =
     playlistItems.length > 0 && bulkPlaybackPreviewItems.length > 0;
@@ -677,7 +694,7 @@ const CollectionEditPage = () => {
         : null;
       pausePlayback();
       if (selectedPreview) {
-        preparePlaybackStart(selectedPreview.startSec);
+        preparePlaybackStart(selectedPreview.startSec, selectedPreview.endSec);
       }
       setBulkPlaybackOpen(false);
     }
@@ -694,8 +711,8 @@ const CollectionEditPage = () => {
   ]);
 
   const clipCurrentSec = Math.min(
-    Math.max(currentTimeSec - startSec, 0),
-    clipDurationSec,
+    Math.max(currentTimeSec - playbackStartSec, 0),
+    playbackClipDurationSec,
   );
 
   const handleStartChangeWithPreview = useCallback(
@@ -776,11 +793,11 @@ const CollectionEditPage = () => {
       selectedChannelId={selectedItem?.channelId}
       selectedDuration={selectedItem?.duration}
       selectedClipDurationLabel={CLIP_DURATION_LABEL}
-      selectedClipDurationSec={formatSeconds(selectedClipDurationSec)}
+      selectedClipDurationSec={formatSeconds(playbackSelectedClipDurationSec)}
       clipCurrentSec={formatSeconds(clipCurrentSec)}
-      clipDurationSec={formatSeconds(clipDurationSec)}
-      startSec={startSec}
-      effectiveEnd={effectiveEnd}
+      clipDurationSec={formatSeconds(playbackClipDurationSec)}
+      startSec={playbackStartSec}
+      effectiveEnd={playbackEffectiveEnd}
       currentTimeSec={currentTimeSec}
       getPlayerCurrentTimeSec={getPlayerCurrentTimeSec}
       onProgressChange={handleProgressChange}
@@ -811,10 +828,20 @@ const CollectionEditPage = () => {
   const drawerPlayerPanelNode = renderPlayerPanel(false);
 
   const closeBulkPlaybackDrawer = useCallback(() => {
+    if (bulkPlaybackApplying) return;
+
     pausePlayback();
-    preparePlaybackStart(startSec);
-    if (!bulkPlaybackApplying) setBulkPlaybackOpen(false);
-  }, [bulkPlaybackApplying, pausePlayback, preparePlaybackStart, startSec]);
+    setBulkPlaybackOpen(false);
+    window.requestAnimationFrame(() => {
+      preparePlaybackStart(startSec, endSec);
+    });
+  }, [
+    bulkPlaybackApplying,
+    endSec,
+    pausePlayback,
+    preparePlaybackStart,
+    startSec,
+  ]);
 
   const {
     aiProviderLabel,
@@ -1612,8 +1639,18 @@ const CollectionEditPage = () => {
           <div className="order-1 lg:order-1 min-w-0 space-y-2">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
               {bulkPlaybackOpen ? (
-                <div className="hidden rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 px-3 py-4 text-sm text-[var(--mc-text-muted)] md:flex md:items-center md:justify-center">
-                  播放器已移到批量預覽面板。
+                <div className="hidden p-2.5 md:block">
+                  <div className="flex aspect-16/6 w-full items-center justify-center rounded-xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 text-sm text-[var(--mc-text-muted)]">
+                    播放器已移到批量預覽面板。
+                  </div>
+                  <div className="mt-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="h-4 w-2/3 rounded-full bg-[var(--mc-surface-strong)]/60" />
+                      <div className="h-3 w-1/3 rounded-full bg-[var(--mc-surface-strong)]/40" />
+                    </div>
+                    <div className="h-7 w-24 rounded-full bg-[var(--mc-surface-strong)]/40" />
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-[var(--mc-surface-strong)]/45" />
                 </div>
               ) : (
                 playerPanelNode
@@ -1628,7 +1665,7 @@ const CollectionEditPage = () => {
                 onChange={(value) => {
                   updateSelectedAnswerText(value);
                 }}
-                actionLabel="AI 快速補答案"
+                actionLabel="AI 修改答案"
                 actionDisabled={playlistItems.length === 0}
                 onActionClick={openAiBatchModal}
               />
@@ -1735,7 +1772,6 @@ const CollectionEditPage = () => {
       <BulkPlaybackRangeDrawer
         open={bulkPlaybackOpen}
         draft={bulkPlaybackDraft}
-        itemsCount={playlistItems.length}
         previewItems={bulkPlaybackPreviewItems}
         affectedItems={bulkPlaybackAffectedItems}
         canApply={canApplyBulkPlayback && !isReadOnly}

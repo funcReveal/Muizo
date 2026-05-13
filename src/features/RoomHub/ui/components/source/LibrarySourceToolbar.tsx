@@ -23,6 +23,7 @@ type LibrarySourceToolbarProps = {
   setCreateLibrarySearch: (value: string) => void;
   collectionsLoading: boolean;
   filteredCreateCollectionsLength: number;
+  createCollectionsTotalCount: number | null;
   filteredCreateYoutubePlaylistsLength: number;
   createLibraryView: CreateLibraryView;
   setCreateLibraryView: (value: CreateLibraryView) => void;
@@ -97,6 +98,7 @@ const LibrarySourceToolbar = ({
   setCreateLibrarySearch,
   collectionsLoading,
   filteredCreateCollectionsLength,
+  createCollectionsTotalCount,
   filteredCreateYoutubePlaylistsLength,
   createLibraryView,
   setCreateLibraryView,
@@ -210,7 +212,7 @@ const LibrarySourceToolbar = ({
             <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
               {collectionsLoading
                 ? "載入中"
-                : `共 ${filteredCreateCollectionsLength} 筆`}
+                : `共 ${createCollectionsTotalCount ?? filteredCreateCollectionsLength} 筆`}
             </span>
             {viewToggle(createLibraryView, setCreateLibraryView)}
           </div>
@@ -253,7 +255,7 @@ const LibrarySourceToolbar = ({
         <span className="rounded-full border border-cyan-300/20 bg-cyan-400/8 px-3 py-1 text-[11px] text-cyan-100/90">
           {createLibraryTab === "youtube"
             ? `共 ${filteredCreateYoutubePlaylistsLength} 筆`
-            : `共 ${filteredCreateCollectionsLength} 筆`}
+            : `共 ${createCollectionsTotalCount ?? filteredCreateCollectionsLength} 筆`}
         </span>
         {viewToggle(createLibraryView, setCreateLibraryView)}
       </div>

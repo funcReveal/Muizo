@@ -186,7 +186,7 @@ export const usePlaylistSourceState = ({
   );
 
   const updateQuestionCount = (value: number) => {
-    const clamped = clampQuestionCount(value, questionMaxLimit);
+    const clamped = clampQuestionCount(value, QUESTION_MAX);
     setQuestionCount(clamped);
     return clamped;
   };

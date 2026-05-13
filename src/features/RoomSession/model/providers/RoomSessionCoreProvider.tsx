@@ -54,7 +54,7 @@ import {
   type RoomRealtimeContextValue,
   type RoomUiContextValue,
 } from "../RoomContext";
-import { API_URL, SOCKET_URL } from "../roomConstants";
+import { API_URL, QUESTION_MAX, SOCKET_URL } from "../roomConstants";
 import { getStoredRoomId } from "../roomStorage";
 import { formatAckError } from "../roomProviderUtils";
 import { useCollectionAvailabilitySync } from "../useCollectionAvailabilitySync";
@@ -551,7 +551,7 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
         () => undefined,
       );
     },
-    [currentRoom?.id, getSocket],
+    [currentRoom, getSocket],
   );
 
   const { handleSendMessage } = useRoomChatActions({
@@ -642,15 +642,13 @@ export const RoomSessionCoreProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [gameState?.status, setStatusText]);
 
-  // questionCount auto-clamp to playlist size
+  // Keep the stored setup value within the global supported range. Casual rooms
+  // may intentionally choose more questions than the current playlist exposes.
   useEffect(() => {
-    if (playlistItems.length === 0) return;
-    if (questionCount > effectiveQuestionMaxLimit) {
-      updateQuestionCountBase(effectiveQuestionMaxLimit);
+    if (questionCount > QUESTION_MAX) {
+      updateQuestionCountBase(QUESTION_MAX);
     }
   }, [
-    effectiveQuestionMaxLimit,
-    playlistItems.length,
     questionCount,
     updateQuestionCountBase,
   ]);

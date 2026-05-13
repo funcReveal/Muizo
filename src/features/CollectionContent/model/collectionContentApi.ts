@@ -140,6 +140,7 @@ export type WorkerListPayload<TItem> = {
     items: TItem[];
     page: number;
     pageSize: number;
+    totalCount?: number;
     hasMore?: boolean;
     nextPage?: number | null;
   };

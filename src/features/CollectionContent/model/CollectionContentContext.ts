@@ -30,6 +30,7 @@ export interface CollectionContentContextValue {
   collectionsLoading: boolean;
   collectionsLoadingMore: boolean;
   collectionsHasMore: boolean;
+  collectionsTotalCount: number | null;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
   publicCollectionsSort: "updated" | "popular" | "favorites_first" | "rating";

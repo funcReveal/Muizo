@@ -29,7 +29,6 @@ import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import RemoveRounded from "@mui/icons-material/RemoveRounded";
 import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
-import VideogameAssetRoundedIcon from "@mui/icons-material/VideogameAssetRounded";
 import {
   PLAYER_MAX,
   PLAYER_MIN,
@@ -57,8 +56,6 @@ interface RoomLobbySettingsDrawerProps {
   onRoomPlayModeChange: (value: RoomPlayMode) => void;
   leaderboardVariant: LeaderboardVariantKey;
   onLeaderboardVariantChange: (value: LeaderboardVariantKey) => void;
-  settingsName: string;
-  onSettingsNameChange: (value: string) => void;
   settingsVisibility: "public" | "private";
   settingsPassword: string;
   onSettingsVisibilityChange: (nextVisibility: "public" | "private") => void;
@@ -126,9 +123,6 @@ const drawerFieldSx = {
     borderBottomColor: "rgba(56,189,248,0.72)",
   },
 } as const;
-
-const statCardClassName =
-  "rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
 
 const controlSliderSx = {
   color: "#7dd3fc",
@@ -251,8 +245,6 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
   onRoomPlayModeChange,
   leaderboardVariant,
   onLeaderboardVariantChange,
-  settingsName,
-  onSettingsNameChange,
   settingsVisibility,
   settingsPassword,
   onSettingsVisibilityChange,
@@ -285,7 +277,6 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
 }) => {
   const isMobileDrawer = useMediaQuery("(max-width:900px)");
   const settingsLocked = settingsDisabled || settingsSaving;
-  const settingsVisualLocked = settingsDisabled;
   const isLeaderboardRoom = roomPlayMode === "leaderboard";
   const leaderboardModeLocked = Boolean(
     leaderboardModeLockedReason && !isLeaderboardRoom,
@@ -293,9 +284,6 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
   const canUseCollectionTiming = settingsUseCollectionSource;
   const useCollectionTimingForSettings =
     settingsAllowCollectionClipTiming && canUseCollectionTiming;
-  const challengeQuestionSummary =
-    challengeOptions.find((option) => option.key === leaderboardVariant)
-      ?.label ?? "30 題";
   const parsedMaxPlayers = settingsMaxPlayers.trim()
     ? Number(settingsMaxPlayers)
     : PLAYER_MIN;
@@ -305,7 +293,11 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
   const canDecreaseMaxPlayers = effectiveMaxPlayers > PLAYER_MIN;
   const canIncreaseMaxPlayers = effectiveMaxPlayers < PLAYER_MAX;
   const canDecreaseQuestionCount = settingsQuestionCount > questionMinLimit;
-  const canIncreaseQuestionCount = settingsQuestionCount < questionMaxLimit;
+  const effectiveQuestionMaxLimit = isLeaderboardRoom
+    ? questionMaxLimit
+    : QUESTION_MAX;
+  const canIncreaseQuestionCount =
+    settingsQuestionCount < effectiveQuestionMaxLimit;
   const canEditPin = !settingsLocked;
   const isPrivateRoom = settingsVisibility === "private";
   const pinEnabled = settingsPassword.trim().length > 0;
@@ -340,6 +332,50 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
       canUseLeaderboard50,
       leaderboardVariant,
     ]);
+  const activateLeaderboardMode = React.useCallback(() => {
+    onLeaderboardVariantChange(getNextAvailableLeaderboardVariant());
+    onRoomPlayModeChange("leaderboard");
+  }, [
+    getNextAvailableLeaderboardVariant,
+    onLeaderboardVariantChange,
+    onRoomPlayModeChange,
+  ]);
+  const openLeaderboardMenu = React.useCallback(() => {
+    if (settingsLocked) return;
+    if (leaderboardModeLocked) {
+      onRoomPlayModeChange("leaderboard");
+      return;
+    }
+    if (!isLeaderboardRoom) {
+      activateLeaderboardMode();
+    }
+    setLeaderboardMenuOpen(true);
+  }, [
+    activateLeaderboardMode,
+    isLeaderboardRoom,
+    leaderboardModeLocked,
+    onRoomPlayModeChange,
+    settingsLocked,
+  ]);
+  const handleLeaderboardCardClick = React.useCallback(() => {
+    if (settingsLocked) return;
+    if (leaderboardModeLocked) {
+      onRoomPlayModeChange("leaderboard");
+      return;
+    }
+    if (!isLeaderboardRoom) {
+      activateLeaderboardMode();
+      setLeaderboardMenuOpen(false);
+      return;
+    }
+    setLeaderboardMenuOpen(true);
+  }, [
+    activateLeaderboardMode,
+    isLeaderboardRoom,
+    leaderboardModeLocked,
+    onRoomPlayModeChange,
+    settingsLocked,
+  ]);
   const displayedMaxPlayers = isTimeAttackLeaderboard ? 1 : effectiveMaxPlayers;
   const isMaxPlayersLocked = settingsLocked || isTimeAttackLeaderboard;
   const isQuestionSettingsLocked = settingsLocked || isLeaderboardRoom;
@@ -449,7 +485,7 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
   }, [leaderboardMenuOpen, leaderboardAnchorEl]);
 
   const questionPresetButtons = [10, 20, 30, 50].filter(
-    (count) => count >= questionMinLimit && count <= questionMaxLimit,
+    (count) => count >= questionMinLimit && count <= effectiveQuestionMaxLimit,
   );
 
   return (
@@ -475,16 +511,15 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
       }}
     >
       <Box className="flex h-full min-h-0 flex-col">
-      <Box
-        className="room-lobby-settings-dialog__head"
-        sx={{
-          px: { xs: 2, sm: 3 },
-          pt: { xs: 1.5, sm: 2.5 },
-          pb: { xs: 1.25, sm: 2 },
-          borderBottom: "1px solid rgba(245,158,11,0.12)",
-        }}
-      >
-        <Stack spacing={{ xs: 1, sm: 1.5 }}>
+        <Box
+          className="room-lobby-settings-dialog__head"
+          sx={{
+            px: { xs: 2, sm: 3 },
+            pt: { xs: 1.5, sm: 2.5 },
+            pb: { xs: 1.25, sm: 2 },
+            borderBottom: "1px solid rgba(245,158,11,0.12)",
+          }}
+        >
           <div className="flex items-center justify-between gap-3">
             <Typography variant="h5" className="font-semibold text-slate-50">
               房間設定
@@ -506,498 +541,323 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
               <CloseRoundedIcon fontSize="small" />
             </IconButton>
           </div>
+        </Box>
 
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4 sm:gap-4">
-            <div className="flex items-start gap-2 text-slate-100">
-              <VideogameAssetRoundedIcon
-                sx={{ fontSize: 15, color: "#94a3b8", mt: "2px" }}
-              />
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                  房型
-                </div>
-                <div className="text-sm font-semibold">
-                  {isLeaderboardRoom ? "排行挑戰" : "休閒派對"}
-                </div>
+        <Box
+          sx={{
+            flex: "1 1 auto",
+            minHeight: 0,
+            py: { xs: 1.5, sm: 2.25 },
+            px: { xs: 1.5, sm: 2.5 },
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
+        >
+          {isTimeAttackLeaderboard ? (
+            <div className="mb-5 rounded-2xl border border-amber-300/18 bg-[linear-gradient(180deg,rgba(24,18,10,0.68),rgba(10,10,14,0.72))] px-4 py-3">
+              <div className="text-sm font-semibold text-amber-100">
+                15 分鐘限時 · 單人挑戰
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  最多玩完整個收藏庫
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  公布答案 5 秒
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  使用收藏庫時間
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  不使用延長投票
+                </span>
               </div>
             </div>
-            <div className="flex items-start gap-2 text-slate-100">
-              <GroupsRoundedIcon
-                sx={{ fontSize: 15, color: "#94a3b8", mt: "2px" }}
-              />
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                  人數
-                </div>
-                <div className="text-sm font-semibold">
-                  {displayedMaxPlayers}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 text-slate-100">
-              <QuizRoundedIcon
-                sx={{ fontSize: 15, color: "#94a3b8", mt: "2px" }}
-              />
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                  題數
-                </div>
-                <div className="text-sm font-semibold">
-                  {isLeaderboardRoom
-                    ? challengeQuestionSummary
-                    : `${settingsQuestionCount} 題`}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 text-slate-100">
-              <TimerRoundedIcon
-                sx={{ fontSize: 15, color: "#94a3b8", mt: "2px" }}
-              />
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.18em]">
-                  時間
-                </div>
-                <div className="text-sm font-semibold">
-                  {useCollectionTimingForSettings
-                    ? `收藏庫時間 / 揭曉 ${settingsRevealDurationSec} 秒`
-                    : `播放 ${settingsPlayDurationSec} 秒 / 揭曉 ${settingsRevealDurationSec} 秒`}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Stack>
-      </Box>
-
-      <Box
-        sx={{
-          flex: "1 1 auto",
-          minHeight: 0,
-          py: { xs: 1.5, sm: 2.25 },
-          px: { xs: 1.5, sm: 2.5 },
-          overflowY: "auto",
-          overflowX: "hidden",
-        }}
-      >
-        {isTimeAttackLeaderboard ? (
-          <div className="mb-5 rounded-2xl border border-amber-300/18 bg-[linear-gradient(180deg,rgba(24,18,10,0.68),rgba(10,10,14,0.72))] px-4 py-3">
-            <div className="text-sm font-semibold text-amber-100">
-              15 分鐘限時 · 單人挑戰
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                最多玩完整個收藏庫
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                公布答案 5 秒
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                使用收藏庫時間
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                不使用延長投票
-              </span>
-            </div>
-          </div>
-        ) : null}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1.18fr)]">
-          <Section
-            icon={
-              <MeetingRoomRoundedIcon sx={{ fontSize: 20, color: "#7dd3fc" }} />
-            }
-            title="房間核心設定"
-            hideHeader
-          >
-            <div className="flex h-full flex-col gap-6">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (settingsLocked) return;
-                    setLeaderboardMenuOpen(false);
-                    onRoomPlayModeChange("casual");
-                  }}
-                  disabled={settingsLocked}
-                  className={`rounded-2xl border px-3 py-3 text-left transition ${
-                    !isLeaderboardRoom
-                      ? "border-emerald-300/45 bg-emerald-400/12 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                      : "border-white/8 bg-white/5 text-slate-300 hover:border-emerald-300/28 hover:bg-white/[0.07] hover:text-slate-100"
-                  } ${settingsLocked ? "cursor-not-allowed opacity-60" : ""}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-                        !isLeaderboardRoom
-                          ? "border-emerald-200/24 bg-emerald-300/14 text-emerald-100"
-                          : "border-white/10 bg-slate-950/35 text-slate-300"
-                      }`}
-                    >
-                      <ChairRoundedIcon sx={{ fontSize: 18 }} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">
-                        休閒派對
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 opacity-80">
-                        自由調整題數、人數與播放節奏。
-                      </span>
-                    </span>
-                  </div>
-                </button>
-
-                <div
-                  ref={handleLeaderboardAnchorRef}
-                  role="button"
-                  tabIndex={settingsLocked ? -1 : 0}
-                  aria-haspopup="listbox"
-                  aria-expanded={leaderboardMenuOpen}
-                  onClick={() => {
-                    if (settingsLocked) return;
-                    if (leaderboardModeLocked) {
-                      onRoomPlayModeChange("leaderboard");
-                      return;
-                    }
-                    if (!isLeaderboardRoom) {
-                      onLeaderboardVariantChange(
-                        getNextAvailableLeaderboardVariant(),
-                      );
-                      setLeaderboardMenuOpen(true);
-                      return;
-                    }
-                    setLeaderboardMenuOpen((current) => !current);
-                  }}
-                  onKeyDown={(event) => {
-                    if (settingsLocked) return;
-                    if (
-                      leaderboardModeLocked &&
-                      (event.key === "Enter" || event.key === " ")
-                    ) {
-                      event.preventDefault();
-                      onRoomPlayModeChange("leaderboard");
-                      return;
-                    }
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      if (!isLeaderboardRoom) {
-                        onLeaderboardVariantChange(
-                          getNextAvailableLeaderboardVariant(),
-                        );
-                        setLeaderboardMenuOpen(true);
-                        return;
-                      }
-                      setLeaderboardMenuOpen((current) => !current);
-                    }
-                    if (event.key === "Escape") {
+          ) : null}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1.18fr)]">
+            <Section
+              icon={
+                <MeetingRoomRoundedIcon
+                  sx={{ fontSize: 20, color: "#7dd3fc" }}
+                />
+              }
+              title="房間核心設定"
+              hideHeader
+            >
+              <div className="flex h-full flex-col gap-6">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (settingsLocked) return;
                       setLeaderboardMenuOpen(false);
-                    }
-                  }}
-                  className={`relative rounded-2xl border px-3 py-3 transition ${
-                    settingsLocked
-                      ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                      : leaderboardModeLocked
-                        ? "cursor-pointer border-amber-300/18 bg-amber-300/[0.06] text-slate-400 outline-none hover:border-amber-300/30 hover:bg-amber-300/10 focus:border-amber-100/34 focus:ring-2 focus:ring-amber-200/10"
-                      : isLeaderboardRoom
-                        ? "cursor-pointer border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none hover:border-amber-300/48 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
-                        : "cursor-pointer border-white/8 bg-white/5 text-slate-300 outline-none hover:border-amber-300/28 hover:bg-white/[0.07] hover:text-slate-100 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3 text-left">
+                      onRoomPlayModeChange("casual");
+                    }}
+                    disabled={settingsLocked}
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      !isLeaderboardRoom
+                        ? "border-emerald-300/45 bg-emerald-400/12 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                        : "border-white/8 bg-white/5 text-slate-300 hover:border-emerald-300/28 hover:bg-white/[0.07] hover:text-slate-100"
+                    } ${settingsLocked ? "cursor-not-allowed opacity-60" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
                       <span
                         className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-                          isLeaderboardRoom
-                            ? "border-amber-200/24 bg-amber-300/14 text-amber-100"
+                          !isLeaderboardRoom
+                            ? "border-emerald-200/24 bg-emerald-300/14 text-emerald-100"
                             : "border-white/10 bg-slate-950/35 text-slate-300"
                         }`}
                       >
-                        <EmojiEventsRoundedIcon sx={{ fontSize: 18 }} />
+                        <ChairRoundedIcon sx={{ fontSize: 18 }} />
                       </span>
                       <span className="min-w-0">
                         <span className="block text-sm font-semibold">
-                          排行挑戰
+                          休閒派對
                         </span>
                         <span className="mt-1 block text-xs leading-5 opacity-80">
-                          {leaderboardModeLockedReason ??
-                            activeChallengeOption.summary}
+                          自由調整題數、人數與播放節奏。
                         </span>
                       </span>
                     </div>
+                  </button>
 
-                    <span
-                      className={`inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold ${
-                        isLeaderboardRoom
-                          ? "text-amber-50"
-                          : "text-amber-100/86"
-                      }`}
-                    >
-                      <span className="truncate">
-                        {activeChallengeOption.label}
-                      </span>
-                      <KeyboardArrowDownRounded
-                        sx={{ fontSize: 20 }}
-                        className={`shrink-0 text-amber-100/72 transition ${
-                          leaderboardMenuOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className={statCardClassName}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center text-cyan-100">
-                      <MeetingRoomRoundedIcon sx={{ fontSize: 20 }} />
-                    </span>
-                    <p className="text-sm font-semibold text-slate-100">
-                      房間資訊
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isPrivateRoom}
-                    onClick={() =>
-                      onSettingsVisibilityChange(
-                        isPrivateRoom ? "public" : "private",
-                      )
-                    }
-                    disabled={settingsLocked}
-                    className={`inline-flex items-center gap-2 px-1 py-1 transition ${
-                      settingsLocked ? "cursor-not-allowed opacity-60" : ""
+                  <div
+                    ref={handleLeaderboardAnchorRef}
+                    role="button"
+                    tabIndex={settingsLocked ? -1 : 0}
+                    aria-haspopup="listbox"
+                    aria-expanded={leaderboardMenuOpen}
+                    onClick={handleLeaderboardCardClick}
+                    onKeyDown={(event) => {
+                      if (settingsLocked) return;
+                      if (
+                        leaderboardModeLocked &&
+                        (event.key === "Enter" || event.key === " ")
+                      ) {
+                        event.preventDefault();
+                        onRoomPlayModeChange("leaderboard");
+                        return;
+                      }
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleLeaderboardCardClick();
+                      }
+                      if (event.key === "Escape") {
+                        setLeaderboardMenuOpen(false);
+                      }
+                    }}
+                    className={`relative rounded-2xl border px-3 py-3 transition ${
+                      settingsLocked
+                        ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                        : leaderboardModeLocked
+                          ? "cursor-pointer border-amber-300/18 bg-amber-300/[0.06] text-slate-400 outline-none hover:border-amber-300/30 hover:bg-amber-300/10 focus:border-amber-100/34 focus:ring-2 focus:ring-amber-200/10"
+                          : isLeaderboardRoom
+                            ? "cursor-pointer border-amber-300/38 bg-amber-300/10 text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none hover:border-amber-300/48 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
+                            : "cursor-pointer border-white/8 bg-white/5 text-slate-300 outline-none hover:border-amber-300/28 hover:bg-white/[0.07] hover:text-slate-100 focus:border-amber-100/42 focus:ring-2 focus:ring-amber-200/10"
                     }`}
                   >
-                    {isPrivateRoom ? (
-                      <LockRoundedIcon
-                        sx={{ fontSize: 16, color: "#fbbf24" }}
-                      />
-                    ) : (
-                      <PublicOutlinedIcon
-                        sx={{ fontSize: 16, color: "#7dd3fc" }}
-                      />
-                    )}
-                    <span
-                      className={`text-xs font-semibold ${
-                        isPrivateRoom ? "text-amber-100" : "text-cyan-100"
-                      }`}
-                    >
-                      {isPrivateRoom ? "私人" : "公開"}
-                    </span>
-                    <span
-                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                        isPrivateRoom
-                          ? "border-amber-300/45 bg-amber-300/18"
-                          : "border-cyan-300/35 bg-cyan-400/18"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
-                          isPrivateRoom
-                            ? "left-[1.3rem] bg-amber-200"
-                            : "left-1 bg-cyan-200"
-                        }`}
-                      />
-                    </span>
-                  </button>
-                </div>
-
-                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.62fr)]">
-                  <TextField
-                    size="small"
-                    variant="standard"
-                    fullWidth
-                    label="房間名稱"
-                    value={settingsName}
-                    sx={drawerFieldSx}
-                    onChange={(event) =>
-                      onSettingsNameChange(event.target.value)
-                    }
-                    disabled={settingsLocked}
-                  />
-
-                  <div className="rounded-xl border border-white/8 bg-slate-950/18 px-3 py-2">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <PinOutlinedIcon
-                          sx={{ fontSize: 17, color: "#fbbf24" }}
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-100">
-                            房間密碼
-                          </p>
-                        </div>
-                        <div className="ml-1 w-[108px] max-w-full transition sm:w-[132px]">
-                          <TextField
-                            variant="standard"
-                            size="small"
-                            fullWidth
-                            disabled={!canEditPin}
-                            placeholder="4 位數 PIN"
-                            autoComplete="off"
-                            value={settingsPassword}
-                            sx={drawerFieldSx}
-                            onChange={(event) =>
-                              onSettingsPasswordChange(
-                                event.target.value
-                                  .replace(/\D/g, "")
-                                  .slice(0, 4),
-                              )
-                            }
-                            slotProps={{
-                              htmlInput: {
-                                "aria-label": "PIN",
-                                inputMode: "numeric",
-                                lang: "en",
-                                autoCorrect: "off",
-                                pattern: "\\d{4}",
-                                maxLength: 4,
-                                style: { imeMode: "disabled" },
-                              },
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={pinEnabled}
-                        onClick={() => {
-                          if (settingsLocked) return;
-                          if (pinEnabled) {
-                            onSettingsPasswordClear();
-                          }
-                        }}
-                        disabled={settingsLocked}
-                        className={`inline-flex shrink-0 items-center px-0.5 py-1 transition ${
-                          settingsLocked ? "cursor-not-allowed opacity-60" : ""
-                        }`}
-                      >
+                      <div className="flex min-w-0 flex-1 items-start gap-3 text-left">
                         <span
-                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                            pinEnabled
-                              ? "border-emerald-300/40 bg-emerald-300/18"
-                              : "border-white/10 bg-white/5"
+                          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                            isLeaderboardRoom
+                              ? "border-amber-200/24 bg-amber-300/14 text-amber-100"
+                              : "border-white/10 bg-slate-950/35 text-slate-300"
                           }`}
                         >
-                          <span
-                            className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
-                              pinEnabled
-                                ? "left-[1.3rem] bg-emerald-200"
-                                : "left-1 bg-slate-200"
+                          <EmojiEventsRoundedIcon sx={{ fontSize: 18 }} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">
+                            排行挑戰
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 opacity-80">
+                            {leaderboardModeLockedReason ??
+                              activeChallengeOption.summary}
+                          </span>
+                        </span>
+                      </div>
+
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold ${
+                          isLeaderboardRoom
+                            ? "text-amber-50"
+                            : "text-amber-100/86"
+                        }`}
+                      >
+                        <span className="truncate">
+                          {activeChallengeOption.label}
+                        </span>
+                        <span
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg hover:bg-white/[0.06]"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openLeaderboardMenu();
+                          }}
+                          aria-hidden="true"
+                        >
+                          <KeyboardArrowDownRounded
+                            sx={{ fontSize: 20 }}
+                            className={`shrink-0 text-amber-100/72 transition ${
+                              leaderboardMenuOpen ? "rotate-180" : ""
                             }`}
                           />
                         </span>
-                      </button>
+                      </span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-100">
-                    <GroupsRoundedIcon
-                      sx={{ fontSize: 18, color: "#7dd3fc" }}
-                    />
-                    人數
-                  </p>
-                  <span className="text-[11px] text-slate-400">
-                    {PLAYER_MIN}-{PLAYER_MAX} 人
-                  </span>
-                </div>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onSettingsMaxPlayersChange(
-                        String(Math.max(PLAYER_MIN, effectiveMaxPlayers - 1)),
-                      )
-                    }
-                    disabled={isMaxPlayersLocked || !canDecreaseMaxPlayers}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-                      !isMaxPlayersLocked && canDecreaseMaxPlayers
-                        ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
-                        : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                    }`}
-                  >
-                    <RemoveRounded sx={{ fontSize: 18 }} />
-                  </button>
-                  <div className="text-2xl font-semibold text-slate-100">
-                    {displayedMaxPlayers}
-                    <span className="ml-1 text-sm text-slate-400">人</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onSettingsMaxPlayersChange(
-                        String(Math.min(PLAYER_MAX, effectiveMaxPlayers + 1)),
-                      )
-                    }
-                    disabled={isMaxPlayersLocked || !canIncreaseMaxPlayers}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-                      !isMaxPlayersLocked && canIncreaseMaxPlayers
-                        ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
-                        : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                    }`}
-                  >
-                    <AddRounded sx={{ fontSize: 18 }} />
-                  </button>
-                </div>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  {[2, 4, 8, 12]
-                    .filter(
-                      (count) => count >= PLAYER_MIN && count <= PLAYER_MAX,
-                    )
-                    .map((count) => (
-                      <button
-                        key={count}
-                        type="button"
-                        onClick={() =>
-                          onSettingsMaxPlayersChange(String(count))
-                        }
-                        disabled={isMaxPlayersLocked}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                          displayedMaxPlayers === count
-                            ? "border-cyan-300/60 bg-cyan-500/12 text-cyan-50"
-                            : isMaxPlayersLocked
-                              ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                              : "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
-                        }`}
-                      >
-                        {count} 人
-                      </button>
-                    ))}
-                </div>
-                {timeAttackPlayersLockedOverlay}
-              </div>
+                <div>
+                  <div className="flex flex-nowrap items-center gap-3 overflow-x-auto">
+                    <div className="min-w-[190px] flex-1 rounded-xl border border-white/8 bg-slate-950/18 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <PinOutlinedIcon
+                            sx={{ fontSize: 17, color: "#fbbf24" }}
+                          />
+                          <p className="shrink-0 text-sm font-semibold text-slate-100">
+                            房間密碼
+                          </p>
+                          <div className="ml-1 w-[92px] max-w-full transition sm:w-[132px]">
+                            <TextField
+                              variant="standard"
+                              size="small"
+                              fullWidth
+                              disabled={!canEditPin}
+                              placeholder="4 位 PIN"
+                              autoComplete="off"
+                              value={settingsPassword}
+                              sx={drawerFieldSx}
+                              onChange={(event) =>
+                                onSettingsPasswordChange(
+                                  event.target.value
+                                    .replace(/\D/g, "")
+                                    .slice(0, 4),
+                                )
+                              }
+                              slotProps={{
+                                htmlInput: {
+                                  "aria-label": "PIN",
+                                  inputMode: "numeric",
+                                  lang: "en",
+                                  autoCorrect: "off",
+                                  pattern: "\\d{4}",
+                                  maxLength: 4,
+                                  style: { imeMode: "disabled" },
+                                },
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={pinEnabled}
+                          onClick={() => {
+                            if (settingsLocked) return;
+                            if (pinEnabled) {
+                              onSettingsPasswordClear();
+                            }
+                          }}
+                          disabled={settingsLocked}
+                          className={`inline-flex shrink-0 items-center px-0.5 py-1 transition ${
+                            settingsLocked
+                              ? "cursor-not-allowed opacity-60"
+                              : ""
+                          }`}
+                        >
+                          <span
+                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+                              pinEnabled
+                                ? "border-emerald-300/40 bg-emerald-300/18"
+                                : "border-white/10 bg-white/5"
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                                pinEnabled
+                                  ? "left-[1.3rem] bg-emerald-200"
+                                  : "left-1 bg-slate-200"
+                              }`}
+                            />
+                          </span>
+                        </button>
+                      </div>
+                    </div>
 
-              <Section
-                icon={
-                  <QuizRoundedIcon sx={{ fontSize: 20, color: "#fbbf24" }} />
-                }
-                title="題數"
-                headerAside={
-                  <span className="text-[11px] text-slate-400">
-                    {questionMinLimit} -{" "}
-                    {Math.min(questionMaxLimit, QUESTION_MAX)} 題
-                  </span>
-                }
-              >
-                <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
-                  <div className="mt-2 flex items-center justify-between gap-3">
                     <button
                       type="button"
-                      aria-label="減少 1 題"
+                      role="switch"
+                      aria-checked={isPrivateRoom}
                       onClick={() =>
-                        onSettingsQuestionCountChange(
-                          Math.max(questionMinLimit, settingsQuestionCount - 1),
+                        onSettingsVisibilityChange(
+                          isPrivateRoom ? "public" : "private",
                         )
                       }
-                      disabled={
-                        isQuestionSettingsLocked || !canDecreaseQuestionCount
+                      disabled={settingsLocked}
+                      className={`inline-flex items-center gap-2 px-1 py-1 transition ${
+                        settingsLocked ? "cursor-not-allowed opacity-60" : ""
+                      }`}
+                    >
+                      {isPrivateRoom ? (
+                        <LockRoundedIcon
+                          sx={{ fontSize: 16, color: "#fbbf24" }}
+                        />
+                      ) : (
+                        <PublicOutlinedIcon
+                          sx={{ fontSize: 16, color: "#7dd3fc" }}
+                        />
+                      )}
+                      <span
+                        className={`text-xs font-semibold ${
+                          isPrivateRoom ? "text-amber-100" : "text-cyan-100"
+                        }`}
+                      >
+                        {isPrivateRoom ? "私人" : "公開"}
+                      </span>
+                      <span
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+                          isPrivateRoom
+                            ? "border-amber-300/45 bg-amber-300/18"
+                            : "border-cyan-300/35 bg-cyan-400/18"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                            isPrivateRoom
+                              ? "left-[1.3rem] bg-amber-200"
+                              : "left-1 bg-cyan-200"
+                          }`}
+                        />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <GroupsRoundedIcon
+                        sx={{ fontSize: 18, color: "#7dd3fc" }}
+                      />
+                      人數
+                    </p>
+                    <span className="text-[11px] text-slate-400">
+                      {PLAYER_MIN}-{PLAYER_MAX} 人
+                    </span>
+                  </div>
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSettingsMaxPlayersChange(
+                          String(Math.max(PLAYER_MIN, effectiveMaxPlayers - 1)),
+                        )
                       }
+                      disabled={isMaxPlayersLocked || !canDecreaseMaxPlayers}
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-                        !isQuestionSettingsLocked && canDecreaseQuestionCount
+                        !isMaxPlayersLocked && canDecreaseMaxPlayers
                           ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
                           : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
                       }`}
@@ -1005,22 +865,19 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                       <RemoveRounded sx={{ fontSize: 18 }} />
                     </button>
                     <div className="text-2xl font-semibold text-slate-100">
-                      {settingsQuestionCount}
-                      <span className="ml-1 text-sm text-slate-400">題</span>
+                      {displayedMaxPlayers}
+                      <span className="ml-1 text-sm text-slate-400">人</span>
                     </div>
                     <button
                       type="button"
-                      aria-label="增加 1 題"
                       onClick={() =>
-                        onSettingsQuestionCountChange(
-                          Math.min(questionMaxLimit, settingsQuestionCount + 1),
+                        onSettingsMaxPlayersChange(
+                          String(Math.min(PLAYER_MAX, effectiveMaxPlayers + 1)),
                         )
                       }
-                      disabled={
-                        isQuestionSettingsLocked || !canIncreaseQuestionCount
-                      }
+                      disabled={isMaxPlayersLocked || !canIncreaseMaxPlayers}
                       className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
-                        !isQuestionSettingsLocked && canIncreaseQuestionCount
+                        !isMaxPlayersLocked && canIncreaseMaxPlayers
                           ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
                           : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
                       }`}
@@ -1029,281 +886,356 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                     </button>
                   </div>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onSettingsQuestionCountChange(
-                          Math.max(
-                            questionMinLimit,
-                            settingsQuestionCount - QUESTION_STEP,
-                          ),
-                        )
-                      }
-                      disabled={
-                        isQuestionSettingsLocked || !canDecreaseQuestionCount
-                      }
-                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                        !isQuestionSettingsLocked && canDecreaseQuestionCount
-                          ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
-                          : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                      }`}
-                    >
-                      -{QUESTION_STEP}
-                    </button>
-                    {questionPresetButtons.map((count) => (
+                    {[2, 4, 8, 12]
+                      .filter(
+                        (count) => count >= PLAYER_MIN && count <= PLAYER_MAX,
+                      )
+                      .map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() =>
+                            onSettingsMaxPlayersChange(String(count))
+                          }
+                          disabled={isMaxPlayersLocked}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            displayedMaxPlayers === count
+                              ? "border-cyan-300/60 bg-cyan-500/12 text-cyan-50"
+                              : isMaxPlayersLocked
+                                ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                                : "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
+                          }`}
+                        >
+                          {count} 人
+                        </button>
+                      ))}
+                  </div>
+                  {timeAttackPlayersLockedOverlay}
+                </div>
+
+                <Section
+                  icon={
+                    <QuizRoundedIcon sx={{ fontSize: 20, color: "#fbbf24" }} />
+                  }
+                  title="題數"
+                  headerAside={
+                    <span className="text-[11px] text-slate-400">
+                      {questionMinLimit} -{" "}
+                      {effectiveQuestionMaxLimit} 題
+                    </span>
+                  }
+                >
+                  <div className="relative select-none overflow-hidden rounded-2xl px-1 py-2">
+                    <div className="mt-2 flex items-center justify-between gap-3">
                       <button
-                        key={count}
                         type="button"
-                        onClick={() => onSettingsQuestionCountChange(count)}
-                        disabled={isQuestionSettingsLocked}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                          settingsQuestionCount === count
-                            ? "border-cyan-300/60 bg-cyan-500/12 text-cyan-50"
-                            : isQuestionSettingsLocked
-                              ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                              : "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
+                        aria-label="減少 1 題"
+                        onClick={() =>
+                          onSettingsQuestionCountChange(
+                            Math.max(
+                              questionMinLimit,
+                              settingsQuestionCount - 1,
+                            ),
+                          )
+                        }
+                        disabled={
+                          isQuestionSettingsLocked || !canDecreaseQuestionCount
+                        }
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
+                          !isQuestionSettingsLocked && canDecreaseQuestionCount
+                            ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
+                            : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
                         }`}
                       >
-                        {count} 題
+                        <RemoveRounded sx={{ fontSize: 18 }} />
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onSettingsQuestionCountChange(
-                          Math.min(
-                            questionMaxLimit,
-                            settingsQuestionCount + QUESTION_STEP,
-                          ),
-                        )
-                      }
-                      disabled={
-                        isQuestionSettingsLocked || !canIncreaseQuestionCount
-                      }
-                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                        !isQuestionSettingsLocked && canIncreaseQuestionCount
-                          ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
-                          : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
-                      }`}
-                    >
-                      +{QUESTION_STEP}
-                    </button>
-                  </div>
-                  {leaderboardQuestionLockedOverlay}
-                </div>
-              </Section>
-            </div>
-          </Section>
-
-          <Stack spacing={4}>
-            <Popper
-              open={leaderboardMenuOpen}
-              anchorEl={leaderboardAnchorEl}
-              placement="bottom-end"
-              modifiers={[
-                { name: "offset", options: { offset: [0, 8] } },
-                { name: "flip", enabled: true },
-                {
-                  name: "preventOverflow",
-                  options: { padding: 12 },
-                },
-              ]}
-              sx={{ zIndex: 1700 }}
-            >
-              <ClickAwayListener
-                onClickAway={() => setLeaderboardMenuOpen(false)}
-              >
-                <AnimatePresence>
-                  {leaderboardMenuOpen ? (
-                    <motion.div
-                      ref={leaderboardMenuRef}
-                      key="room-lobby-leaderboard-menu"
-                      initial={{ opacity: 0, y: -6, scale: 0.985 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -4, scale: 0.985 }}
-                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                      className="max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-amber-100/20 bg-slate-950/96 p-2 text-slate-100 shadow-[0_22px_50px_-28px_rgba(251,191,36,0.72),0_18px_36px_-28px_rgba(2,6,23,0.95)] backdrop-blur-xl"
-                      style={{
-                        width: leaderboardMenuWidth,
-                        transformOrigin: "top right",
-                      }}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <div
-                        role="listbox"
-                        aria-label="挑戰規格"
-                        className="space-y-1"
-                      >
-                        {challengeOptions.map((option) => {
-                          const selected = option.key === leaderboardVariant;
-                          const hasEnoughQuestions =
-                            questionMaxLimit >= option.minQuestionCount;
-                          const disabled =
-                            (option.key === "30q" && !canUseLeaderboard30) ||
-                            (option.key === "50q" && !canUseLeaderboard50) ||
-                            (option.key === "15m" && !canUseLeaderboard15m);
-                          const disabledHint = !hasEnoughQuestions
-                            ? `需要 ${option.minQuestionCount} 題，目前 ${questionMaxLimit} 題`
-                            : option.key === "15m"
-                              ? "15 分鐘限時僅能單人進行"
-                              : option.summary;
-
-                          return (
-                            <button
-                              key={option.key}
-                              type="button"
-                              role="option"
-                              aria-selected={selected}
-                              disabled={disabled}
-                              onClick={() => {
-                                if (disabled) return;
-                                onLeaderboardVariantChange(option.key);
-                                setLeaderboardMenuOpen(false);
-                              }}
-                              className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
-                                selected
-                                  ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
-                                  : disabled
-                                    ? "cursor-not-allowed text-slate-500"
-                                    : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
-                              }`}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold">
-                                  {option.label}
-                                </span>
-                                <span className="mt-0.5 block truncate text-xs text-slate-400">
-                                  {disabled ? disabledHint : option.summary}
-                                </span>
-                              </span>
-                              {selected ? (
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
-                              ) : null}
-                            </button>
-                          );
-                        })}
+                      <div className="text-2xl font-semibold text-slate-100">
+                        {settingsQuestionCount}
+                        <span className="ml-1 text-sm text-slate-400">題</span>
                       </div>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-              </ClickAwayListener>
-            </Popper>
-
-            <Section
-              icon={<TuneRoundedIcon sx={{ fontSize: 20, color: "#34d399" }} />}
-              title="播放規則"
-              locked={isLeaderboardRoom}
-            >
-              <div className="grid gap-3 sm:grid-cols-3">
-                {playbackExtensionOptions.map((option) => {
-                  const selected = settingsPlaybackExtensionMode === option.key;
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() =>
-                        onSettingsPlaybackExtensionModeChange(option.key)
-                      }
-                      disabled={settingsLocked}
-                      className={`rounded-2xl border px-3 py-3 text-left transition ${
-                        selected
-                          ? "border-amber-300/45 bg-amber-300/12 text-amber-50"
-                          : "border-white/8 bg-white/5 text-slate-300"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+                      <button
+                        type="button"
+                        aria-label="增加 1 題"
+                        onClick={() =>
+                          onSettingsQuestionCountChange(
+                            Math.min(
+                              effectiveQuestionMaxLimit,
+                              settingsQuestionCount + 1,
+                            ),
+                          )
+                        }
+                        disabled={
+                          isQuestionSettingsLocked || !canIncreaseQuestionCount
+                        }
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition ${
+                          !isQuestionSettingsLocked && canIncreaseQuestionCount
+                            ? "border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/35 hover:text-cyan-100"
+                            : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                        }`}
+                      >
+                        <AddRounded sx={{ fontSize: 18 }} />
+                      </button>
+                    </div>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSettingsQuestionCountChange(
+                            Math.max(
+                              questionMinLimit,
+                              settingsQuestionCount - QUESTION_STEP,
+                            ),
+                          )
+                        }
+                        disabled={
+                          isQuestionSettingsLocked || !canDecreaseQuestionCount
+                        }
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          !isQuestionSettingsLocked && canDecreaseQuestionCount
+                            ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
+                            : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                        }`}
+                      >
+                        -{QUESTION_STEP}
+                      </button>
+                      {questionPresetButtons.map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => onSettingsQuestionCountChange(count)}
+                          disabled={isQuestionSettingsLocked}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            settingsQuestionCount === count
+                              ? "border-cyan-300/60 bg-cyan-500/12 text-cyan-50"
+                              : isQuestionSettingsLocked
+                                ? "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                                : "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
+                          }`}
+                        >
+                          {count} 題
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSettingsQuestionCountChange(
+                            Math.min(
+                              effectiveQuestionMaxLimit,
+                              settingsQuestionCount + QUESTION_STEP,
+                            ),
+                          )
+                        }
+                        disabled={
+                          isQuestionSettingsLocked || !canIncreaseQuestionCount
+                        }
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                          !isQuestionSettingsLocked && canIncreaseQuestionCount
+                            ? "border-white/10 bg-white/5 text-slate-300 hover:border-cyan-300/35 hover:text-slate-100"
+                            : "cursor-not-allowed border-white/8 bg-white/5 text-slate-500"
+                        }`}
+                      >
+                        +{QUESTION_STEP}
+                      </button>
+                    </div>
+                    {leaderboardQuestionLockedOverlay}
+                  </div>
+                </Section>
               </div>
             </Section>
 
-            <Section
-              icon={
-                <TimerRoundedIcon sx={{ fontSize: 20, color: "#c084fc" }} />
-              }
-              title="時間設定"
-              locked={isLeaderboardRoom}
-            >
-              <Stack spacing={1.4}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <TimerRoundedIcon sx={{ fontSize: 18, color: "#c084fc" }} />
-                    <p className="text-sm font-semibold text-slate-100">
-                      遊戲節奏
-                    </p>
-                  </div>
-                  {canUseCollectionTiming ? (
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={useCollectionTimingForSettings}
-                      disabled={settingsLocked}
-                      onClick={() =>
-                        onSettingsAllowCollectionClipTimingChange(
-                          !useCollectionTimingForSettings,
-                        )
-                      }
-                      className={`inline-flex items-center gap-2 px-1 py-1.5 transition ${
-                        settingsLocked ? "cursor-not-allowed opacity-55" : ""
-                      }`}
-                    >
-                      <TuneRoundedIcon
-                        sx={{ fontSize: 16, color: "#34d399" }}
-                      />
-                      <span className="hidden text-xs font-semibold text-emerald-100 sm:inline">
-                        使用收藏庫片段
-                      </span>
-                      <span
-                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
-                          useCollectionTimingForSettings
-                            ? "border-emerald-300/40 bg-emerald-300/18"
-                            : "border-white/10 bg-white/5"
+            <Stack>
+              <Popper
+                open={leaderboardMenuOpen}
+                anchorEl={leaderboardAnchorEl}
+                placement="bottom-end"
+                modifiers={[
+                  { name: "offset", options: { offset: [0, 8] } },
+                  { name: "flip", enabled: true },
+                  {
+                    name: "preventOverflow",
+                    options: { padding: 12 },
+                  },
+                ]}
+                sx={{ zIndex: 1700 }}
+              >
+                <ClickAwayListener
+                  onClickAway={() => setLeaderboardMenuOpen(false)}
+                >
+                  <AnimatePresence>
+                    {leaderboardMenuOpen ? (
+                      <motion.div
+                        ref={leaderboardMenuRef}
+                        key="room-lobby-leaderboard-menu"
+                        initial={{ opacity: 0, y: -6, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.985 }}
+                        transition={{
+                          duration: 0.16,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-amber-100/20 bg-slate-950/96 p-2 text-slate-100 shadow-[0_22px_50px_-28px_rgba(251,191,36,0.72),0_18px_36px_-28px_rgba(2,6,23,0.95)] backdrop-blur-xl"
+                        style={{
+                          width: leaderboardMenuWidth,
+                          transformOrigin: "top right",
+                        }}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div
+                          role="listbox"
+                          aria-label="挑戰規格"
+                          className="space-y-1"
+                        >
+                          {challengeOptions.map((option) => {
+                            const selected = option.key === leaderboardVariant;
+                            const hasEnoughQuestions =
+                              questionMaxLimit >= option.minQuestionCount;
+                            const disabled =
+                              (option.key === "30q" && !canUseLeaderboard30) ||
+                              (option.key === "50q" && !canUseLeaderboard50) ||
+                              (option.key === "15m" && !canUseLeaderboard15m);
+                            const disabledHint = !hasEnoughQuestions
+                              ? `需要 ${option.minQuestionCount} 題，目前 ${questionMaxLimit} 題`
+                              : option.key === "15m"
+                                ? "15 分鐘限時僅能單人進行"
+                                : option.summary;
+
+                            return (
+                              <button
+                                key={option.key}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                disabled={disabled}
+                                onClick={() => {
+                                  if (disabled) return;
+                                  onLeaderboardVariantChange(option.key);
+                                  setLeaderboardMenuOpen(false);
+                                }}
+                                className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition ${
+                                  selected
+                                    ? "bg-amber-300/14 text-amber-50 shadow-[inset_0_0_0_1px_rgba(252,211,77,0.16)]"
+                                    : disabled
+                                      ? "cursor-not-allowed text-slate-500"
+                                      : "text-slate-300 hover:bg-white/[0.055] hover:text-amber-50"
+                                }`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold">
+                                    {option.label}
+                                  </span>
+                                  <span className="mt-0.5 block truncate text-xs text-slate-400">
+                                    {disabled ? disabledHint : option.summary}
+                                  </span>
+                                </span>
+                                {selected ? (
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-200" />
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </ClickAwayListener>
+              </Popper>
+
+              <Section
+                icon={
+                  <TuneRoundedIcon sx={{ fontSize: 20, color: "#34d399" }} />
+                }
+                title="播放規則"
+                locked={isLeaderboardRoom}
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {playbackExtensionOptions.map((option) => {
+                    const selected =
+                      settingsPlaybackExtensionMode === option.key;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() =>
+                          onSettingsPlaybackExtensionModeChange(option.key)
+                        }
+                        disabled={settingsLocked}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          selected
+                            ? "border-amber-300/45 bg-amber-300/12 text-amber-50"
+                            : "border-white/8 bg-white/5 text-slate-300"
                         }`}
                       >
-                        <span
-                          className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
-                            useCollectionTimingForSettings
-                              ? "left-[1.3rem] bg-emerald-200"
-                              : "left-1 bg-slate-200"
-                          }`}
-                        />
-                      </span>
-                    </button>
-                  ) : null}
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
+              </Section>
 
-                <div
-                  className={`grid gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)] ${
-                    settingsVisualLocked
-                      ? "pointer-events-none opacity-55 saturate-75"
-                      : ""
-                  }`}
-                >
-                  <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <Section
+                icon={
+                  <TimerRoundedIcon sx={{ fontSize: 20, color: "#c084fc" }} />
+                }
+                title="時間設定"
+                locked={isLeaderboardRoom}
+              >
+                <Stack spacing={1.4}>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     {canUseCollectionTiming ? (
                       <>
-                        <div className="flex items-center gap-2">
-                          {useCollectionTimingForSettings ? (
-                            <TuneRoundedIcon
-                              sx={{ fontSize: 18, color: "#34d399" }}
-                            />
-                          ) : (
-                            <ContentCutRoundedIcon
-                              sx={{ fontSize: 18, color: "#7dd3fc" }}
-                            />
-                          )}
-                          <p className="text-sm font-semibold text-slate-100">
-                            {useCollectionTimingForSettings
-                              ? "收藏庫片段"
-                              : "自訂片段"}
-                          </p>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            {useCollectionTimingForSettings ? (
+                              <TuneRoundedIcon
+                                sx={{ fontSize: 18, color: "#34d399" }}
+                              />
+                            ) : (
+                              <ContentCutRoundedIcon
+                                sx={{ fontSize: 18, color: "#7dd3fc" }}
+                              />
+                            )}
+                            <p className="text-sm font-semibold text-slate-100">
+                              {useCollectionTimingForSettings
+                                ? "收藏庫片段"
+                                : "自訂片段"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={useCollectionTimingForSettings}
+                            disabled={settingsLocked}
+                            onClick={() =>
+                              onSettingsAllowCollectionClipTimingChange(
+                                !useCollectionTimingForSettings,
+                              )
+                            }
+                            className={`inline-flex items-center gap-2 px-1 py-1.5 transition ${
+                              settingsLocked
+                                ? "cursor-not-allowed opacity-55"
+                                : ""
+                            }`}
+                          >
+                            <span className="text-xs font-semibold text-emerald-100">
+                              使用收藏庫片段
+                            </span>
+                            <span
+                              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition ${
+                                useCollectionTimingForSettings
+                                  ? "border-emerald-300/40 bg-emerald-300/18"
+                                  : "border-white/10 bg-white/5"
+                              }`}
+                            >
+                              <span
+                                className={`absolute top-1/2 h-[18px] w-[18px] -translate-y-1/2 rounded-full shadow-[0_10px_22px_-16px_rgba(15,23,42,0.95)] transition ${
+                                  useCollectionTimingForSettings
+                                    ? "left-[1.3rem] bg-emerald-200"
+                                    : "left-1 bg-slate-200"
+                                }`}
+                              />
+                            </span>
+                          </button>
                         </div>
-                        <p className="mt-2 text-xs text-slate-400">
-                          {useCollectionTimingForSettings
-                            ? "建立房間時使用目前題庫裡設定好的播放起始與作答秒數。"
-                            : "已改為手動設定作答時間與起始秒數。"}
-                        </p>
                       </>
                     ) : (
                       <p className="text-xs text-slate-400">
@@ -1347,7 +1279,7 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                       </div>
                     ) : (
                       <div className="mt-3 grid gap-3">
-                        <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <div>
                           <div className="flex items-center gap-2">
                             <HourglassTopRounded
                               sx={{ fontSize: 18, color: "#7dd3fc" }}
@@ -1411,7 +1343,7 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-white/8 bg-white/5 px-3 py-3">
+                        <div>
                           <div className="flex items-center gap-2">
                             <FastForwardRounded
                               sx={{ fontSize: 18, color: "#7dd3fc" }}
@@ -1478,7 +1410,7 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-3">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-3">
                     <div className="flex items-center gap-2">
                       <TimerRoundedIcon
                         sx={{ fontSize: 18, color: "#fbbf24" }}
@@ -1541,38 +1473,37 @@ const RoomLobbySettingsDrawer: React.FC<RoomLobbySettingsDrawerProps> = ({
                       />
                     </div>
                   </div>
-                </div>
-              </Stack>
-            </Section>
+                </Stack>
+              </Section>
 
-            {settingsError ? (
-              <Typography variant="caption" className="text-rose-300">
-                {settingsError}
-              </Typography>
-            ) : null}
-          </Stack>
-        </div>
-      </Box>
+              {settingsError ? (
+                <Typography variant="caption" className="text-rose-300">
+                  {settingsError}
+                </Typography>
+              ) : null}
+            </Stack>
+          </div>
+        </Box>
 
-      <Box
-        className="room-lobby-settings-dialog__actions"
-        sx={{
-          borderTop: "1px solid rgba(245,158,11,0.1)",
-          px: { xs: 1.5, sm: 2.5 },
-          py: { xs: 1.25, sm: 1.5 },
-          flexShrink: 0,
-        }}
-      >
-        <DrawerFooterActions
-          onCancel={handleDrawerClose}
-          onConfirm={onSave}
-          cancelDisabled={settingsSaving}
-          confirmDisabled={settingsLocked}
-          confirmLoading={settingsSaving}
-          confirmLabel="儲存設定"
-          confirmPendingLabel="儲存中..."
-        />
-      </Box>
+        <Box
+          className="room-lobby-settings-dialog__actions"
+          sx={{
+            borderTop: "1px solid rgba(245,158,11,0.1)",
+            px: { xs: 1.5, sm: 2.5 },
+            py: { xs: 1.25, sm: 1.5 },
+            flexShrink: 0,
+          }}
+        >
+          <DrawerFooterActions
+            onCancel={handleDrawerClose}
+            onConfirm={onSave}
+            cancelDisabled={settingsSaving}
+            confirmDisabled={settingsLocked}
+            confirmLoading={settingsSaving}
+            confirmLabel="儲存設定"
+            confirmPendingLabel="儲存中..."
+          />
+        </Box>
       </Box>
     </Drawer>
   );

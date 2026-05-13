@@ -152,6 +152,7 @@ type Props = {
   currentSourceIds?: string[];
   leaderboardCollectionOnlyMode?: boolean;
   leaderboardCollectionOnlyReason?: string;
+  leaderboardMinPlayableCount?: number | null;
 };
 
 const DRAWER_MAX_WIDTH = 1120;
@@ -357,6 +358,16 @@ const LinkPreviewAvailableRow = ({
       </div>
     </div>
   );
+};
+
+const getLeaderboardQuestionRestrictionReason = (
+  playableCount: number | null | undefined,
+  minPlayableCount: number | null | undefined,
+) => {
+  if (!minPlayableCount || minPlayableCount <= 0) return null;
+  const safePlayableCount = Math.max(0, Math.floor(playableCount ?? 0));
+  if (safePlayableCount >= minPlayableCount) return null;
+  return `未滿 ${minPlayableCount} 題（目前 ${safePlayableCount} 題），不能用於目前排行挑戰。`;
 };
 
 const LinkPreviewIssueRow = ({
@@ -790,6 +801,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     currentSourceIds = [],
     leaderboardCollectionOnlyMode = false,
     leaderboardCollectionOnlyReason = "排行模式僅支援公開收藏庫",
+    leaderboardMinPlayableCount = null,
   } = props;
 
   const theme = useTheme();
@@ -1324,6 +1336,16 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
         return;
       }
 
+      const leaderboardQuestionRestrictionReason =
+        getLeaderboardQuestionRestrictionReason(
+          counts.playable,
+          leaderboardMinPlayableCount,
+        );
+      if (leaderboardCollectionOnlyMode && leaderboardQuestionRestrictionReason) {
+        setActionError(leaderboardQuestionRestrictionReason);
+        return;
+      }
+
       if (!isHost && isCooldownActive) {
         setActionError(null);
         setActionNotice(null);
@@ -1374,6 +1396,7 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
       isCooldownActive,
       leaderboardCollectionOnlyMode,
       leaderboardCollectionOnlyReason,
+      leaderboardMinPlayableCount,
       runAction,
     ],
   );
@@ -1558,6 +1581,13 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
     const requirement = resolveCollectionPlayableRequirement(collection);
     const lockedByLeaderboard =
       leaderboardCollectionOnlyMode && type !== "public_collection";
+    const leaderboardQuestionRestrictionReason =
+      leaderboardCollectionOnlyMode && type === "public_collection"
+        ? getLeaderboardQuestionRestrictionReason(
+            counts.playable,
+            leaderboardMinPlayableCount,
+          )
+        : null;
     const key = getSourceKey("collection", collection.id);
     const isCurrent =
       currentSourceType === type &&
@@ -1599,11 +1629,15 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
             noWrap={viewMode === "list"}
           />
         }
-        disabled={requirement.disabled || lockedByLeaderboard}
+        disabled={
+          requirement.disabled ||
+          lockedByLeaderboard ||
+          Boolean(leaderboardQuestionRestrictionReason)
+        }
         disabledReason={
           lockedByLeaderboard
             ? leaderboardCollectionOnlyReason
-            : requirement.reason
+            : leaderboardQuestionRestrictionReason ?? requirement.reason
         }
         isCurrent={isCurrent}
         isRunning={pendingActionKey === key}
@@ -1666,11 +1700,25 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
       normalizeDisplayText(suggestion.title, "") ||
       (suggestion.type === "collection" ? "未命名收藏庫" : "YouTube 播放清單");
     const lockedByLeaderboard =
-      leaderboardCollectionOnlyMode && suggestion.type !== "collection";
+      leaderboardCollectionOnlyMode &&
+      (suggestion.type !== "collection" ||
+        (matchedCollection?.visibility ?? "public") === "private");
     const lockedByRole = !isHost;
     const isPublicCollection =
       suggestion.type === "collection" &&
       (matchedCollection?.visibility ?? "public") !== "private";
+    const suggestionPlayableCount =
+      collectionCounts?.playable ??
+      suggestion.playableCount ??
+      suggestion.totalCount ??
+      null;
+    const leaderboardQuestionRestrictionReason =
+      leaderboardCollectionOnlyMode && isPublicCollection
+        ? getLeaderboardQuestionRestrictionReason(
+            suggestionPlayableCount,
+            leaderboardMinPlayableCount,
+          )
+        : null;
     const description = `${suggestion.username} 推薦 · ${
       suggestion.type === "collection"
         ? isPublicCollection
@@ -1711,13 +1759,16 @@ const RoomPlaylistSelectorDrawer = (props: Props) => {
             noWrap={viewMode === "list"}
           />
         }
-        disabled={lockedByLeaderboard || lockedByRole}
+        disabled={
+          lockedByLeaderboard ||
+          lockedByRole ||
+          Boolean(leaderboardQuestionRestrictionReason)
+        }
         disabledReason={
           lockedByLeaderboard
             ? leaderboardCollectionOnlyReason
-            : lockedByRole
-              ? "只有房主可以套用推薦"
-              : null
+            : leaderboardQuestionRestrictionReason ??
+              (lockedByRole ? "只有房主可以套用推薦" : null)
         }
         isRunning={pendingActionKey === key}
         onClick={() => handleSuggestionClick(suggestion)}

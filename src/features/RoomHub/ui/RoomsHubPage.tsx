@@ -312,6 +312,7 @@ const RoomsHubPage: React.FC = () => {
     collectionsLoading,
     collectionsLoadingMore,
     collectionsHasMore,
+    collectionsTotalCount,
     collectionsError,
     collectionItemsError,
     collectionItemsLoading,
@@ -1059,6 +1060,11 @@ const RoomsHubPage: React.FC = () => {
       );
     });
   }, [collections, createLibraryTab, normalizedCreateLibrarySearch]);
+  const createCollectionsTotalCount =
+    createLibraryTab === "public" ||
+    (createLibraryTab === "personal" && !normalizedCreateLibrarySearch)
+      ? collectionsTotalCount
+      : null;
   const shouldShowCollectionSkeleton =
     collectionsLoading &&
     !(
@@ -1943,6 +1949,9 @@ const RoomsHubPage: React.FC = () => {
                             collectionsLoading={collectionsLoading}
                             filteredCreateCollectionsLength={
                               filteredCreateCollections.length
+                            }
+                            createCollectionsTotalCount={
+                              createCollectionsTotalCount
                             }
                             filteredCreateYoutubePlaylistsLength={
                               filteredCreateYoutubePlaylists.length

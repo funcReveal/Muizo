@@ -44,10 +44,14 @@ export function useCollectionEditPlayer({
   const shouldSeekToStartRef = useRef(false);
   const selectedStartRef = useRef(0);
   const clipStartRef = useRef(startSec);
+  const clipEndRef = useRef(effectiveEnd);
   const pendingAutoStartRef = useRef<number | null>(null);
   const pendingPreviewStartRef = useRef<number | null>(null);
   const autoPlaySeekedRef = useRef(false);
   const playbackStartAppliedRef = useRef(false);
+  const resumeInPlaceRef = useRef(false);
+  const clipEndedRef = useRef(false);
+  const loopRestartingRef = useRef(false);
   const progressRafRef = useRef<number | null>(null);
 
   const [playerReadyState, setPlayerReadyState] = useState(false);
@@ -169,7 +173,36 @@ export function useCollectionEditPlayer({
 
   useEffect(() => {
     clipStartRef.current = startSec;
-  }, [startSec]);
+    clipEndRef.current = effectiveEnd;
+
+    if (isPlayingRef.current || playRequestedRef.current) return;
+
+    const nextStart = Math.max(0, Math.floor(startSec));
+    selectedStartRef.current = nextStart;
+    shouldSeekToStartRef.current = true;
+    pendingAutoStartRef.current = null;
+    pendingPreviewStartRef.current = null;
+    playbackStartAppliedRef.current = false;
+    resumeInPlaceRef.current = false;
+    clipEndedRef.current = false;
+    loopRestartingRef.current = false;
+    window.queueMicrotask(() => {
+      setCurrentTimeSec(nextStart);
+    });
+
+    const player = playerRef.current;
+    if (!player || !selectedVideoIdRef.current) return;
+
+    player.pauseVideo?.();
+    player.seekTo?.(nextStart, true);
+    window.setTimeout(() => {
+      if (playerRef.current !== player) return;
+      player.pauseVideo?.();
+    }, 0);
+    window.queueMicrotask(() => {
+      setIsPlayingState(false);
+    });
+  }, [effectiveEnd, startSec]);
 
   const resolvePlaybackStartSec = useCallback((explicitStart?: number) => {
     if (typeof explicitStart === "number" && Number.isFinite(explicitStart)) {
@@ -196,6 +229,8 @@ export function useCollectionEditPlayer({
       selectedStartRef.current = nextStart;
       setCurrentTimeSec(nextStart);
       playbackStartAppliedRef.current = false;
+      clipEndedRef.current = false;
+      loopRestartingRef.current = false;
 
       if (selectedVideoId) {
         player.loadVideoById?.({
@@ -370,6 +405,19 @@ export function useCollectionEditPlayer({
 
           if (event.data === state.PLAYING) {
             playRequestedRef.current = true;
+            clipEndedRef.current = false;
+
+            if (resumeInPlaceRef.current) {
+              resumeInPlaceRef.current = false;
+              playbackStartAppliedRef.current = true;
+              autoPlaySeekedRef.current = true;
+              const current = event.target.getCurrentTime?.();
+              if (typeof current === "number" && Number.isFinite(current)) {
+                setCurrentTimeSec(current);
+              }
+              setIsPlayingState(true);
+              return;
+            }
 
             if (!playbackStartAppliedRef.current) {
               const targetStart = selectedStartRef.current;
@@ -393,8 +441,15 @@ export function useCollectionEditPlayer({
             event.data === state.PAUSED ||
             event.data === state.ENDED
           ) {
+            if (event.data === state.ENDED) {
+              clipEndedRef.current = true;
+              const activeEnd = clipEndRef.current;
+              event.target.seekTo?.(activeEnd, true);
+              setCurrentTimeSec(activeEnd);
+            }
             playRequestedRef.current = false;
             playbackStartAppliedRef.current = false;
+            resumeInPlaceRef.current = false;
             setIsPlayingState(false);
           }
         },
@@ -428,13 +483,6 @@ export function useCollectionEditPlayer({
     playerReadyState;
   const isPlaying = isPlayerReady && isPlayingState;
   const resolvedCurrentTimeSec = selectedVideoId ? currentTimeSec : 0;
-
-  useEffect(() => {
-    if (!isPlayerReady || !playerRef.current) return;
-    if (autoPlayRef.current) return;
-
-    playerRef.current.seekTo?.(startSec, true);
-  }, [isPlayerReady, selectedVideoId, startSec]);
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
@@ -522,34 +570,66 @@ export function useCollectionEditPlayer({
 
   useEffect(() => {
     if (!isPlayerReady || !playerRef.current) return;
-    if (!isPlaying) return;
 
     let mounted = true;
     let lastEmitTs = 0;
+    let lastPausedEmitTs = 0;
+
+    const syncPlayingState = (actualPlaying: boolean) => {
+      if (isPlayingRef.current === actualPlaying) return;
+      isPlayingRef.current = actualPlaying;
+      setIsPlayingState(actualPlaying);
+    };
 
     const tick = (ts: number) => {
       if (!mounted) return;
 
       const player = playerRef.current;
+      const state = window.YT?.PlayerState;
+      const playerState = player?.getPlayerState?.();
+      const actualPlaying =
+        state !== undefined && playerState === state.PLAYING;
+
       if (player && typeof player.getCurrentTime === "function") {
         const current = player.getCurrentTime();
+        const activeStart = clipStartRef.current;
+        const activeEnd = clipEndRef.current;
 
-        if (ts - lastEmitTs >= 66) {
+        syncPlayingState(actualPlaying);
+
+        if (actualPlaying && ts - lastEmitTs >= 66) {
           lastEmitTs = ts;
           setCurrentTimeSec(current);
+        } else if (!actualPlaying && ts - lastPausedEmitTs >= 250) {
+          lastPausedEmitTs = ts;
+          setCurrentTimeSec((prev) => {
+            if (Math.abs(prev - current) < 0.15) return prev;
+            return Math.min(activeEnd, Math.max(activeStart, current));
+          });
         }
 
-        if (isPlaying && current >= effectiveEnd - 0.2) {
+        if (actualPlaying && current >= activeEnd - 0.15) {
           if (loopEnabled) {
-            player.seekTo?.(startSec, true);
-            if (isPlaying) {
-              player.playVideo?.();
-            } else {
-              player.pauseVideo?.();
+            if (loopRestartingRef.current) {
+              progressRafRef.current = window.requestAnimationFrame(tick);
+              return;
             }
+            loopRestartingRef.current = true;
+            clipEndedRef.current = false;
+            player.seekTo?.(activeStart, true);
+            setCurrentTimeSec(activeStart);
+            player.playVideo?.();
+            window.setTimeout(() => {
+              loopRestartingRef.current = false;
+            }, 250);
           } else {
-            player.seekTo?.(effectiveEnd, true);
+            clipEndedRef.current = true;
+            playbackStartAppliedRef.current = false;
+            resumeInPlaceRef.current = false;
+            player.seekTo?.(activeEnd, true);
+            setCurrentTimeSec(activeEnd);
             player.pauseVideo?.();
+            syncPlayingState(false);
           }
         }
       }
@@ -566,7 +646,7 @@ export function useCollectionEditPlayer({
         progressRafRef.current = null;
       }
     };
-  }, [effectiveEnd, isPlayerReady, isPlaying, loopEnabled, startSec]);
+  }, [isPlayerReady, loopEnabled]);
 
   const queuePreviewFromStart = useCallback((sec: number) => {
     selectedStartRef.current = sec;
@@ -576,14 +656,35 @@ export function useCollectionEditPlayer({
     setCurrentTimeSec(sec);
   }, []);
 
-  const preparePlaybackStart = useCallback((sec: number) => {
-    selectedStartRef.current = sec;
-    pendingAutoStartRef.current = sec;
+  const preparePlaybackStart = useCallback((sec: number, endSec?: number) => {
+    const nextStart = Math.max(0, Math.floor(sec));
+    const nextEnd =
+      typeof endSec === "number" && Number.isFinite(endSec)
+        ? Math.max(nextStart + 1, Math.floor(endSec))
+        : Math.max(nextStart + 1, Math.floor(clipEndRef.current));
+    selectedStartRef.current = nextStart;
+    clipStartRef.current = nextStart;
+    clipEndRef.current = nextEnd;
+    pendingAutoStartRef.current = null;
     pendingPreviewStartRef.current = null;
     shouldSeekToStartRef.current = true;
     playRequestedRef.current = false;
     playbackStartAppliedRef.current = false;
-    setCurrentTimeSec(sec);
+    resumeInPlaceRef.current = false;
+    clipEndedRef.current = false;
+    loopRestartingRef.current = false;
+    setCurrentTimeSec(nextStart);
+
+    const player = playerRef.current;
+    if (!player) return;
+
+    player.pauseVideo?.();
+    player.seekTo?.(nextStart, true);
+    window.setTimeout(() => {
+      if (playerRef.current !== player) return;
+      player.pauseVideo?.();
+    }, 0);
+    setIsPlayingState(false);
   }, []);
 
   const previewFromStart = useCallback(
@@ -592,6 +693,8 @@ export function useCollectionEditPlayer({
       pendingAutoStartRef.current = sec;
       pendingPreviewStartRef.current = sec;
       playRequestedRef.current = true;
+      clipEndedRef.current = false;
+      loopRestartingRef.current = false;
       setCurrentTimeSec(sec);
 
       if (!playerRef.current || !isPlayerReady) return;
@@ -606,7 +709,12 @@ export function useCollectionEditPlayer({
   const previewBeforeEnd = useCallback(
     (rangeStartSec: number, rangeEndSec: number) => {
       const previewStart = Math.max(rangeStartSec, rangeEndSec - 3);
+      clipStartRef.current = rangeStartSec;
+      clipEndRef.current = Math.max(rangeStartSec + 1, rangeEndSec);
+      selectedStartRef.current = previewStart;
       setCurrentTimeSec(previewStart);
+      clipEndedRef.current = false;
+      loopRestartingRef.current = false;
 
       if (!playerRef.current || !isPlayerReady) return;
 
@@ -628,10 +736,31 @@ export function useCollectionEditPlayer({
       player.pauseVideo?.();
       playRequestedRef.current = false;
       playbackStartAppliedRef.current = false;
-    } else {
+      resumeInPlaceRef.current = false;
+      return;
+    }
+
+    const current = player.getCurrentTime?.();
+    const activeStart = clipStartRef.current;
+    const activeEnd = clipEndRef.current;
+    const shouldRestart =
+      clipEndedRef.current ||
+      (typeof current === "number" &&
+        Number.isFinite(current) &&
+        (current < activeStart - 0.2 || current >= activeEnd - 0.2));
+
+    if (shouldRestart) {
       playRequestedRef.current = true;
       playFromConfiguredStart(player);
+      return;
     }
+
+    playRequestedRef.current = true;
+    shouldSeekToStartRef.current = false;
+    pendingAutoStartRef.current = null;
+    pendingPreviewStartRef.current = null;
+    resumeInPlaceRef.current = true;
+    player.playVideo?.();
   }, [playFromConfiguredStart]);
 
   useEffect(() => {
@@ -663,6 +792,9 @@ export function useCollectionEditPlayer({
     const player = playerRef.current;
     playRequestedRef.current = false;
     playbackStartAppliedRef.current = false;
+    resumeInPlaceRef.current = false;
+    pendingPreviewStartRef.current = null;
+    loopRestartingRef.current = false;
     if (!player) return;
     player.pauseVideo?.();
     setIsPlayingState(false);

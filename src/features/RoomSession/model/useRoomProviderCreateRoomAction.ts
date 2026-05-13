@@ -275,8 +275,14 @@ export const useRoomProviderCreateRoomAction = ({
       isCollectionSourceMode && selectedCollection
         ? resolveQuestionLimitFromCollection(selectedCollection)
         : null;
+    const leaderboardProfileKey =
+      typeof options?.leaderboardProfileKey === "string" &&
+      options.leaderboardProfileKey.trim().length > 0
+        ? options.leaderboardProfileKey.trim()
+        : null;
+    const isLeaderboardChallenge = Boolean(leaderboardProfileKey);
     const collectionPlayableRequirement =
-      isCollectionSourceMode && selectedCollection
+      isLeaderboardChallenge && isCollectionSourceMode && selectedCollection
         ? resolveCollectionPlayableRequirement(selectedCollection)
         : null;
 
@@ -288,6 +294,15 @@ export const useRoomProviderCreateRoomAction = ({
 
     if (collectionQuestionLimit && !collectionQuestionLimit.canStart) {
       setStatusText("這個收藏庫目前沒有可播放題目。");
+      finalizeCreate();
+      return;
+    }
+
+    if (
+      collectionQuestionLimit &&
+      collectionQuestionLimit.playable < questionMin
+    ) {
+      setStatusText(`題庫至少需要 ${questionMin} 題，才能建立房間。`);
       finalizeCreate();
       return;
     }
@@ -350,18 +365,15 @@ export const useRoomProviderCreateRoomAction = ({
 
     const nextQuestionCount = clampQuestionCount(
       questionCount,
-      collectionQuestionLimit?.max ?? Math.min(QUESTION_MAX, playlistItems.length),
+      isLeaderboardChallenge
+        ? (collectionQuestionLimit?.max ??
+            Math.min(QUESTION_MAX, playlistItems.length))
+        : QUESTION_MAX,
     );
     const nextPlayDurationSec = clampPlayDurationSec(playDurationSec);
     const nextRevealDurationSec = clampRevealDurationSec(revealDurationSec);
     const nextStartOffsetSec = clampStartOffsetSec(startOffsetSec);
     const nextAllowCollectionClipTiming = Boolean(allowCollectionClipTiming);
-    const leaderboardProfileKey =
-      typeof options?.leaderboardProfileKey === "string" &&
-      options.leaderboardProfileKey.trim().length > 0
-        ? options.leaderboardProfileKey.trim()
-        : null;
-    const isLeaderboardChallenge = Boolean(leaderboardProfileKey);
     if (leaderboardProfileKey && !authToken) {
       setStatusText("排行挑戰需先登入。");
       onLeaderboardAuthRequired?.();

@@ -1142,7 +1142,6 @@ const CollectionCreatePage = () => {
         <BulkPlaybackRangeDrawer
           open={bulkPlaybackOpen}
           draft={bulkPlaybackDraft}
-          itemsCount={batchEditedDraftPlaylistItems.length}
           previewItems={bulkPlaybackPreviewItems}
           affectedItems={bulkPlaybackAffectedItems}
           canApply={batchEditedDraftPlaylistItems.length > 0}

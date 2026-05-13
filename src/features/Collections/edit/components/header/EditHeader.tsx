@@ -252,7 +252,9 @@ const EditHeader = ({
               <ShareRounded fontSize="small" />
             </button>
           </Tooltip>
-          <Tooltip title={saveError ? `${buttonLabel}：${saveError}` : buttonLabel}>
+          <Tooltip
+            title={saveError ? `${buttonLabel}：${saveError}` : buttonLabel}
+          >
             <button
               type="button"
               onClick={onSave}
@@ -339,6 +341,7 @@ const EditHeader = ({
                 inputLabel: { shrink: true },
               }}
               sx={{
+                mb: 2,
                 "& .MuiInputBase-root": {
                   color: "var(--mc-text)",
                   backgroundColor: "var(--mc-surface-strong)",

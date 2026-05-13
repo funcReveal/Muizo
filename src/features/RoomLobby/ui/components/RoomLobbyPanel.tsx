@@ -7,7 +7,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Drawer,
+  IconButton,
   Stack,
+  TextField,
   Typography,
   useMediaQuery,
 } from "@mui/material";
@@ -19,20 +22,20 @@ import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ChairRoundedIcon from "@mui/icons-material/ChairRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
-import FastForwardRoundedIcon from "@mui/icons-material/FastForwardRounded";
 import SportsEsportsRoundedIcon from "@mui/icons-material/SportsEsportsRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
 import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import PlaylistPlayRoundedIcon from "@mui/icons-material/PlaylistPlayRounded";
 import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
-import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
 // import ScienceRoundedIcon from "@mui/icons-material/ScienceRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import type { RowComponentProps } from "react-window";
 import type {
   GameState,
@@ -62,6 +65,7 @@ import {
   DEFAULT_START_OFFSET_SEC,
   PLAYER_MAX,
   PLAYER_MIN,
+  QUESTION_MAX,
   QUESTION_MIN,
 } from "@domain/room/constants";
 import {
@@ -75,6 +79,7 @@ import CurrentPlaylistCard from "./CurrentPlaylistCard";
 import RoomPlaylistSelectorDrawer from "./playlist-selector/RoomPlaylistSelectorDrawer";
 import RoomInviteDrawer from "./invite/RoomInviteDrawer";
 import RoomUiTooltip from "@shared/ui/RoomUiTooltip";
+import DrawerFooterActions from "@shared/ui/DrawerFooterActions";
 
 import { useGameSfx } from "@shared/hooks/useGameSfx";
 import {
@@ -338,6 +343,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     detail?: string;
   } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [roomNameDrawerOpen, setRoomNameDrawerOpen] = useState(false);
+  const [roomNameDraft, setRoomNameDraft] = useState("");
+  const [roomNameError, setRoomNameError] = useState<string | null>(null);
+  const [roomNameSaving, setRoomNameSaving] = useState(false);
+  const roomNameInputRef = useRef<HTMLInputElement | null>(null);
   const lobbyBgmRef = useRef<HTMLAudioElement | null>(null);
   const lobbyBgmFadeFrameRef = useRef<number | null>(null);
   const lobbyBgmFadeStartedRef = useRef(false);
@@ -641,6 +651,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     currentRoom?.gameSettings?.leaderboardProfileKey,
   );
   const leaderboardCollectionOnlyReason = "排行挑戰僅支援公開收藏庫";
+  const currentLeaderboardMinPlayableCount =
+    currentRoomLeaderboardVariant === "30q"
+      ? 30
+      : currentRoomLeaderboardVariant === "50q" ||
+          currentRoomLeaderboardVariant === "15m"
+        ? 50
+        : null;
   const canUseLeaderboard30 = questionMaxLimit >= 30;
   const canUseLeaderboard50 = questionMaxLimit >= 50;
   const canUseLeaderboard15m =
@@ -810,9 +827,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         currentRoomLeaderboardVariant,
       ),
     });
-    setSettingsQuestionCount(
-      clampQuestionCount(baseQuestion, questionMaxLimit),
-    );
+    setSettingsQuestionCount(clampQuestionCount(baseQuestion, QUESTION_MAX));
     const basePlayDurationSec =
       currentRoom.gameSettings?.playDurationSec ?? DEFAULT_PLAY_DURATION_SEC;
     const baseRevealDurationSec =
@@ -842,7 +857,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     currentRoomLeaderboardVariant,
     currentRoomPlayMode,
     normalizeLeaderboardVariant,
-    questionMaxLimit,
     roomPassword,
   ]);
 
@@ -851,6 +865,57 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     setSettingsOpen(false);
     setSettingsError(null);
   }, [settingsSaving]);
+
+  const openRoomNameDrawer = React.useCallback(() => {
+    if (!currentRoom || settingsDisabled || roomNameSaving) return;
+    setRoomNameDraft(currentRoom.name ?? "");
+    setRoomNameError(null);
+    setRoomNameDrawerOpen(true);
+  }, [currentRoom, roomNameSaving, settingsDisabled]);
+
+  const closeRoomNameDrawer = React.useCallback(() => {
+    if (roomNameSaving) return;
+    setRoomNameDrawerOpen(false);
+    setRoomNameError(null);
+  }, [roomNameSaving]);
+
+  React.useEffect(() => {
+    if (!roomNameDrawerOpen) return;
+    const focusTimer = window.setTimeout(() => {
+      const input = roomNameInputRef.current;
+      if (!input) return;
+      input.focus();
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    }, 80);
+    return () => window.clearTimeout(focusTimer);
+  }, [roomNameDrawerOpen]);
+
+  const handleSaveRoomName = React.useCallback(async () => {
+    if (!currentRoom || roomNameSaving || settingsDisabled) return;
+    const trimmedName = roomNameDraft.trim();
+    if (!trimmedName) {
+      setRoomNameError("請輸入房間名稱。");
+      return;
+    }
+    setRoomNameSaving(true);
+    try {
+      const success = await onUpdateRoomSettings({ name: trimmedName });
+      if (success) {
+        setSettingsName(trimmedName);
+        setRoomNameDrawerOpen(false);
+        setRoomNameError(null);
+      }
+    } finally {
+      setRoomNameSaving(false);
+    }
+  }, [
+    currentRoom,
+    onUpdateRoomSettings,
+    roomNameDraft,
+    roomNameSaving,
+    settingsDisabled,
+  ]);
 
   React.useEffect(() => {
     if (!settingsOpen) return;
@@ -1026,7 +1091,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         leaderboardRankingMetric: null,
         questionCount: clampQuestionCount(
           settingsQuestionCount,
-          questionMaxLimit,
+          QUESTION_MAX,
         ),
         playDurationSec: clampPlayDurationSec(settingsPlayDurationSec),
         revealDurationSec: clampRevealDurationSec(settingsRevealDurationSec),
@@ -1070,7 +1135,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     canUseLeaderboard50,
     leaderboardModeLockedReason,
     onUpdateRoomSettings,
-    questionMaxLimit,
     settingsAllowCollectionClipTiming,
     settingsDisabled,
     settingsLeaderboardVariant,
@@ -1620,27 +1684,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         },
         {
           key: "timing",
-          label: "作答時間",
+          label: "時間",
           value: roomAllowCollectionClipTiming
-            ? "依收藏庫設定"
-            : `${roomPlayDurationSec}s`,
+            ? `收藏庫片段 / 公布 ${roomRevealDurationSec}s`
+            : `作答 ${roomPlayDurationSec}s / 起始 ${roomStartOffsetSec}s / 公布 ${roomRevealDurationSec}s`,
           icon: <HourglassTopRoundedIcon fontSize="small" />,
-          tone: "cyan",
-        },
-        {
-          key: "start-offset",
-          label: "起始時間",
-          value: roomAllowCollectionClipTiming
-            ? "依收藏庫設定"
-            : `${roomStartOffsetSec}s`,
-          icon: <FastForwardRoundedIcon fontSize="small" />,
-          tone: "cyan",
-        },
-        {
-          key: "reveal",
-          label: "公布時間",
-          value: `${roomRevealDurationSec}s`,
-          icon: <TimerRoundedIcon fontSize="small" />,
           tone: "cyan",
         },
       ];
@@ -1899,6 +1947,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       initialTab={selectorInitialTab}
       leaderboardCollectionOnlyMode={isLeaderboardRoom}
       leaderboardCollectionOnlyReason={leaderboardCollectionOnlyReason}
+      leaderboardMinPlayableCount={currentLeaderboardMinPlayableCount}
       onRecordSourceApplied={handleRecordSourceApplied}
       currentSourceType={
         currentRoom?.playlistSourceType ??
@@ -1966,7 +2015,26 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       }}
                     />
                   )}
-                  {displayRoomName}
+                  <span className="min-w-0 truncate">{displayRoomName}</span>
+                  {isHost ? (
+                    <RoomUiTooltip
+                      title={
+                        settingsActionDisabledReason ?? "編輯房間名稱"
+                      }
+                    >
+                      <span className="inline-flex shrink-0">
+                        <IconButton
+                          aria-label="編輯房間名稱"
+                          onClick={openRoomNameDrawer}
+                          disabled={Boolean(settingsActionDisabledReason)}
+                          size="small"
+                          className="!ml-1 !h-8 !w-8 !rounded-full !text-slate-300 hover:!bg-white/8 hover:!text-slate-50 disabled:!text-slate-600"
+                        >
+                          <EditRoundedIcon sx={{ fontSize: 17 }} />
+                        </IconButton>
+                      </span>
+                    </RoomUiTooltip>
+                  ) : null}
                 </Typography>
               </div>
 
@@ -2408,6 +2476,96 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           void handleNativeShare();
         }}
       />
+      <Drawer
+        anchor="bottom"
+        open={roomNameDrawerOpen}
+        onClose={closeRoomNameDrawer}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{
+          className:
+            "!mx-auto !w-full !max-w-[520px] !rounded-t-[24px] !border-x !border-t !border-white/10 !bg-slate-950 !text-slate-100",
+        }}
+      >
+        <div className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-100">
+                編輯房間名稱
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                會同步更新邀請與大廳顯示名稱。
+              </p>
+            </div>
+            <IconButton
+              size="small"
+              onClick={closeRoomNameDrawer}
+              disabled={roomNameSaving}
+              aria-label="關閉房間名稱編輯"
+              className="!h-9 !w-9 !rounded-full !border !border-white/10 !bg-white/[0.03] !text-slate-200"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </div>
+          <TextField
+            autoFocus
+            fullWidth
+            value={roomNameDraft}
+            disabled={roomNameSaving}
+            placeholder="輸入房間名稱"
+            error={Boolean(roomNameError)}
+            helperText={roomNameError ?? `${roomNameDraft.length}/40`}
+            onChange={(event) => {
+              setRoomNameDraft(event.target.value);
+              if (roomNameError) setRoomNameError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleSaveRoomName();
+              }
+            }}
+            slotProps={{
+              htmlInput: {
+                maxLength: 40,
+              },
+            }}
+            inputRef={roomNameInputRef}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "1rem",
+                backgroundColor: "rgba(15, 23, 42, 0.62)",
+                color: "rgb(241 245 249)",
+                "& fieldset": {
+                  borderColor: "rgba(148, 163, 184, 0.22)",
+                },
+                "&:hover fieldset": {
+                  borderColor: "rgba(148, 163, 184, 0.5)",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "var(--mc-accent)",
+                },
+              },
+              "& .MuiInputBase-input": {
+                padding: "13px 14px",
+              },
+              "& .MuiFormHelperText-root": {
+                color: roomNameError ? "#fca5a5" : "rgba(148,163,184,0.8)",
+              },
+            }}
+          />
+          <DrawerFooterActions
+            onCancel={closeRoomNameDrawer}
+            onConfirm={() => {
+              void handleSaveRoomName();
+            }}
+            cancelDisabled={roomNameSaving}
+            confirmDisabled={roomNameSaving}
+            confirmLoading={roomNameSaving}
+            confirmLabel="儲存名稱"
+            confirmPendingLabel="儲存中..."
+          />
+        </div>
+      </Drawer>
       <RoomLobbySettingsDrawer
         open={settingsOpen}
         settingsDisabled={settingsDisabled}
@@ -2416,13 +2574,6 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         onRoomPlayModeChange={handleSettingsRoomPlayModeChange}
         leaderboardVariant={settingsLeaderboardVariant}
         onLeaderboardVariantChange={handleSettingsLeaderboardVariantChange}
-        settingsName={settingsName}
-        onSettingsNameChange={(value) => {
-          setSettingsName(value);
-          if (settingsError) {
-            setSettingsError(null);
-          }
-        }}
         settingsVisibility={settingsVisibility}
         settingsPassword={settingsPassword}
         onSettingsVisibilityChange={(nextVisibility) => {

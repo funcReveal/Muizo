@@ -97,7 +97,10 @@ const PlayerPanel = ({
   const [dragVolume, setDragVolume] = useState<number | null>(null);
   const [dragMuted, setDragMuted] = useState<boolean | null>(null);
   const [showVolumeSlider, setShowVolumeSlider] = useState(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
       return true;
     }
     return (
@@ -139,9 +142,10 @@ const PlayerPanel = ({
     const track = trackRef.current;
     if (!track) return;
     const clamped = Math.max(0, Math.min(100, pct));
-    // Write a single canonical value to avoid one-frame mismatches between
-    // `left` and `scaleX` when they're driven by separate CSS variables.
+    // Write canonical values once; CSS calc() cannot multiply custom property
+    // numbers reliably across browsers.
     track.style.setProperty("--progress-scale", String(clamped / 100));
+    track.style.setProperty("--progress-pct", `${clamped}%`);
   }, []);
   const handleSeekAt = useCallback(
     (clientX: number, commit: boolean) => {
@@ -258,7 +262,10 @@ const PlayerPanel = ({
   const effectiveDisplayMuted = dragMuted ?? isMuted;
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
       return;
     }
 
@@ -474,10 +481,8 @@ const PlayerPanel = ({
                 clickAnimating ? "transition-[width] duration-200 ease-out" : ""
               }`}
               style={{
-                width: "100%",
-                transformOrigin: "left center",
-                transform: "scaleX(var(--progress-scale, 0))",
-                willChange: "transform",
+                width: "var(--progress-pct, 0%)",
+                willChange: "width",
               }}
             />
             {hoverPercent !== null && previewTime !== null && (
@@ -642,4 +647,3 @@ const PlayerPanel = ({
 };
 
 export default PlayerPanel;
-

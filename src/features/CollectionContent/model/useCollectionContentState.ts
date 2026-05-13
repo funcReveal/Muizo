@@ -228,6 +228,7 @@ export type UseCollectionContentStateResult = {
   collectionsLoading: boolean;
   collectionsLoadingMore: boolean;
   collectionsHasMore: boolean;
+  collectionsTotalCount: number | null;
   collectionsError: string | null;
   collectionScope: "owner" | "public" | null;
   publicCollectionsSort: "updated" | "popular" | "favorites_first" | "rating";
@@ -278,6 +279,9 @@ export const useCollectionContentState = ({
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [collectionsLoadingMore, setCollectionsLoadingMore] = useState(false);
   const [collectionsHasMore, setCollectionsHasMore] = useState(false);
+  const [collectionsTotalCount, setCollectionsTotalCount] = useState<
+    number | null
+  >(null);
   const [collectionsError, setCollectionsError] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<
     string | null
@@ -380,6 +384,7 @@ export const useCollectionContentState = ({
       setCollectionsLoading(true);
       setCollectionsLoadingMore(false);
       setCollectionsHasMore(false);
+      setCollectionsTotalCount(null);
       setCollectionsError(null);
       if (previousScope !== resolvedScope) {
         setCollections([]);
@@ -410,6 +415,8 @@ export const useCollectionContentState = ({
             ai_edited_count?: number;
             has_ai_edited?: boolean | number;
           }>,
+          totalCount?: number,
+          hasMore?: boolean,
         ) => {
           if (requestId !== latestCollectionsRequestIdRef.current) {
             return;
@@ -443,7 +450,18 @@ export const useCollectionContentState = ({
               availabilityPatchRef.current,
             ),
           );
-          setCollectionsHasMore(items.length >= DEFAULT_PAGE_SIZE);
+          const normalizedTotalCount =
+            typeof totalCount === "number" && Number.isFinite(totalCount)
+              ? Math.max(0, Math.floor(totalCount))
+              : null;
+          setCollectionsTotalCount(normalizedTotalCount);
+          setCollectionsHasMore(
+            typeof hasMore === "boolean"
+              ? hasMore
+              : normalizedTotalCount !== null
+                ? normalizedItems.length < normalizedTotalCount
+                : items.length >= DEFAULT_PAGE_SIZE,
+          );
           setCollectionsLastFetchedAt(Date.now());
           setSelectedCollectionId((currentSelection) =>
             currentSelection &&
@@ -472,7 +490,11 @@ export const useCollectionContentState = ({
             throw new Error(payload?.error ?? "載入公開收藏庫失敗");
           }
           const items = payload?.data?.items ?? [];
-          applyCollectionsResult(items);
+          applyCollectionsResult(
+            items,
+            payload?.data?.totalCount,
+            payload?.data?.hasMore,
+          );
           return;
         }
 
@@ -492,7 +514,11 @@ export const useCollectionContentState = ({
           });
           if (ok) {
             const items = payload?.data?.items ?? [];
-            applyCollectionsResult(items);
+            applyCollectionsResult(
+              items,
+              payload?.data?.totalCount,
+              payload?.data?.hasMore,
+            );
             return;
           }
           if (status === 401 && allowRetry) {
@@ -634,6 +660,7 @@ export const useCollectionContentState = ({
     }
 
     const nextPage = collectionPageRef.current + 1;
+    const nextOffset = (nextPage - 1) * DEFAULT_PAGE_SIZE;
     setCollectionsLoadingMore(true);
 
     const appendCollections = (
@@ -661,6 +688,8 @@ export const useCollectionContentState = ({
         ai_edited_count?: number;
         has_ai_edited?: boolean | number;
       }>,
+      totalCount?: number,
+      hasMore?: boolean,
     ) => {
       availabilityPatchRef.current = pruneAvailabilityPatches(
         availabilityPatchRef.current,
@@ -695,7 +724,23 @@ export const useCollectionContentState = ({
         return Array.from(nextMap.values());
       });
       collectionPageRef.current = nextPage;
-      setCollectionsHasMore(items.length >= DEFAULT_PAGE_SIZE);
+      const normalizedTotalCount =
+        typeof totalCount === "number" && Number.isFinite(totalCount)
+          ? Math.max(0, Math.floor(totalCount))
+          : null;
+      setCollectionsTotalCount((previous) => {
+        if (normalizedTotalCount !== null) return normalizedTotalCount;
+        return previous === null
+          ? null
+          : Math.max(previous, nextOffset + normalizedItems.length);
+      });
+      setCollectionsHasMore(
+        typeof hasMore === "boolean"
+          ? hasMore
+          : normalizedTotalCount !== null
+            ? nextOffset + normalizedItems.length < normalizedTotalCount
+            : items.length >= DEFAULT_PAGE_SIZE,
+      );
       setCollectionsLastFetchedAt(Date.now());
     };
 
@@ -718,7 +763,11 @@ export const useCollectionContentState = ({
         if (!ok) {
           throw new Error(payload?.error ?? "載入公開收藏庫失敗");
         }
-        appendCollections(payload?.data?.items ?? []);
+        appendCollections(
+          payload?.data?.items ?? [],
+          payload?.data?.totalCount,
+          payload?.data?.hasMore,
+        );
         return;
       }
 
@@ -738,7 +787,11 @@ export const useCollectionContentState = ({
           pageSize: DEFAULT_PAGE_SIZE,
         });
         if (ok) {
-          appendCollections(payload?.data?.items ?? []);
+          appendCollections(
+            payload?.data?.items ?? [],
+            payload?.data?.totalCount,
+            payload?.data?.hasMore,
+          );
           return;
         }
         if (status === 401 && allowRetry) {
@@ -1095,6 +1148,7 @@ export const useCollectionContentState = ({
     setCollectionsLoading(false);
     setCollectionsLoadingMore(false);
     setCollectionsHasMore(false);
+    setCollectionsTotalCount(null);
     setCollectionsError(null);
     setCollectionScope(null);
     setPublicCollectionsSort("rating");
@@ -1130,6 +1184,7 @@ export const useCollectionContentState = ({
     collectionsLoading,
     collectionsLoadingMore,
     collectionsHasMore,
+    collectionsTotalCount,
     collectionsError,
     collectionScope,
     publicCollectionsSort,

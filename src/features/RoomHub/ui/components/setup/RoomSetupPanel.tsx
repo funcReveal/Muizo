@@ -41,6 +41,7 @@ import {
   PLAYER_MIN,
   PLAY_DURATION_MAX,
   PLAY_DURATION_MIN,
+  QUESTION_MAX,
   QUESTION_STEP,
   REVEAL_DURATION_MAX,
   REVEAL_DURATION_MIN,
@@ -167,7 +168,6 @@ const RoomSetupPanel = ({
   const isPinProtectionOpen =
     isPinProtectionEnabled || roomPasswordInput.length > 0;
   const canDecreaseQuestionCount = questionCount > questionMin;
-  const canIncreaseQuestionCount = questionCount < questionMaxLimit;
   const leaderboardChallengeGroups = leaderboardModes.map((mode) => ({
     modeKey: mode.key,
     label: mode.label,
@@ -209,6 +209,10 @@ const RoomSetupPanel = ({
   const isMaxPlayersLocked = isTimeAttackLeaderboardRoom;
   const isLeaderboardSettingsLocked = isLeaderboardRoom;
   const isQuestionCountLocked = isLeaderboardSettingsLocked;
+  const effectiveQuestionMaxLimit = isLeaderboardRoom
+    ? questionMaxLimit
+    : QUESTION_MAX;
+  const canIncreaseQuestionCount = questionCount < effectiveQuestionMaxLimit;
   const activeLeaderboardQuestionCountShortage =
     isLeaderboardRoom &&
     questionMaxLimit < activeLeaderboardMinimumQuestionCount
@@ -874,7 +878,7 @@ const RoomSetupPanel = ({
                 題數
               </p>
               <span className="text-[11px] text-[var(--mc-text-muted)]">
-                {questionMin}-{questionMaxLimit} 題
+                {questionMin}-{effectiveQuestionMaxLimit} 題
               </span>
             </div>
             <div
@@ -908,7 +912,7 @@ const RoomSetupPanel = ({
                 aria-label="增加 1 題"
                 onClick={() =>
                   updateQuestionCount(
-                    Math.min(questionMaxLimit, questionCount + 1),
+                    Math.min(effectiveQuestionMaxLimit, questionCount + 1),
                   )
                 }
                 disabled={isQuestionCountLocked || !canIncreaseQuestionCount}
@@ -961,7 +965,10 @@ const RoomSetupPanel = ({
                 type="button"
                 onClick={() =>
                   updateQuestionCount(
-                    Math.min(questionMaxLimit, questionCount + QUESTION_STEP),
+                    Math.min(
+                      effectiveQuestionMaxLimit,
+                      questionCount + QUESTION_STEP,
+                    ),
                   )
                 }
                 disabled={isQuestionCountLocked || !canIncreaseQuestionCount}

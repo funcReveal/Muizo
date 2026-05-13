@@ -15,6 +15,7 @@ import {
   CircularProgress,
   Drawer,
   IconButton,
+  Popover,
   Slider,
   TextField,
   Tooltip,
@@ -30,7 +31,6 @@ import type {
 type BulkPlaybackRangeDrawerProps = {
   open: boolean;
   draft: BulkPlaybackDraft;
-  itemsCount: number;
   previewItems: BulkPlaybackPreviewItem[];
   affectedItems: BulkPlaybackPreviewItem[];
   canApply: boolean;
@@ -238,15 +238,24 @@ function MinuteSecondInput({
   disabled,
   onChange,
   maxDurationSec,
+  quickPresetsSec,
+  recommendedPresetSec,
+  helperText,
 }: {
   label: string;
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
   maxDurationSec: number;
+  quickPresetsSec?: number[];
+  recommendedPresetSec?: number;
+  helperText?: string;
 }) {
   const time = splitTimeInput(value);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const iconAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const [pickerAnchorEl, setPickerAnchorEl] = useState<HTMLElement | null>(
+    null,
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftTime, setDraftTime] = useState(time);
   const minuteOptions = useMemo(
@@ -280,6 +289,14 @@ function MinuteSecondInput({
     },
     [buildBoundedTime],
   );
+  const buildBoundedTotalTimeInput = useCallback(
+    (totalSeconds: number) =>
+      buildBoundedTimeInput(
+        Math.floor(Math.max(0, totalSeconds) / 60),
+        Math.max(0, totalSeconds) % 60,
+      ),
+    [buildBoundedTimeInput],
+  );
   const commitDraft = useCallback(() => {
     onChange(buildBoundedTimeInput(draftTime.minutes, draftTime.seconds));
   }, [buildBoundedTimeInput, draftTime.minutes, draftTime.seconds, onChange]);
@@ -287,6 +304,7 @@ function MinuteSecondInput({
   const closePicker = useCallback(() => {
     commitDraft();
     setPickerOpen(false);
+    setPickerAnchorEl(null);
   }, [commitDraft]);
 
   const updateDraftTime = useCallback(
@@ -315,29 +333,21 @@ function MinuteSecondInput({
     closePicker();
   };
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        closePicker();
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [closePicker, pickerOpen]);
-
   const committedLabel = buildTimeInput(time.minutes, time.seconds);
   const draftLabel = buildTimeInput(draftTime.minutes, draftTime.seconds);
 
   return (
-    <div ref={rootRef} className="relative min-w-0 flex-1">
+    <div className="relative min-w-0 flex-1">
       <div className="mb-1 text-[11px] font-semibold text-[var(--mc-text-muted)]">
         {label}
       </div>
       <button
         type="button"
         disabled={disabled}
-        onClick={handleTogglePicker}
+        onClick={() => {
+          setPickerAnchorEl(iconAnchorRef.current);
+          handleTogglePicker();
+        }}
         className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl bg-[var(--mc-surface-strong)] px-3 text-left transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
         aria-label={`${label} 分秒選擇器`}
         title={`${label} 分秒選擇器`}
@@ -345,10 +355,37 @@ function MinuteSecondInput({
         <span className="font-mono text-sm font-semibold tabular-nums text-[var(--mc-text)]">
           {committedLabel}
         </span>
-        <AccessTimeRounded sx={{ fontSize: 26, color: "var(--mc-text-muted)" }} />
+        <span
+          ref={iconAnchorRef}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center"
+        >
+          <AccessTimeRounded
+            sx={{ fontSize: 26, color: "var(--mc-text-muted)" }}
+          />
+        </span>
       </button>
-      {pickerOpen ? (
-        <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-[var(--mc-border)] bg-[#111821] p-3 shadow-2xl">
+      <Popover
+        open={pickerOpen}
+        anchorEl={pickerAnchorEl}
+        onClose={closePicker}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: 1,
+              width: 256,
+              borderRadius: "1rem",
+              border: "1px solid var(--mc-border)",
+              backgroundColor: "#111821",
+              color: "var(--mc-text)",
+              boxShadow: "0 25px 50px -20px rgba(0,0,0,0.85)",
+              overflow: "hidden",
+            },
+          },
+        }}
+      >
+        <div className="p-3" onPointerDown={(event) => event.stopPropagation()}>
           <div className="grid grid-cols-2 gap-2">
             <TimeWheelColumn
               label="分鐘"
@@ -378,6 +415,43 @@ function MinuteSecondInput({
               完成
             </button>
           </div>
+        </div>
+      </Popover>
+      {quickPresetsSec?.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {quickPresetsSec.map((presetSec) => {
+            const active =
+              time.minutes * 60 + time.seconds ===
+              Math.min(Math.max(0, maxDurationSec), presetSec);
+            const recommended = presetSec === recommendedPresetSec;
+            return (
+              <button
+                key={presetSec}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(buildBoundedTotalTimeInput(presetSec))}
+                className={`relative inline-flex h-8 items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold transition ${
+                  active
+                    ? "border-[var(--mc-accent)] bg-[var(--mc-accent)]/22 text-[var(--mc-text)]"
+                    : "border-[var(--mc-border)] bg-[var(--mc-surface)]/45 text-[var(--mc-text-muted)] hover:border-[var(--mc-accent)]/60 hover:text-[var(--mc-text)]"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                {presetSec >= 60
+                  ? `${Math.floor(presetSec / 60)}:${String(presetSec % 60).padStart(2, "0")}`
+                  : `${presetSec}秒`}
+                {recommended ? (
+                  <span className="ml-1 rounded-full bg-[var(--mc-accent)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-slate-950">
+                    推薦
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      {helperText ? (
+        <div className="mt-1.5 text-[11px] leading-4 text-[var(--mc-text-muted)]">
+          {helperText}
         </div>
       ) : null}
     </div>
@@ -440,7 +514,6 @@ const PreviewVirtualRow = ({
 export default function BulkPlaybackRangeDrawer({
   open,
   draft,
-  itemsCount,
   previewItems,
   affectedItems,
   canApply,
@@ -491,7 +564,14 @@ export default function BulkPlaybackRangeDrawer({
           }
         : undefined,
     }),
-    [activePreviewItems, formatSeconds, isApplying, isCompact, onPreviewItem, previewContent],
+    [
+      activePreviewItems,
+      formatSeconds,
+      isApplying,
+      isCompact,
+      onPreviewItem,
+      previewContent,
+    ],
   );
   const listHeight = Math.min(
     isCompact ? 340 : 420,
@@ -499,7 +579,10 @@ export default function BulkPlaybackRangeDrawer({
   );
   const progressPercent =
     applyProgress && applyProgress.total > 0
-      ? Math.min(100, Math.round((applyProgress.completed / applyProgress.total) * 100))
+      ? Math.min(
+          100,
+          Math.round((applyProgress.completed / applyProgress.total) * 100),
+        )
       : 0;
   const isWritingProgress = applyProgress?.label?.includes("寫入") ?? false;
   const applyButtonLabel =
@@ -513,294 +596,298 @@ export default function BulkPlaybackRangeDrawer({
 
   return (
     <>
-    <Drawer
-      anchor={isCompact ? "bottom" : "right"}
-      open={open}
-      onClose={() => {
-        if (!isApplying) onClose();
-      }}
-      slotProps={{
-        paper: {
-          sx: {
-            width: isCompact ? "100%" : "min(1120px, 96vw)",
-            height: isCompact ? "100dvh" : "100%",
-            background:
-              "linear-gradient(180deg, #10151d 0%, #0b1017 46%, #080b10 100%)",
-            borderLeft: "1px solid rgba(148,163,184,0.22)",
-            color: "var(--mc-text)",
-            overflow: "hidden",
-          },
-        },
-      }}
-    >
-      <div className="flex h-full min-h-0 flex-col">
-        <header className="border-b border-[var(--mc-border)]/80 px-5 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-lg font-semibold text-[var(--mc-text)]">
-                批量修改播放區間
-              </div>
-              <div className="mt-1 text-sm leading-5 text-[var(--mc-text-muted)]">
-                將同一套起點與片段長度套用到 {itemsCount} 首曲目。
-              </div>
-            </div>
-            <IconButton
-              aria-label="關閉批量修改播放區間"
-              onClick={onClose}
-              disabled={isApplying}
-              size="small"
-              sx={{
-                border: "1px solid var(--mc-border)",
-                color: "var(--mc-text-muted)",
-                "&:hover": {
-                  color: "var(--mc-text)",
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                },
-              }}
-            >
-              <CloseRounded fontSize="small" />
-            </IconButton>
-          </div>
-        </header>
-
-        <main
-          className={`grid min-h-0 flex-1 gap-0 overflow-hidden ${
-            previewContent && !isCompact
-              ? "md:grid-cols-[420px_minmax(0,1fr)]"
-              : ""
-          }`}
-        >
-          {previewContent && !isCompact ? (
-            <aside className="min-h-0 border-r border-[var(--mc-border)]/70 p-4">
-              {previewContent}
-            </aside>
-          ) : null}
-          <div className="flex min-h-0 flex-col overflow-hidden px-5 py-4">
-            <section className="shrink-0 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  disabled={isApplying}
-                  onClick={() => onDraftChange({ ...draft, mode: "percent" })}
-                  className={modeButtonClass(draft.mode === "percent")}
-                >
-                  依歌曲百分比
-                </button>
-                <button
-                  type="button"
-                  disabled={isApplying}
-                  onClick={() => onDraftChange({ ...draft, mode: "fixed" })}
-                  className={modeButtonClass(draft.mode === "fixed")}
-                >
-                  固定起始時間
-                </button>
-              </div>
-
-              {draft.mode === "percent" ? (
-                <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-[var(--mc-text)]">
-                        每首從 {draft.percent}% 開始
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
-                        適合略過前奏，依每首歌長度自動換算起點。
-                      </div>
-                    </div>
-                    <TextField
-                      label="百分比"
-                      value={String(draft.percent)}
-                      disabled={isApplying}
-                      onChange={(event) => {
-                        const next = Number(event.target.value);
-                        onDraftChange({
-                          ...draft,
-                          percent: Number.isFinite(next)
-                            ? Math.min(99, Math.max(0, next))
-                            : draft.percent,
-                        });
-                      }}
-                      type="number"
-                      size="small"
-                      sx={{ ...fieldSx, width: 104 }}
-                      slotProps={labelSlotProps}
-                    />
-                  </div>
-                  <Slider
-                    value={draft.percent}
-                    min={0}
-                    max={95}
-                    step={1}
-                    disabled={isApplying}
-                    onChange={(_, value) => {
-                      if (typeof value !== "number") return;
-                      onDraftChange({ ...draft, percent: value });
-                    }}
-                    sx={{
-                      mt: 2,
-                      color: "var(--mc-accent)",
-                      "& .MuiSlider-rail": { opacity: 0.35 },
-                      "& .MuiSlider-thumb": {
-                        borderRadius: 1,
-                        backgroundColor: "var(--mc-text)",
-                      },
-                    }}
-                  />
-                </div>
-              ) : null}
-
-              <div className="flex items-end gap-2">
-                {draft.mode === "fixed" ? (
-                  <MinuteSecondInput
-                    label="起始時間"
-                    value={draft.startInput}
-                    disabled={isApplying}
-                    maxDurationSec={maxDurationSec}
-                    onChange={(value) =>
-                      onDraftChange({ ...draft, startInput: value })
-                    }
-                  />
-                ) : null}
-
-                <MinuteSecondInput
-                  label="片段長度"
-                  value={draft.clipLengthInput}
-                  disabled={isApplying}
-                  maxDurationSec={maxDurationSec}
-                  onChange={(value) =>
-                    onDraftChange({ ...draft, clipLengthInput: value })
-                  }
-                />
-              </div>
-              {affectedItems.length > 0 ? (
-                <div className="rounded-2xl border border-amber-400/35 bg-amber-500/10 px-4 py-3">
-                  <div className="flex items-start gap-2">
-                    <WarningAmberRounded
-                      fontSize="small"
-                      className="mt-0.5 text-amber-200"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-amber-100">
-                        {affectedItems.length} 首會超出可播放長度
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-amber-100/80">
-                        套用時會先自動收在歌曲結尾；這些曲目的片段會比設定短，建議逐首預覽後再微調。
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {affectedItems.slice(0, 4).map((item) => (
-                          <span
-                            key={item.id}
-                            className="max-w-[210px] truncate rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[11px] text-amber-50"
-                            title={item.title}
-                          >
-                            {item.title}
-                          </span>
-                        ))}
-                        {affectedItems.length > 4 ? (
-                          <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] text-amber-100/80">
-                            +{affectedItems.length - 4}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-
-            <section className="mt-5 flex min-h-0 flex-1 flex-col">
-              <div className="mb-3 flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/55 p-1">
-                <button
-                  type="button"
-                  onClick={() => setPreviewTab("applies")}
-                  className={`min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-semibold transition ${
-                    previewTab === "applies"
-                      ? "bg-[var(--mc-accent)] text-slate-950"
-                      : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                  }`}
-                >
-                  可直接套用 · {appliesItems.length}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTab("shortened")}
-                  className={`min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-semibold transition ${
-                    previewTab === "shortened"
-                      ? "bg-amber-300 text-slate-950"
-                      : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
-                  }`}
-                >
-                  需額外調整 · {shortenedItems.length}
-                </button>
-              </div>
-
-              {activePreviewItems.length > 0 ? (
-                <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-[var(--mc-surface)]/35">
-                  <List<PreviewRowProps>
-                    style={{ height: listHeight, width: "100%" }}
-                    rowCount={activePreviewItems.length}
-                    rowHeight={ROW_HEIGHT}
-                    rowProps={activeRowProps}
-                    rowComponent={PreviewVirtualRow}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-[var(--mc-border)] px-3 py-5 text-center text-xs text-[var(--mc-text-muted)]">
-                  {previewTab === "shortened"
-                    ? "沒有需要額外調整的曲目。"
-                    : "沒有可直接套用的曲目。"}
-                </div>
-              )}
-            </section>
-          </div>
-        </main>
-
-        <footer className="border-t border-[var(--mc-border)]/80 px-5 py-4">
-          <button
-            type="button"
-            onClick={onApply}
-            disabled={!canApply || isApplying}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--mc-accent)] px-4 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface-strong)] disabled:text-[var(--mc-text-muted)]"
-          >
-            {isApplying ? <CircularProgress size={18} color="inherit" /> : null}
-            {applyButtonLabel}
-          </button>
-        </footer>
-      </div>
-    </Drawer>
-
-    {previewContent ? (
       <Drawer
-        anchor="bottom"
-        open={isCompact && mobilePreviewOpen}
-        onClose={() => setMobilePreviewOpen(false)}
+        anchor="right"
+        open={open}
+        onClose={() => {
+          if (!isApplying) onClose();
+        }}
         slotProps={{
           paper: {
             sx: {
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              background: "#0b1017",
+              width: isCompact ? "100%" : "min(1120px, 96vw)",
+              height: isCompact ? "100dvh" : "100%",
+              borderTopLeftRadius: isCompact ? 0 : 24,
+              borderBottomLeftRadius: isCompact ? 0 : 24,
+              background:
+                "linear-gradient(180deg, #10151d 0%, #0b1017 46%, #080b10 100%)",
+              borderLeft: isCompact ? 0 : "1px solid rgba(148,163,184,0.22)",
               color: "var(--mc-text)",
-              maxHeight: "78dvh",
+              boxShadow: "0 24px 70px rgba(2,6,23,0.7)",
+              overflow: "hidden",
             },
           },
         }}
       >
-        <div className="max-h-[78dvh] overflow-y-auto p-3">
-          <div className="mb-2 flex justify-end">
-            <IconButton
-              aria-label="關閉預覽播放器"
-              onClick={() => setMobilePreviewOpen(false)}
-              size="small"
-              sx={{ color: "var(--mc-text-muted)" }}
+        <div className="flex h-full min-h-0 flex-col">
+          <header className="border-b border-[var(--mc-border)]/80 px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-lg font-semibold text-[var(--mc-text)]">
+                  批量修改播放區間
+                </div>
+              </div>
+              <IconButton
+                aria-label="關閉批量修改播放區間"
+                onClick={onClose}
+                disabled={isApplying}
+                size="small"
+                sx={{
+                  color: "var(--mc-text-muted)",
+                  "&:hover": {
+                    color: "var(--mc-text)",
+                    backgroundColor: "rgba(255,255,255,0.06)",
+                  },
+                }}
+              >
+                <CloseRounded fontSize="small" />
+              </IconButton>
+            </div>
+          </header>
+
+          <main
+            className={`grid min-h-0 flex-1 gap-0 overflow-hidden ${
+              previewContent && !isCompact
+                ? "md:grid-cols-[420px_minmax(0,1fr)]"
+                : ""
+            }`}
+          >
+            {previewContent && !isCompact ? (
+              <aside className="min-h-0 border-r border-[var(--mc-border)]/70 p-4">
+                {previewContent}
+              </aside>
+            ) : null}
+            <div className="flex min-h-0 flex-col overflow-hidden px-5 py-4">
+              <section className="shrink-0 space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isApplying}
+                    onClick={() => onDraftChange({ ...draft, mode: "percent" })}
+                    className={modeButtonClass(draft.mode === "percent")}
+                  >
+                    依歌曲百分比
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isApplying}
+                    onClick={() => onDraftChange({ ...draft, mode: "fixed" })}
+                    className={modeButtonClass(draft.mode === "fixed")}
+                  >
+                    固定起始時間
+                  </button>
+                </div>
+
+                {draft.mode === "percent" ? (
+                  <div className="rounded-2xl border border-[var(--mc-border)] bg-[var(--mc-surface)]/45 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--mc-text)]">
+                          每首從 {draft.percent}% 開始
+                        </div>
+                        <div className="mt-1 text-xs text-[var(--mc-text-muted)]">
+                          適合略過前奏，依每首歌長度自動換算起點。
+                        </div>
+                      </div>
+                      <TextField
+                        label="百分比"
+                        value={String(draft.percent)}
+                        disabled={isApplying}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          onDraftChange({
+                            ...draft,
+                            percent: Number.isFinite(next)
+                              ? Math.min(99, Math.max(0, next))
+                              : draft.percent,
+                          });
+                        }}
+                        type="number"
+                        size="small"
+                        sx={{ ...fieldSx, width: 104 }}
+                        slotProps={labelSlotProps}
+                      />
+                    </div>
+                    <Slider
+                      value={draft.percent}
+                      min={0}
+                      max={95}
+                      step={1}
+                      disabled={isApplying}
+                      onChange={(_, value) => {
+                        if (typeof value !== "number") return;
+                        onDraftChange({ ...draft, percent: value });
+                      }}
+                      sx={{
+                        mt: 2,
+                        color: "var(--mc-accent)",
+                        "& .MuiSlider-rail": { opacity: 0.35 },
+                        "& .MuiSlider-thumb": {
+                          borderRadius: 1,
+                          backgroundColor: "var(--mc-text)",
+                        },
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="flex flex-col gap-3">
+                  {draft.mode === "fixed" ? (
+                    <MinuteSecondInput
+                      label="起始時間"
+                      value={draft.startInput}
+                      disabled={isApplying}
+                      maxDurationSec={maxDurationSec}
+                      onChange={(value) =>
+                        onDraftChange({ ...draft, startInput: value })
+                      }
+                    />
+                  ) : null}
+
+                  <MinuteSecondInput
+                    label="片段長度"
+                    value={draft.clipLengthInput}
+                    disabled={isApplying}
+                    maxDurationSec={maxDurationSec}
+                    quickPresetsSec={[15, 30, 45, 60]}
+                    recommendedPresetSec={30}
+                    helperText="片段長度會用作遊戲作答時間；30 秒通常不會太短或太長。"
+                    onChange={(value) =>
+                      onDraftChange({ ...draft, clipLengthInput: value })
+                    }
+                  />
+                </div>
+                {affectedItems.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-400/35 bg-amber-500/10 px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <WarningAmberRounded
+                        fontSize="small"
+                        className="mt-0.5 text-amber-200"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-amber-100">
+                          {affectedItems.length} 首會超出可播放長度
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-amber-100/80">
+                          套用時會先自動收在歌曲結尾；這些曲目的片段會比設定短，建議逐首預覽後再微調。
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {affectedItems.slice(0, 4).map((item) => (
+                            <span
+                              key={item.id}
+                              className="max-w-[210px] truncate rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[11px] text-amber-50"
+                              title={item.title}
+                            >
+                              {item.title}
+                            </span>
+                          ))}
+                          {affectedItems.length > 4 ? (
+                            <span className="rounded-full border border-amber-300/30 px-2 py-1 text-[11px] text-amber-100/80">
+                              +{affectedItems.length - 4}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="mt-5 flex min-h-0 flex-1 flex-col">
+                <div className="mb-3 flex rounded-full border border-[var(--mc-border)] bg-[var(--mc-surface)]/55 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("applies")}
+                    className={`min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      previewTab === "applies"
+                        ? "bg-[var(--mc-accent)] text-slate-950"
+                        : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                    }`}
+                  >
+                    可直接套用 · {appliesItems.length}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("shortened")}
+                    className={`min-w-0 flex-1 rounded-full px-3 py-2 text-xs font-semibold transition ${
+                      previewTab === "shortened"
+                        ? "bg-amber-300 text-slate-950"
+                        : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+                    }`}
+                  >
+                    需額外調整 · {shortenedItems.length}
+                  </button>
+                </div>
+
+                {activePreviewItems.length > 0 ? (
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-[var(--mc-surface)]/35">
+                    <List<PreviewRowProps>
+                      style={{ height: listHeight, width: "100%" }}
+                      rowCount={activePreviewItems.length}
+                      rowHeight={ROW_HEIGHT}
+                      rowProps={activeRowProps}
+                      rowComponent={PreviewVirtualRow}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[var(--mc-border)] px-3 py-5 text-center text-xs text-[var(--mc-text-muted)]">
+                    {previewTab === "shortened"
+                      ? "沒有需要額外調整的曲目。"
+                      : "沒有可直接套用的曲目。"}
+                  </div>
+                )}
+              </section>
+            </div>
+          </main>
+
+          <footer className="border-t border-[var(--mc-border)]/80 px-5 py-4">
+            <button
+              type="button"
+              onClick={onApply}
+              disabled={!canApply || isApplying}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--mc-accent)] px-4 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[var(--mc-surface-strong)] disabled:text-[var(--mc-text-muted)]"
             >
-              <CloseRounded fontSize="small" />
-            </IconButton>
-          </div>
-          {previewContent}
+              {isApplying ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : null}
+              {applyButtonLabel}
+            </button>
+          </footer>
         </div>
       </Drawer>
-    ) : null}
+
+      {previewContent ? (
+        <Drawer
+          anchor="right"
+          open={isCompact && mobilePreviewOpen}
+          onClose={() => setMobilePreviewOpen(false)}
+          slotProps={{
+            paper: {
+              sx: {
+                width: "100%",
+                height: "100dvh",
+                maxHeight: "100dvh",
+                background: "#0b1017",
+                color: "var(--mc-text)",
+              },
+            },
+          }}
+        >
+          <div className="h-full overflow-y-auto p-3">
+            <div className="mb-2 flex justify-end">
+              <IconButton
+                aria-label="關閉預覽播放器"
+                onClick={() => setMobilePreviewOpen(false)}
+                size="small"
+                sx={{ color: "var(--mc-text-muted)" }}
+              >
+                <CloseRounded fontSize="small" />
+              </IconButton>
+            </div>
+            {previewContent}
+          </div>
+        </Drawer>
+      ) : null}
     </>
   );
 }
