@@ -33,6 +33,7 @@ const useMobileScoreFeedback = ({
 }: UseMobileScoreFeedbackParams): MobileScoreFeedbackEvent | null => {
   const [event, setEvent] = useState<MobileScoreFeedbackEvent | null>(null);
   const prevSnapshotRef = useRef<MobileScoreFeedbackSnapshot | null>(null);
+  const prevScopeRef = useRef<MobileScoreFeedbackScope | null>(null);
   const clearTimerRef = useRef<number | null>(null);
   const isActive = enabled && gameStatus === "playing" && Boolean(meClientId);
 
@@ -65,9 +66,18 @@ const useMobileScoreFeedback = ({
       challengeProjection,
     });
     const prevSnapshot = prevSnapshotRef.current;
+    const scopeChanged = prevScopeRef.current !== scope;
+
+    prevScopeRef.current = scope;
     prevSnapshotRef.current = nextSnapshot;
 
-    if (!prevSnapshot) {
+    if (!prevSnapshot || scopeChanged) {
+      publishEvent(null);
+      return;
+    }
+
+    if (!prevSnapshot || prevSnapshot.scope !== nextSnapshot.scope) {
+      prevSnapshotRef.current = nextSnapshot;
       return;
     }
 

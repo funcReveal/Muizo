@@ -12,17 +12,33 @@ type MobileScoreFeedbackOverlayProps = {
 const getScoreFeedbackTitle = (
   event: Extract<MobileScoreFeedbackEvent, { type: "score" }>,
 ) => {
+  const combo = event.me.combo ?? 0;
+
+  if (combo > 1) {
+    return `Combo x${combo}`;
+  }
+
+  if (combo === 1) {
+    return "Combo x1";
+  }
+
+  return "答對加分";
+};
+
+const getScoreFeedbackDetail = (
+  event: Extract<MobileScoreFeedbackEvent, { type: "score" }>,
+) => {
   if (event.me.rank === 1) {
     return event.runnerUp
-      ? `\u9818\u5148 #2 ${event.leadScore ?? 0} \u5206`
-      : "\u76ee\u524d\u7b2c 1 \u540d";
+      ? `領先 #2 ${event.leadScore ?? 0} 分`
+      : "目前第 1 名";
   }
 
   if (event.target && event.remainingScore !== null) {
-    return `\u8ddd\u96e2 #${event.target.rank} \u9084\u5dee ${event.remainingScore} \u5206`;
+    return `距離 #${event.target.rank} 還差 ${event.remainingScore} 分`;
   }
 
-  return `#${event.me.rank}`;
+  return null;
 };
 
 const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
@@ -31,18 +47,24 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
       return null;
     }
 
-    const hasRankChange = event.type === "passed";
+    const isRankChange =
+      event.type === "passed" || event.type === "overtaken";
+
     const cardClassName = [
       "game-room-mobile-score-feedback-card",
       `game-room-mobile-score-feedback-card--${event.type}`,
-      hasRankChange
+      isRankChange
         ? "game-room-mobile-score-feedback-card--rank-change"
         : "game-room-mobile-score-feedback-card--bubble",
     ].join(" ");
+
     const eventKey =
-      event.type === "passed"
-        ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target.clientId}`
-        : `${event.scope}-${event.type}-${event.me.score}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
+      event.type === "passed" || event.type === "overtaken"
+        ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target?.clientId ?? "unknown"}`
+        : `${event.scope}-${event.type}-${event.me.score}-${event.me.combo ?? 0}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
+
+    const scoreDetail =
+      event.type === "score" ? getScoreFeedbackDetail(event) : null;
 
     return (
       <div
@@ -51,16 +73,25 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
         aria-live="polite"
       >
         <div key={eventKey} className={cardClassName}>
-          {event.type === "passed" ? (
+          {isRankChange ? (
             <div className="game-room-mobile-score-feedback-avatars">
-              <PlayerAvatar
-                username={event.target.username}
-                clientId={event.target.clientId}
-                avatarUrl={event.target.avatarUrl}
-                size={34}
-                hideRankMark
-                className="game-room-mobile-score-feedback-avatar--target"
-              />
+              {event.target ? (
+                <PlayerAvatar
+                  username={event.target.username}
+                  clientId={event.target.clientId}
+                  avatarUrl={event.target.avatarUrl}
+                  size={34}
+                  hideRankMark
+                  effectLevel="off"
+                  className="game-room-mobile-score-feedback-avatar--target"
+                />
+              ) : (
+                <span
+                  className="game-room-mobile-score-feedback-avatar-placeholder game-room-mobile-score-feedback-avatar--target"
+                  aria-hidden="true"
+                />
+              )}
+
               <PlayerAvatar
                 username={event.me.username}
                 clientId={event.me.clientId}
@@ -68,22 +99,44 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
                 size={38}
                 isMe
                 hideRankMark
+                effectLevel="off"
                 className="game-room-mobile-score-feedback-avatar--me"
               />
             </div>
           ) : null}
 
-          <div className="game-room-mobile-score-feedback-gain">
-            +{event.scoreGain}
-          </div>
+          {event.type !== "overtaken" ? (
+            <div className="game-room-mobile-score-feedback-gain">
+              +{event.scoreGain}
+            </div>
+          ) : event.targetScoreGain && event.targetScoreGain > 0 ? (
+            <div className="game-room-mobile-score-feedback-gain game-room-mobile-score-feedback-gain--danger">
+              對方 +{event.targetScoreGain}
+            </div>
+          ) : null}
 
           {event.type === "passed" ? (
             <>
               <div className="game-room-mobile-score-feedback-title">
-                {"\u8d85\u8d8a"} #{event.target.rank} {event.target.username}
+                {event.target
+                  ? `超越 ${event.target.username}`
+                  : "排名上升"}
               </div>
+
               <div className="game-room-mobile-score-feedback-detail">
-                #{event.oldRank} {"\u2192"} #{event.newRank}
+                #{event.oldRank} → #{event.newRank}
+              </div>
+            </>
+          ) : event.type === "overtaken" ? (
+            <>
+              <div className="game-room-mobile-score-feedback-title game-room-mobile-score-feedback-title--danger">
+                {event.target
+                  ? `被 ${event.target.username} 超越`
+                  : "排名下降"}
+              </div>
+
+              <div className="game-room-mobile-score-feedback-detail">
+                #{event.oldRank} → #{event.newRank}
               </div>
             </>
           ) : (
@@ -91,9 +144,12 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
               <div className="game-room-mobile-score-feedback-title">
                 {getScoreFeedbackTitle(event)}
               </div>
-              <div className="game-room-mobile-score-feedback-detail">
-                #{event.me.rank}
-              </div>
+
+              {scoreDetail ? (
+                <div className="game-room-mobile-score-feedback-detail">
+                  {scoreDetail}
+                </div>
+              ) : null}
             </>
           )}
         </div>

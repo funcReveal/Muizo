@@ -14,6 +14,7 @@ export type FeedbackPlayer = {
   avatarUrl: string | null;
   score: number;
   rank: number;
+  combo: number | null;
 };
 
 export type MobileScoreFeedbackEvent =
@@ -24,7 +25,16 @@ export type MobileScoreFeedbackEvent =
       oldRank: number;
       newRank: number;
       me: FeedbackPlayer;
-      target: FeedbackPlayer;
+      target: FeedbackPlayer | null;
+    }
+  | {
+      type: "overtaken";
+      scope: MobileScoreFeedbackScope;
+      oldRank: number;
+      newRank: number;
+      me: FeedbackPlayer;
+      target: FeedbackPlayer | null;
+      targetScoreGain: number | null;
     }
   | {
       type: "score";
@@ -56,6 +66,7 @@ const toFeedbackPlayer = (
   avatarUrl: participant.avatar_url ?? participant.avatarUrl ?? null,
   score: participant.score,
   rank,
+  combo: participant.combo ?? 0,
 });
 
 const createSnapshot = (
@@ -66,7 +77,9 @@ const createSnapshot = (
   scope,
   me,
   players,
-  rankByClientId: new Map(players.map((player) => [player.clientId, player.rank])),
+  rankByClientId: new Map(
+    players.map((player) => [player.clientId, player.rank]),
+  ),
   scoreByClientId: new Map(
     players.map((player) => [player.clientId, player.score]),
   ),
@@ -76,11 +89,11 @@ export const buildRoomMobileScoreFeedbackSnapshot = (
   participants: RoomParticipant[],
   meClientId: string | undefined,
 ): MobileScoreFeedbackSnapshot => {
-  const players = sortParticipantsByScore(participants).map((participant, index) =>
-    toFeedbackPlayer(participant, index + 1),
+  const players = sortParticipantsByScore(participants).map(
+    (participant, index) => toFeedbackPlayer(participant, index + 1),
   );
   const me = meClientId
-    ? players.find((player) => player.clientId === meClientId) ?? null
+    ? (players.find((player) => player.clientId === meClientId) ?? null)
     : null;
 
   return createSnapshot("room", players, me);
@@ -92,12 +105,14 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
   meUsername,
   meAvatarUrl,
   meScore,
+  meCombo,
 }: {
   projection: ChallengeProjectedLeaderboardResponse | null;
   meClientId: string | undefined;
   meUsername?: string | null;
   meAvatarUrl?: string | null;
   meScore: number;
+  meCombo: number;
 }): MobileScoreFeedbackSnapshot => {
   if (!projection) {
     return createSnapshot("challenge", [], null);
@@ -108,10 +123,11 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
     typeof meRank === "number"
       ? {
           clientId: meClientId || ME_CHALLENGE_CLIENT_ID,
-          username: meUsername?.trim() || "\u6211",
+          username: meUsername?.trim() || "我",
           avatarUrl: meAvatarUrl ?? null,
           score: meScore,
           rank: meRank,
+          combo: meCombo,
         }
       : null;
 
@@ -135,6 +151,7 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
       avatarUrl: entry.avatarUrl,
       score: entry.bestScore,
       rank: entry.rank,
+      combo: entry.maxCombo,
     });
   });
 
@@ -150,6 +167,7 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
       avatarUrl: opponent.avatarUrl,
       score: opponent.bestScore,
       rank: opponent.rank,
+      combo: opponent.maxCombo,
     });
   });
 
@@ -166,6 +184,7 @@ export const buildChallengeMobileScoreFeedbackSnapshot = ({
       avatarUrl: null,
       score: projection.myStanding.nextTarget.score,
       rank: Math.max(1, meRank - 1),
+      combo: null,
     });
   }
 
@@ -199,6 +218,7 @@ export const buildMobileScoreFeedbackSnapshot = ({
       meUsername: me?.username ?? null,
       meAvatarUrl: me?.avatar_url ?? me?.avatarUrl ?? null,
       meScore: me?.score ?? 0,
+      meCombo: me?.combo ?? 0,
     });
   }
 
@@ -212,11 +232,48 @@ const findPassedTarget = (
   newRank: number,
 ) =>
   nextSnapshot.players
-    .filter((player) => player.rank >= newRank && player.rank < oldRank)
+    .filter(
+      (player) =>
+        player.rank >= newRank &&
+        player.rank < oldRank &&
+        player.clientId !== nextSnapshot.me?.clientId,
+    )
+    .sort((a, b) => a.rank - b.rank)
     .find((player) => {
-      const previousTargetRank = prevSnapshot.rankByClientId.get(player.clientId);
+      const previousTargetRank = prevSnapshot.rankByClientId.get(
+        player.clientId,
+      );
+
       return (
         typeof previousTargetRank === "number" && previousTargetRank < oldRank
+      );
+    }) ??
+  prevSnapshot.players
+    .filter(
+      (player) =>
+        player.rank >= newRank &&
+        player.rank < oldRank &&
+        player.clientId !== prevSnapshot.me?.clientId,
+    )
+    .sort((a, b) => a.rank - b.rank)[0] ??
+  null;
+
+const findOvertakingTarget = (
+  prevSnapshot: MobileScoreFeedbackSnapshot,
+  nextSnapshot: MobileScoreFeedbackSnapshot,
+  oldRank: number,
+  newRank: number,
+) =>
+  nextSnapshot.players
+    .filter((player) => player.rank > oldRank && player.rank <= newRank)
+    .sort((a, b) => b.rank - a.rank)
+    .find((player) => {
+      const previousTargetRank = prevSnapshot.rankByClientId.get(
+        player.clientId,
+      );
+
+      return (
+        typeof previousTargetRank === "number" && previousTargetRank > oldRank
       );
     }) ?? null;
 
@@ -248,9 +305,6 @@ export const buildMobileScoreFeedbackEvent = (
   }
 
   const scoreGain = nextMe.score - prevScore;
-  if (scoreGain <= 0) {
-    return null;
-  }
 
   if (newRank < oldRank) {
     const passedTarget = findPassedTarget(
@@ -260,21 +314,50 @@ export const buildMobileScoreFeedbackEvent = (
       newRank,
     );
 
-    if (passedTarget) {
-      return {
-        type: "passed",
-        scope: nextSnapshot.scope,
-        scoreGain,
-        oldRank,
-        newRank,
-        me: nextMe,
-        target: passedTarget,
-      };
-    }
+    return {
+      type: "passed",
+      scope: nextSnapshot.scope,
+      scoreGain: Math.max(0, scoreGain),
+      oldRank,
+      newRank,
+      me: nextMe,
+      target: passedTarget,
+    };
+  }
+
+  if (newRank > oldRank) {
+    const overtakingTarget = findOvertakingTarget(
+      prevSnapshot,
+      nextSnapshot,
+      oldRank,
+      newRank,
+    );
+
+    const prevTargetScore = overtakingTarget
+      ? prevSnapshot.scoreByClientId.get(overtakingTarget.clientId)
+      : undefined;
+
+    return {
+      type: "overtaken",
+      scope: nextSnapshot.scope,
+      oldRank,
+      newRank,
+      me: nextMe,
+      target: overtakingTarget,
+      targetScoreGain:
+        overtakingTarget && typeof prevTargetScore === "number"
+          ? Math.max(0, overtakingTarget.score - prevTargetScore)
+          : null,
+    };
+  }
+
+  if (scoreGain <= 0) {
+    return null;
   }
 
   if (newRank === 1) {
-    const runnerUp = nextSnapshot.players.find((player) => player.rank === 2) ?? null;
+    const runnerUp =
+      nextSnapshot.players.find((player) => player.rank === 2) ?? null;
 
     return {
       type: "score",

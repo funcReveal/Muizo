@@ -349,33 +349,45 @@ const GameRoomMobilePersonalRankCard = React.memo(function GameRoomMobilePersona
       onClick={onOpenLeaderboard}
       aria-label="開啟排行榜"
     >
-      {participant ? (
-        <PlayerAvatar
-          username={participant.username}
-          clientId={participant.clientId}
-          avatarUrl={participant.avatar_url ?? participant.avatarUrl ?? undefined}
-          size={26}
-          hideRankMark
-          className="game-room-mobile-rank-card__avatar"
-        />
-      ) : null}
-      <span className="game-room-mobile-rank-card__score-row">
-        <span className="game-room-mobile-rank-card__score">
-          {score != null ? score.toLocaleString("en-US") : "--"}
-        </span>
-        {combo > 0 ? (
-          <span className="game-room-mobile-rank-card__combo">Combo {combo}</span>
-        ) : null}
-      </span>
-      <span className="game-room-mobile-rank-card__rank">
-        {rank != null ? `#${rank}` : "--"}
-      </span>
       <span
         className="game-room-mobile-card-expand-hint game-room-mobile-card-expand-hint--rank"
         aria-hidden="true"
       >
         <KeyboardDoubleArrowRightRoundedIcon fontSize="inherit" />
       </span>
+
+      <span className="game-room-mobile-rank-card__avatar-stage">
+        {participant ? (
+          <PlayerAvatar
+            username={participant.username}
+            clientId={participant.clientId}
+            avatarUrl={participant.avatar_url ?? participant.avatarUrl ?? undefined}
+            size={38}
+            hideRankMark
+            effectLevel="off"
+            className="game-room-mobile-rank-card__avatar"
+          />
+        ) : (
+          <span
+            className="game-room-mobile-rank-card__avatar-placeholder"
+            aria-hidden="true"
+          />
+        )}
+      </span>
+
+      <span className="game-room-mobile-rank-card__rank">
+        {rank != null ? `#${rank}` : "--"}
+      </span>
+
+      <span className="game-room-mobile-rank-card__score">
+        {score != null ? score.toLocaleString("en-US") : "--"}
+      </span>
+
+      {combo > 0 ? (
+        <span className="game-room-mobile-rank-card__combo">
+          Combo {combo}
+        </span>
+      ) : null}
     </button>
   );
 });
@@ -1206,7 +1218,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () =>
       meClientId
         ? participants.find((participant) => participant.clientId === meClientId) ??
-          null
+        null
         : null,
     [meClientId, participants],
   );
