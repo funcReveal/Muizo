@@ -57,12 +57,17 @@ import type { AvatarEffectLevel } from "../../../shared/ui/playerAvatar/playerAv
 import { useGameSfx } from "../model/useGameSfx";
 import GameRoomAnswerPanel from "./components/GameRoomAnswerPanel";
 import GameRoomLeaderboardSidebar from "./GameRoomLeaderboardSidebar";
+import MobileScoreFeedbackOverlay from "./components/MobileScoreFeedbackOverlay";
 import GameRoomPlaybackPanel from "./components/GameRoomPlaybackPanel";
 import {
   AudioGestureOverlayPortal,
   StartBroadcastOverlayPortal,
 } from "./components/GameRoomPortalOverlays";
-import { isMobileDevice, SILENT_AUDIO_SRC } from "../model/gameRoomUtils";
+import {
+  deferStateUpdate,
+  isMobileDevice,
+  SILENT_AUDIO_SRC,
+} from "../model/gameRoomUtils";
 import {
   buildScoreboardRows,
   sortParticipantsByScore,
@@ -73,6 +78,7 @@ import useGameRoomAnswerFlow from "../model/useGameRoomAnswerFlow";
 import useGameRoomQuestionDerivedState from "../model/useGameRoomQuestionDerivedState";
 import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
+import useMobileScoreFeedback from "../model/useMobileScoreFeedback";
 import useTopTwoSwapState from "../model/useTopTwoSwapState";
 import PlayerAvatar from "../../../shared/ui/playerAvatar/PlayerAvatar";
 import {
@@ -83,6 +89,10 @@ import useGameRoomChoiceHotkeys from "./lib/useGameRoomChoiceHotkeys";
 import useMobileDrawerDragDismiss from "@shared/hooks/useMobileDrawerDragDismiss";
 import { appToast } from "@shared/ui/toastApi";
 import type { SettlementQuestionRecap } from "../../Settlement/model/types";
+import type {
+  ChallengeProjectedLeaderboardResponse,
+  GameRoomScoreboardTab,
+} from "../model/projectionTypes";
 import ConfirmDialog from "../../../shared/ui/ConfirmDialog";
 import { useGameRoomPlaybackState } from "../model/useGameRoomPlaybackState";
 import { useGameRoomVoteState } from "../model/useGameRoomVoteState";
@@ -405,6 +415,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const isMobileGameViewport = useMediaQuery("(max-width: 1023.95px)");
   const [mobileBottomPanel, setMobileBottomPanel] =
     useState<MobileBottomPanel>(null);
+  const [scoreFeedbackTab, setScoreFeedbackTab] =
+    useState<GameRoomScoreboardTab>(isLeaderboardRoom ? "challenge" : "room");
+  const [challengeFeedbackProjection, setChallengeFeedbackProjection] =
+    useState<ChallengeProjectedLeaderboardResponse | null>(null);
   const [mobileScoreboardHeight, setMobileScoreboardHeight] = useState(
     MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
   );
@@ -412,6 +426,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   const mobileScoreboardHeightPendingRef = useRef<number>(
     MOBILE_SCOREBOARD_DEFAULT_HEIGHT_VH,
   );
+  const mobilePlaybackFrameRef = useRef<HTMLDivElement | null>(null);
+  const [mobileScoreFeedbackAnchorStyle, setMobileScoreFeedbackAnchorStyle] =
+    useState<CSSProperties | undefined>(undefined);
   const [mobileScoreboardSwapReplayToken, setMobileScoreboardSwapReplayToken] =
     useState(0);
   const [mobileScoreboardSwapArmed, setMobileScoreboardSwapArmed] =
@@ -438,6 +455,16 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   >(null);
   const { keyBindings } = useKeyBindings();
   const legacyClipWarningShownRef = useRef(false);
+
+  useEffect(() => {
+    const nextTab = isLeaderboardRoom ? scoreFeedbackTab : "room";
+    if (nextTab !== scoreFeedbackTab) {
+      deferStateUpdate(() => setScoreFeedbackTab(nextTab));
+    }
+    if (!isLeaderboardRoom && challengeFeedbackProjection) {
+      deferStateUpdate(() => setChallengeFeedbackProjection(null));
+    }
+  }, [challengeFeedbackProjection, isLeaderboardRoom, scoreFeedbackTab]);
 
   const previousPhaseRef = useRef<GameState["phase"]>(gameState.phase);
 
@@ -1169,6 +1196,73 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   );
   const { topTwoSwapState, resetTopTwoSwapState } =
     useTopTwoSwapState(sortedParticipants);
+  const mobileScoreFeedbackEvent = useMobileScoreFeedback({
+    participants,
+    meClientId,
+    enabled: isMobileGameViewport && gameState.status === "playing",
+    gameStatus: gameState.status,
+    scope: isLeaderboardRoom ? scoreFeedbackTab : "room",
+    challengeProjection:
+      isLeaderboardRoom && scoreFeedbackTab === "challenge"
+        ? challengeFeedbackProjection
+        : null,
+  });
+  useEffect(() => {
+    if (!isMobileGameViewport || gameState.status !== "playing") {
+      deferStateUpdate(() => setMobileScoreFeedbackAnchorStyle(undefined));
+      return;
+    }
+
+    const frame = mobilePlaybackFrameRef.current;
+    if (!frame) {
+      return;
+    }
+
+    let rafId: number | null = null;
+    const updateAnchor = () => {
+      if (rafId !== null) {
+        return;
+      }
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        const rect = frame.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          return;
+        }
+
+        const nextLeft = Math.max(8, Math.round(rect.left + 10));
+        const nextTop = Math.round(rect.top + rect.height * 0.3);
+        setMobileScoreFeedbackAnchorStyle((current) => {
+          if (current?.left === nextLeft && current?.top === nextTop) {
+            return current;
+          }
+          return {
+            left: nextLeft,
+            top: nextTop,
+          };
+        });
+      });
+    };
+
+    updateAnchor();
+    window.addEventListener("resize", updateAnchor, { passive: true });
+    window.addEventListener("scroll", updateAnchor, { passive: true });
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(updateAnchor);
+    resizeObserver?.observe(frame);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("resize", updateAnchor);
+      window.removeEventListener("scroll", updateAnchor);
+      resizeObserver?.disconnect();
+    };
+  }, [gameState.status, isMobileGameViewport]);
   const { resetQuestionRecaps } = useGameRoomRecaps({
     isReveal,
     trackSessionKey,
@@ -1969,6 +2063,10 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
   return (
     <GameRoomDanmuProviderBridge roomId={room.id}>
       <div className="game-room-shell">
+        <MobileScoreFeedbackOverlay
+          event={mobileScoreFeedbackEvent}
+          anchorStyle={mobileScoreFeedbackAnchorStyle}
+        />
         <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-0 pb-10 lg:grid-cols-[minmax(274px,318px)_minmax(0,1fr)] lg:pb-8 xl:grid-cols-[minmax(290px,334px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(304px,348px)_minmax(0,1fr)] lg:h-[calc(100vh-124px)] lg:items-stretch">
           {!isMobileGameViewport && (
             <div className="game-room-leaderboard-column hidden lg:block lg:h-full">
@@ -1996,6 +2094,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                 }
                 isLeaderboardRoom={isLeaderboardRoom}
                 roomId={room.id}
+                activeTab={scoreFeedbackTab}
+                onActiveTabChange={setScoreFeedbackTab}
+                onProjectionDataChange={setChallengeFeedbackProjection}
                 isSettled={gameState.status === "ended"}
                 gameStatus={gameState.status}
                 gamePhase={gameState.phase}
@@ -2010,6 +2111,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
           )}
           <section className="game-room-main-section game-room-main-section--immersive flex min-h-0 flex-col gap-2 lg:h-full lg:overflow-visible">
             <GameRoomPlaybackPanel
+              mediaFrameRef={mobilePlaybackFrameRef}
               isMobileView={isMobileGameViewport}
               isCompactMobile={isMobileGameViewport}
               isRevealPhase={isReveal}
@@ -2315,6 +2417,9 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
                     }
                     isLeaderboardRoom={isLeaderboardRoom}
                     roomId={room.id}
+                    activeTab={scoreFeedbackTab}
+                    onActiveTabChange={setScoreFeedbackTab}
+                    onProjectionDataChange={setChallengeFeedbackProjection}
                     isSettled={gameState.status === "ended"}
                     gameStatus={gameState.status}
                     gamePhase={gameState.phase}

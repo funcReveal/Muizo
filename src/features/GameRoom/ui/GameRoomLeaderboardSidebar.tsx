@@ -24,7 +24,10 @@ import type {
   ScoreboardBorderThemeId,
 } from "../../Setting/model/scoreboardBorderEffects";
 import type { AvatarEffectLevel } from "../../../shared/ui/playerAvatar/playerAvatarTheme";
-import type { GameRoomScoreboardTab } from "../model/projectionTypes";
+import type {
+  ChallengeProjectedLeaderboardResponse,
+  GameRoomScoreboardTab,
+} from "../model/projectionTypes";
 import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
 import RoomScoreboardPanel from "./components/RoomScoreboardPanel";
 import { ChallengeLeaderboardPanel } from "./components/ChallengeLeaderboardPanel";
@@ -78,6 +81,11 @@ export interface GameRoomLeaderboardSidebarProps {
   waitingToStart: boolean;
   isInterTrackWait: boolean;
   isRecoveringConnection?: boolean;
+  activeTab?: GameRoomScoreboardTab;
+  onActiveTabChange?: (tab: GameRoomScoreboardTab) => void;
+  onProjectionDataChange?: (
+    data: ChallengeProjectedLeaderboardResponse | null,
+  ) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,15 +154,23 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
   waitingToStart,
   isInterTrackWait,
   isRecoveringConnection = false,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  onProjectionDataChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<GameRoomScoreboardTab>(
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<GameRoomScoreboardTab>(
     isLeaderboardRoom ? "challenge" : "room",
   );
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
 
   // Ensure casual rooms are locked to "room" tab
   const resolvedTab: GameRoomScoreboardTab = isLeaderboardRoom
     ? activeTab
     : "room";
+
+  React.useEffect(() => {
+    onActiveTabChange?.(resolvedTab);
+  }, [onActiveTabChange, resolvedTab]);
 
   // Live score + viewer display info from participants list
   const { myLiveScore, viewerDisplayName, viewerAvatarUrl, viewerCombo } = useMemo(() => {
@@ -189,13 +205,22 @@ const GameRoomLeaderboardSidebar: React.FC<GameRoomLeaderboardSidebarProps> = ({
       projectionSessionKey,
     });
 
+  React.useEffect(() => {
+    onProjectionDataChange?.(
+      projectionState.status === "loaded" ? projectionState.data : null,
+    );
+  }, [onProjectionDataChange, projectionState]);
+
   const handleTabChallenge = useCallback(() => {
-    if (isLeaderboardRoom) setActiveTab("challenge");
-  }, [isLeaderboardRoom]);
+    if (!isLeaderboardRoom) return;
+    setUncontrolledActiveTab("challenge");
+    onActiveTabChange?.("challenge");
+  }, [isLeaderboardRoom, onActiveTabChange]);
 
   const handleTabRoom = useCallback(() => {
-    setActiveTab("room");
-  }, []);
+    setUncontrolledActiveTab("room");
+    onActiveTabChange?.("room");
+  }, [onActiveTabChange]);
 
   return (
     <div

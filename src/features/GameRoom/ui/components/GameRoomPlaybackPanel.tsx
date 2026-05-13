@@ -39,6 +39,7 @@ const MOBILE_GUESS_RING_CIRCUMFERENCE =
   2 * Math.PI * MOBILE_GUESS_RING_RADIUS;
 interface GameRoomPlaybackPanelProps {
   rootRef?: React.Ref<HTMLDivElement>;
+  mediaFrameRef?: React.Ref<HTMLDivElement>;
   isMobileView?: boolean;
   isOverlayMode?: boolean;
   isCompactMobile?: boolean;
@@ -375,6 +376,7 @@ const MobileRevealCountdownHint = React.memo(function MobileRevealCountdownHint(
 
 const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
   rootRef,
+  mediaFrameRef,
   isMobileView = false,
   isOverlayMode = false,
   isCompactMobile = false,
@@ -664,6 +666,7 @@ const GameRoomPlaybackPanel: React.FC<GameRoomPlaybackPanelProps> = ({
       {mobileInfoBar}
 
       <div
+        ref={mediaFrameRef}
         className={`game-room-media-frame relative w-full overflow-hidden ${mediaFrameHeightClass}`}
       >
         {iframeSrc ? (
