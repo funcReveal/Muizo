@@ -80,6 +80,7 @@ import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
 import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
 import useMobileScoreFeedback from "../model/useMobileScoreFeedback";
+import type { MobileScoreFeedbackEvent } from "../model/mobileScoreFeedback";
 import useTopTwoSwapState from "../model/useTopTwoSwapState";
 import PlayerAvatar from "../../../shared/ui/playerAvatar/PlayerAvatar";
 import {
@@ -204,12 +205,14 @@ const GAME_ROOM_HOST_DRAWER_MODAL_PROPS = {
 } as const;
 
 const GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS = {
-  hideBackdrop: true,
   keepMounted: false,
   disableAutoFocus: true,
   disableEnforceFocus: true,
   disableRestoreFocus: true,
   disableScrollLock: true,
+  BackdropProps: {
+    className: "game-room-mobile-scoreboard-backdrop",
+  },
 } as const;
 
 const useGameRoomGuessUrgencyFlag = ({
@@ -1277,6 +1280,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         ? challengeFeedbackProjection
         : null,
   });
+  const mobileUnansweredFeedbackEvent =
+    useMemo<MobileScoreFeedbackEvent | null>(() => {
+      if (!isMobileGameViewport) return null;
+      if (gameState.status !== "playing") return null;
+      if (gameState.phase !== "reveal") return null;
+      if (selectedChoice !== null) return null;
+
+      return {
+        type: "unanswered",
+        scope: isLeaderboardRoom ? scoreFeedbackTab : "room",
+        questionKey: trackSessionKey,
+      };
+    }, [
+      gameState.phase,
+      gameState.status,
+      isLeaderboardRoom,
+      isMobileGameViewport,
+      scoreFeedbackTab,
+      selectedChoice,
+      trackSessionKey,
+    ]);
+
+  const mobileFeedbackEvent =
+    mobileUnansweredFeedbackEvent ?? mobileScoreFeedbackEvent;
   useEffect(() => {
     if (!isMobileGameViewport || gameState.status !== "playing") {
       deferStateUpdate(() => setMobileScoreFeedbackAnchorStyle(undefined));
@@ -2150,7 +2177,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     <GameRoomDanmuProviderBridge roomId={room.id}>
       <div className="game-room-shell">
         <MobileScoreFeedbackOverlay
-          event={mobileScoreFeedbackEvent}
+          event={mobileFeedbackEvent}
           anchorStyle={mobileScoreFeedbackAnchorStyle}
         />
         <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-0 pb-10 lg:grid-cols-[minmax(274px,318px)_minmax(0,1fr)] lg:pb-8 xl:grid-cols-[minmax(290px,334px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(304px,348px)_minmax(0,1fr)] lg:h-[calc(100vh-124px)] lg:items-stretch">

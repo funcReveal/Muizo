@@ -45,6 +45,11 @@ export type MobileScoreFeedbackEvent =
       remainingScore: number | null;
       runnerUp: FeedbackPlayer | null;
       leadScore: number | null;
+    }
+  | {
+      type: "unanswered";
+      scope: MobileScoreFeedbackScope;
+      questionKey: string;
     };
 
 export type MobileScoreFeedbackSnapshot = {
