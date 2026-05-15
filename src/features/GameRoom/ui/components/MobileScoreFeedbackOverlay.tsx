@@ -2,7 +2,10 @@ import React from "react";
 
 import PlayerAvatar from "@shared/ui/playerAvatar/PlayerAvatar";
 
-import type { MobileScoreFeedbackEvent } from "../../model/mobileScoreFeedback";
+import type {
+  FeedbackPlayer,
+  MobileScoreFeedbackEvent,
+} from "../../model/mobileScoreFeedback";
 
 type MobileScoreFeedbackOverlayProps = {
   event: MobileScoreFeedbackEvent | null;
@@ -45,31 +48,33 @@ const getScoreFeedbackDetail = (
   return null;
 };
 
-const canRenderFeedbackAvatar = (
-  player: MobileScoreFeedbackEvent["me"] | null,
-) =>
+const canRenderFeedbackAvatar = (player: FeedbackPlayer | null) =>
   Boolean(
     player &&
-      player.clientId.trim().length > 0 &&
-      player.username.trim().length > 0 &&
-      Number.isFinite(player.rank) &&
-      Number.isFinite(player.score),
+    player.clientId.trim().length > 0 &&
+    player.username.trim().length > 0 &&
+    Number.isFinite(player.rank) &&
+    Number.isFinite(player.score),
   );
 
 const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
   React.memo(({ event, anchorStyle }) => {
     if (!event) return null;
 
-    const isRankChange =
-      event.type === "passed" || event.type === "overtaken";
-    const comboTier =
-      event.type === "score"
-        ? getComboFeedbackTier(event.me.combo ?? 0)
-        : "none";
+    const rankEvent =
+      event.type === "passed" || event.type === "overtaken" ? event : null;
+    const scoreEvent = event.type === "score" ? event : null;
+    const isUnansweredEvent = event.type === "unanswered";
+
+    const isRankChange = rankEvent !== null;
+    const comboTier = scoreEvent
+      ? getComboFeedbackTier(scoreEvent.me.combo ?? 0)
+      : "none";
+
     const canShowRankAvatars =
-      isRankChange &&
-      canRenderFeedbackAvatar(event.me) &&
-      canRenderFeedbackAvatar(event.target);
+      rankEvent !== null &&
+      canRenderFeedbackAvatar(rankEvent.me) &&
+      canRenderFeedbackAvatar(rankEvent.target);
 
     const cardClassName = [
       "game-room-mobile-score-feedback-card",
@@ -87,13 +92,15 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
       .filter(Boolean)
       .join(" ");
 
-    const eventKey =
-      event.type === "passed" || event.type === "overtaken"
-        ? `${event.scope}-${event.type}-${event.me.score}-${event.oldRank}-${event.newRank}-${event.target?.clientId ?? "text"}`
-        : `${event.scope}-${event.type}-${event.me.score}-${event.me.combo ?? 0}-${event.target?.clientId ?? event.runnerUp?.clientId ?? "solo"}`;
+    const eventKey = isUnansweredEvent
+      ? `${event.scope}-unanswered-${event.questionKey}`
+      : rankEvent
+        ? `${rankEvent.scope}-${rankEvent.type}-${rankEvent.me.score}-${rankEvent.oldRank}-${rankEvent.newRank}-${rankEvent.target?.clientId ?? "text"}`
+        : scoreEvent
+          ? `${scoreEvent.scope}-${scoreEvent.type}-${scoreEvent.me.score}-${scoreEvent.me.combo ?? 0}-${scoreEvent.target?.clientId ?? scoreEvent.runnerUp?.clientId ?? "solo"}`
+          : `${event.scope}-${event.type}`;
 
-    const scoreDetail =
-      event.type === "score" ? getScoreFeedbackDetail(event) : null;
+    const scoreDetail = scoreEvent ? getScoreFeedbackDetail(scoreEvent) : null;
 
     return (
       <div
@@ -102,27 +109,27 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
         aria-live="polite"
       >
         <div key={eventKey} className={cardClassName}>
-          {canShowRankAvatars && event.target ? (
+          {canShowRankAvatars && rankEvent?.target ? (
             <div
-              className={`game-room-mobile-score-feedback-swap game-room-mobile-score-feedback-swap--${event.type}`}
+              className={`game-room-mobile-score-feedback-swap game-room-mobile-score-feedback-swap--${rankEvent.type}`}
               aria-hidden="true"
             >
               <PlayerAvatar
-                username={event.target.username}
-                clientId={event.target.clientId}
-                avatarUrl={event.target.avatarUrl}
+                username={rankEvent.target.username}
+                clientId={rankEvent.target.clientId}
+                avatarUrl={rankEvent.target.avatarUrl}
                 size={34}
                 hideRankMark
                 effectLevel="off"
                 className="game-room-mobile-score-feedback-swap-avatar game-room-mobile-score-feedback-swap-avatar--target"
               />
               <span className="game-room-mobile-score-feedback-swap-arrow">
-                {event.type === "passed" ? ">" : "<"}
+                {rankEvent.type === "passed" ? ">" : "<"}
               </span>
               <PlayerAvatar
-                username={event.me.username}
-                clientId={event.me.clientId}
-                avatarUrl={event.me.avatarUrl}
+                username={rankEvent.me.username}
+                clientId={rankEvent.me.clientId}
+                avatarUrl={rankEvent.me.avatarUrl}
                 size={38}
                 isMe
                 hideRankMark
@@ -132,36 +139,45 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
             </div>
           ) : null}
 
-          {event.type === "score" ? (
+          {scoreEvent ? (
             <div className="game-room-mobile-score-feedback-gain">
-              +{event.scoreGain}
+              +{scoreEvent.scoreGain}
             </div>
           ) : null}
 
-          {event.type === "passed" ? (
+          {isUnansweredEvent ? (
             <>
-              <div className="game-room-mobile-score-feedback-title">
-                {event.target ? `超越 ${event.target.username}` : "排名上升"}
+              <div className="game-room-mobile-score-feedback-title game-room-mobile-score-feedback-title--muted">
+                未作答
               </div>
               <div className="game-room-mobile-score-feedback-detail">
-                #{event.oldRank} -&gt; #{event.newRank}
+                這題沒有送出答案
               </div>
             </>
-          ) : event.type === "overtaken" ? (
+          ) : rankEvent?.type === "passed" ? (
+            <>
+              <div className="game-room-mobile-score-feedback-title">
+                {rankEvent.target ? `超越 ${rankEvent.target.username}` : "排名上升"}
+              </div>
+              <div className="game-room-mobile-score-feedback-detail">
+                #{rankEvent.oldRank} -&gt; #{rankEvent.newRank}
+              </div>
+            </>
+          ) : rankEvent?.type === "overtaken" ? (
             <>
               <div className="game-room-mobile-score-feedback-title game-room-mobile-score-feedback-title--danger">
-                {event.target
-                  ? `${event.target.username} 超越你`
+                {rankEvent.target
+                  ? `${rankEvent.target.username} 超越你`
                   : "排名下降"}
               </div>
               <div className="game-room-mobile-score-feedback-detail">
-                #{event.oldRank} -&gt; #{event.newRank}
+                #{rankEvent.oldRank} -&gt; #{rankEvent.newRank}
               </div>
             </>
-          ) : (
+          ) : scoreEvent ? (
             <>
               <div className="game-room-mobile-score-feedback-title">
-                {getScoreFeedbackTitle(event)}
+                {getScoreFeedbackTitle(scoreEvent)}
               </div>
               {scoreDetail ? (
                 <div className="game-room-mobile-score-feedback-detail">
@@ -169,7 +185,7 @@ const MobileScoreFeedbackOverlay: React.FC<MobileScoreFeedbackOverlayProps> =
                 </div>
               ) : null}
             </>
-          )}
+          ) : null}
         </div>
       </div>
     );

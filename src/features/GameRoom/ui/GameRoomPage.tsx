@@ -78,8 +78,13 @@ import useGameRoomAnswerFlow from "../model/useGameRoomAnswerFlow";
 import useGameRoomQuestionDerivedState from "../model/useGameRoomQuestionDerivedState";
 import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
-import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
+import {
+  getAdaptiveProjectionInitialJitterMs,
+  getProjectionSessionKey,
+  useChallengeLeaderboardProjection,
+} from "../model/useChallengeLeaderboardProjection";
 import useMobileScoreFeedback from "../model/useMobileScoreFeedback";
+import type { MobileScoreFeedbackEvent } from "../model/mobileScoreFeedback";
 import useTopTwoSwapState from "../model/useTopTwoSwapState";
 import PlayerAvatar from "../../../shared/ui/playerAvatar/PlayerAvatar";
 import {
@@ -204,12 +209,14 @@ const GAME_ROOM_HOST_DRAWER_MODAL_PROPS = {
 } as const;
 
 const GAME_ROOM_SCOREBOARD_DRAWER_MODAL_PROPS = {
-  hideBackdrop: true,
   keepMounted: false,
   disableAutoFocus: true,
   disableEnforceFocus: true,
   disableRestoreFocus: true,
   disableScrollLock: true,
+  BackdropProps: {
+    className: "game-room-mobile-scoreboard-backdrop",
+  },
 } as const;
 
 const useGameRoomGuessUrgencyFlag = ({
@@ -562,6 +569,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     };
   }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
+    blurActiveInteractiveElement();
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
       current === "scoreboard" ? null : "scoreboard",
@@ -1212,10 +1220,38 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => sortParticipantsByScore(participants),
     [participants],
   );
+  const lastProjectionSessionRef = useRef<{
+    roomId: string;
+    startedAt: number;
+    key: string;
+  } | null>(null);
+  if (
+    gameState.status === "playing" &&
+    Number.isFinite(gameState.startedAt) &&
+    (lastProjectionSessionRef.current?.roomId !== room.id ||
+      lastProjectionSessionRef.current?.startedAt !== gameState.startedAt)
+  ) {
+    const initialKey =
+      gameSessionId !== null && gameSessionId !== undefined
+        ? getProjectionSessionKey({
+          roomId: room.id,
+          gameSessionId,
+        })
+        : `started:${gameState.startedAt}`;
+    lastProjectionSessionRef.current = {
+      roomId: room.id,
+      startedAt: gameState.startedAt,
+      key: initialKey,
+    };
+  } else if (
+    lastProjectionSessionRef.current?.roomId !== room.id ||
+    gameState.status !== "playing"
+  ) {
+    lastProjectionSessionRef.current = null;
+  }
   const projectionSessionKey =
-    gameSessionId !== null && gameSessionId !== undefined
-      ? `session:${gameSessionId}`
-      : `room:${room.id}`;
+    lastProjectionSessionRef.current?.key ?? `pending:${room.id}`;
+  const hasStableProjectionSessionKey = lastProjectionSessionRef.current !== null;
   const meLiveParticipant = useMemo(
     () =>
       meClientId
@@ -1224,17 +1260,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         : null,
     [meClientId, participants],
   );
-  const challengeProjectionEnabled =
-    isLeaderboardRoom && scoreFeedbackTab === "challenge";
-  const challengeProjectionCanLoadInitial =
-    challengeProjectionEnabled &&
-    gameState.status === "playing" &&
+  const challengeProjectionEnabled = isLeaderboardRoom && !!meClientId;
+  const canPrefetchChallengeProjection =
+    isInitialCountdown && startCountdownSec <= 5;
+  const canLoadChallengeProjectionDuringPlay =
     (gameState.phase === "guess" || gameState.phase === "reveal") &&
     trackCursor >= 0 &&
     trackSessionKey.trim().length > 0 &&
     !waitingToStart &&
-    !isInterTrackWait &&
+    !isInterTrackWait;
+  const challengeProjectionCanLoadInitial =
+    isLeaderboardRoom &&
+    hasStableProjectionSessionKey &&
+    gameState.status === "playing" &&
+    (canLoadChallengeProjectionDuringPlay || canPrefetchChallengeProjection) &&
     !isRecoveringConnection;
+  const challengeProjectionInitialJitterMs =
+    canPrefetchChallengeProjection && !canLoadChallengeProjectionDuringPlay
+      ? getAdaptiveProjectionInitialJitterMs(participants.length)
+      : 0;
   const {
     state: challengeProjectionState,
     refresh: refreshChallengeProjection,
@@ -1247,6 +1291,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     myLiveScore: meLiveParticipant?.score ?? 0,
     canLoadInitialProjection: challengeProjectionCanLoadInitial,
     projectionSessionKey,
+    initialFetchJitterMs: challengeProjectionInitialJitterMs,
   });
   const challengeFeedbackProjection =
     challengeProjectionState.status === "loaded"
@@ -1277,6 +1322,30 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         ? challengeFeedbackProjection
         : null,
   });
+  const mobileUnansweredFeedbackEvent =
+    useMemo<MobileScoreFeedbackEvent | null>(() => {
+      if (!isMobileGameViewport) return null;
+      if (gameState.status !== "playing") return null;
+      if (gameState.phase !== "reveal") return null;
+      if (selectedChoice !== null) return null;
+
+      return {
+        type: "unanswered",
+        scope: isLeaderboardRoom ? scoreFeedbackTab : "room",
+        questionKey: trackSessionKey,
+      };
+    }, [
+      gameState.phase,
+      gameState.status,
+      isLeaderboardRoom,
+      isMobileGameViewport,
+      scoreFeedbackTab,
+      selectedChoice,
+      trackSessionKey,
+    ]);
+
+  const mobileFeedbackEvent =
+    mobileUnansweredFeedbackEvent ?? mobileScoreFeedbackEvent;
   useEffect(() => {
     if (!isMobileGameViewport || gameState.status !== "playing") {
       deferStateUpdate(() => setMobileScoreFeedbackAnchorStyle(undefined));
@@ -2150,7 +2219,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     <GameRoomDanmuProviderBridge roomId={room.id}>
       <div className="game-room-shell">
         <MobileScoreFeedbackOverlay
-          event={mobileScoreFeedbackEvent}
+          event={mobileFeedbackEvent}
           anchorStyle={mobileScoreFeedbackAnchorStyle}
         />
         <div className="game-room-grid grid w-full grid-cols-1 gap-3 px-0 pb-10 lg:grid-cols-[minmax(274px,318px)_minmax(0,1fr)] lg:pb-8 xl:grid-cols-[minmax(290px,334px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(304px,348px)_minmax(0,1fr)] lg:h-[calc(100vh-124px)] lg:items-stretch">

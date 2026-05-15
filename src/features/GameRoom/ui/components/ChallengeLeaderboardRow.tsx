@@ -120,7 +120,7 @@ export const ChallengeNearbyRow = React.memo(
 
     return (
       <div
-        className={`game-room-score-row challenge-lb-nearby-row flex items-center justify-between text-sm ${isPassed ? "opacity-60" : ""
+        className={`game-room-score-row challenge-lb-nearby-row flex items-center justify-between text-sm ${isPassed ? "challenge-lb-nearby-row--passed opacity-60" : ""
           }`}
       >
         <span className="challenge-lb-row__identity flex min-w-0 flex-1 items-center gap-2 truncate">

@@ -71,7 +71,6 @@ interface GameRoomAnswerPanelProps {
    *  Covers both guess and reveal embedded HUD modes. */
   shouldHideMobileAnswerPhaseChrome?: boolean;
 }
-
 type InlineStatusSegmentTone =
   | "neutral"
   | "muted"
@@ -85,87 +84,21 @@ interface InlineStatusSegment {
   text: string;
   tone: InlineStatusSegmentTone;
 }
-
-type ChoiceTextSegmentTone = "primary" | "secondary" | "tertiary";
-
-interface ChoiceTextSegment {
+const GameRoomChoiceText = React.memo(function GameRoomChoiceText({
+  text,
+}: {
   text: string;
-  tone: ChoiceTextSegmentTone;
-}
-
-const CHOICE_TEXT_MAX_SEGMENTS = 3;
-
-const normalizeChoiceTextPart = (text: string) =>
-  text
-    .trim()
-    .replace(/^[\s\-\u2013\u2014|\uFF5C/]+/u, "")
-    .replace(/[\s\-\u2013\u2014|\uFF5C/]+$/u, "")
-    .trim();
-
-const compactChoiceTextParts = (parts: string[]) => {
-  const normalizedParts = parts
-    .map(normalizeChoiceTextPart)
-    .filter(Boolean);
-
-  if (normalizedParts.length <= CHOICE_TEXT_MAX_SEGMENTS) {
-    return normalizedParts;
-  }
-
-  return [
-    normalizedParts[0],
-    normalizedParts[1],
-    normalizedParts.slice(2).join(" - "),
-  ];
-};
-
-const splitByExplicitChoiceSeparators = (text: string) =>
-  text.split(/\s*(?:\/|\uFF5C|\|)\s*|\t+|\s{2,}|\s+[\u2013\u2014-]\s*/u);
-
-const splitByAnimeChoiceMarkers = (text: string) => {
-  const markerPattern =
-    "OP\\d*|ED\\d*|Opening|Ending|Season(?:\\s*\\d+)?|\\u7B2C[^-\\s]+\\u5B63|\\u63D2\\u66F2|\\u5287\\u5834\\u7248";
-  const fullMatch = text.match(
-    new RegExp("^(.*?)-(" + markerPattern + ")(?:-(.+))?$", "iu"),
+}) {
+  return (
+    <span
+      className="game-room-choice-text"
+      title={text}
+      aria-label={text}
+    >
+      {text}
+    </span>
   );
-
-  if (fullMatch) {
-    return [fullMatch[1], fullMatch[2], fullMatch[3] ?? ""];
-  }
-
-  const leadingMatch = text.match(
-    new RegExp("^(.*?)(?:\\s+)(" + markerPattern + ")(?:\\s+(.+))?$", "iu"),
-  );
-  if (!leadingMatch) return [text];
-
-  return [leadingMatch[1], leadingMatch[2], leadingMatch[3] ?? ""];
-};
-
-const splitChoiceTextSegments = (
-  text: string,
-): ChoiceTextSegment[] => {
-  const normalizedText = text.trim().replace(/\u3000/g, " ");
-  if (!normalizedText) return [];
-
-  const explicitParts = compactChoiceTextParts(
-    splitByExplicitChoiceSeparators(normalizedText),
-  );
-  const resolvedParts =
-    explicitParts.length > 1
-      ? explicitParts
-      : compactChoiceTextParts(splitByAnimeChoiceMarkers(normalizedText));
-
-  const parts = resolvedParts.length > 0 ? resolvedParts : [normalizedText];
-
-  return parts.slice(0, CHOICE_TEXT_MAX_SEGMENTS).map((part, index) => ({
-    text: part,
-    tone:
-      index === 0
-        ? "primary"
-        : index === 1
-          ? "secondary"
-          : "tertiary",
-  }));
-};
+});
 
 function formatTimeAttackCountdown(valueMs: number | null | undefined): string {
   if (typeof valueMs !== "number" || !Number.isFinite(valueMs)) return "--:--";
@@ -474,7 +407,6 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   canAnswerNow,
   onSubmitChoice,
   keyBindings,
-  myHasChangedAnswer,
   myFeedback,
   gameStatus,
   revealEndsAt,
@@ -875,22 +807,18 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                     playlist[choice.index]?.title?.trim(),
                     "未命名選項",
                   );
-                  const choiceTextSegments =
-                    splitChoiceTextSegments(choiceDisplayTitle);
                   const revealPicks = revealChoicePickMap[choice.index] ?? [];
                   const hasRevealPicks = isReveal && revealPicks.length > 0;
                   const isMyChoice = selectedChoice === choice.index;
-                  const showCorrectTag = isReveal && isCorrect;
-                  const showMyChoiceTag = isReveal && isMyChoice;
-                  const showMyCorrectTag = isReveal && isMyChoice && isCorrect;
-                  const showGuessLockTag = !isReveal && isMyChoice;
-                  const hasChoiceStatusTag =
-                    showGuessLockTag ||
-                    (isMyChoice && myComboTier > 0) ||
-                    showCorrectTag ||
-                    showMyChoiceTag;
                   const showComboFocusStyle =
                     !isReveal && isMyChoice && myComboTier > 0 && myComboNow > 0;
+                  const revealChoiceStateClass = isReveal
+                    ? isCorrect
+                      ? "game-room-choice-button--reveal-correct"
+                      : isSelected
+                        ? "game-room-choice-button--reveal-wrong"
+                        : "game-room-choice-button--reveal-neutral"
+                    : "";
                   const comboFocusTierClass = showComboFocusStyle
                     ? `game-room-choice-button--combo-focus-tier-${myComboTier}`
                     : "";
@@ -949,6 +877,9 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                         className={`game-room-choice-button justify-start ${!isReveal && isSelected
                           ? "game-room-choice-button--selected-live"
                           : ""
+                          } ${revealChoiceStateClass
+                            ? `game-room-choice-button--reveal ${revealChoiceStateClass}`
+                            : ""
                           } ${showComboFocusStyle
                             ? "game-room-choice-button--combo-focus game-room-choice-button--combo-live game-room-choice-button--combo-live-active"
                             : ""
@@ -958,80 +889,26 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                           } ${comboLiveTierClass
                             ? comboLiveTierClass
                             : ""
-                          } ${isLocked || waitingToStart || shouldShowGestureOverlay || (isLeaderboardAnswerLocked && !isSelected)
+                          } ${isLocked ||
+                            waitingToStart ||
+                            shouldShowGestureOverlay ||
+                            (isLeaderboardAnswerLocked && !isSelected)
                             ? "pointer-events-none"
                             : ""
-                          } ${isMobileView && hasChoiceStatusTag
-                            ? "game-room-choice-button--mobile-has-tags"
-                            : ""
                           } ${isMobileView ? "game-room-choice-button--mobile" : ""
-                          } ${isMobileView && !isReveal && !isSelected ? "game-room-choice-button--mobile-idle" : ""}`}
+                          } ${isMobileView && !isReveal && !isSelected
+                            ? "game-room-choice-button--mobile-idle"
+                            : ""
+                          }`}
                         disabled={false}
                         onClick={() => handleChoiceClick(choice.index)}
                       >
-                        <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
+                        <div className="game-room-choice-content game-room-choice-content--text-only">
                           <span className="game-room-choice-main">
-                            <span
-                              className="game-room-choice-text"
-                              title={choiceDisplayTitle}
-                            >
-                              <span className="game-room-choice-text-segments">
-                                {choiceTextSegments.map((segment) => (
-                                  <span
-                                    key={`${choice.index}-${segment.tone}-${segment.text}`}
-                                    className={`game-room-choice-text-segment game-room-choice-text-segment--${segment.tone}`}
-                                  >
-                                    {segment.text}
-                                  </span>
-                                ))}
-                              </span>
-                            </span>
+                            <GameRoomChoiceText text={choiceDisplayTitle} />
                           </span>
-
-                          <span className={`game-room-choice-meta game-room-choice-meta-rail ${isMobileView ? "" : "ml-3"}`}>
-                            <span className="game-room-choice-meta-row game-room-choice-meta-row--combo">
-                              {isMyChoice && myComboTier > 0 && (
-                                <span
-                                  className={`game-room-choice-tag game-room-choice-chip game-room-choice-chip--combo game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
-                                >
-                                  Combo x{myComboNow}
-                                </span>
-                              )}
-                            </span>
-
-                            <span className="game-room-choice-meta-row game-room-choice-meta-row--status">
-                              {showGuessLockTag && (
-                                <span
-                                  className={`game-room-choice-tag game-room-choice-chip ${myHasChangedAnswer
-                                    ? "game-room-choice-tag--reselect"
-                                    : "game-room-choice-tag--lock"
-                                    }`}
-                                >
-                                  {myHasChangedAnswer ? "改答已鎖" : "已鎖定"}
-                                </span>
-                              )}
-
-                              {showCorrectTag && (
-                                <span className="game-room-choice-tag game-room-choice-chip game-room-choice-chip--correct game-room-choice-tag--correct">
-                                  正解
-                                </span>
-                              )}
-
-                              {showMyChoiceTag && (
-                                <span
-                                  className={`game-room-choice-tag game-room-choice-chip game-room-choice-chip--mine ${showMyCorrectTag
-                                    ? "game-room-choice-tag--you-correct"
-                                    : "game-room-choice-tag--you"
-                                    }`}
-                                >
-                                  {showMyCorrectTag ? "你答對" : "你作答"}
-                                </span>
-                              )}
-                            </span>
-
-                            <span className="game-room-choice-key inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-700 bg-slate-800 text-[11px] font-semibold text-slate-200">
-                              {(keyBindings[idx] ?? "").toUpperCase()}
-                            </span>
+                          <span className="game-room-choice-key inline-flex h-6 w-6 flex-none items-center justify-center rounded border border-slate-700 bg-slate-800 text-[11px] font-semibold text-slate-200">
+                            {(keyBindings[idx] ?? "").toUpperCase()}
                           </span>
                         </div>
 
