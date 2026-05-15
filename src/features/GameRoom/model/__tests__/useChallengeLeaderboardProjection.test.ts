@@ -6,6 +6,7 @@ import type {
 import {
   cancelScheduledInitialProjectionFetch,
   CLIENT_COOLDOWN_MS,
+  getAdaptiveProjectionInitialJitterMs,
   getProjectionCacheEntry,
   getProjectionCacheKey,
   getProjectionSessionKey,
@@ -38,7 +39,7 @@ function makeData(
       viewerDbUserId: "me",
       nextTarget: null,
     },
-    cache: { source: "memory", ttlMs: 1000 },
+    cache: { source: "memory", ttlMs: 5000 },
     ...overrides,
   };
 }
@@ -114,16 +115,40 @@ describe("challenge leaderboard projection request guards", () => {
     entry.data = makeData();
     entry.loadedAt = 5000;
 
-    expect(shouldUseFreshProjectionCache(entry, 5000 + PROJECTION_CACHE_FRESH_MS - 1))
+    expect(shouldUseFreshProjectionCache(entry, 5000 + 999))
       .toBe(true);
     expect(
       shouldStartProjectionFetch({
         entry,
-        now: 5000 + PROJECTION_CACHE_FRESH_MS - 1,
+        now: 5000 + 999,
         force: false,
         clientCooldownMs: 0,
       }),
     ).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+  });
+
+  it("bounds fresh cache by the server ttl and client upper bound", () => {
+    const shortTtl = getProjectionCacheEntry("short-ttl");
+    shortTtl.data = makeData({ cache: { source: "redis", ttlMs: 1000 } });
+    shortTtl.loadedAt = 10_000;
+
+    const longTtl = getProjectionCacheEntry("long-ttl");
+    longTtl.data = makeData({ cache: { source: "redis", ttlMs: 60_000 } });
+    longTtl.loadedAt = 10_000;
+
+    expect(shouldUseFreshProjectionCache(shortTtl, 10_999)).toBe(true);
+    expect(shouldUseFreshProjectionCache(shortTtl, 11_001)).toBe(false);
+    expect(shouldUseFreshProjectionCache(longTtl, 10_000 + PROJECTION_CACHE_FRESH_MS - 1))
+      .toBe(true);
+    expect(shouldUseFreshProjectionCache(longTtl, 10_000 + PROJECTION_CACHE_FRESH_MS + 1))
+      .toBe(false);
+  });
+
+  it("uses wider initial jitter for larger rooms", () => {
+    expect(getAdaptiveProjectionInitialJitterMs(10)).toBe(1500);
+    expect(getAdaptiveProjectionInitialJitterMs(80)).toBe(4000);
+    expect(getAdaptiveProjectionInitialJitterMs(250)).toBe(8000);
+    expect(getAdaptiveProjectionInitialJitterMs(1000)).toBe(12000);
   });
 
   it("manual refresh does not create a duplicate request while in flight", () => {

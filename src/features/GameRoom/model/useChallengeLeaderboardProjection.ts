@@ -26,8 +26,10 @@ import type {
 export const CLIENT_COOLDOWN_MS = 4_000;
 export const PROJECTION_CACHE_FRESH_MS = 15_000;
 const DEFAULT_429_RETRY_AFTER_MS = CLIENT_COOLDOWN_MS;
-/** Random jitter applied to the initial fetch to spread the game-start storm. */
 const INITIAL_JITTER_MAX_MS = 1_500;
+const LARGE_ROOM_INITIAL_JITTER_MAX_MS = 12_000;
+const VISIBILITY_JITTER_MAX_MS = 5_000;
+const BOUNDARY_SCORE_BAND_SIZE = 250;
 
 export type ProjectionFetchReason =
   | "initial"
@@ -82,6 +84,15 @@ export function getProjectionSessionKey({
     : `room:${roomId}`;
 }
 
+export function getAdaptiveProjectionInitialJitterMs(
+  participantCount: number,
+): number {
+  if (participantCount <= 20) return INITIAL_JITTER_MAX_MS;
+  if (participantCount <= 100) return 4_000;
+  if (participantCount <= 300) return 8_000;
+  return LARGE_ROOM_INITIAL_JITTER_MAX_MS;
+}
+
 export function getProjectionCacheEntry(key: string): ProjectionCacheEntry {
   const existing = projectionCacheByKey.get(key);
   if (existing) return existing;
@@ -120,7 +131,12 @@ export function shouldUseFreshProjectionCache(
   entry: ProjectionCacheEntry,
   now: number,
 ): boolean {
-  return entry.data !== null && now - entry.loadedAt < PROJECTION_CACHE_FRESH_MS;
+  if (!entry.data) return false;
+  const serverTtlMs = Number.isFinite(entry.data.cache.ttlMs)
+    ? Math.max(0, entry.data.cache.ttlMs)
+    : PROJECTION_CACHE_FRESH_MS;
+  const freshMs = Math.min(PROJECTION_CACHE_FRESH_MS, serverTtlMs);
+  return now - entry.loadedAt < freshMs;
 }
 
 export function shouldStartProjectionFetch({
@@ -276,6 +292,7 @@ export function useChallengeLeaderboardProjection(
   );
   const gainAnimKeyRef = useRef(0);
   const pendingBoundaryRefreshRef = useRef(false);
+  const pendingBoundaryScoreBandRef = useRef<number | null>(null);
   const [gainState, setGainState] = useState<{ key: number; amount: number }>(
     {
       key: 0,
@@ -451,7 +468,7 @@ export function useChallengeLeaderboardProjection(
             lastErrorAt: completedAt,
             lastErrorStatus: result.status,
           };
-          if (result.status === 429) {
+          if (result.status === 429 || result.status === 503) {
             const retryAfterMs =
               result.retryAfterMs ?? DEFAULT_429_RETRY_AFTER_MS;
             nextPatch.nextAllowedAt = Math.max(
@@ -463,6 +480,7 @@ export function useChallengeLeaderboardProjection(
               cacheKey,
               retryAfterMs,
               nextAllowedAt: nextPatch.nextAllowedAt,
+              status: result.status,
             });
           }
           patchProjectionCacheEntry(cacheKey, nextPatch);
@@ -508,10 +526,16 @@ export function useChallengeLeaderboardProjection(
       setState((prev) => {
         if (prev.status === "loaded" && prev.cacheKey === cacheKey) return prev;
         const message =
-          completedEntry.lastErrorStatus === 429
+          completedEntry.lastErrorStatus === 429 ||
+          completedEntry.lastErrorStatus === 503
             ? "排行榜更新太頻繁，稍後再試"
-            : "排行榜暫時無法載入";
-        return { status: "error", message, cacheKey, sessionKey: projectionSessionKey };
+            : "排行榜暫時無法更新";
+        return {
+          status: "error",
+          message,
+          cacheKey,
+          sessionKey: projectionSessionKey,
+        };
       });
     },
     [
@@ -526,6 +550,27 @@ export function useChallengeLeaderboardProjection(
       refreshAuthToken,
       meClientId,
     ],
+  );
+
+  const scheduleFetchWithJitter = useCallback(
+    (reason: ProjectionFetchReason, maxJitterMs: number) => {
+      if (jitterTimerRef.current !== null) return;
+
+      const fire = () => {
+        jitterTimerRef.current = null;
+        if (document.hidden) {
+          patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
+          return;
+        }
+        patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
+        void doFetch(reason);
+      };
+
+      const jitter = Math.max(0, maxJitterMs);
+      const delay = jitter <= 0 ? 0 : Math.random() * jitter;
+      jitterTimerRef.current = setTimeout(fire, delay);
+    },
+    [cacheKey, doFetch],
   );
 
   useEffect(() => {
@@ -548,6 +593,7 @@ export function useChallengeLeaderboardProjection(
     prevLiveScoreRef.current = latestLiveScoreRef.current;
     gainAnimKeyRef.current = 0;
     pendingBoundaryRefreshRef.current = false;
+    pendingBoundaryScoreBandRef.current = null;
     queueMicrotask(() => {
       if (mountedRef.current) {
         setGainState({ key: 0, amount: 0 });
@@ -579,37 +625,25 @@ export function useChallengeLeaderboardProjection(
     if (entry.data || entry.inFlight || entry.initialScheduled) return;
 
     patchProjectionCacheEntry(cacheKey, { initialScheduled: true });
-
-    const fire = () => {
-      jitterTimerRef.current = null;
-      if (document.hidden) {
-        patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
-        return;
-      }
-      patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
-      void doFetch("initial");
-    };
-
-    const jitter = Math.max(0, initialFetchJitterMs);
-    const delay = jitter <= 0 ? 0 : Math.random() * jitter;
-    jitterTimerRef.current = setTimeout(fire, delay);
+    scheduleFetchWithJitter("initial", initialFetchJitterMs);
 
     return cancelInitialFetchSchedule;
   }, [
     enabled,
     canLoadInitialProjection,
     cacheKey,
-    doFetch,
     hydrateFromEntry,
     initialFetchJitterMs,
     cancelInitialFetchSchedule,
+    scheduleFetchWithJitter,
   ]);
 
   useEffect(() => {
     const onVisible = () => {
       if (document.hidden || !enabled || !canLoadInitialProjection) return;
       const entry = getProjectionCacheEntry(cacheKey);
-      if (entry.data && shouldUseFreshProjectionCache(entry, Date.now())) {
+      const now = Date.now();
+      if (entry.data && shouldUseFreshProjectionCache(entry, now)) {
         devLog("fetch skipped", {
           reason: "page_visible",
           cacheKey,
@@ -618,13 +652,23 @@ export function useChallengeLeaderboardProjection(
         hydrateFromEntry(entry);
         return;
       }
-      if (!entry.data || Date.now() - entry.loadedAt >= PROJECTION_CACHE_FRESH_MS) {
-        void doFetch("page_visible");
+      if (!entry.data || !shouldUseFreshProjectionCache(entry, now)) {
+        scheduleFetchWithJitter(
+          "page_visible",
+          Math.min(initialFetchJitterMs, VISIBILITY_JITTER_MAX_MS),
+        );
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [enabled, canLoadInitialProjection, cacheKey, doFetch, hydrateFromEntry]);
+  }, [
+    enabled,
+    canLoadInitialProjection,
+    cacheKey,
+    hydrateFromEntry,
+    initialFetchJitterMs,
+    scheduleFetchWithJitter,
+  ]);
 
   useEffect(() => {
     const wasLoading = prevAuthLoadingRef.current;
@@ -684,6 +728,18 @@ export function useChallengeLeaderboardProjection(
           bestScore: opponent.bestScore,
         })) ?? [],
     });
+
+    const scoreBand = Math.floor(myLiveScore / BOUNDARY_SCORE_BAND_SIZE);
+    if (pendingBoundaryScoreBandRef.current === scoreBand) {
+      devLog("fetch skipped", {
+        reason: "nearby_boundary_crossed",
+        cacheKey,
+        cause: "client_cooldown",
+        scoreBand,
+      });
+      return;
+    }
+    pendingBoundaryScoreBandRef.current = scoreBand;
 
     if (enabled) {
       pendingBoundaryRefreshRef.current = false;

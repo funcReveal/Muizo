@@ -79,6 +79,7 @@ import useGameRoomQuestionDerivedState from "../model/useGameRoomQuestionDerived
 import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
 import {
+  getAdaptiveProjectionInitialJitterMs,
   getProjectionSessionKey,
   useChallengeLeaderboardProjection,
 } from "../model/useChallengeLeaderboardProjection";
@@ -1276,7 +1277,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     !isRecoveringConnection;
   const challengeProjectionInitialJitterMs =
     canPrefetchChallengeProjection && !canLoadChallengeProjectionDuringPlay
-      ? 1_500
+      ? getAdaptiveProjectionInitialJitterMs(participants.length)
       : 0;
   const {
     state: challengeProjectionState,

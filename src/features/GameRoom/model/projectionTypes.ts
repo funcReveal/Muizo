@@ -57,7 +57,7 @@ export type ChallengeProjectedLeaderboardResponse = {
   nearbyOpponents: ChallengeNearbyOpponent[];
   myStanding: ChallengeProjectedMyStanding;
   cache: {
-    source: "redis" | "postgres" | "memory";
+    source: "redis" | "postgres" | "memory" | "response-cache" | "stale-response-cache";
     ttlMs: number;
   };
 };
