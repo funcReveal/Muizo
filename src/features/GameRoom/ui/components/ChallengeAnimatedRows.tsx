@@ -45,6 +45,7 @@ import {
   ChallengeEllipsisRow,
   ChallengePlaceholderRow,
 } from "./ChallengeLeaderboardRow";
+import type { ChallengeRankChangePulse } from "./ChallengeLeaderboardRow";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +60,7 @@ export interface SelfRowBaseProps {
   combo?: number;
   gainAnimKey?: number;
   gainAmount?: number;
+  rankChange?: ChallengeRankChangePulse | null;
 }
 
 interface ChallengeAnimatedRowsProps {

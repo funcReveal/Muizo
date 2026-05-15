@@ -83,6 +83,13 @@ const tenTopEntries = Array.from({ length: 10 }, (_, i) =>
 );
 // Scores: u1=2000, u2=1900, ..., u10=1100
 
+const expectUniqueKeys = (
+  rows: ReturnType<typeof buildChallengeLeaderboardDisplayRows>["listRows"],
+) => {
+  const keys = rows.map((row) => row.key);
+  expect(new Set(keys).size).toBe(keys.length);
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -186,13 +193,13 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
 
     expect(layoutMode).toBe("top-window");
     expect(listRows.filter((r) => r.kind === "ellipsis")).toHaveLength(0);
-    expect(listRows).toHaveLength(10);
+    expect(listRows).toHaveLength(11);
 
     const selfIdx = listRows.findIndex((r) => r.kind === "self");
     expect(selfIdx).toBe(9); // 0-based index 9 = rank 10
 
-    // 9 player rows (viewer's official entry filtered out, so 9 others)
-    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(9);
+    // 10 player rows: keep one displaced official row at #11.
+    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(10);
   });
 
   // ── Test case 5: projectedRank = 2 ────────────────────────────────────────
@@ -213,8 +220,8 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
     const selfIdx = listRows.findIndex((r) => r.kind === "self");
     expect(selfIdx).toBe(1); // 0-based index 1 = rank 2
 
-    // 9 official player rows filling the remaining 9 slots
-    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(9);
+    // 10 official player rows: keep one displaced row when self enters top 10.
+    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(10);
   });
 
   // ── Test case 6: viewer already in topEntries ─────────────────────────────
@@ -283,7 +290,7 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
 
     expect(layoutMode).toBe("top-window");
     expect(listRows[0].kind).toBe("self");
-    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(9);
+    expect(listRows.filter((r) => r.kind === "player")).toHaveLength(10);
   });
 
   // ── Test case 9: top-eleven liveGap correctness ───────────────────────────
@@ -373,5 +380,74 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
     // gapToNext is null because #10 entry doesn't exist
     const selfRow = listRows.find((r) => r.kind === "self");
     expect(selfRow?.gapToNext).toBeNull();
+  });
+
+  it("nearby mode filters opponents already rendered in top5 to avoid duplicate keys", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 2000 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("u5", 12, 1600, 500),
+      makeNearbyOpponent("n1", 13, 520, 500),
+      makeNearbyOpponent("n2", 14, 510, 500),
+    ];
+    const data = makeData(15, topFive, nearby, "me", 500);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 500,
+      meUserId: "me",
+    });
+
+    const keys = listRows.map((row) => row.key);
+    expectUniqueKeys(listRows);
+    expect(keys).toContain("self:list");
+    expect(keys).not.toContain("player:me");
+
+    const duplicateTopPlayerInNearby = listRows.find(
+      (row) =>
+        row.kind === "player" &&
+        row.section === "nearby" &&
+        row.userId === "u5",
+    );
+    expect(duplicateTopPlayerInNearby).toBeUndefined();
+  });
+
+  it("keeps player and self keys unique across projected rank changes", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 2000 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("u5", 12, 1600, 500),
+      makeNearbyOpponent("n1", 13, 520, 500),
+      makeNearbyOpponent("n2", 14, 510, 500),
+      makeNearbyOpponent("n3", 15, 480, 500),
+    ];
+    const nearbyData = makeData(15, topFive, nearby, "me", 500);
+    const topWindowData = makeData(4, tenTopEntries, nearby, "me", 1700);
+
+    const nearbyRows = buildChallengeLeaderboardDisplayRows({
+      data: nearbyData,
+      viewerScore: 500,
+      meUserId: "me",
+    }).listRows;
+    const topWindowRows = buildChallengeLeaderboardDisplayRows({
+      data: topWindowData,
+      viewerScore: 1700,
+      meUserId: "me",
+    }).listRows;
+
+    expectUniqueKeys(nearbyRows);
+    expectUniqueKeys(topWindowRows);
+    expect(nearbyRows.find((row) => row.kind === "self")?.key).toBe("self:list");
+    expect(topWindowRows.find((row) => row.kind === "self")?.key).toBe("self:list");
+    expect(
+      nearbyRows.find((row) => row.kind === "player" && row.userId === "u1")
+        ?.key,
+    ).toBe("player:u1");
+    expect(
+      topWindowRows.find((row) => row.kind === "player" && row.userId === "u1")
+        ?.key,
+    ).toBe("player:u1");
   });
 });

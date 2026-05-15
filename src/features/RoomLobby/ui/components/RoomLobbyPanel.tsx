@@ -25,6 +25,8 @@ import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import SportsEsportsRoundedIcon from "@mui/icons-material/SportsEsportsRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
+import FastForwardRoundedIcon from "@mui/icons-material/FastForwardRounded";
+import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import LibraryMusicRoundedIcon from "@mui/icons-material/LibraryMusicRounded";
 import PlaylistPlayRoundedIcon from "@mui/icons-material/PlaylistPlayRounded";
 import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
@@ -417,18 +419,18 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     Math.max(
       playlistViewportMinHeight,
       Math.max(rowCount, isMobileLobbyLayout ? 2 : desktopPlaylistVisibleRows) *
-        playlistRowHeight,
+      playlistRowHeight,
     ),
   );
   const playlistListShellStyle = (
     isMobileLobbyLayout
       ? {
-          minHeight: playlistViewportMinHeight,
-          height: playlistListViewportHeight,
-        }
+        minHeight: playlistViewportMinHeight,
+        height: playlistListViewportHeight,
+      }
       : {
-          height: playlistListViewportHeight,
-        }
+        height: playlistListViewportHeight,
+      }
   ) as React.CSSProperties;
   const playlistListViewportStyle = {
     height: playlistListViewportHeight,
@@ -624,6 +626,21 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           item.collectionHasExplicitEndSec === true,
       ),
     [settingsSourceItems],
+  );
+
+  const normalizedCollections = React.useMemo(
+    () =>
+      collections.map((collection) => ({
+        ...collection,
+
+        // Drawer 不接受 null，所以這些統計數字都統一轉成 number
+        favorite_count: collection.favorite_count ?? 0,
+        rating_count: collection.rating_count ?? 0,
+        rating_avg: collection.rating_avg ?? 0,
+        playable_item_count:
+          collection.playable_item_count ?? collection.item_count ?? 0,
+      })),
+    [collections],
   );
   const currentRoomLeaderboardVariant =
     useMemo<LeaderboardVariantKey | null>(() => {
@@ -926,11 +943,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     if (normalizedVariant === settingsLeaderboardVariant) return;
     setSettingsModeDraft((current) =>
       current.roomPlayMode === "leaderboard" &&
-      current.leaderboardVariant !== normalizedVariant
+        current.leaderboardVariant !== normalizedVariant
         ? {
-            ...current,
-            leaderboardVariant: normalizedVariant,
-          }
+          ...current,
+          leaderboardVariant: normalizedVariant,
+        }
         : current,
     );
   }, [
@@ -1042,14 +1059,14 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       visibility: settingsVisibility,
       ...(settingsPasswordDirty
         ? {
-            password: normalizedPin || null,
-            pin: normalizedPin || null,
-          }
+          password: normalizedPin || null,
+          pin: normalizedPin || null,
+        }
         : {}),
     };
     const maxPlayersPayload =
       settingsRoomPlayMode === "leaderboard" &&
-      settingsLeaderboardVariant === "15m"
+        settingsLeaderboardVariant === "15m"
         ? { maxPlayers: 1 }
         : { maxPlayers: effectiveMaxPlayers };
 
@@ -1427,17 +1444,17 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     () => [
       ...(isHost
         ? [
-            {
-              key: "settings",
-              label: "設定",
-              compactLabel: "設定",
-              icon: <SettingsOutlinedIcon fontSize="small" />,
-              onClick: openSettingsModal,
-              disabled: Boolean(settingsActionDisabledReason),
-              tone: "normal" as const,
-              title: settingsActionDisabledReason ?? "調整房間設定",
-            },
-          ]
+          {
+            key: "settings",
+            label: "設定",
+            compactLabel: "設定",
+            icon: <SettingsOutlinedIcon fontSize="small" />,
+            onClick: openSettingsModal,
+            disabled: Boolean(settingsActionDisabledReason),
+            tone: "normal" as const,
+            title: settingsActionDisabledReason ?? "調整房間設定",
+          },
+        ]
         : []),
       // ...(onOpenTestSettlement
       //   ? [
@@ -1485,41 +1502,41 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     () => [
       ...(isHost && gameState?.status !== "playing"
         ? [
-            {
-              key: "start",
-              label: isStartBroadcastActive
-                ? `即將開始 ${startBroadcastRemainingSec}s`
-                : "開始遊戲",
-              icon: <PlayArrowRoundedIcon fontSize="small" />,
-              onClick: onStartGame,
-              disabled: Boolean(startActionDisabledReason),
-              tone: "start" as const,
-            },
-          ]
+          {
+            key: "start",
+            label: isStartBroadcastActive
+              ? `即將開始 ${startBroadcastRemainingSec}s`
+              : "開始遊戲",
+            icon: <PlayArrowRoundedIcon fontSize="small" />,
+            onClick: onStartGame,
+            disabled: Boolean(startActionDisabledReason),
+            tone: "start" as const,
+          },
+        ]
         : []),
       ...(onOpenHistoryDrawer
         ? [
-            {
-              key: "history",
-              label: "對戰資訊",
-              icon: <HistoryEduRoundedIcon fontSize="small" />,
-              onClick: () => onOpenHistoryDrawer?.(),
-              disabled: false,
-              tone: "history" as const,
-            },
-          ]
+          {
+            key: "history",
+            label: "對戰資訊",
+            icon: <HistoryEduRoundedIcon fontSize="small" />,
+            onClick: () => onOpenHistoryDrawer?.(),
+            disabled: false,
+            tone: "history" as const,
+          },
+        ]
         : []),
       ...(gameState?.status === "playing"
         ? [
-            {
-              key: "resume",
-              label: "返回遊戲",
-              icon: <SportsEsportsRoundedIcon fontSize="small" />,
-              onClick: () => onOpenGame?.(),
-              disabled: false,
-              tone: "resume" as const,
-            },
-          ]
+          {
+            key: "resume",
+            label: "返回遊戲",
+            icon: <SportsEsportsRoundedIcon fontSize="small" />,
+            onClick: () => onOpenGame?.(),
+            disabled: false,
+            tone: "resume" as const,
+          },
+        ]
         : []),
     ],
     [
@@ -1537,18 +1554,18 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     () => [
       ...(isHost
         ? [
-            {
-              key: "settings",
-              label: "設定",
-              ariaLabel: "開啟房主設定",
-              icon: <SettingsOutlinedIcon fontSize="small" />,
-              onClick: openSettingsModal,
-              disabled: Boolean(settingsActionDisabledReason),
-              tone: "normal" as const,
-              title: settingsActionDisabledReason ?? "調整房間設定",
-              variant: "outlined" as const,
-            },
-          ]
+          {
+            key: "settings",
+            label: "設定",
+            ariaLabel: "開啟房主設定",
+            icon: <SettingsOutlinedIcon fontSize="small" />,
+            onClick: openSettingsModal,
+            disabled: Boolean(settingsActionDisabledReason),
+            tone: "normal" as const,
+            title: settingsActionDisabledReason ?? "調整房間設定",
+            variant: "outlined" as const,
+          },
+        ]
         : []),
       {
         key: "leave",
@@ -1579,12 +1596,12 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const roomMax =
     currentRoom?.maxPlayers && currentRoom.maxPlayers > 0
       ? Math.min(
-          Math.max(
-            currentRoom.maxPlayers,
-            Math.max(participants.length, PLAYER_MIN),
-          ),
-          PLAYER_MAX,
-        )
+        Math.max(
+          currentRoom.maxPlayers,
+          Math.max(participants.length, PLAYER_MIN),
+        ),
+        PLAYER_MAX,
+      )
       : Math.min(Math.max(participants.length, PLAYER_MIN), PLAYER_MAX);
   const openSlotCount = Math.max(0, roomMax - participants.length);
   const canIncreasePlayers = isHost && roomMax < PLAYER_MAX;
@@ -1638,60 +1655,76 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
           : "固定規格";
   const roomMetaItems: RoomMetaItem[] = isLeaderboardRoom
     ? [
-        {
-          key: "mode",
-          label: "排行挑戰",
-          value: `${leaderboardModeLabel} · ${leaderboardVariantLabel}`,
-          icon: <EmojiEventsRoundedIcon fontSize="small" />,
-          tone: "amber",
-          trailing: (
-            <RoomUiTooltip
-              title={
-                <span>
-                  排行挑戰限制
-                  <br />
-                  只能用公開收藏庫
-                  <br />
-                  無法修改作答時間、播放區間、公布時間
-                </span>
-              }
-            >
-              <span
-                className="room-lobby-metric-trailing-icon"
-                tabIndex={0}
-                aria-label="排行挑戰限制：只能用公開收藏庫，無法修改作答時間、播放區間、公布時間"
-              >
-                <InfoOutlinedIcon fontSize="small" />
+      {
+        key: "mode",
+        label: "排行挑戰",
+        value: `${leaderboardModeLabel} · ${leaderboardVariantLabel}`,
+        icon: <EmojiEventsRoundedIcon fontSize="small" />,
+        tone: "amber",
+        trailing: (
+          <RoomUiTooltip
+            title={
+              <span>
+                排行挑戰限制
+                <br />
+                只能用公開收藏庫
+                <br />
+                無法修改作答時間、播放區間、公布時間
               </span>
-            </RoomUiTooltip>
-          ),
-        },
-      ]
+            }
+          >
+            <span
+              className="room-lobby-metric-trailing-icon"
+              tabIndex={0}
+              aria-label="排行挑戰限制：只能用公開收藏庫，無法修改作答時間、播放區間、公布時間"
+            >
+              <InfoOutlinedIcon fontSize="small" />
+            </span>
+          </RoomUiTooltip>
+        ),
+      },
+    ]
     : [
-        {
-          key: "mode",
-          label: "遊戲模式",
-          value: "休閒派對",
-          icon: <ChairRoundedIcon fontSize="small" />,
-          tone: "cyan",
-        },
-        {
-          key: "questions",
-          label: "題數",
-          value: String(currentRoom?.gameSettings?.questionCount ?? "-"),
-          icon: <QuizRoundedIcon fontSize="small" />,
-          tone: "amber",
-        },
-        {
-          key: "timing",
-          label: "時間",
-          value: roomAllowCollectionClipTiming
-            ? `收藏庫片段 / 公布 ${roomRevealDurationSec}s`
-            : `作答 ${roomPlayDurationSec}s / 起始 ${roomStartOffsetSec}s / 公布 ${roomRevealDurationSec}s`,
-          icon: <HourglassTopRoundedIcon fontSize="small" />,
-          tone: "cyan",
-        },
-      ];
+      {
+        key: "mode",
+        label: "遊戲模式",
+        value: "休閒派對",
+        icon: <ChairRoundedIcon fontSize="small" />,
+        tone: "cyan",
+      },
+      {
+        key: "questions",
+        label: "題數",
+        value: String(currentRoom?.gameSettings?.questionCount ?? "-"),
+        icon: <QuizRoundedIcon fontSize="small" />,
+        tone: "amber",
+      },
+      {
+        key: "timing",
+        label: "作答時間",
+        value: roomAllowCollectionClipTiming
+          ? "依收藏庫設定"
+          : `${roomPlayDurationSec}s`,
+        icon: <HourglassTopRoundedIcon fontSize="small" />,
+        tone: "cyan",
+      },
+      {
+        key: "start-offset",
+        label: "起始時間",
+        value: roomAllowCollectionClipTiming
+          ? "依收藏庫設定"
+          : `${roomStartOffsetSec}s`,
+        icon: <FastForwardRoundedIcon fontSize="small" />,
+        tone: "cyan",
+      },
+      {
+        key: "reveal",
+        label: "公布時間",
+        value: `${roomRevealDurationSec}s`,
+        icon: <TimerRoundedIcon fontSize="small" />,
+        tone: "cyan",
+      },
+    ];
   if (hasRoomPassword) {
     roomMetaItems.push({
       key: "password",
@@ -1725,9 +1758,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       variant="outlined"
       size="small"
       color="inherit"
-      className={`room-lobby-toolbar-history-btn room-lobby-toolbar-icon-btn room-lobby-action-btn--invite room-lobby-toolbar-icon-btn--invite ${
-        !canUseShareInvite ? "room-lobby-action-btn--invite-locked" : ""
-      }`}
+      className={`room-lobby-toolbar-history-btn room-lobby-toolbar-icon-btn room-lobby-action-btn--invite room-lobby-toolbar-icon-btn--invite ${!canUseShareInvite ? "room-lobby-action-btn--invite-locked" : ""
+        }`}
       aria-disabled={!canUseShareInvite}
       aria-label={shareButtonLabel}
       onClick={handleOpenShareDialog}
@@ -1794,10 +1826,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
   const handleRecordSourceApplied = React.useCallback(
     (entry: {
       sourceType:
-        | "public_collection"
-        | "private_collection"
-        | "youtube_google_import"
-        | "youtube_pasted_link";
+      | "public_collection"
+      | "private_collection"
+      | "youtube_google_import"
+      | "youtube_pasted_link";
       title: string;
       sourceId?: string | null;
       url?: string | null;
@@ -1836,11 +1868,11 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
     if (!currentPlaylistCollectionId) return null;
 
     return (
-      collections.find((collection) =>
+      normalizedCollections.find((collection) =>
         currentPlaylistCollectionId === String(collection.id ?? "").trim(),
       ) ?? null
     );
-  }, [collections, currentPlaylistCollectionId]);
+  }, [currentPlaylistCollectionId, normalizedCollections]);
 
   const currentCollectionFetchIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -1917,7 +1949,7 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
       playlistLoading={playlistLoading}
       playlistSuggestions={playlistSuggestions}
       participants={participants}
-      collections={collections}
+      collections={normalizedCollections}
       collectionsLoading={collectionsLoading}
       collectionsLoadingMore={collectionsLoadingMore}
       collectionsHasMore={collectionsHasMore}
@@ -2050,11 +2082,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
               aria-label="房間操作"
             >
               <div
-                className={`room-lobby-toolbar-shell ${
-                  isSoloLeaveToolbar
-                    ? "room-lobby-toolbar-shell--solo-leave"
-                    : ""
-                }`}
+                className={`room-lobby-toolbar-shell ${isSoloLeaveToolbar
+                  ? "room-lobby-toolbar-shell--solo-leave"
+                  : ""
+                  }`}
               >
                 <div className="room-lobby-toolbar-group room-lobby-toolbar-group--cta">
                   {gameState?.status === "playing" && (
@@ -2176,15 +2207,13 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                       variant={action.variant}
                       color="inherit"
                       size="small"
-                      className={`room-lobby-toolbar-utility-btn room-lobby-toolbar-icon-btn ${
-                        action.key === "settings"
-                          ? "room-lobby-toolbar-settings-btn"
-                          : ""
-                      } ${
-                        action.key === "leave"
+                      className={`room-lobby-toolbar-utility-btn room-lobby-toolbar-icon-btn ${action.key === "settings"
+                        ? "room-lobby-toolbar-settings-btn"
+                        : ""
+                        } ${action.key === "leave"
                           ? "room-lobby-toolbar-leave-btn"
                           : ""
-                      }`}
+                        }`}
                       disabled={action.disabled}
                       aria-label={action.ariaLabel}
                       onClick={action.onClick}
@@ -2213,9 +2242,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
         ) : null}
       </div>
       <Box
-        className={`room-lobby-content room-lobby-content--shell-less ${
-          isMobileTabletLobbyLayout ? "room-lobby-content--mobile-redesign" : ""
-        }`}
+        className={`room-lobby-content room-lobby-content--shell-less ${isMobileTabletLobbyLayout ? "room-lobby-content--mobile-redesign" : ""
+          }`}
         sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1 }}
       >
         {playlistSelectorModal}
@@ -2227,33 +2255,33 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   {/* Resume if game is playing */}
                   {mobilePrimaryActions.filter((a) => a.key === "resume")
                     .length > 0 && (
-                    <div className="room-lobby-mobile-primary-actions room-lobby-mobile-primary-actions--single">
-                      {mobilePrimaryActions
-                        .filter((a) => a.key === "resume")
-                        .map((action) => (
-                          <Button
-                            key={action.key}
-                            variant="contained"
-                            color="success"
-                            size="small"
-                            className="room-lobby-action-btn room-lobby-action-btn--mobile room-lobby-mobile-primary-action room-lobby-mobile-primary-action--resume"
-                            onClick={action.onClick}
-                            disabled={action.disabled}
-                            aria-label={action.label}
-                          >
-                            <span
-                              className="room-lobby-mobile-action-icon"
-                              aria-hidden="true"
+                      <div className="room-lobby-mobile-primary-actions room-lobby-mobile-primary-actions--single">
+                        {mobilePrimaryActions
+                          .filter((a) => a.key === "resume")
+                          .map((action) => (
+                            <Button
+                              key={action.key}
+                              variant="contained"
+                              color="success"
+                              size="small"
+                              className="room-lobby-action-btn room-lobby-action-btn--mobile room-lobby-mobile-primary-action room-lobby-mobile-primary-action--resume"
+                              onClick={action.onClick}
+                              disabled={action.disabled}
+                              aria-label={action.label}
                             >
-                              {action.icon}
-                            </span>
-                            <span className="room-lobby-sr-only">
-                              {action.label}
-                            </span>
-                          </Button>
-                        ))}
-                    </div>
-                  )}
+                              <span
+                                className="room-lobby-mobile-action-icon"
+                                aria-hidden="true"
+                              >
+                                {action.icon}
+                              </span>
+                              <span className="room-lobby-sr-only">
+                                {action.label}
+                              </span>
+                            </Button>
+                          ))}
+                      </div>
+                    )}
                   {/* Start Game: full-width primary row for host */}
                   {isHost && gameState?.status !== "playing" && (
                     <div className="room-lobby-mobile-start-row">
@@ -2308,11 +2336,10 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                         variant="text"
                         color="inherit"
                         size="small"
-                        className={`room-lobby-mobile-bottom-action room-lobby-action-btn--invite ${
-                          !canUseShareInvite
-                            ? "room-lobby-action-btn--invite-locked"
-                            : ""
-                        }`}
+                        className={`room-lobby-mobile-bottom-action room-lobby-action-btn--invite ${!canUseShareInvite
+                          ? "room-lobby-action-btn--invite-locked"
+                          : ""
+                          }`}
                         aria-disabled={!canUseShareInvite}
                         aria-label={shareButtonLabel}
                         onClick={handleOpenShareDialog}
@@ -2358,9 +2385,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   role="tab"
                   aria-selected={mobileLobbyTab === "members"}
                   aria-label="玩家"
-                  className={`room-lobby-mobile-tab ${
-                    mobileLobbyTab === "members" ? "is-active" : ""
-                  }`}
+                  className={`room-lobby-mobile-tab ${mobileLobbyTab === "members" ? "is-active" : ""
+                    }`}
                   onClick={() => setMobileLobbyTab("members")}
                 >
                   <span
@@ -2376,9 +2402,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   role="tab"
                   aria-selected={mobileLobbyTab === "host"}
                   aria-label="操作"
-                  className={`room-lobby-mobile-tab ${
-                    mobileLobbyTab === "host" ? "is-active" : ""
-                  }`}
+                  className={`room-lobby-mobile-tab ${mobileLobbyTab === "host" ? "is-active" : ""
+                    }`}
                   onClick={() => {
                     setMobileLobbyTab("host");
                     if (isHost) {
@@ -2404,9 +2429,8 @@ const RoomLobbyPanel: React.FC<RoomLobbyPanelProps> = ({
                   role="tab"
                   aria-selected={mobileLobbyTab === "playlist"}
                   aria-label="播放清單"
-                  className={`room-lobby-mobile-tab ${
-                    mobileLobbyTab === "playlist" ? "is-active" : ""
-                  }`}
+                  className={`room-lobby-mobile-tab ${mobileLobbyTab === "playlist" ? "is-active" : ""
+                    }`}
                   onClick={() => setMobileLobbyTab("playlist")}
                 >
                   <span

@@ -42,6 +42,7 @@ interface MobileChatDrawerContentProps {
     handleSend: () => void;
     isChatCooldownActive: boolean;
     chatCooldownLeft: number;
+    suppressTrigger?: boolean;
 }
 
 const MobileChatDrawerContent: React.FC<MobileChatDrawerContentProps> = ({
@@ -65,6 +66,7 @@ const MobileChatDrawerContent: React.FC<MobileChatDrawerContentProps> = ({
     handleSend,
     isChatCooldownActive,
     chatCooldownLeft,
+    suppressTrigger = false,
 }) => {
     const paperProps = useMemo(
         () => ({
@@ -89,7 +91,7 @@ const MobileChatDrawerContent: React.FC<MobileChatDrawerContentProps> = ({
 
     return (
         <>
-            {!open && (
+            {!suppressTrigger && !open && (
                 <button
                     type="button"
                     className="game-room-mobile-chat-drawer-trigger"

@@ -5,40 +5,60 @@ export const useAutoHideScrollbar = <T extends HTMLElement>(
 ) => {
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  const attachRef = useCallback((node: T | null) => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
+  const attachRef = useCallback(
+    (node: T | null) => {
+      cleanupRef.current?.();
+      cleanupRef.current = null;
 
-    if (!node || typeof window === "undefined") {
-      return;
-    }
-
-    let hideTimer: number | null = null;
-
-    const clearHideTimer = () => {
-      if (hideTimer !== null) {
-        window.clearTimeout(hideTimer);
-        hideTimer = null;
+      if (!node || typeof window === "undefined") {
+        return;
       }
-    };
 
-    const markScrolling = () => {
-      node.classList.add("is-scrolling");
-      clearHideTimer();
-      hideTimer = window.setTimeout(() => {
+      node.classList.remove("is-scrolling");
+
+      let initialResetFrame: number | null = window.requestAnimationFrame(
+        () => {
+          node.classList.remove("is-scrolling");
+          initialResetFrame = null;
+        },
+      );
+
+      let hideTimer: number | null = null;
+
+      const clearHideTimer = () => {
+        if (hideTimer !== null) {
+          window.clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+      };
+
+      const hideScrollbar = () => {
         node.classList.remove("is-scrolling");
         hideTimer = null;
-      }, inactiveDelayMs);
-    };
+      };
 
-    node.addEventListener("scroll", markScrolling, { passive: true });
+      const markScrolling = () => {
+        node.classList.add("is-scrolling");
+        clearHideTimer();
+        hideTimer = window.setTimeout(hideScrollbar, inactiveDelayMs);
+      };
 
-    cleanupRef.current = () => {
-      node.removeEventListener("scroll", markScrolling);
-      clearHideTimer();
-      node.classList.remove("is-scrolling");
-    };
-  }, [inactiveDelayMs]);
+      node.addEventListener("scroll", markScrolling, { passive: true });
+
+      cleanupRef.current = () => {
+        node.removeEventListener("scroll", markScrolling);
+
+        if (initialResetFrame !== null) {
+          window.cancelAnimationFrame(initialResetFrame);
+          initialResetFrame = null;
+        }
+
+        clearHideTimer();
+        node.classList.remove("is-scrolling");
+      };
+    },
+    [inactiveDelayMs],
+  );
 
   useEffect(() => {
     return () => {

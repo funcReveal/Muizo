@@ -11,7 +11,6 @@ import type {
 
 interface GameRoomAnswerPanelProps {
   isMobileView?: boolean;
-  answerPanelRef: React.RefObject<HTMLDivElement | null>;
   isInitialCountdown: boolean;
   countdownTone: string;
   isReveal: boolean;
@@ -67,6 +66,10 @@ interface GameRoomAnswerPanelProps {
   recoveryStatusText?: string | null;
   isLeaderboardRoom?: boolean;
   leaderboardLockShakeKey?: number;
+  /** When true, the embedded player HUD already shows phase chrome (chip,
+   *  title, progress bar). Hide these in the answer panel to avoid duplication.
+   *  Covers both guess and reveal embedded HUD modes. */
+  shouldHideMobileAnswerPhaseChrome?: boolean;
 }
 
 type InlineStatusSegmentTone =
@@ -82,6 +85,87 @@ interface InlineStatusSegment {
   text: string;
   tone: InlineStatusSegmentTone;
 }
+
+type ChoiceTextSegmentTone = "primary" | "secondary" | "tertiary";
+
+interface ChoiceTextSegment {
+  text: string;
+  tone: ChoiceTextSegmentTone;
+}
+
+const CHOICE_TEXT_MAX_SEGMENTS = 3;
+
+const normalizeChoiceTextPart = (text: string) =>
+  text
+    .trim()
+    .replace(/^[\s\-\u2013\u2014|\uFF5C/]+/u, "")
+    .replace(/[\s\-\u2013\u2014|\uFF5C/]+$/u, "")
+    .trim();
+
+const compactChoiceTextParts = (parts: string[]) => {
+  const normalizedParts = parts
+    .map(normalizeChoiceTextPart)
+    .filter(Boolean);
+
+  if (normalizedParts.length <= CHOICE_TEXT_MAX_SEGMENTS) {
+    return normalizedParts;
+  }
+
+  return [
+    normalizedParts[0],
+    normalizedParts[1],
+    normalizedParts.slice(2).join(" - "),
+  ];
+};
+
+const splitByExplicitChoiceSeparators = (text: string) =>
+  text.split(/\s*(?:\/|\uFF5C|\|)\s*|\t+|\s{2,}|\s+[\u2013\u2014-]\s*/u);
+
+const splitByAnimeChoiceMarkers = (text: string) => {
+  const markerPattern =
+    "OP\\d*|ED\\d*|Opening|Ending|Season(?:\\s*\\d+)?|\\u7B2C[^-\\s]+\\u5B63|\\u63D2\\u66F2|\\u5287\\u5834\\u7248";
+  const fullMatch = text.match(
+    new RegExp("^(.*?)-(" + markerPattern + ")(?:-(.+))?$", "iu"),
+  );
+
+  if (fullMatch) {
+    return [fullMatch[1], fullMatch[2], fullMatch[3] ?? ""];
+  }
+
+  const leadingMatch = text.match(
+    new RegExp("^(.*?)(?:\\s+)(" + markerPattern + ")(?:\\s+(.+))?$", "iu"),
+  );
+  if (!leadingMatch) return [text];
+
+  return [leadingMatch[1], leadingMatch[2], leadingMatch[3] ?? ""];
+};
+
+const splitChoiceTextSegments = (
+  text: string,
+): ChoiceTextSegment[] => {
+  const normalizedText = text.trim().replace(/\u3000/g, " ");
+  if (!normalizedText) return [];
+
+  const explicitParts = compactChoiceTextParts(
+    splitByExplicitChoiceSeparators(normalizedText),
+  );
+  const resolvedParts =
+    explicitParts.length > 1
+      ? explicitParts
+      : compactChoiceTextParts(splitByAnimeChoiceMarkers(normalizedText));
+
+  const parts = resolvedParts.length > 0 ? resolvedParts : [normalizedText];
+
+  return parts.slice(0, CHOICE_TEXT_MAX_SEGMENTS).map((part, index) => ({
+    text: part,
+    tone:
+      index === 0
+        ? "primary"
+        : index === 1
+          ? "secondary"
+          : "tertiary",
+  }));
+};
 
 function formatTimeAttackCountdown(valueMs: number | null | undefined): string {
   if (typeof valueMs !== "number" || !Number.isFinite(valueMs)) return "--:--";
@@ -254,13 +338,13 @@ const GameRoomPhaseStatusChip = React.memo(function GameRoomPhaseStatusChip({
         ? Math.max(0, startedAt - now)
         : isTimeAttackMode && gamePhase === "guess"
           ? Math.max(
-              0,
-              (typeof timeAttackRemainingMs === "number" &&
+            0,
+            (typeof timeAttackRemainingMs === "number" &&
               Number.isFinite(timeAttackRemainingMs)
-                ? Math.max(0, timeAttackRemainingMs)
-                : 0) - Math.max(0, now - startedAt),
-            )
-        : Math.max(0, phaseEndsAt - now);
+              ? Math.max(0, timeAttackRemainingMs)
+              : 0) - Math.max(0, now - startedAt),
+          )
+          : Math.max(0, phaseEndsAt - now);
       // 倒數到 0 → 停止；伺服器推送下一個 phase 時 props 更新，effect 重啟
       if (remainingMs <= 0) {
         timerId = null;
@@ -293,9 +377,8 @@ const GameRoomPhaseStatusChip = React.memo(function GameRoomPhaseStatusChip({
     <Chip
       label={
         <span
-          className={`game-room-phase-chip-label ${
-            isNumericCountdownLabel ? "game-room-phase-chip-label--countdown" : ""
-          }`}
+          className={`game-room-phase-chip-label ${isNumericCountdownLabel ? "game-room-phase-chip-label--countdown" : ""
+            }`}
         >
           {label}
         </span>
@@ -364,7 +447,6 @@ const GameRoomRevealCountdownText = React.memo(function GameRoomRevealCountdownT
 
 const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   isMobileView = false,
-  answerPanelRef,
   isInitialCountdown,
   countdownTone,
   isReveal,
@@ -412,6 +494,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   recoveryStatusText = null,
   isLeaderboardRoom = false,
   leaderboardLockShakeKey = 0,
+  shouldHideMobileAnswerPhaseChrome = false,
 }) => {
   const getLocalNowMs = React.useCallback(
     () => Date.now() + serverOffsetMs,
@@ -458,8 +541,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
   const desktopStatusSecondary = isReveal
     ? myFeedback.inlineMeta?.trim() || ""
     : myFeedback.lines?.[1]?.trim() ||
-      myFeedback.badges?.[0]?.trim() ||
-      "";
+    myFeedback.badges?.[0]?.trim() ||
+    "";
   const inlineAnsweredText =
     liveParticipantCount > 0
       ? `已答 ${liveAnsweredCount}/${liveParticipantCount} 人`
@@ -617,9 +700,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
 
   return (
     <div
-      ref={answerPanelRef}
       className={`game-room-panel game-room-panel--warm game-room-panel--blaze ${isMobileView ? "game-room-answer-panel--mobile" : ""
-        } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col p-3 text-slate-50 lg:flex-1`}
+        } ${!isMobileView ? "game-room-answer-panel--desktop" : ""} flex min-h-0 flex-col text-slate-50 lg:flex-1`}
     >
       {isInitialCountdown && !isRecoveringConnection ? (
         <GameRoomStartCountdownDisplay
@@ -644,40 +726,44 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
           <div className="game-room-answer-body">
             <div className="game-room-answer-head flex items-center gap-3">
               <div className="game-room-answer-head__main min-w-0 flex-1">
-                {isRecoveringConnection ? (
-                  /* ── Recovery chip: replaces the normal countdown chip ──── */
-                  <Chip
-                    label={
-                      <span className="game-room-phase-chip-label">
-                        重新連線中
-                      </span>
-                    }
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                    className="game-room-chip"
-                  />
-                ) : (
-                  <GameRoomPhaseStatusChip
-                    isInterTrackWait={isInterTrackWait}
-                    allAnsweredReadyForReveal={allAnsweredReadyForReveal}
-                    isTimeAttackMode={isTimeAttackMode}
-                    timeAttackRemainingMs={timeAttackRemainingMs}
-                    gamePhase={gamePhase}
-                    startedAt={startedAt}
-                    phaseEndsAt={phaseEndsAt}
-                    getLocalNowMs={getLocalNowMs}
-                    isGuessUrgency={isGuessUrgency}
-                    urgentChipPingActive={urgentChipPingActive}
-                  />
+                {!shouldHideMobileAnswerPhaseChrome && (
+                  isRecoveringConnection ? (
+                    /* ── Recovery chip: replaces the normal countdown chip ──── */
+                    <Chip
+                      label={
+                        <span className="game-room-phase-chip-label">
+                          重新連線中
+                        </span>
+                      }
+                      size="small"
+                      color="default"
+                      variant="outlined"
+                      className="game-room-chip"
+                    />
+                  ) : (
+                    <GameRoomPhaseStatusChip
+                      isInterTrackWait={isInterTrackWait}
+                      allAnsweredReadyForReveal={allAnsweredReadyForReveal}
+                      isTimeAttackMode={isTimeAttackMode}
+                      timeAttackRemainingMs={timeAttackRemainingMs}
+                      gamePhase={gamePhase}
+                      startedAt={startedAt}
+                      phaseEndsAt={phaseEndsAt}
+                      getLocalNowMs={getLocalNowMs}
+                      isGuessUrgency={isGuessUrgency}
+                      urgentChipPingActive={urgentChipPingActive}
+                    />
+                  )
                 )}
-                <p className="game-room-title">
-                  {isRecoveringConnection
-                    ? (recoveryStatusText ?? "正在恢復房間狀態...")
-                    : isInterTrackWait
-                      ? "下一題準備中"
-                      : phaseLabel}
-                </p>
+                {!shouldHideMobileAnswerPhaseChrome && (
+                  <p className="game-room-title">
+                    {isRecoveringConnection
+                      ? (recoveryStatusText ?? "正在恢復房間狀態...")
+                      : isInterTrackWait
+                        ? "下一題準備中"
+                        : phaseLabel}
+                  </p>
+                )}
                 {shouldShowInlinePhaseStatus && !isMobileView && !isRecoveringConnection ? (
                   <div className="game-room-guess-inline-status">
                     <span
@@ -723,32 +809,34 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
               ) : null}
             </div>
 
-            <div
-              className={`game-room-phase-progress ${isGuessUrgency && !isRecoveringConnection ? "game-room-phase-progress--urgent" : ""}`}
-            >
-              {/* Recovery: indeterminate bar shows the system is working */}
-              {isRecoveringConnection ? (
-                <LinearProgress
-                  variant="indeterminate"
-                  color="inherit"
-                  className="game-room-phase-progress-bar"
-                  sx={{ opacity: 0.45 }}
-                />
-              ) : isInterTrackWait ? (
-                <LinearProgress
-                  variant="indeterminate"
-                  color="info"
-                  className="game-room-phase-progress-bar"
-                />
-              ) : (
-                <div className="game-room-phase-progress-bar">
-                  <div
-                    ref={progressBarFillRef}
-                    className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
+            {!shouldHideMobileAnswerPhaseChrome && (
+              <div
+                className={`game-room-phase-progress ${isGuessUrgency && !isRecoveringConnection ? "game-room-phase-progress--urgent" : ""}`}
+              >
+                {/* Recovery: indeterminate bar shows the system is working */}
+                {isRecoveringConnection ? (
+                  <LinearProgress
+                    variant="indeterminate"
+                    color="inherit"
+                    className="game-room-phase-progress-bar"
+                    sx={{ opacity: 0.45 }}
                   />
-                </div>
-              )}
-            </div>
+                ) : isInterTrackWait ? (
+                  <LinearProgress
+                    variant="indeterminate"
+                    color="info"
+                    className="game-room-phase-progress-bar"
+                  />
+                ) : (
+                  <div className="game-room-phase-progress-bar">
+                    <div
+                      ref={progressBarFillRef}
+                      className={`game-room-phase-progress-bar-fill ${gamePhase === "guess" ? "game-room-phase-progress-bar-fill--guess" : "game-room-phase-progress-bar-fill--reveal"}`}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div
               className={`game-room-options-grid game-room-options-grid--blaze grid grid-cols-1 gap-3 md:grid-cols-2 ${isMobileView ? "game-room-options-grid--mobile" : ""
                 }`}
@@ -787,6 +875,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                     playlist[choice.index]?.title?.trim(),
                     "未命名選項",
                   );
+                  const choiceTextSegments =
+                    splitChoiceTextSegments(choiceDisplayTitle);
                   const revealPicks = revealChoicePickMap[choice.index] ?? [];
                   const hasRevealPicks = isReveal && revealPicks.length > 0;
                   const isMyChoice = selectedChoice === choice.index;
@@ -831,6 +921,7 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                         fullWidth
                         size="large"
                         disableRipple
+                        title={choiceDisplayTitle}
                         aria-disabled={isLocked || waitingToStart || shouldShowGestureOverlay || isRecoveringConnection}
                         tabIndex={
                           isLocked || waitingToStart || shouldShowGestureOverlay || isRecoveringConnection ? -1 : 0
@@ -856,8 +947,8 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                               : "info"
                         }
                         className={`game-room-choice-button justify-start ${!isReveal && isSelected
-                            ? "game-room-choice-button--selected-live"
-                            : ""
+                          ? "game-room-choice-button--selected-live"
+                          : ""
                           } ${showComboFocusStyle
                             ? "game-room-choice-button--combo-focus game-room-choice-button--combo-live game-room-choice-button--combo-live-active"
                             : ""
@@ -879,15 +970,39 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                         onClick={() => handleChoiceClick(choice.index)}
                       >
                         <div className="game-room-choice-content flex w-full items-start justify-between gap-2">
-                          <span className="game-room-choice-title">
-                            {choiceDisplayTitle}
+                          <span className="game-room-choice-main">
+                            <span
+                              className="game-room-choice-text"
+                              title={choiceDisplayTitle}
+                            >
+                              <span className="game-room-choice-text-segments">
+                                {choiceTextSegments.map((segment) => (
+                                  <span
+                                    key={`${choice.index}-${segment.tone}-${segment.text}`}
+                                    className={`game-room-choice-text-segment game-room-choice-text-segment--${segment.tone}`}
+                                  >
+                                    {segment.text}
+                                  </span>
+                                ))}
+                              </span>
+                            </span>
                           </span>
 
-                          <span className={`game-room-choice-meta inline-flex items-center gap-1 ${isMobileView ? "" : "ml-3"}`}>
-                            <span className="game-room-choice-badges inline-flex items-center gap-1">
+                          <span className={`game-room-choice-meta game-room-choice-meta-rail ${isMobileView ? "" : "ml-3"}`}>
+                            <span className="game-room-choice-meta-row game-room-choice-meta-row--combo">
+                              {isMyChoice && myComboTier > 0 && (
+                                <span
+                                  className={`game-room-choice-tag game-room-choice-chip game-room-choice-chip--combo game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
+                                >
+                                  Combo x{myComboNow}
+                                </span>
+                              )}
+                            </span>
+
+                            <span className="game-room-choice-meta-row game-room-choice-meta-row--status">
                               {showGuessLockTag && (
                                 <span
-                                  className={`game-room-choice-tag ${myHasChangedAnswer
+                                  className={`game-room-choice-tag game-room-choice-chip ${myHasChangedAnswer
                                     ? "game-room-choice-tag--reselect"
                                     : "game-room-choice-tag--lock"
                                     }`}
@@ -896,23 +1011,15 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
                                 </span>
                               )}
 
-                              {isMyChoice && myComboTier > 0 && (
-                                <span
-                                  className={`game-room-choice-tag game-room-choice-tag--combo game-room-choice-tag--combo-tier-${myComboTier}`}
-                                >
-                                  Combo x{myComboNow}
-                                </span>
-                              )}
-
                               {showCorrectTag && (
-                                <span className="game-room-choice-tag game-room-choice-tag--correct">
+                                <span className="game-room-choice-tag game-room-choice-chip game-room-choice-chip--correct game-room-choice-tag--correct">
                                   正解
                                 </span>
                               )}
 
                               {showMyChoiceTag && (
                                 <span
-                                  className={`game-room-choice-tag ${showMyCorrectTag
+                                  className={`game-room-choice-tag game-room-choice-chip game-room-choice-chip--mine ${showMyCorrectTag
                                     ? "game-room-choice-tag--you-correct"
                                     : "game-room-choice-tag--you"
                                     }`}
@@ -935,110 +1042,112 @@ const GameRoomAnswerPanel: React.FC<GameRoomAnswerPanelProps> = ({
             </div>
           </div>
 
-          <div className={`game-room-reveal ${shouldHideDesktopRevealCard ? "game-room-reveal--hidden-desktop" : ""}`}>
-            <div
-              className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""
-                } ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""} ${isComboBreakThisQuestion && comboBreakTier > 0
-                  ? `game-room-reveal-card--combo-break game-room-reveal-card--combo-break-tier-${comboBreakTier}`
-                  : ""
-                }`}
-            >
+          {!shouldHideMobileAnswerPhaseChrome && (
+            <div className={`game-room-reveal ${shouldHideDesktopRevealCard ? "game-room-reveal--hidden-desktop" : ""}`}>
               <div
-                className={`game-room-feedback-head ${isReveal ? "game-room-feedback-head--reveal" : ""
+                className={`game-room-reveal-card rounded-lg border game-room-reveal-card--${revealTone} ${isReveal ? "game-room-reveal-card--result game-room-reveal-card--result-burst" : ""
+                  } ${isPendingFeedbackCard ? "game-room-reveal-card--pending" : ""} ${isComboBreakThisQuestion && comboBreakTier > 0
+                    ? `game-room-reveal-card--combo-break game-room-reveal-card--combo-break-tier-${comboBreakTier}`
+                    : ""
                   }`}
               >
-                <p className="game-room-feedback-title">{myFeedback.title}</p>
-                {isReveal && myFeedback.inlineMeta && (
-                  <span
-                    className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
-                  >
-                    {myFeedback.inlineMeta}
-                  </span>
-                )}
-                {isReveal && (
-                  <span
-                    className={`game-room-feedback-pill game-room-feedback-pill--${revealTone} ${myFeedback.pillText ?? myFeedback.detail
-                      ? ""
-                      : "game-room-feedback-pill--placeholder"
-                      }`}
-                  >
-                    {(myFeedback.pillText ?? myFeedback.detail) || "等待揭曉"}
-                  </span>
-                )}
-              </div>
-              {!isReveal && feedbackLines.length === 0 ? (
-                myFeedback.detail && (
-                  <p
-                    className={`game-room-feedback-detail ${isMobileView ? "game-room-feedback-detail--mobile-compact" : ""}`}
-                  >
-                    {myFeedback.detail}
-                  </p>
-                )
-              ) : !isReveal && (
                 <div
-                  className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"} ${isMobileView ? "game-room-feedback-lines--mobile-compact" : ""}`}
+                  className={`game-room-feedback-head ${isReveal ? "game-room-feedback-head--reveal" : ""
+                    }`}
                 >
-                  {feedbackLines
-                    .slice(0, 2)
-                    .map((line, idx) => (
-                      <p
-                        key={`${trackSessionKey}-feedback-line-${idx}`}
-                        className="game-room-feedback-line"
-                      >
-                        {line}
-                      </p>
-                    ))}
+                  <p className="game-room-feedback-title">{myFeedback.title}</p>
+                  {isReveal && myFeedback.inlineMeta && (
+                    <span
+                      className={`game-room-feedback-inline-meta game-room-feedback-inline-meta--${revealTone}`}
+                    >
+                      {myFeedback.inlineMeta}
+                    </span>
+                  )}
+                  {isReveal && (
+                    <span
+                      className={`game-room-feedback-pill game-room-feedback-pill--${revealTone} ${myFeedback.pillText ?? myFeedback.detail
+                        ? ""
+                        : "game-room-feedback-pill--placeholder"
+                        }`}
+                    >
+                      {(myFeedback.pillText ?? myFeedback.detail) || "等待揭曉"}
+                    </span>
+                  )}
                 </div>
-              )}
-              {!isReveal &&
-                feedbackLines.length === 0 &&
-                myFeedback.badges.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {myFeedback.badges.map((badge) => (
-                      <span
-                        key={`${trackSessionKey}-${badge}`}
-                        className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/35 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
-                      >
-                        {badge}
-                      </span>
-                    ))}
+                {!isReveal && feedbackLines.length === 0 ? (
+                  myFeedback.detail && (
+                    <p
+                      className={`game-room-feedback-detail ${isMobileView ? "game-room-feedback-detail--mobile-compact" : ""}`}
+                    >
+                      {myFeedback.detail}
+                    </p>
+                  )
+                ) : !isReveal && (
+                  <div
+                    className={`game-room-feedback-lines ${isReveal ? "mt-1" : "mt-1.5"} ${isMobileView ? "game-room-feedback-lines--mobile-compact" : ""}`}
+                  >
+                    {feedbackLines
+                      .slice(0, 2)
+                      .map((line, idx) => (
+                        <p
+                          key={`${trackSessionKey}-feedback-line-${idx}`}
+                          className="game-room-feedback-line"
+                        >
+                          {line}
+                        </p>
+                      ))}
                   </div>
                 )}
-              {!isReveal && isMobileView && mobileGuessAnsweredText && !isRecoveringConnection ? (
-                <p className="mt-0.5 text-[11px] font-semibold text-cyan-100">
-                  {mobileGuessAnsweredText}
-                </p>
-              ) : null}
-              {isReveal && (
-                <>
-                  <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
-                    <span className="mr-1 text-[11px] font-semibold text-emerald-200">正解</span>
-                    {resolvedAnswerTitle}
-                  </p>
-                  {gameStatus === "playing" ? (
-                    <GameRoomRevealCountdownText
-                      revealEndsAt={revealEndsAt}
-                      getLocalNowMs={getLocalNowMs}
-                    />
-                  ) : (
-                    <div className="mt-1 flex items-center justify-between">
-                      <p className="text-xs text-emerald-200">
-                        對戰已結束，可返回房間或直接離開遊戲。
-                      </p>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="inherit"
-                        onClick={onOpenExitConfirm}
-                      >
-                        離開遊戲
-                      </Button>
+                {!isReveal &&
+                  feedbackLines.length === 0 &&
+                  myFeedback.badges.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {myFeedback.badges.map((badge) => (
+                        <span
+                          key={`${trackSessionKey}-${badge}`}
+                          className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/35 px-2 py-0.5 text-[10px] font-semibold text-slate-200"
+                        >
+                          {badge}
+                        </span>
+                      ))}
                     </div>
                   )}
-                </>
-              )}
+                {!isReveal && isMobileView && mobileGuessAnsweredText && !isRecoveringConnection ? (
+                  <p className="mt-0.5 text-[11px] font-semibold text-cyan-100">
+                    {mobileGuessAnsweredText}
+                  </p>
+                ) : null}
+                {isReveal && (
+                  <>
+                    <p className="game-room-reveal-answer mt-1 text-sm text-emerald-50">
+                      <span className="mr-1 text-[11px] font-semibold text-emerald-200">正解</span>
+                      {resolvedAnswerTitle}
+                    </p>
+                    {gameStatus === "playing" ? (
+                      <GameRoomRevealCountdownText
+                        revealEndsAt={revealEndsAt}
+                        getLocalNowMs={getLocalNowMs}
+                      />
+                    ) : (
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-xs text-emerald-200">
+                          對戰已結束，可返回房間或直接離開遊戲。
+                        </p>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="inherit"
+                          onClick={onOpenExitConfirm}
+                        >
+                          離開遊戲
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
