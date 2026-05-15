@@ -652,6 +652,33 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
       .toEqual(["rank72", "rank73", "self", "placeholder", "placeholder"]);
   });
 
+  it("nearby mode falls back to relation and score when nearby ranks are missing", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      { ...makeNearbyOpponent("ahead-far", null, 535, 250), relation: "ahead" as const },
+      { ...makeNearbyOpponent("ahead-close", null, 255, 250), relation: "ahead" as const },
+      { ...makeNearbyOpponent("tied-ahead", null, 250, 250), relation: "ahead" as const },
+      { ...makeNearbyOpponent("tied-passed", null, 250, 250), relation: "passed" as const },
+      { ...makeNearbyOpponent("passed-close", null, 210, 250), relation: "passed" as const },
+      { ...makeNearbyOpponent("passed-far", null, 180, 250), relation: "passed" as const },
+    ];
+    const data = makeData(74, topFive, nearby, "me", 250);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 250,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["ahead-close", "tied-ahead", "self", "tied-passed", "passed-close"]);
+  });
+
   it("nearby mode shows two ahead players once backend refreshes a centered self window", () => {
     const topFive = Array.from({ length: 5 }, (_, i) =>
       makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),

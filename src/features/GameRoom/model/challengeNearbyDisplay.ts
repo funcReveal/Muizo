@@ -157,12 +157,41 @@ function buildRankCenteredRows({
   const rankedOpponents = opponents
     .filter((opponent) => opponent.rank !== null)
     .sort(compareRankedOpponents);
-  const above = rankedOpponents
+  const rankedAbove = rankedOpponents
     .filter((opponent) => opponent.rank !== null && opponent.rank < displayMyRank)
     .slice(-aboveSlots);
-  const below = rankedOpponents
+  const rankedBelow = rankedOpponents
     .filter((opponent) => opponent.rank !== null && opponent.rank > displayMyRank)
     .slice(0, belowSlots);
+  const selectedIds = new Set<string>();
+  rankedAbove.forEach((opponent) => selectedIds.add(opponent.userId));
+  rankedBelow.forEach((opponent) => selectedIds.add(opponent.userId));
+
+  const fallbackAbove = opponents
+    .filter(
+      (opponent) =>
+        !selectedIds.has(opponent.userId) &&
+        isOpponentAheadOfViewer(opponent, displayMyRank, liveScore),
+    )
+    .sort(compareAheadFallbackOpponents)
+    .slice(0, Math.max(0, aboveSlots - rankedAbove.length));
+  fallbackAbove.forEach((opponent) => selectedIds.add(opponent.userId));
+
+  const fallbackBelow = opponents
+    .filter(
+      (opponent) =>
+        !selectedIds.has(opponent.userId) &&
+        !isOpponentAheadOfViewer(opponent, displayMyRank, liveScore),
+    )
+    .sort(comparePassedFallbackOpponents)
+    .slice(0, Math.max(0, belowSlots - rankedBelow.length));
+
+  const above = [...fallbackAbove, ...rankedAbove]
+    .slice(-aboveSlots)
+    .sort(compareDisplayAboveOpponents);
+  const below = [...rankedBelow, ...fallbackBelow]
+    .slice(0, belowSlots)
+    .sort(compareDisplayBelowOpponents);
 
   const rows: ChallengeDisplayRow[] = [];
   const abovePadCount = Math.max(0, aboveSlots - above.length);
@@ -218,6 +247,54 @@ function compareRankedOpponents(
   return b.bestScore - a.bestScore;
 }
 
+function compareAheadFallbackOpponents(
+  a: ChallengeNearbyOpponent,
+  b: ChallengeNearbyOpponent,
+): number {
+  if (a.rank !== null || b.rank !== null) {
+    if (a.rank === null) return 1;
+    if (b.rank === null) return -1;
+    return b.rank - a.rank;
+  }
+  return a.bestScore - b.bestScore;
+}
+
+function comparePassedFallbackOpponents(
+  a: ChallengeNearbyOpponent,
+  b: ChallengeNearbyOpponent,
+): number {
+  if (a.rank !== null || b.rank !== null) {
+    if (a.rank === null) return 1;
+    if (b.rank === null) return -1;
+    return a.rank - b.rank;
+  }
+  return b.bestScore - a.bestScore;
+}
+
+function compareDisplayAboveOpponents(
+  a: ChallengeNearbyOpponent,
+  b: ChallengeNearbyOpponent,
+): number {
+  if (a.rank !== null || b.rank !== null) {
+    if (a.rank === null) return -1;
+    if (b.rank === null) return 1;
+    return a.rank - b.rank;
+  }
+  return b.bestScore - a.bestScore;
+}
+
+function compareDisplayBelowOpponents(
+  a: ChallengeNearbyOpponent,
+  b: ChallengeNearbyOpponent,
+): number {
+  if (a.rank !== null || b.rank !== null) {
+    if (a.rank === null) return 1;
+    if (b.rank === null) return -1;
+    return a.rank - b.rank;
+  }
+  return b.bestScore - a.bestScore;
+}
+
 function isOpponentAheadOfViewer(
   opponent: ChallengeNearbyOpponent,
   displayMyRank: number | null,
@@ -228,7 +305,7 @@ function isOpponentAheadOfViewer(
   if (opponent.rank !== null && displayMyRank !== null) {
     return opponent.rank < displayMyRank;
   }
-  return true;
+  return opponent.relation === "ahead";
 }
 
 function clampRank(
