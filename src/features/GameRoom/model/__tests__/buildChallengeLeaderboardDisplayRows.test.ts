@@ -50,7 +50,7 @@ function makeStanding(
     officialBestScore: null,
     projectedRank,
     officialRank: null,
-    totalPlayers: 50,
+    totalPlayers: 100,
     rankIsFinal: false,
     viewerDbUserId: viewerUserId,
     nextTarget: null,
@@ -449,5 +449,232 @@ describe("buildChallengeLeaderboardDisplayRows", () => {
       topWindowRows.find((row) => row.kind === "player" && row.userId === "u1")
         ?.key,
     ).toBe("player:u1");
+  });
+
+  it("nearby mode keeps backend self rank authoritative while local score is ahead of stale rows", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank10", 10, 885, 800),
+      makeNearbyOpponent("rank12", 12, 800, 800),
+      makeNearbyOpponent("rank13", 13, 570, 800),
+    ];
+    const data = makeData(14, topFive, nearby, "me", 500);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 845,
+      meUserId: "me",
+    });
+
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+    const selfRow = nearbyRows.find((row) => row.kind === "self");
+    const rank12Row = nearbyRows.find(
+      (row) => row.kind === "player" && row.userId === "rank12",
+    );
+    const rank13Row = nearbyRows.find(
+      (row) => row.kind === "player" && row.userId === "rank13",
+    );
+
+    expect(selfRow?.displayRank).toBe(14);
+    expect(
+      rank12Row?.kind === "player" && rank12Row.section === "nearby"
+        ? rank12Row.approxRank
+        : null,
+    ).toBe(12);
+    expect(
+      rank13Row?.kind === "player" && rank13Row.section === "nearby"
+        ? rank13Row.approxRank
+        : null,
+    ).toBe(13);
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank12", "rank13", "self", "placeholder", "placeholder"]);
+  });
+
+  it("nearby mode starts at zero with four ahead players and self at the bottom", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank73", 73, 500, 0),
+      makeNearbyOpponent("rank74", 74, 400, 0),
+      makeNearbyOpponent("rank75", 75, 300, 0),
+      makeNearbyOpponent("rank76", 76, 180, 0),
+    ];
+    const data = makeData(77, topFive, nearby, "me", 0);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 0,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank73", "rank74", "rank75", "rank76", "self"]);
+    expect(nearbyRows.find((row) => row.kind === "self")?.displayRank).toBe(77);
+  });
+
+  it("nearby mode keeps self at the bottom when the viewer is the last ranked player", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank73", 73, 500, 85),
+      makeNearbyOpponent("rank74", 74, 400, 85),
+      makeNearbyOpponent("rank75", 75, 300, 85),
+      makeNearbyOpponent("rank76", 76, 180, 85),
+    ];
+    const data = makeData(77, topFive, nearby, "me", 85);
+    data.myStanding.totalPlayers = 77;
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 85,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank73", "rank74", "rank75", "rank76", "self"]);
+  });
+
+  it("nearby mode shows one passed row after only one player has been passed", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank69", 69, 875, 820),
+      makeNearbyOpponent("rank70", 70, 835, 820),
+      makeNearbyOpponent("rank71", 71, 820, 820),
+      makeNearbyOpponent("rank73", 73, 805, 820),
+    ];
+    const data = makeData(72, topFive, nearby, "me", 820);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 820,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank70", "rank71", "self", "rank73", "placeholder"]);
+    expect(nearbyRows.find((row) => row.kind === "self")?.displayRank).toBe(72);
+  });
+
+  it("nearby mode treats tied players with better ranks as ahead and still fills two passed rows", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank52", 52, 1215, 1190),
+      makeNearbyOpponent("rank53", 53, 1190, 1190),
+      makeNearbyOpponent("rank55", 55, 1150, 1190),
+      makeNearbyOpponent("rank56", 56, 1140, 1190),
+      makeNearbyOpponent("rank57", 57, 1100, 1190),
+      makeNearbyOpponent("rank58", 58, 1025, 1190),
+    ];
+    const data = makeData(54, topFive, nearby, "me", 1190);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 1190,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank52", "rank53", "self", "rank55", "rank56"]);
+    expect(nearbyRows.find((row) => row.kind === "self")?.displayRank).toBe(54);
+  });
+
+  it("nearby mode treats tied players with lower ranks as passed rows", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank70", 70, 535, 210),
+      makeNearbyOpponent("rank71", 71, 255, 210),
+      makeNearbyOpponent("rank72", 72, 210, 210),
+      makeNearbyOpponent("rank73", 73, 210, 210),
+      makeNearbyOpponent("rank75", 75, 210, 210),
+      makeNearbyOpponent("rank76", 76, 180, 210),
+    ];
+    const data = makeData(74, topFive, nearby, "me", 210);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 210,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank72", "rank73", "self", "rank75", "rank76"]);
+  });
+
+  it("nearby mode does not fill missing below-rank slots with farther ahead players", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank70", 70, 535, 210),
+      makeNearbyOpponent("rank71", 71, 255, 210),
+      makeNearbyOpponent("rank72", 72, 210, 210),
+      makeNearbyOpponent("rank73", 73, 210, 210),
+    ];
+    const data = makeData(74, topFive, nearby, "me", 210);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 210,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank72", "rank73", "self", "placeholder", "placeholder"]);
+  });
+
+  it("nearby mode shows two ahead players once backend refreshes a centered self window", () => {
+    const topFive = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`u${i + 1}`, i + 1, 3500 - i * 100),
+    );
+    const nearby = [
+      makeNearbyOpponent("rank71", 71, 520, 460),
+      makeNearbyOpponent("rank72", 72, 480, 460),
+      makeNearbyOpponent("rank74", 74, 430, 460),
+      makeNearbyOpponent("rank75", 75, 420, 460),
+    ];
+    const data = makeData(73, topFive, nearby, "me", 460);
+
+    const { listRows } = buildChallengeLeaderboardDisplayRows({
+      data,
+      viewerScore: 460,
+      meUserId: "me",
+    });
+    const nearbyRows = listRows.slice(
+      listRows.findIndex((row) => row.kind === "ellipsis") + 1,
+    );
+
+    expect(nearbyRows.map((row) => row.kind === "self" ? "self" : row.kind === "player" ? row.userId : row.kind))
+      .toEqual(["rank71", "rank72", "self", "rank74", "rank75"]);
+    expect(nearbyRows.find((row) => row.kind === "self")?.displayRank).toBe(73);
   });
 });

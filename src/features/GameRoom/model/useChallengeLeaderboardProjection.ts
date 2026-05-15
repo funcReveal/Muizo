@@ -3,17 +3,6 @@
  *
  * In-game projected challenge leaderboard data.
  *
- * Update strategy:
- *  - Initial load fires after a random jitter (0–1500 ms) to spread the
- *    request storm that occurs when all players start simultaneously.
- *  - Score changes update only the self row and gain animation locally.
- *  - Network refresh on score increase only when the live score has passed
- *    the closest visible opponent ahead of the player.
- *  - Manual/initial loads bypass the client cooldown. Backend cooldown and
- *    server-authoritative ranking remain unchanged.
- *  - When document.hidden the initial jitter timer is cancelled; it fires
- *    again when the page becomes visible.
- *
  * Security: never sends score/rank to backend. The backend derives all
  * ranking data from server-authoritative room state.
  */
@@ -34,35 +23,195 @@ import type {
   ChallengeProjectionState,
 } from "./projectionTypes";
 
-const CLIENT_COOLDOWN_MS = 4_000;
+export const CLIENT_COOLDOWN_MS = 4_000;
+export const PROJECTION_CACHE_FRESH_MS = 15_000;
+const DEFAULT_429_RETRY_AFTER_MS = CLIENT_COOLDOWN_MS;
 /** Random jitter applied to the initial fetch to spread the game-start storm. */
 const INITIAL_JITTER_MAX_MS = 1_500;
 
+export type ProjectionFetchReason =
+  | "initial"
+  | "manual"
+  | "page_visible"
+  | "auth_ready"
+  | "nearby_boundary_crossed";
+
+export type ProjectionCacheEntry = {
+  data: ChallengeProjectedLeaderboardResponse | null;
+  loadedAt: number;
+  inFlight: Promise<ChallengeProjectedLeaderboardResponse | null> | null;
+  nextAllowedAt: number;
+  lastFetchAt: number;
+  lastErrorAt: number;
+  lastErrorStatus: number | null;
+  initialScheduled: boolean;
+};
+
 type InternalProjectionState = ChallengeProjectionState & {
+  cacheKey: string;
   sessionKey: string;
 };
 
-function shouldRefetchNearbyWindow(
+type FetchDecision =
+  | { shouldFetch: true }
+  | {
+      shouldFetch: false;
+      cause: "fresh_cache" | "in_flight" | "server_cooldown" | "client_cooldown";
+    };
+
+export const projectionCacheByKey = new Map<string, ProjectionCacheEntry>();
+const devLogLastAtByKey = new Map<string, number>();
+
+export function getProjectionCacheKey(
+  roomId: string,
+  projectionSessionKey: string,
+  meClientId: string,
+): string {
+  return `${roomId}:${projectionSessionKey}:${meClientId}`;
+}
+
+export function getProjectionSessionKey({
+  roomId,
+  gameSessionId,
+}: {
+  roomId: string;
+  gameSessionId?: string | number | null;
+}): string {
+  return gameSessionId !== null && gameSessionId !== undefined
+    ? `session:${gameSessionId}`
+    : `room:${roomId}`;
+}
+
+export function getProjectionCacheEntry(key: string): ProjectionCacheEntry {
+  const existing = projectionCacheByKey.get(key);
+  if (existing) return existing;
+
+  const entry: ProjectionCacheEntry = {
+    data: null,
+    loadedAt: 0,
+    inFlight: null,
+    nextAllowedAt: 0,
+    lastFetchAt: 0,
+    lastErrorAt: 0,
+    lastErrorStatus: null,
+    initialScheduled: false,
+  };
+  projectionCacheByKey.set(key, entry);
+  return entry;
+}
+
+function patchProjectionCacheEntry(
+  key: string,
+  patch: Partial<ProjectionCacheEntry>,
+): ProjectionCacheEntry {
+  const entry = getProjectionCacheEntry(key);
+  Object.assign(entry, patch);
+  return entry;
+}
+
+export function cancelScheduledInitialProjectionFetch(key: string): void {
+  const entry = getProjectionCacheEntry(key);
+  if (entry.initialScheduled && !entry.inFlight && !entry.data) {
+    patchProjectionCacheEntry(key, { initialScheduled: false });
+  }
+}
+
+export function shouldUseFreshProjectionCache(
+  entry: ProjectionCacheEntry,
+  now: number,
+): boolean {
+  return entry.data !== null && now - entry.loadedAt < PROJECTION_CACHE_FRESH_MS;
+}
+
+export function shouldStartProjectionFetch({
+  entry,
+  now,
+  force,
+  clientCooldownMs,
+}: {
+  entry: ProjectionCacheEntry;
+  now: number;
+  force: boolean;
+  clientCooldownMs: number;
+}): FetchDecision {
+  if (now < entry.nextAllowedAt) {
+    return { shouldFetch: false, cause: "server_cooldown" };
+  }
+
+  if (!force && shouldUseFreshProjectionCache(entry, now)) {
+    return { shouldFetch: false, cause: "fresh_cache" };
+  }
+
+  if (entry.inFlight) {
+    return { shouldFetch: false, cause: "in_flight" };
+  }
+
+  if (
+    clientCooldownMs > 0 &&
+    entry.lastFetchAt > 0 &&
+    now - entry.lastFetchAt < clientCooldownMs
+  ) {
+    return { shouldFetch: false, cause: "client_cooldown" };
+  }
+
+  return { shouldFetch: true };
+}
+
+function getClientCooldownMs(reason: ProjectionFetchReason): number {
+  switch (reason) {
+    case "manual":
+      return CLIENT_COOLDOWN_MS;
+    case "nearby_boundary_crossed":
+      return 0;
+    case "auth_ready":
+    case "initial":
+    case "page_visible":
+      return 0;
+  }
+}
+
+export function shouldRefetchNearbyWindow(
   previousScore: number,
   newScore: number,
   data: ChallengeProjectedLeaderboardResponse | null,
 ): boolean {
+  if (newScore <= previousScore) return false;
   if (!data) return true;
   if (data.nearbyOpponents.length === 0) return false;
 
-  const aheadBefore = data.nearbyOpponents.filter((o) => o.bestScore > previousScore);
-  const aheadNow    = data.nearbyOpponents.filter((o) => o.bestScore > newScore);
+  const hadAheadBefore = data.nearbyOpponents.some(
+    (opponent) => opponent.bestScore >= previousScore,
+  );
+  if (!hadAheadBefore) return false;
 
-  // At least one stored opponent crossed the boundary from ahead to passed.
-  // Catches single crossings and multi-opponent jumps in one score update.
-  if (aheadBefore.length > aheadNow.length) return true;
+  return data.nearbyOpponents.some(
+    (opponent) =>
+      opponent.bestScore >= previousScore && opponent.bestScore <= newScore,
+  );
+}
 
-  // All stored nearby data is now below our live score but the window has opponents
-  // in it (we are not rank #1 with an empty list). Need a higher-band window from
-  // the backend so the ahead slots show the correct next opponents.
-  if (aheadNow.length === 0 && aheadBefore.length === 0) return true;
-
-  return false;
+function devLog(
+  event:
+    | "boundary crossed"
+    | "fetch started"
+    | "fetch skipped"
+    | "fetch 429"
+    | "fetch success",
+  details: Record<string, unknown>,
+): void {
+  if (import.meta.env.DEV) {
+    const reason = typeof details.reason === "string" ? details.reason : "";
+    const cause = typeof details.cause === "string" ? details.cause : "";
+    const cacheKey = typeof details.cacheKey === "string" ? details.cacheKey : "";
+    if (event === "fetch skipped" && cause === "fresh_cache") {
+      const logKey = `${event}:${reason}:${cause}:${cacheKey}`;
+      const now = Date.now();
+      const lastAt = devLogLastAtByKey.get(logKey) ?? 0;
+      if (now - lastAt < 5_000) return;
+      devLogLastAtByKey.set(logKey, now);
+    }
+    console.info(`[challengeLeaderboardProjection] ${event}`, details);
+  }
 }
 
 export type UseChallengeLeaderboardProjectionInput = {
@@ -72,6 +221,7 @@ export type UseChallengeLeaderboardProjectionInput = {
   myLiveScore: number;
   canLoadInitialProjection: boolean;
   projectionSessionKey: string;
+  initialFetchJitterMs?: number;
 };
 
 export type UseChallengeLeaderboardProjectionResult = {
@@ -91,126 +241,286 @@ export function useChallengeLeaderboardProjection(
     myLiveScore,
     canLoadInitialProjection,
     projectionSessionKey,
+    initialFetchJitterMs = INITIAL_JITTER_MAX_MS,
   } = input;
 
   const { authToken, refreshAuthToken, authLoading } = useAuth();
-  const [state, setState] = useState<InternalProjectionState>({
-    status: "idle",
-    sessionKey: projectionSessionKey,
+  const cacheKey = useMemo(
+    () => getProjectionCacheKey(roomId, projectionSessionKey, meClientId),
+    [roomId, projectionSessionKey, meClientId],
+  );
+  const [state, setState] = useState<InternalProjectionState>(() => {
+    const entry = getProjectionCacheEntry(cacheKey);
+    return entry.data
+      ? {
+          status: "loaded",
+          data: entry.data,
+          loadedAt: entry.loadedAt,
+          cacheKey,
+          sessionKey: projectionSessionKey,
+        }
+      : {
+          status: "idle",
+          cacheKey,
+          sessionKey: projectionSessionKey,
+        };
   });
 
-  const abortRef = useRef<AbortController | null>(null);
-  const inFlightKeyRef = useRef<string | null>(null);
-  const lastFetchAtRef = useRef(0);
-  const loadedDataRef = useRef<ChallengeProjectedLeaderboardResponse | null>(null);
-  const gainAnimKeyRef = useRef(0);
-  const [gainState, setGainState] = useState<{ key: number; amount: number }>({
-    key: 0,
-    amount: 0,
-  });
-  const prevLiveScoreRef = useRef(myLiveScore);
-
-  // Jitter timer for initial fetch — cleared on unmount / session change
+  const loadedDataRef = useRef<ChallengeProjectedLeaderboardResponse | null>(
+    state.status === "loaded" ? state.data : null,
+  );
+  const mountedRef = useRef(true);
   const jitterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const jitterScheduledForSessionRef = useRef<string | null>(null);
+  const boundaryRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const gainAnimKeyRef = useRef(0);
+  const pendingBoundaryRefreshRef = useRef(false);
+  const [gainState, setGainState] = useState<{ key: number; amount: number }>(
+    {
+      key: 0,
+      amount: 0,
+    },
+  );
+  const [boundaryRetryToken, setBoundaryRetryToken] = useState(0);
+  const latestLiveScoreRef = useRef(myLiveScore);
+  const prevLiveScoreRef = useRef(myLiveScore);
+  const prevAuthLoadingRef = useRef(authLoading);
+
+  const hydrateFromEntry = useCallback(
+    (entry: ProjectionCacheEntry): boolean => {
+      if (!entry.data) return false;
+      loadedDataRef.current = entry.data;
+      if (mountedRef.current) {
+        setState({
+          status: "loaded",
+          data: entry.data,
+          loadedAt: entry.loadedAt,
+          cacheKey,
+          sessionKey: projectionSessionKey,
+        });
+      }
+      return true;
+    },
+    [cacheKey, projectionSessionKey],
+  );
 
   const clearJitterTimer = useCallback(() => {
     if (jitterTimerRef.current !== null) {
       clearTimeout(jitterTimerRef.current);
       jitterTimerRef.current = null;
     }
-    jitterScheduledForSessionRef.current = null;
   }, []);
 
-  const canFetch = useCallback((bypassClientCooldown = false): boolean => {
-    if (bypassClientCooldown) return true;
-    return Date.now() - lastFetchAtRef.current >= CLIENT_COOLDOWN_MS;
+  const clearBoundaryRetryTimer = useCallback(() => {
+    if (boundaryRetryTimerRef.current !== null) {
+      clearTimeout(boundaryRetryTimerRef.current);
+      boundaryRetryTimerRef.current = null;
+    }
   }, []);
+
+  const cancelInitialFetchSchedule = useCallback(() => {
+    clearJitterTimer();
+    cancelScheduledInitialProjectionFetch(cacheKey);
+  }, [cacheKey, clearJitterTimer]);
 
   const doFetch = useCallback(
-    async (
-      _reason: string,
-      options?: { bypassClientCooldown?: boolean; replaceInFlight?: boolean },
-    ) => {
+    async (reason: ProjectionFetchReason) => {
       if (!enabled || !roomId || authLoading) return;
-      if (!canFetch(options?.bypassClientCooldown)) return;
 
-      const requestKey = `${roomId}:${projectionSessionKey}`;
-      if (
-        inFlightKeyRef.current === requestKey &&
-        !options?.replaceInFlight
-      ) {
+      const entry = getProjectionCacheEntry(cacheKey);
+      const now = Date.now();
+      const force = reason === "manual" || reason === "nearby_boundary_crossed";
+      const clientCooldownMs = getClientCooldownMs(reason);
+      const decision = shouldStartProjectionFetch({
+        entry,
+        now,
+        force,
+        clientCooldownMs,
+      });
+
+      if (!decision.shouldFetch) {
+        devLog("fetch skipped", {
+          reason,
+          cacheKey,
+          cause: decision.cause,
+          ageMs: entry.loadedAt > 0 ? now - entry.loadedAt : null,
+          nextAllowedInMs: Math.max(0, entry.nextAllowedAt - now),
+          lastFetchAgoMs: entry.lastFetchAt > 0 ? now - entry.lastFetchAt : null,
+          hasData: entry.data !== null,
+        });
+        if (decision.cause === "fresh_cache" || entry.data) {
+          hydrateFromEntry(entry);
+        }
+        if (decision.cause === "in_flight" && entry.inFlight) {
+          if (reason === "nearby_boundary_crossed") {
+            pendingBoundaryRefreshRef.current = true;
+          }
+          const data = await entry.inFlight;
+          if (data) hydrateFromEntry(entry);
+          if (
+            reason === "nearby_boundary_crossed" &&
+            mountedRef.current &&
+            pendingBoundaryRefreshRef.current
+          ) {
+            setBoundaryRetryToken((value) => value + 1);
+          }
+        }
+        if (
+          reason === "nearby_boundary_crossed" &&
+          (decision.cause === "client_cooldown" ||
+            decision.cause === "server_cooldown")
+        ) {
+          pendingBoundaryRefreshRef.current = true;
+          const retryAt =
+            decision.cause === "server_cooldown"
+              ? entry.nextAllowedAt
+              : entry.lastFetchAt + clientCooldownMs;
+          clearBoundaryRetryTimer();
+          boundaryRetryTimerRef.current = setTimeout(() => {
+            boundaryRetryTimerRef.current = null;
+            if (!mountedRef.current || !pendingBoundaryRefreshRef.current) return;
+            setBoundaryRetryToken((value) => value + 1);
+          }, Math.max(0, retryAt - Date.now()));
+        }
         return;
       }
 
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      inFlightKeyRef.current = requestKey;
-      lastFetchAtRef.current = Date.now();
-
-      setState((prev) =>
-        prev.status === "loaded" && prev.sessionKey === projectionSessionKey
-          ? prev
-          : { status: "loading", sessionKey: projectionSessionKey },
-      );
-
-      try {
-        const token = authToken
-          ? await ensureFreshAuthToken({ token: authToken, refreshAuthToken })
-          : null;
-        const result = await fetchProjectedWindow({
-          apiUrl: API_URL ?? "",
-          roomId,
-          token,
-          clientId: meClientId,
-          signal: controller.signal,
-        });
-
-        if (controller.signal.aborted) return;
-
-        if (result.ok) {
-          loadedDataRef.current = result.data;
-          setState({
-            status: "loaded",
-            data: result.data,
-            loadedAt: Date.now(),
-            sessionKey: projectionSessionKey,
-          });
-          return;
-        }
-
-        setState((prev) =>
-          prev.status === "loaded" && prev.sessionKey === projectionSessionKey
-            ? prev
-            : {
-                status: "error",
-                message: result.error,
-                sessionKey: projectionSessionKey,
-              },
-        );
-      } catch {
-        if (controller.signal.aborted) return;
-        setState((prev) =>
-          prev.status === "loaded" && prev.sessionKey === projectionSessionKey
-            ? prev
-            : {
-                status: "error",
-                message: "排行榜暫時無法載入",
-                sessionKey: projectionSessionKey,
-              },
-        );
-      } finally {
-        if (inFlightKeyRef.current === requestKey) {
-          inFlightKeyRef.current = null;
-        }
+      patchProjectionCacheEntry(cacheKey, { lastFetchAt: now });
+      if (reason === "nearby_boundary_crossed") {
+        pendingBoundaryRefreshRef.current = false;
+        clearBoundaryRetryTimer();
       }
+      devLog("fetch started", {
+        reason,
+        cacheKey,
+        hasCachedData: entry.data !== null,
+        previousLoadedAt: entry.loadedAt || null,
+      });
+
+      if (!entry.data && mountedRef.current) {
+        setState((prev) =>
+          prev.status === "loaded" && prev.cacheKey === cacheKey
+            ? prev
+            : { status: "loading", cacheKey, sessionKey: projectionSessionKey },
+        );
+      }
+
+      const requestPromise = (async () => {
+        try {
+          const token = authToken
+            ? await ensureFreshAuthToken({ token: authToken, refreshAuthToken })
+            : null;
+          const result = await fetchProjectedWindow({
+            apiUrl: API_URL ?? "",
+            roomId,
+            token,
+            clientId: meClientId,
+          });
+
+          const completedAt = Date.now();
+          if (result.ok) {
+            patchProjectionCacheEntry(cacheKey, {
+              data: result.data,
+              loadedAt: completedAt,
+              lastErrorAt: 0,
+              lastErrorStatus: null,
+            });
+            devLog("fetch success", {
+              reason,
+              cacheKey,
+              projectedRank: result.data.myStanding.projectedRank,
+              liveScore: result.data.myStanding.liveScore,
+              nearbyCount: result.data.nearbyOpponents.length,
+              nearby: result.data.nearbyOpponents.map((opponent) => ({
+                rank: opponent.rank,
+                score: opponent.bestScore,
+                relation: opponent.relation,
+                gap: opponent.gapFromMe,
+                name: opponent.displayName,
+              })),
+              topCount: result.data.topEntries.length,
+              cacheSource: result.data.cache.source,
+              ttlMs: result.data.cache.ttlMs,
+            });
+            return result.data;
+          }
+
+          const failedEntry = getProjectionCacheEntry(cacheKey);
+          const nextPatch: Partial<ProjectionCacheEntry> = {
+            lastErrorAt: completedAt,
+            lastErrorStatus: result.status,
+          };
+          if (result.status === 429) {
+            const retryAfterMs =
+              result.retryAfterMs ?? DEFAULT_429_RETRY_AFTER_MS;
+            nextPatch.nextAllowedAt = Math.max(
+              failedEntry.nextAllowedAt,
+              completedAt + retryAfterMs,
+            );
+            devLog("fetch 429", {
+              reason,
+              cacheKey,
+              retryAfterMs,
+              nextAllowedAt: nextPatch.nextAllowedAt,
+            });
+          }
+          patchProjectionCacheEntry(cacheKey, nextPatch);
+          return null;
+        } catch {
+          const failedAt = Date.now();
+          patchProjectionCacheEntry(cacheKey, {
+            lastErrorAt: failedAt,
+            lastErrorStatus: 0,
+          });
+          return null;
+        }
+      })();
+
+      patchProjectionCacheEntry(cacheKey, { inFlight: requestPromise });
+      const data = await requestPromise;
+
+      if (getProjectionCacheEntry(cacheKey).inFlight === requestPromise) {
+        patchProjectionCacheEntry(cacheKey, { inFlight: null });
+      }
+
+      if (!mountedRef.current) return;
+
+      if (data) {
+        const successEntry = getProjectionCacheEntry(cacheKey);
+        loadedDataRef.current = data;
+        setState({
+          status: "loaded",
+          data,
+          loadedAt: successEntry.loadedAt,
+          cacheKey,
+          sessionKey: projectionSessionKey,
+        });
+        return;
+      }
+
+      const completedEntry = getProjectionCacheEntry(cacheKey);
+      if (completedEntry.data) {
+        hydrateFromEntry(completedEntry);
+        return;
+      }
+
+      setState((prev) => {
+        if (prev.status === "loaded" && prev.cacheKey === cacheKey) return prev;
+        const message =
+          completedEntry.lastErrorStatus === 429
+            ? "排行榜更新太頻繁，稍後再試"
+            : "排行榜暫時無法載入";
+        return { status: "error", message, cacheKey, sessionKey: projectionSessionKey };
+      });
     },
     [
       enabled,
       roomId,
       authLoading,
-      canFetch,
+      cacheKey,
+      hydrateFromEntry,
+      clearBoundaryRetryTimer,
       projectionSessionKey,
       authToken,
       refreshAuthToken,
@@ -218,83 +528,132 @@ export function useChallengeLeaderboardProjection(
     ],
   );
 
-  // Reset all state when session changes
   useEffect(() => {
-    clearJitterTimer();
-    loadedDataRef.current = null;
-    abortRef.current?.abort();
-    abortRef.current = null;
-    inFlightKeyRef.current = null;
-    lastFetchAtRef.current = 0;
-    prevLiveScoreRef.current = 0;
+    latestLiveScoreRef.current = myLiveScore;
+  }, [myLiveScore]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const entry = getProjectionCacheEntry(cacheKey);
+    if (entry.data) {
+      queueMicrotask(() => hydrateFromEntry(entry));
+    } else {
+      loadedDataRef.current = null;
+      queueMicrotask(() => {
+        if (mountedRef.current) {
+          setState({ status: "idle", cacheKey, sessionKey: projectionSessionKey });
+        }
+      });
+    }
+    prevLiveScoreRef.current = latestLiveScoreRef.current;
     gainAnimKeyRef.current = 0;
+    pendingBoundaryRefreshRef.current = false;
     queueMicrotask(() => {
-      setGainState({ key: 0, amount: 0 });
+      if (mountedRef.current) {
+        setGainState({ key: 0, amount: 0 });
+      }
     });
-  }, [roomId, projectionSessionKey, clearJitterTimer]);
+    return () => {
+      mountedRef.current = false;
+      cancelInitialFetchSchedule();
+      clearBoundaryRetryTimer();
+    };
+  }, [
+    cacheKey,
+    projectionSessionKey,
+    hydrateFromEntry,
+    cancelInitialFetchSchedule,
+    clearBoundaryRetryTimer,
+  ]);
 
-  // Initial fetch with jitter — fires once when canLoadInitialProjection becomes true
   useEffect(() => {
-    if (!enabled || !canLoadInitialProjection || loadedDataRef.current !== null) return;
-    // Don't schedule if we already have a jitter pending for this session
-    if (jitterScheduledForSessionRef.current === projectionSessionKey) return;
+    if (!enabled || !canLoadInitialProjection) return;
 
-    jitterScheduledForSessionRef.current = projectionSessionKey;
+    const entry = getProjectionCacheEntry(cacheKey);
+    const now = Date.now();
+    if (shouldUseFreshProjectionCache(entry, now)) {
+      devLog("fetch skipped", { reason: "initial", cacheKey, cause: "fresh_cache" });
+      queueMicrotask(() => hydrateFromEntry(entry));
+      return;
+    }
+    if (entry.data || entry.inFlight || entry.initialScheduled) return;
+
+    patchProjectionCacheEntry(cacheKey, { initialScheduled: true });
 
     const fire = () => {
       jitterTimerRef.current = null;
-      // Don't fetch if document is hidden — page-visible handler will re-trigger
       if (document.hidden) {
-        jitterScheduledForSessionRef.current = null;
+        patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
         return;
       }
-      void doFetch("initial_game_started", { bypassClientCooldown: true });
+      patchProjectionCacheEntry(cacheKey, { initialScheduled: false });
+      void doFetch("initial");
     };
 
-    const jitter = Math.random() * INITIAL_JITTER_MAX_MS;
-    jitterTimerRef.current = setTimeout(fire, jitter);
+    const jitter = Math.max(0, initialFetchJitterMs);
+    const delay = jitter <= 0 ? 0 : Math.random() * jitter;
+    jitterTimerRef.current = setTimeout(fire, delay);
 
-    return () => {
-      // Cleanup if the effect re-runs before timer fires
-      clearJitterTimer();
-    };
-  }, [enabled, canLoadInitialProjection, projectionSessionKey, doFetch, clearJitterTimer]);
+    return cancelInitialFetchSchedule;
+  }, [
+    enabled,
+    canLoadInitialProjection,
+    cacheKey,
+    doFetch,
+    hydrateFromEntry,
+    initialFetchJitterMs,
+    cancelInitialFetchSchedule,
+  ]);
 
-  // When page becomes visible, retry if we skipped the initial fetch
   useEffect(() => {
     const onVisible = () => {
-      if (document.hidden) return;
-      if (
-        enabled &&
-        canLoadInitialProjection &&
-        loadedDataRef.current === null &&
-        jitterTimerRef.current === null
-      ) {
-        lastFetchAtRef.current = 0;
-        void doFetch("page_visible", { bypassClientCooldown: true });
+      if (document.hidden || !enabled || !canLoadInitialProjection) return;
+      const entry = getProjectionCacheEntry(cacheKey);
+      if (entry.data && shouldUseFreshProjectionCache(entry, Date.now())) {
+        devLog("fetch skipped", {
+          reason: "page_visible",
+          cacheKey,
+          cause: "fresh_cache",
+        });
+        hydrateFromEntry(entry);
+        return;
+      }
+      if (!entry.data || Date.now() - entry.loadedAt >= PROJECTION_CACHE_FRESH_MS) {
+        void doFetch("page_visible");
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [enabled, canLoadInitialProjection, doFetch]);
+  }, [enabled, canLoadInitialProjection, cacheKey, doFetch, hydrateFromEntry]);
 
-  // After auth finishes loading, retry if still no data
-  const prevAuthLoadingRef = useRef(authLoading);
   useEffect(() => {
     const wasLoading = prevAuthLoadingRef.current;
     prevAuthLoadingRef.current = authLoading;
     if (!wasLoading || authLoading) return;
-    if (
-      enabled &&
-      canLoadInitialProjection &&
-      loadedDataRef.current === null
-    ) {
-      lastFetchAtRef.current = 0;
-      void doFetch("auth_ready", { bypassClientCooldown: true });
-    }
-  }, [authLoading, enabled, canLoadInitialProjection, doFetch]);
+    if (!enabled || !canLoadInitialProjection) return;
 
-  // Boundary-based refresh: refetch only when closest ahead opponent is passed
+    const entry = getProjectionCacheEntry(cacheKey);
+    if (entry.data) {
+      devLog("fetch skipped", {
+        reason: "auth_ready",
+        cacheKey,
+        cause: "fresh_cache",
+      });
+      queueMicrotask(() => hydrateFromEntry(entry));
+      return;
+    }
+    queueMicrotask(() => {
+      void doFetch("auth_ready");
+    });
+  }, [
+    authLoading,
+    enabled,
+    canLoadInitialProjection,
+    cacheKey,
+    hydrateFromEntry,
+    doFetch,
+  ]);
+
   useEffect(() => {
     const prev = prevLiveScoreRef.current;
     prevLiveScoreRef.current = myLiveScore;
@@ -305,45 +664,57 @@ export function useChallengeLeaderboardProjection(
     gainAnimKeyRef.current += 1;
     setGainState({ key: gainAnimKeyRef.current, amount: delta });
 
-    if (
-      enabled &&
-      canLoadInitialProjection &&
-      shouldRefetchNearbyWindow(prev, myLiveScore, loadedDataRef.current)
-    ) {
-      void doFetch("closest_ahead_passed");
-    }
-  }, [enabled, canLoadInitialProjection, myLiveScore, doFetch]);
+    if (!canLoadInitialProjection) return;
 
-  // Abort in-flight request when disabled
-  useEffect(() => {
-    if (!enabled) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      inFlightKeyRef.current = null;
-      clearJitterTimer();
-    }
-  }, [enabled, clearJitterTimer]);
+    const crossedVisibleBoundary = shouldRefetchNearbyWindow(
+      prev,
+      myLiveScore,
+      loadedDataRef.current,
+    );
+    if (!crossedVisibleBoundary) return;
 
-  // Cleanup on unmount
+    devLog("boundary crossed", {
+      cacheKey,
+      previousScore: prev,
+      liveScore: myLiveScore,
+      nearbyScores:
+        loadedDataRef.current?.nearbyOpponents.map((opponent) => ({
+          userId: opponent.userId,
+          rank: opponent.rank,
+          bestScore: opponent.bestScore,
+        })) ?? [],
+    });
+
+    if (enabled) {
+      pendingBoundaryRefreshRef.current = false;
+      queueMicrotask(() => {
+        void doFetch("nearby_boundary_crossed");
+      });
+    } else {
+      pendingBoundaryRefreshRef.current = true;
+    }
+  }, [enabled, canLoadInitialProjection, myLiveScore, cacheKey, doFetch]);
+
   useEffect(() => {
-    return () => {
-      clearJitterTimer();
-      abortRef.current?.abort();
-    };
-  }, [clearJitterTimer]);
+    if (!enabled || !canLoadInitialProjection) return;
+    if (!pendingBoundaryRefreshRef.current) return;
+
+    pendingBoundaryRefreshRef.current = false;
+    queueMicrotask(() => {
+      void doFetch("nearby_boundary_crossed");
+    });
+  }, [enabled, canLoadInitialProjection, doFetch, boundaryRetryToken]);
 
   const stateForCurrentSession = useMemo<ChallengeProjectionState>(
     () =>
-      state.sessionKey === projectionSessionKey ? state : { status: "idle" },
-    [state, projectionSessionKey],
+      state.cacheKey === cacheKey && state.sessionKey === projectionSessionKey
+        ? state
+        : { status: "idle" },
+    [state, cacheKey, projectionSessionKey],
   );
 
   const refresh = useCallback(() => {
-    lastFetchAtRef.current = 0;
-    void doFetch("manual_refresh", {
-      bypassClientCooldown: true,
-      replaceInFlight: true,
-    });
+    void doFetch("manual");
   }, [doFetch]);
 
   return {

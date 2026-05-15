@@ -23,7 +23,28 @@ export type FetchProjectedWindowInput = {
 
 export type FetchProjectedWindowResult =
   | { ok: true; data: ChallengeProjectedLeaderboardResponse }
-  | { ok: false; status: number; error: string };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      retryAfterMs?: number;
+    };
+
+export function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, Math.floor(seconds * 1000));
+  }
+
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+
+  return undefined;
+}
 
 export async function fetchProjectedWindow(
   input: FetchProjectedWindowInput,
@@ -60,12 +81,20 @@ export async function fetchProjectedWindow(
     const body = await res.json().catch(() => null);
 
     if (!res.ok) {
+      const bodyRetryAfterMs =
+        typeof body?.retryAfterMs === "number" &&
+        Number.isFinite(body.retryAfterMs)
+          ? Math.max(0, Math.floor(body.retryAfterMs))
+          : undefined;
+      const headerRetryAfterMs = parseRetryAfterMs(res.headers.get("Retry-After"));
+
       return {
         ok: false,
         status: res.status,
         error:
           (typeof body?.error === "string" && body.error) ||
           `HTTP ${res.status}`,
+        retryAfterMs: bodyRetryAfterMs ?? headerRetryAfterMs,
       };
     }
 

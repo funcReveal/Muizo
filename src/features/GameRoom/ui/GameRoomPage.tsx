@@ -78,7 +78,10 @@ import useGameRoomAnswerFlow from "../model/useGameRoomAnswerFlow";
 import useGameRoomQuestionDerivedState from "../model/useGameRoomQuestionDerivedState";
 import useGameRoomRecaps from "../model/useGameRoomRecaps";
 import useGameRoomStats from "../model/useGameRoomStats";
-import { useChallengeLeaderboardProjection } from "../model/useChallengeLeaderboardProjection";
+import {
+  getProjectionSessionKey,
+  useChallengeLeaderboardProjection,
+} from "../model/useChallengeLeaderboardProjection";
 import useMobileScoreFeedback from "../model/useMobileScoreFeedback";
 import type { MobileScoreFeedbackEvent } from "../model/mobileScoreFeedback";
 import useTopTwoSwapState from "../model/useTopTwoSwapState";
@@ -565,6 +568,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     };
   }, []);
   const handleToggleMobileScoreboard = useCallback(() => {
+    blurActiveInteractiveElement();
     setMobileScoreboardSwapArmed(false);
     setMobileBottomPanel((current) =>
       current === "scoreboard" ? null : "scoreboard",
@@ -1215,10 +1219,38 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     () => sortParticipantsByScore(participants),
     [participants],
   );
+  const lastProjectionSessionRef = useRef<{
+    roomId: string;
+    startedAt: number;
+    key: string;
+  } | null>(null);
+  if (
+    gameState.status === "playing" &&
+    Number.isFinite(gameState.startedAt) &&
+    (lastProjectionSessionRef.current?.roomId !== room.id ||
+      lastProjectionSessionRef.current?.startedAt !== gameState.startedAt)
+  ) {
+    const initialKey =
+      gameSessionId !== null && gameSessionId !== undefined
+        ? getProjectionSessionKey({
+          roomId: room.id,
+          gameSessionId,
+        })
+        : `started:${gameState.startedAt}`;
+    lastProjectionSessionRef.current = {
+      roomId: room.id,
+      startedAt: gameState.startedAt,
+      key: initialKey,
+    };
+  } else if (
+    lastProjectionSessionRef.current?.roomId !== room.id ||
+    gameState.status !== "playing"
+  ) {
+    lastProjectionSessionRef.current = null;
+  }
   const projectionSessionKey =
-    gameSessionId !== null && gameSessionId !== undefined
-      ? `session:${gameSessionId}`
-      : `room:${room.id}`;
+    lastProjectionSessionRef.current?.key ?? `pending:${room.id}`;
+  const hasStableProjectionSessionKey = lastProjectionSessionRef.current !== null;
   const meLiveParticipant = useMemo(
     () =>
       meClientId
@@ -1227,17 +1259,25 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
         : null,
     [meClientId, participants],
   );
-  const challengeProjectionEnabled =
-    isLeaderboardRoom && scoreFeedbackTab === "challenge";
-  const challengeProjectionCanLoadInitial =
-    challengeProjectionEnabled &&
-    gameState.status === "playing" &&
+  const challengeProjectionEnabled = isLeaderboardRoom && !!meClientId;
+  const canPrefetchChallengeProjection =
+    isInitialCountdown && startCountdownSec <= 5;
+  const canLoadChallengeProjectionDuringPlay =
     (gameState.phase === "guess" || gameState.phase === "reveal") &&
     trackCursor >= 0 &&
     trackSessionKey.trim().length > 0 &&
     !waitingToStart &&
-    !isInterTrackWait &&
+    !isInterTrackWait;
+  const challengeProjectionCanLoadInitial =
+    isLeaderboardRoom &&
+    hasStableProjectionSessionKey &&
+    gameState.status === "playing" &&
+    (canLoadChallengeProjectionDuringPlay || canPrefetchChallengeProjection) &&
     !isRecoveringConnection;
+  const challengeProjectionInitialJitterMs =
+    canPrefetchChallengeProjection && !canLoadChallengeProjectionDuringPlay
+      ? 1_500
+      : 0;
   const {
     state: challengeProjectionState,
     refresh: refreshChallengeProjection,
@@ -1250,6 +1290,7 @@ const GameRoomPage: React.FC<GameRoomPageProps> = ({
     myLiveScore: meLiveParticipant?.score ?? 0,
     canLoadInitialProjection: challengeProjectionCanLoadInitial,
     projectionSessionKey,
+    initialFetchJitterMs: challengeProjectionInitialJitterMs,
   });
   const challengeFeedbackProjection =
     challengeProjectionState.status === "loaded"

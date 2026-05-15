@@ -53,7 +53,7 @@ interface ChallengeLeaderboardPanelProps {
 // Panel
 // ---------------------------------------------------------------------------
 
-const SCORE_GAIN_VISIBLE_BEFORE_RANK_SWAP_MS = 2500;
+const SCORE_GAIN_VISIBLE_BEFORE_RANK_SWAP_MS = 0;
 const RANK_CHANGE_LANE_VISIBLE_MS = 2500;
 
 export const ChallengeLeaderboardPanel = React.memo(
@@ -155,7 +155,11 @@ export const ChallengeLeaderboardPanel = React.memo(
         }, RANK_CHANGE_LANE_VISIBLE_MS);
       };
 
-      if (gainAnimKey <= 0 || gainAmount <= 0) {
+      if (
+        gainAnimKey <= 0 ||
+        gainAmount <= 0 ||
+        SCORE_GAIN_VISIBLE_BEFORE_RANK_SWAP_MS <= 0
+      ) {
         commitRankChange();
       } else {
         commitTimerRef.current = window.setTimeout(
@@ -251,6 +255,20 @@ export const ChallengeLeaderboardPanel = React.memo(
           : { layoutMode: "nearby" as const, listRows: [] },
       [data, viewerScore, meUserId],
     );
+
+    const stickySelfRowBaseProps = useMemo<SelfRowBaseProps>(() => {
+      const listSelfRank =
+        listRows.find((row) => row.kind === "self")?.displayRank ?? null;
+      if (!data || listSelfRank === null) return selfRowBaseProps;
+
+      return {
+        ...selfRowBaseProps,
+        standing: {
+          ...selfRowBaseProps.standing,
+          projectedRank: listSelfRank,
+        },
+      };
+    }, [data, listRows, selfRowBaseProps]);
 
     // -----------------------------------------------------------------------
     // Loading state
@@ -350,7 +368,7 @@ export const ChallengeLeaderboardPanel = React.memo(
         {/* Sticky self bar — always visible, separate from animated list */}
         <div className="game-room-scoreboard-self-sticky-bar px-1">
           <ChallengeSeparatorRow />
-          <ChallengeSelfRow {...selfRowBaseProps} showGainLane={false} />
+          <ChallengeSelfRow {...stickySelfRowBaseProps} showGainLane={false} />
         </div>
       </div>
     );

@@ -9,8 +9,8 @@
  *   - isLeaderboardRoom === false → always "room" tab, no tabs shown
  *   - isLeaderboardRoom === true  → default "challenge", user can switch
  *
- * The challenge leaderboard hook is ONLY mounted when isLeaderboardRoom is true.
- * Switching to "room" tab pauses challenge refreshes (enabled=false).
+ * The challenge leaderboard hook is owned by GameRoomPage so drawer/tab UI
+ * remounts do not reset request guards or loaded projection data.
  */
 
 import React, { useCallback, useMemo, useState } from "react";

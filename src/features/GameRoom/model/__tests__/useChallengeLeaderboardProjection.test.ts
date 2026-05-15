@@ -1,0 +1,317 @@
+import { afterEach, describe, expect, it } from "vitest";
+import type {
+  ChallengeNearbyOpponent,
+  ChallengeProjectedLeaderboardResponse,
+} from "../projectionTypes";
+import {
+  cancelScheduledInitialProjectionFetch,
+  CLIENT_COOLDOWN_MS,
+  getProjectionCacheEntry,
+  getProjectionCacheKey,
+  getProjectionSessionKey,
+  PROJECTION_CACHE_FRESH_MS,
+  projectionCacheByKey,
+  shouldRefetchNearbyWindow,
+  shouldStartProjectionFetch,
+  shouldUseFreshProjectionCache,
+} from "../useChallengeLeaderboardProjection";
+
+function makeData(
+  overrides: Partial<ChallengeProjectedLeaderboardResponse> = {},
+): ChallengeProjectedLeaderboardResponse {
+  return {
+    mode: "projected",
+    roomId: "room-1",
+    collectionId: "collection-1",
+    profileKey: "profile-1",
+    questionIndex: 2,
+    generatedAt: new Date(0).toISOString(),
+    topEntries: [],
+    nearbyOpponents: [],
+    myStanding: {
+      liveScore: 100,
+      officialBestScore: null,
+      projectedRank: null,
+      officialRank: null,
+      totalPlayers: 10,
+      rankIsFinal: false,
+      viewerDbUserId: "me",
+      nextTarget: null,
+    },
+    cache: { source: "memory", ttlMs: 1000 },
+    ...overrides,
+  };
+}
+
+function makeOpponent(bestScore: number): ChallengeNearbyOpponent {
+  return {
+    userId: `u-${bestScore}`,
+    displayName: `Player ${bestScore}`,
+    avatarUrl: null,
+    rank: null,
+    bestScore,
+    maxCombo: 0,
+    correctCount: null,
+    avgCorrectMs: null,
+    gapFromMe: bestScore - 100,
+    relation: bestScore > 100 ? "ahead" : "passed",
+  };
+}
+
+describe("challenge leaderboard projection request guards", () => {
+  it("builds a stable cache key from room, game run, and player only", () => {
+    expect(getProjectionCacheKey("room-1", "session:7", "client-1"))
+      .toBe("room-1:session:7:client-1");
+  });
+
+  it("keeps projection session stable across question switches", () => {
+    const firstQuestionKey = getProjectionSessionKey({
+      roomId: "room-1",
+      gameSessionId: 7,
+    });
+    const secondQuestionKey = getProjectionSessionKey({
+      roomId: "room-1",
+      gameSessionId: 7,
+    });
+
+    expect(firstQuestionKey).toBe("session:7");
+    expect(secondQuestionKey).toBe(firstQuestionKey);
+  });
+
+  it("same cache key repeated initial decision does not start a second request while in flight", () => {
+    const entry = getProjectionCacheEntry("initial-in-flight");
+    entry.inFlight = Promise.resolve(null);
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "in_flight" });
+  });
+
+  it("cancels a stale initial schedule so StrictMode cleanup can reschedule preload", () => {
+    const entry = getProjectionCacheEntry("strict-initial-schedule");
+    entry.initialScheduled = true;
+
+    cancelScheduledInitialProjectionFetch("strict-initial-schedule");
+
+    expect(entry.initialScheduled).toBe(false);
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: true });
+  });
+
+  it("fresh cache is reused after remount instead of fetching", () => {
+    const entry = getProjectionCacheEntry("fresh-remount");
+    entry.data = makeData();
+    entry.loadedAt = 5000;
+
+    expect(shouldUseFreshProjectionCache(entry, 5000 + PROJECTION_CACHE_FRESH_MS - 1))
+      .toBe(true);
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 5000 + PROJECTION_CACHE_FRESH_MS - 1,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+  });
+
+  it("manual refresh does not create a duplicate request while in flight", () => {
+    const entry = getProjectionCacheEntry("manual-in-flight");
+    entry.inFlight = Promise.resolve(null);
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000,
+        force: true,
+        clientCooldownMs: CLIENT_COOLDOWN_MS,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "in_flight" });
+  });
+
+  it("429 server cooldown blocks every fetch reason until nextAllowedAt", () => {
+    const entry = getProjectionCacheEntry("server-cooldown");
+    entry.nextAllowedAt = 9000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 8000,
+        force: true,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "server_cooldown" });
+  });
+
+  it("429 with existing data can keep loaded data available", () => {
+    const entry = getProjectionCacheEntry("429-loaded");
+    const data = makeData();
+    entry.data = data;
+    entry.loadedAt = 1000;
+    entry.lastErrorStatus = 429;
+    entry.nextAllowedAt = 6000;
+
+    expect(entry.data).toBe(data);
+    expect(shouldUseFreshProjectionCache(entry, 2000)).toBe(true);
+  });
+
+  it("page_visible uses fresh cache without fetching", () => {
+    const entry = getProjectionCacheEntry("page-visible-fresh");
+    entry.data = makeData();
+    entry.loadedAt = 1000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 2000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+  });
+
+  it("auth_ready uses fresh cache without fetching", () => {
+    const entry = getProjectionCacheEntry("auth-ready-fresh");
+    entry.data = makeData();
+    entry.loadedAt = 1000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 2000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+  });
+
+  it("nearby boundary crossed is immediate when not blocked by in-flight or server cooldown", () => {
+    const entry = getProjectionCacheEntry("nearby-client-cooldown");
+    entry.lastFetchAt = 1000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: true });
+
+    entry.inFlight = Promise.resolve(null);
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000,
+        force: false,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "in_flight" });
+  });
+
+  it("manual refresh still uses the full client cooldown", () => {
+    const entry = getProjectionCacheEntry("manual-client-cooldown");
+    entry.lastFetchAt = 1000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 1000 + 1_000,
+        force: true,
+        clientCooldownMs: CLIENT_COOLDOWN_MS,
+      }),
+    ).toEqual({ shouldFetch: false, cause: "client_cooldown" });
+  });
+
+  it("nearby boundary crossed bypasses fresh cache after cooldown", () => {
+    const entry = getProjectionCacheEntry("nearby-fresh-boundary");
+    entry.data = makeData();
+    entry.loadedAt = 10_000;
+    entry.lastFetchAt = 10_000;
+
+    expect(
+      shouldStartProjectionFetch({
+        entry,
+        now: 10_000,
+        force: true,
+        clientCooldownMs: 0,
+      }),
+    ).toEqual({ shouldFetch: true });
+  });
+
+  it("drawer open and close does not cause fetch when the same key has fresh cache", () => {
+    const key = getProjectionCacheKey("room-1", "session:1", "me");
+    const entry = getProjectionCacheEntry(key);
+    entry.data = makeData();
+    entry.loadedAt = 10_000;
+
+    const closeDecision = shouldStartProjectionFetch({
+      entry,
+      now: 11_000,
+      force: false,
+      clientCooldownMs: 0,
+    });
+    const reopenDecision = shouldStartProjectionFetch({
+      entry,
+      now: 11_500,
+      force: false,
+      clientCooldownMs: 0,
+    });
+
+    expect(closeDecision).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+    expect(reopenDecision).toEqual({ shouldFetch: false, cause: "fresh_cache" });
+  });
+
+  it("score changes only refresh when a visible ahead opponent is crossed", () => {
+    const data = makeData({
+      nearbyOpponents: [makeOpponent(150), makeOpponent(90)],
+    });
+
+    expect(shouldRefetchNearbyWindow(100, 120, data)).toBe(false);
+    expect(shouldRefetchNearbyWindow(100, 151, data)).toBe(true);
+  });
+
+  it("score changes refresh when reaching a visible ahead opponent tie", () => {
+    const data = makeData({
+      nearbyOpponents: [makeOpponent(150), makeOpponent(90)],
+    });
+
+    expect(shouldRefetchNearbyWindow(100, 150, data)).toBe(true);
+  });
+
+  it("score changes refresh when moving above an equal-score visible opponent", () => {
+    const data = makeData({
+      nearbyOpponents: [makeOpponent(100)],
+    });
+
+    expect(shouldRefetchNearbyWindow(100, 100, data)).toBe(false);
+    expect(shouldRefetchNearbyWindow(100, 101, data)).toBe(true);
+  });
+
+  it("does not refetch on score gain when there was no ahead opponent", () => {
+    const data = makeData({
+      nearbyOpponents: [makeOpponent(80), makeOpponent(90)],
+    });
+
+    expect(shouldRefetchNearbyWindow(100, 130, data)).toBe(false);
+  });
+
+  it("does not refetch on score gain when nearby opponents are empty", () => {
+    expect(shouldRefetchNearbyWindow(100, 130, makeData())).toBe(false);
+  });
+});
+
+afterEach(() => {
+  projectionCacheByKey.clear();
+});

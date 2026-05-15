@@ -392,7 +392,7 @@ function buildNearbyRows(
         kind: "self",
         key: "self:list",
         section: "nearby",
-        displayRank: data.myStanding.projectedRank,
+        displayRank: row.approxRank,
         gapToNext: null,
       });
     } else {
