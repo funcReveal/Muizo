@@ -34,6 +34,7 @@ import { useNavigate } from "react-router-dom";
 
 import SiteAnnouncementNotice from "@/shared/announcement/SiteAnnouncementNotice";
 import { isAdminRole } from "@/shared/auth/roles";
+import { isCareerFeatureEnabled } from "@/shared/config/featureFlags";
 import BrandLogo from "@/shared/ui/BrandLogo";
 
 interface AppHeaderProps {
@@ -384,6 +385,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         ];
 
   const handleNavigateCareer = () => {
+    if (!isCareerFeatureEnabled) return;
+
     handleMenuClose();
 
     if (isAnonymousVisitor) {
@@ -631,18 +634,28 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               )
             )}
 
-            <MenuItem onClick={handleNavigateCareer} sx={menuItemSx}>
+            <MenuItem
+              disabled={!isCareerFeatureEnabled}
+              onClick={handleNavigateCareer}
+              sx={menuItemSx}
+            >
               <ListItemIcon
                 sx={{
                   minWidth: 30,
-                  color: isAnonymousVisitor ? "#f59e0b" : "#7dd3fc",
+                  color: !isCareerFeatureEnabled
+                    ? "rgba(148, 163, 184, 0.55)"
+                    : isAnonymousVisitor
+                      ? "#f59e0b"
+                      : "#7dd3fc",
                 }}
               >
                 <HistoryEdu fontSize="small" />
               </ListItemIcon>
               <ListItemText
                 primary={
-                  isAnonymousVisitor ? (
+                  !isCareerFeatureEnabled ? (
+                    "生涯紀錄"
+                  ) : isAnonymousVisitor ? (
                     <Box
                       component="span"
                       sx={{
@@ -659,7 +672,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                   )
                 }
                 secondary={
-                  isAnonymousVisitor
+                  !isCareerFeatureEnabled
+                    ? "功能暫時維護中"
+                    : isAnonymousVisitor
                     ? "登入或建立訪客身分後可查看戰績"
                     : (careerMenuDescription ?? "查看總覽、題庫戰績與對戰歷史")
                 }

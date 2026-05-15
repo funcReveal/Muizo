@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "@shared/auth/AuthContext";
+import { isCareerFeatureEnabled } from "@shared/config/featureFlags";
 import { useRoomGame, useRoomSession } from "@features/RoomSession";
 import ConfirmDialog from "@shared/ui/ConfirmDialog";
 
@@ -59,6 +60,8 @@ export function useRoomAwareNavigationGuards({
 
   const handleNavigateRequest = useCallback(
     (target: NavigationTarget) => {
+      if (target === "career" && !isCareerFeatureEnabled) return;
+
       if (target === "settings") {
         onOpenSettings();
         return;
