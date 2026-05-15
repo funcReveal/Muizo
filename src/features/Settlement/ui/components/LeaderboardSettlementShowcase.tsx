@@ -2016,6 +2016,7 @@ const LeaderboardSettlementShowcase: React.FC<
                           compact
                           embedded
                           variant="inline"
+                          highlightUnreviewed
                         />
                       </div>
                     </div>

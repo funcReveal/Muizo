@@ -45,6 +45,7 @@ export type CollectionReviewPanelProps = {
   embedded?: boolean;
   variant?: "panel" | "inline";
   disabled?: boolean;
+  highlightUnreviewed?: boolean;
   className?: string;
   onSubmitted?: (summary: CollectionReviewSummary) => void;
 };

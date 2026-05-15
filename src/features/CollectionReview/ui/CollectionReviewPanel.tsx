@@ -64,6 +64,7 @@ export function CollectionReviewPanel({
   embedded = false,
   variant = "panel",
   disabled = false,
+  highlightUnreviewed = false,
   className,
   onSubmitted,
 }: CollectionReviewPanelProps) {
@@ -111,6 +112,12 @@ export function CollectionReviewPanel({
 
   const activeRating = myReview?.rating ?? 0;
   const previewRating = myReview ? activeRating : hoverRating ?? activeRating;
+  const shouldGlowUnreviewed =
+    highlightUnreviewed &&
+    !isLoading &&
+    !myReview &&
+    !queryErrorMessage &&
+    !expanded;
   const handleRatingClick = (rating: number) => {
     if (!canReview) {
       loginWithGoogle();
@@ -189,11 +196,16 @@ export function CollectionReviewPanel({
 
           <div
             className={[
-              "flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap",
+              "relative flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap",
               embedded && !isInline ? "self-start sm:self-center" : "",
             ].join(" ")}
             aria-label="評分"
           >
+            {shouldGlowUnreviewed ? (
+              <span className="mr-1 hidden shrink-0 text-[11px] font-semibold text-amber-100/82 drop-shadow-[0_0_8px_rgba(251,191,36,0.28)] sm:inline">
+                點星星評分
+              </span>
+            ) : null}
             {[1, 2, 3, 4, 5].map((rating) => (
               <button
                 key={rating}
@@ -221,7 +233,9 @@ export function CollectionReviewPanel({
                     ? "text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.24)]"
                     : myReview
                       ? "text-slate-600"
-                      : "text-slate-600 hover:text-amber-200",
+                      : shouldGlowUnreviewed
+                        ? "animate-pulse text-amber-100/72 drop-shadow-[0_0_9px_rgba(251,191,36,0.46)] hover:text-amber-200"
+                        : "text-slate-600 hover:text-amber-200",
                 ].join(" ")}
                 aria-label={`給 ${rating} 顆星`}
                 aria-pressed={activeRating === rating}

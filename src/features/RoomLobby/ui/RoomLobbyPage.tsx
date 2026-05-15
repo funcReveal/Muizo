@@ -9,10 +9,7 @@ import {
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
-import { Button, Drawer, IconButton, Typography } from "@mui/material";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import HistoryEduRoundedIcon from "@mui/icons-material/HistoryEduRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import type { SettlementQuestionRecap } from "@features/Settlement/ui/components/GameSettlementPanel";
 import HistoryReplayModal from "@features/Settlement/ui/components/HistoryReplayModal";
@@ -28,11 +25,11 @@ import {
 import { API_URL } from "@domain/room/constants";
 import { roomIsLeaderboardChallenge } from "@domain/room/viewModels";
 import RoomLobbyPanel from "./components/RoomLobbyPanel";
+import RoomBattleHistoryDrawer from "./components/RoomBattleHistoryDrawer";
 import ConfirmDialog from "@shared/ui/ConfirmDialog";
 import FloatingChatWindow from "@features/RoomChat";
 import GameRoomDanmuProviderBridge from "@features/GameRoom/ui/components/GameRoomDanmuProviderBridge";
 import { LAST_NON_ROOM_ROUTE_STORAGE_KEY } from "@shared/analytics/constants";
-import useAutoHideScrollbar from "@shared/hooks/useAutoHideScrollbar";
 import { type LobbySettlementStats } from "./components/roomLobbyDisplayUtils";
 import {
   getSettlementIdentityFromSnapshot,
@@ -3086,7 +3083,6 @@ const RoomLobbyPage: React.FC = () => {
     setHistoryDrawerOpen(true);
     void loadHistoryDrawerPage({ reset: true });
   }, [currentRoom?.id, loadHistoryDrawerPage, trackResultHistoryEvent]);
-  const historyListRef = useAutoHideScrollbar<HTMLDivElement>();
   const closeHistoryDrawer = useCallback(() => {
     setHistoryDrawerOpen(false);
   }, []);
@@ -3183,193 +3179,27 @@ const RoomLobbyPage: React.FC = () => {
       )
     : null;
   const battleHistoryDrawer = (
-    <Drawer
-      anchor="right"
+    <RoomBattleHistoryDrawer
       open={historyDrawerOpen}
+      isMobile={isTabletOrMobileLobby}
+      summaries={historyDrawerSummaries}
+      latestRoundKey={latestSettlementRoundKey}
+      loadingRoundKey={loadingSettlementRoundKey}
+      replayLoadingRoundKey={historyReplayLoadingRoundKey}
+      showInitialLoading={showHistoryDrawerInitialLoading}
+      hasMore={historyDrawerHasMore}
+      loadingMore={historyDrawerLoadingMore}
+      snapshotsByRoundKey={roomSnapshotByRoundKey}
+      statsByRoundKey={selfStatsByRoundKey}
       onClose={closeHistoryDrawer}
-      ModalProps={{
-        keepMounted: true,
+      onLoadMore={() => {
+        void loadHistoryDrawerPage();
       }}
-      PaperProps={{
-        className: "room-battle-history-drawer",
-        sx: {
-          width: isTabletOrMobileLobby ? "100%" : 440,
-          maxWidth: "100vw",
-          height: "100dvh",
-          overflow: "hidden",
-        },
+      onOpenReplay={(summary) => {
+        void openHistoryReplayModal(summary);
       }}
-    >
-      <div className="room-battle-history-shell">
-        <div className="room-battle-history-head">
-          <div className="room-battle-history-title-wrap">
-            <h2 className="room-battle-history-title">對戰歷史</h2>
-          </div>
-          <IconButton
-            size="small"
-            color="inherit"
-            className="room-battle-history-close"
-            onClick={closeHistoryDrawer}
-            aria-label="關閉對戰歷史"
-          >
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
-        </div>
-        <div
-          ref={historyListRef}
-          className="room-battle-history-list mq-autohide-scrollbar"
-        >
-          {showHistoryDrawerInitialLoading ? (
-            <div className="room-battle-history-empty room-battle-history-empty--loading">
-              <div
-                className="room-battle-history-loader"
-                role="status"
-                aria-live="polite"
-              >
-                <div className="room-battle-history-loader__headline">
-                  <span
-                    className="room-battle-history-sync-strip__dot"
-                    aria-hidden="true"
-                  />
-                  <span>讀取房間歷史中...</span>
-                </div>
-                <span
-                  className="room-battle-history-loader__rail"
-                  aria-hidden="true"
-                >
-                  <span className="room-battle-history-loader__rail-fill" />
-                </span>
-                <div
-                  className="room-battle-history-loader__chips"
-                  aria-hidden="true"
-                >
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <div
-                  className="room-battle-history-loader__ghosts"
-                  aria-hidden="true"
-                >
-                  <span />
-                  <span />
-                </div>
-              </div>
-            </div>
-          ) : historyDrawerSummaries.length === 0 ? (
-            <div className="room-battle-history-empty">
-              <HistoryEduRoundedIcon fontSize="small" />
-              <span>目前沒有可查看的房間歷史。</span>
-            </div>
-          ) : (
-            historyDrawerSummaries.map((summary) => {
-              const stats = selfStatsByRoundKey[summary.roundKey];
-              const isLatest = summary.roundKey === latestSettlementRoundKey;
-              const isLoading = loadingSettlementRoundKey === summary.roundKey;
-              return (
-                <div
-                  key={summary.roundKey}
-                  className={`room-battle-history-item ${
-                    isLatest ? "is-latest" : ""
-                  }`}
-                >
-                  <div className="room-battle-history-item-head">
-                    <div>
-                      <Typography
-                        variant="subtitle2"
-                        className="room-battle-history-round"
-                      >
-                        第 {summary.roundNo} 局
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        className="room-battle-history-time"
-                      >
-                        {new Date(summary.endedAt).toLocaleString("zh-TW", {
-                          hour12: false,
-                        })}
-                      </Typography>
-                    </div>
-                  </div>
-
-                  <div className="room-battle-history-metrics">
-                    <span>
-                      名次
-                      <strong>{stats?.rank ?? "-"}</strong>
-                    </span>
-                    <span>
-                      分數
-                      <strong>
-                        {typeof stats?.score === "number"
-                          ? stats.score.toLocaleString()
-                          : "-"}
-                      </strong>
-                    </span>
-                    <span>
-                      最高連擊
-                      <strong>
-                        {typeof stats?.maxCombo === "number"
-                          ? `x${Math.max(0, Math.round(stats.maxCombo))}`
-                          : "-"}
-                      </strong>
-                    </span>
-                  </div>
-
-                  <div className="room-battle-history-actions">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="info"
-                      className="room-battle-history-action room-battle-history-action--detail"
-                      disabled={
-                        historyReplayLoadingRoundKey === summary.roundKey
-                      }
-                      onClick={() => {
-                        void openHistoryReplayModal(summary);
-                      }}
-                    >
-                      {historyReplayLoadingRoundKey === summary.roundKey
-                        ? "載入詳情..."
-                        : "查看詳情"}
-                    </Button>
-                    {isLatest ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="info"
-                        className="room-battle-history-action room-battle-history-action--replay"
-                        disabled={isLoading}
-                        onClick={() => {
-                          handleOpenSettlementByRoundKey(summary.roundKey);
-                        }}
-                      >
-                        {isLoading ? "載入中..." : "結算頁面"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-        {historyDrawerHasMore && (
-          <div className="flex justify-center pb-1">
-            <Button
-              variant="outlined"
-              color="inherit"
-              size="small"
-              className="room-battle-history-load-more"
-              disabled={historyDrawerLoadingMore}
-              onClick={() => {
-                void loadHistoryDrawerPage();
-              }}
-            >
-              {historyDrawerLoadingMore ? "載入更多中..." : "載入更多"}
-            </Button>
-          </div>
-        )}
-      </div>
-    </Drawer>
+      onOpenSettlement={handleOpenSettlementByRoundKey}
+    />
   );
 
   const battleHistoryReplayDialog = (
