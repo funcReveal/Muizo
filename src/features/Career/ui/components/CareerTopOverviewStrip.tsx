@@ -49,11 +49,11 @@ const CareerTopOverviewStrip: React.FC<CareerTopOverviewStripProps> = ({
   ];
 
   return (
-    <section className="relative shrink-0 overflow-hidden rounded-[26px] border border-cyan-100/14 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(180deg,rgba(8,15,28,0.98),rgba(2,6,23,0.99))] p-4 shadow-[0_22px_54px_-36px_rgba(34,211,238,0.62),inset_0_1px_0_rgba(255,255,255,0.055)]">
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
+    <section className="relative shrink-0 overflow-hidden rounded-[26px] border border-[var(--mc-border)] bg-[radial-gradient(circle_at_16%_0%,rgba(245,158,11,0.16),transparent_34%),linear-gradient(180deg,rgba(20,17,13,0.98),rgba(8,7,5,0.99))] p-4 shadow-[0_22px_54px_-36px_var(--mc-glow),inset_0_1px_0_rgba(255,255,255,0.055)]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/45 to-transparent" />
 
       <div className="flex items-center gap-3">
-        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-200/28 bg-[radial-gradient(circle_at_30%_25%,rgba(125,211,252,0.95),rgba(8,47,73,0.95))] text-lg font-bold text-white shadow-[0_0_0_6px_rgba(34,211,238,0.08),0_18px_34px_-24px_rgba(34,211,238,0.9)]">
+        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-amber-200/28 bg-[radial-gradient(circle_at_30%_25%,rgba(251,191,36,0.95),rgba(120,53,15,0.95))] text-lg font-bold text-white shadow-[0_0_0_6px_rgba(245,158,11,0.08),0_18px_34px_-24px_rgba(245,158,11,0.9)]">
           {avatarUrl ? (
             <img
               src={avatarUrl}

@@ -36,7 +36,7 @@ const tabs: Array<{
 
 const CareerTabs: React.FC<CareerTabsProps> = ({ activeTab, onChange }) => {
   return (
-    <nav className="rounded-[22px] border border-cyan-100/12 bg-[linear-gradient(180deg,rgba(8,15,28,0.9),rgba(2,6,23,0.96))] p-1.5 shadow-[0_16px_36px_-30px_rgba(34,211,238,0.5)] backdrop-blur-xl">
+    <nav className="rounded-[22px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.9),rgba(8,7,5,0.96))] p-1.5 shadow-[0_16px_36px_-30px_var(--mc-glow)] backdrop-blur-xl">
       <div className="grid grid-cols-4 gap-1.5">
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
@@ -49,8 +49,8 @@ const CareerTabs: React.FC<CareerTabsProps> = ({ activeTab, onChange }) => {
               aria-pressed={active}
               className={`relative min-w-0 rounded-[16px] border px-2 py-2 text-center transition sm:px-3 ${
                 active
-                  ? "border-sky-300/40 bg-sky-300/12 text-sky-50"
-                  : "border-transparent text-[var(--mc-text-muted)] hover:border-cyan-300/18 hover:bg-cyan-300/8 hover:text-[var(--mc-text)]"
+                  ? "border-amber-300/40 bg-amber-300/12 text-amber-50"
+                  : "border-transparent text-[var(--mc-text-muted)] hover:border-amber-300/18 hover:bg-amber-300/8 hover:text-[var(--mc-text)]"
               }`}
             >
               <div className="truncate text-xs font-semibold sm:hidden">
@@ -63,7 +63,7 @@ const CareerTabs: React.FC<CareerTabsProps> = ({ activeTab, onChange }) => {
 
               <div
                 className={`mx-auto mt-1.5 h-0.5 rounded-full transition ${
-                  active ? "w-8 bg-cyan-200" : "w-0 bg-transparent"
+                  active ? "w-8 bg-amber-200" : "w-0 bg-transparent"
                 }`}
               />
             </button>

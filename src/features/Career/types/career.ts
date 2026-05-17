@@ -25,6 +25,13 @@ export interface CareerCompositeStats {
   trend: CareerTrendPoint[];
 }
 
+export interface CareerCompositeScope {
+  key: string;
+  kind: "casual" | "leaderboard";
+  label: string;
+  stats: CareerCompositeStats;
+}
+
 export interface CareerWeeklyStats {
   currentMatches: number;
   previousMatches: number;
@@ -59,6 +66,7 @@ export interface CareerCollectionRankShortcutItem {
   leaderboardRank: number | null;
   previousLeaderboardRank: number | null;
   delta: number | null;
+  lastPlayedAt: string | null;
 }
 
 export interface CareerCollectionRankRow {
@@ -103,6 +111,7 @@ export interface CareerShareCardData {
 export interface CareerOverviewData {
   hero: CareerHeroStats;
   composite: CareerCompositeStats;
+  compositeScopes: CareerCompositeScope[];
   weekly: CareerWeeklyStats;
   highlights: CareerHighlightItem[];
   collectionShortcuts: CareerCollectionRankShortcutItem[];

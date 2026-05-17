@@ -16,7 +16,7 @@ import CareerStatePanel from "./components/primitives/CareerStatePanel";
 const CareerPageSkeleton: React.FC = () => {
   return (
     <div className="space-y-3">
-      <div className="rounded-[26px] border border-cyan-100/12 bg-[linear-gradient(180deg,rgba(8,15,28,0.94),rgba(2,6,23,0.98))] p-4">
+      <div className="rounded-[26px] border border-[var(--mc-border)] bg-[linear-gradient(180deg,rgba(20,17,13,0.94),rgba(8,7,5,0.98))] p-4">
         <div className="flex items-center gap-3">
           <div className="h-14 w-14 animate-pulse rounded-2xl bg-white/10" />
           <div className="min-w-0 flex-1 space-y-2">
@@ -35,7 +35,7 @@ const CareerPageSkeleton: React.FC = () => {
         </div>
       </div>
 
-      <div className="h-[64px] animate-pulse rounded-[22px] border border-cyan-100/12 bg-white/[0.04]" />
+      <div className="h-[64px] animate-pulse rounded-[22px] border border-[var(--mc-border)] bg-white/[0.04]" />
       <div className="grid gap-3 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="h-[360px] animate-pulse rounded-[24px] border border-white/8 bg-white/[0.045]" />
         <div className="h-[360px] animate-pulse rounded-[24px] border border-white/8 bg-white/[0.045]" />
@@ -46,6 +46,8 @@ const CareerPageSkeleton: React.FC = () => {
 
 const CareerPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<CareerTabKey>("overview");
+  const [tabsDocked, setTabsDocked] = useState(false);
+  const tabsSentinelRef = React.useRef<HTMLDivElement | null>(null);
   const { authUser } = useAuth();
 
   const overviewQuery = useCareerOverviewData();
@@ -66,8 +68,26 @@ const CareerPage: React.FC = () => {
 
   const isInitialLoading = overviewQuery.isLoading && !overviewQuery.error;
 
+  React.useEffect(() => {
+    const sentinel = tabsSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setTabsDocked(!entry.isIntersecting);
+      },
+      {
+        rootMargin: "-1px 0px 0px 0px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <main className="mx-auto flex w-full max-w-[1420px] min-w-0 flex-col px-1 pb-8 sm:px-0">
+    <main className="flex w-full min-w-0 flex-1 flex-col px-1 pb-8 sm:px-0">
       {isInitialLoading ? (
         <CareerPageSkeleton />
       ) : (
@@ -83,15 +103,26 @@ const CareerPage: React.FC = () => {
             avatarUrl={authUser?.avatar_url ?? null}
           />
 
-          <div className="sticky top-2 z-20 mt-3">
+          <div ref={tabsSentinelRef} className="h-px" aria-hidden="true" />
+
+          <div
+            className={`sticky top-0 z-20 -mx-1 mt-2 px-1 transition-[background-color,box-shadow,padding,backdrop-filter] duration-200 sm:mx-0 sm:px-0 ${
+              tabsDocked
+                ? "bg-[linear-gradient(180deg,rgba(0,0,0,0.96),rgba(0,0,0,0.82))] py-3 shadow-[0_18px_36px_-24px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+                : "bg-transparent py-1 shadow-none"
+            }`}
+          >
             <CareerTabs activeTab={activeTab} onChange={setActiveTab} />
           </div>
 
-          <section className="mt-3 min-w-0" aria-live="polite">
+          <section
+            className="mt-3 flex min-w-0 flex-1 flex-col"
+            aria-live="polite"
+          >
             {activeTab === "overview" && (
               <CareerOverviewTab
                 composite={overviewQuery.data.composite}
-                weekly={overviewQuery.data.weekly}
+                compositeScopes={overviewQuery.data.compositeScopes}
                 highlights={overviewQuery.data.highlights}
                 collectionShortcuts={overviewQuery.data.collectionShortcuts}
                 onOpenCollectionRanks={() => setActiveTab("collectionRanks")}

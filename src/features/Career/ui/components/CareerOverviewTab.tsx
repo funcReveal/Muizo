@@ -2,18 +2,16 @@ import React from "react";
 
 import type {
   CareerCollectionRankShortcutItem,
+  CareerCompositeScope,
   CareerCompositeStats,
   CareerHighlightItem,
-  CareerWeeklyStats,
 } from "../../types/career";
 import CareerCollectionShortcutsSection from "./overview/CareerCollectionShortcutsSection";
 import CareerCompositeSection from "./overview/CareerCompositeSection";
-import CareerHighlightsSection from "./overview/CareerHighlightsSection";
-import CareerWeeklySection from "./overview/CareerWeeklySection";
 
 interface CareerOverviewTabProps {
   composite: CareerCompositeStats;
-  weekly: CareerWeeklyStats;
+  compositeScopes: CareerCompositeScope[];
   highlights: CareerHighlightItem[];
   collectionShortcuts: CareerCollectionRankShortcutItem[];
   onOpenCollectionRanks: () => void;
@@ -22,30 +20,28 @@ interface CareerOverviewTabProps {
 
 const CareerOverviewTab: React.FC<CareerOverviewTabProps> = ({
   composite,
-  weekly,
+  compositeScopes,
   highlights,
   collectionShortcuts,
   onOpenCollectionRanks,
   onOpenShare,
 }) => {
   return (
-    <div>
-      <div className="grid gap-4 xl:grid-cols-[1.28fr_0.72fr]">
-        <div>
-          <CareerCompositeSection composite={composite} />
+    <div className="flex min-h-0 flex-1">
+      <div className="grid min-h-0 flex-1 items-stretch gap-4 xl:grid-cols-[1.28fr_0.72fr]">
+        <div className="min-h-0">
+          <CareerCompositeSection
+            composite={composite}
+            compositeScopes={compositeScopes}
+            highlights={highlights}
+            onOpenShare={onOpenShare}
+          />
         </div>
 
-        <div className="grid gap-4">
-          <CareerWeeklySection weekly={weekly} />
-
+        <div className="grid min-h-0 gap-4">
           <CareerCollectionShortcutsSection
             items={collectionShortcuts}
             onOpenCollectionRanks={onOpenCollectionRanks}
-          />
-
-          <CareerHighlightsSection
-            highlights={highlights}
-            onOpenShare={onOpenShare}
           />
         </div>
       </div>

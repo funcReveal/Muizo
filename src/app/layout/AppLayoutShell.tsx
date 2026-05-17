@@ -92,9 +92,9 @@ const AppLayoutShell: React.FC = () => {
       }`}
     >
       <div
-        className={`flex w-full min-w-0 max-w-[1600px] p-4 flex-col ${
+        className={`flex w-full min-w-0 p-4 flex-col ${
           isRoomsHubPage ? "space-y-2" : "space-y-4"
-        }${isRoomsHubPage ? " h-full min-h-0" : ""}`}
+        }${isRoomsHubPage ? " h-full min-h-0" : " min-h-screen"}`}
       >
         <AppHeader
           displayUsername={displayUsername}
