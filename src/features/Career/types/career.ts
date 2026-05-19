@@ -63,7 +63,11 @@ export interface CareerHighlightItem {
 export interface CareerCollectionRankShortcutItem {
   id: string;
   title: string;
+  coverThumbnailUrl: string | null;
+  sourceLabel: string | null;
   leaderboardRank: number | null;
+  recentRank: number | null;
+  recentPlayerCount: number | null;
   previousLeaderboardRank: number | null;
   delta: number | null;
   lastPlayedAt: string | null;
@@ -91,6 +95,12 @@ export type CareerCollectionRankSortOrder = "asc" | "desc";
 
 export type CareerShareTemplate = "career" | "weekly" | "highlight";
 
+export interface CareerOverviewScopeContent {
+  scopeKey: string;
+  highlights: CareerHighlightItem[];
+  collectionShortcuts: CareerCollectionRankShortcutItem[];
+}
+
 export interface CareerShareCardData {
   playerName: string;
   descriptor: string;
@@ -115,6 +125,7 @@ export interface CareerOverviewData {
   weekly: CareerWeeklyStats;
   highlights: CareerHighlightItem[];
   collectionShortcuts: CareerCollectionRankShortcutItem[];
+  scopeContent: CareerOverviewScopeContent[];
 }
 
 export interface CareerOverviewQueryResult {

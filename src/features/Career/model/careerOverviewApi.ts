@@ -8,6 +8,7 @@ import type {
   CareerHeroStats,
   CareerHighlightItem,
   CareerOverviewData,
+  CareerOverviewScopeContent,
   CareerWeeklyStats,
 } from "../types/career";
 
@@ -36,6 +37,7 @@ type PartialCareerOverviewData = {
   weekly?: Partial<CareerWeeklyStats>;
   highlights?: CareerHighlightItem[];
   collectionShortcuts?: CareerCollectionRankShortcutItem[];
+  scopeContent?: Array<Partial<CareerOverviewScopeContent>>;
 };
 
 interface FetchCareerOverviewParams {
@@ -77,6 +79,7 @@ export const emptyCareerOverviewData: CareerOverviewData = {
   },
   highlights: [],
   collectionShortcuts: [],
+  scopeContent: [],
 };
 
 const normalizeCareerCompositeStats = (
@@ -148,9 +151,34 @@ const normalizeCareerOverviewData = (
       incoming.collectionShortcuts && Array.isArray(incoming.collectionShortcuts)
         ? incoming.collectionShortcuts.map((item) => ({
             ...item,
+            coverThumbnailUrl: item.coverThumbnailUrl ?? null,
+            sourceLabel: item.sourceLabel ?? null,
             lastPlayedAt: item.lastPlayedAt ?? null,
+            recentRank: item.recentRank ?? null,
+            recentPlayerCount: item.recentPlayerCount ?? null,
           }))
         : [],
+    scopeContent: Array.isArray(incoming.scopeContent)
+      ? incoming.scopeContent
+          .filter(
+            (item): item is Partial<CareerOverviewScopeContent> =>
+              typeof item?.scopeKey === "string",
+          )
+          .map((item) => ({
+            scopeKey: item.scopeKey ?? "casual",
+            highlights: Array.isArray(item.highlights) ? item.highlights : [],
+            collectionShortcuts: Array.isArray(item.collectionShortcuts)
+              ? item.collectionShortcuts.map((shortcut) => ({
+                  ...shortcut,
+                  coverThumbnailUrl: shortcut.coverThumbnailUrl ?? null,
+                  sourceLabel: shortcut.sourceLabel ?? null,
+                  lastPlayedAt: shortcut.lastPlayedAt ?? null,
+                  recentRank: shortcut.recentRank ?? null,
+                  recentPlayerCount: shortcut.recentPlayerCount ?? null,
+                }))
+              : [],
+          }))
+      : [],
   };
 };
 

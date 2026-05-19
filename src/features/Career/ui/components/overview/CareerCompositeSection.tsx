@@ -14,15 +14,17 @@ import CareerSurface, { careerMiniCardClass } from "./CareerSurface";
 interface CareerCompositeSectionProps {
   composite: CareerCompositeStats;
   compositeScopes: CareerCompositeScope[];
+  activeScopeKey: string;
+  onActiveScopeChange: (scopeKey: string) => void;
   highlights: CareerHighlightItem[];
-  onOpenShare: () => void;
 }
 
 const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
   composite,
   compositeScopes,
+  activeScopeKey,
+  onActiveScopeChange,
   highlights,
-  onOpenShare,
 }) => {
   const scopes = useMemo(
     () =>
@@ -38,14 +40,11 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
           ],
     [composite, compositeScopes],
   );
-  const [requestedScopeKey, setRequestedScopeKey] = useState(
-    scopes[0]?.key ?? "overall",
-  );
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
   const scopeMenuRef = React.useRef<HTMLDivElement | null>(null);
 
   const activeScope =
-    scopes.find((scope) => scope.key === requestedScopeKey) ?? scopes[0];
+    scopes.find((scope) => scope.key === activeScopeKey) ?? scopes[0];
   const activeComposite = activeScope?.stats ?? composite;
   const casualScopes = scopes.filter((scope) => scope.kind === "casual");
   const leaderboardScopes = scopes.filter(
@@ -97,10 +96,11 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
     bestAccuracy:
       "bg-[linear-gradient(180deg,rgba(244,63,94,0.3),rgba(76,5,25,0.88))]",
   };
+  const highlightRowCount = Math.max(1, Math.ceil(highlights.length / 2));
 
   return (
-    <CareerSurface className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-3">
+    <CareerSurface className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight text-[var(--mc-text)]">
             綜合表現
@@ -141,7 +141,7 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
                 scopes={casualScopes}
                 activeScopeKey={activeScope?.key ?? "overall"}
                 onSelect={(scopeKey) => {
-                  setRequestedScopeKey(scopeKey);
+                  onActiveScopeChange(scopeKey);
                   setScopeMenuOpen(false);
                 }}
               />
@@ -152,7 +152,7 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
                   scopes={leaderboardScopes}
                   activeScopeKey={activeScope?.key ?? "overall"}
                   onSelect={(scopeKey) => {
-                    setRequestedScopeKey(scopeKey);
+                    onActiveScopeChange(scopeKey);
                     setScopeMenuOpen(false);
                   }}
                 />
@@ -162,34 +162,45 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="mt-3 grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-5">
         {stats.map((stat) => (
-          <div key={stat.label} className={careerMiniCardClass}>
+          <div
+            key={stat.label}
+            className={`${careerMiniCardClass} min-h-0 overflow-hidden !p-2.5`}
+          >
             <div className="text-[11px] tracking-[0.12em] text-[var(--mc-text-muted)]">
               {stat.label}
             </div>
-            <div className="mt-1 text-xl font-semibold text-[var(--mc-text)]">
+            <div className="mt-0.5 truncate text-lg font-semibold text-[var(--mc-text)]">
               {stat.value}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-[20px] bg-black/16 p-3">
-        <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-2">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] bg-black/16 p-2.5">
+        <div
+          className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-hidden"
+          style={{
+            gridTemplateRows:
+              highlights.length > 0
+                ? `repeat(${highlightRowCount}, minmax(0, 1fr))`
+                : undefined,
+          }}
+        >
           {highlights.length > 0 ? (
             highlights.map((item) => (
               <div
                 key={`${item.key}-${item.label}`}
-                className={`flex min-h-[112px] flex-col justify-between rounded-[18px] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+                className={`flex min-h-0 flex-col justify-between overflow-hidden rounded-[18px] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
                   highlightToneClassByKey[item.key]
                 }`}
               >
-                <div className="text-[11px] tracking-[0.12em] text-slate-200/90">
+                <div className="truncate text-[10px] tracking-[0.12em] text-slate-200/90">
                   {item.label}
                 </div>
 
-                <div className="mt-2 text-2xl font-semibold text-white">
+                <div className="mt-1 truncate text-lg font-semibold text-white xl:text-xl">
                   {item.value}
                 </div>
 
@@ -199,21 +210,12 @@ const CareerCompositeSection: React.FC<CareerCompositeSectionProps> = ({
               </div>
             ))
           ) : (
-            <div className="col-span-2 flex min-h-[180px] items-center justify-center rounded-[16px] bg-white/[0.035] px-4 py-5 text-center text-sm text-[var(--mc-text-muted)]">
+            <div className="col-span-2 flex min-h-0 items-center justify-center rounded-[16px] bg-white/[0.035] px-4 py-5 text-center text-sm text-[var(--mc-text-muted)]">
               尚無高光紀錄
             </div>
           )}
         </div>
 
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onOpenShare}
-            className="rounded-full border border-[var(--mc-border)] bg-amber-300/12 px-3 py-1.5 text-[11px] font-semibold text-[var(--mc-text)] transition hover:border-[var(--mc-accent)] hover:bg-amber-300/20"
-          >
-            分享
-          </button>
-        </div>
       </div>
     </CareerSurface>
   );

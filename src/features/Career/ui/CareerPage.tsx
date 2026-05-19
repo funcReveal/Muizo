@@ -87,7 +87,7 @@ const CareerPage: React.FC = () => {
   }, []);
 
   return (
-    <main className="flex w-full min-w-0 flex-1 flex-col px-1 pb-8 sm:px-0">
+    <main className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col px-1 pb-8 sm:px-0 xl:overflow-hidden">
       {isInitialLoading ? (
         <CareerPageSkeleton />
       ) : (
@@ -116,7 +116,7 @@ const CareerPage: React.FC = () => {
           </div>
 
           <section
-            className="mt-3 flex min-w-0 flex-1 flex-col"
+            className="mt-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
             aria-live="polite"
           >
             {activeTab === "overview" && (
@@ -125,8 +125,8 @@ const CareerPage: React.FC = () => {
                 compositeScopes={overviewQuery.data.compositeScopes}
                 highlights={overviewQuery.data.highlights}
                 collectionShortcuts={overviewQuery.data.collectionShortcuts}
+                scopeContent={overviewQuery.data.scopeContent}
                 onOpenCollectionRanks={() => setActiveTab("collectionRanks")}
-                onOpenShare={() => setActiveTab("share")}
               />
             )}
 

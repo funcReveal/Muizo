@@ -55,9 +55,6 @@ export function AppRouter() {
             </Suspense>
           }
         />
-
-        <Route path="/settings" element={<Navigate to="/rooms" replace />} />
-
         <Route
           path="/collections"
           element={

@@ -3,7 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { useMediaQuery } from "@mui/material";
 
 import AppHeader from "./AppHeader";
-import EmbeddedSettingsDialog from "./EmbeddedSettingsDialog";
+import SettingsDrawer from "./SettingsDrawer";
 import IdentityProfileDialog from "./IdentityProfileDialog";
 import { useRoomAwareNavigationGuards } from "./useRoomAwareNavigationGuards";
 import { useAuth } from "@shared/auth/AuthContext";
@@ -45,6 +45,8 @@ const RoomAwareLayoutShell: React.FC = () => {
   );
   const isRoomsHubPage = location.pathname === "/rooms";
   const isRoomsEntryGatePage = isRoomsHubPage && !username;
+  const isCareerPage = location.pathname === "/career";
+  const shouldConstrainCareerPage = isCareerPage && !isMobileViewport;
 
   const roomsOutletClassName = isRoomsEntryGatePage
     ? [
@@ -62,7 +64,9 @@ const RoomAwareLayoutShell: React.FC = () => {
   return (
     <div
       className={`flex bg-[var(--mc-bg)] text-[var(--mc-text)] justify-center items-start ${
-        isRoomsHubPage ? "h-dvh overflow-hidden" : "min-h-screen"
+        isRoomsHubPage || shouldConstrainCareerPage
+          ? "h-dvh overflow-hidden"
+          : "min-h-screen"
       }`}
     >
       <div
@@ -70,7 +74,11 @@ const RoomAwareLayoutShell: React.FC = () => {
           isGameMode ? "max-w-none px-3 pt-3 xl:px-5" : "p-4"
         } flex-col ${isRoomsHubPage ? "space-y-2" : "space-y-4"}${
           currentRoom && isMobileViewport ? " pb-4" : ""
-        } ${isRoomsHubPage ? "h-full min-h-0" : "min-h-screen"}`}
+        } ${
+          isRoomsHubPage || shouldConstrainCareerPage
+            ? "h-full min-h-0"
+            : "min-h-screen"
+        }`}
       >
         <AppHeader
           displayUsername={displayUsername}
@@ -91,13 +99,17 @@ const RoomAwareLayoutShell: React.FC = () => {
           <div className={roomsOutletClassName}>
             <Outlet />
           </div>
+        ) : shouldConstrainCareerPage ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Outlet />
+          </div>
         ) : (
           <Outlet />
         )}
 
         {navigationGuards.dialogs}
 
-        <EmbeddedSettingsDialog
+        <SettingsDrawer
           open={inRoomSettingsOpen}
           onClose={() => setInRoomSettingsOpen(false)}
         />

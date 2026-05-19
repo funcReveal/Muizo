@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 
 import AppHeader from "./AppHeader";
-import EmbeddedSettingsDialog from "./EmbeddedSettingsDialog";
+import SettingsDrawer from "./SettingsDrawer";
 import IdentityProfileDialog from "./IdentityProfileDialog";
 import { useAuth } from "@shared/auth/AuthContext";
 
@@ -23,8 +23,6 @@ const getNavigationPath = (target: NavigationTarget) => {
       return "/collections";
     case "career":
       return "/career";
-    case "settings":
-      return "/settings";
     default:
       return "/rooms";
   }
@@ -151,7 +149,7 @@ const AppLayoutShell: React.FC = () => {
           </DialogActions>
         </Dialog>
 
-        <EmbeddedSettingsDialog
+        <SettingsDrawer
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
         />
